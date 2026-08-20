@@ -100,7 +100,7 @@ def battery_advice(curve: Sequence[tuple[float, Decimal]]) -> BatteryAdvice:
     )
 
     return BatteryAdvice(
-        recommended_capacity_kwh=capacity,
+        sized_capacity_kwh=capacity,
         annual_saving_eur=saving,
         payback_years_p10=payback(BATTERY_COST_PER_KWH.low),
         payback_years_p50=payback(BATTERY_COST_PER_KWH.mid),

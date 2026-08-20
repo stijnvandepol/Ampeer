@@ -8,6 +8,8 @@ are put together, and that the two battery rules can never both come out.
 
 from __future__ import annotations
 
+import dataclasses
+import inspect
 import json
 import re
 import time
@@ -29,8 +31,9 @@ from ampeer_advice.advise import (
 )
 from ampeer_advice.battery import CAPACITIES, battery_advice
 from ampeer_advice.nl import RULE_TEXTS
+from ampeer_advice.rules import RULES
 from ampeer_advice.tariffs import baseline_tariffs, scenario_2027_tariffs
-from ampeer_advice.types import Advice, Confidence, Route
+from ampeer_advice.types import Advice, AdviceContext, Confidence, Route
 from ampeer_sim.economics.tariffs import annual_cost
 from ampeer_sim.engine.run import simulate
 from ampeer_sim.production.model import production_series
@@ -190,7 +193,9 @@ def test_no_dutch_text_lives_outside_the_text_module() -> None:
     """
     dutch = re.compile(
         r"\b(uw|jij|jouw|wij|niet|stroom|batterij|thuisbatterij|verbruik|opwek"
-        r"|zonnepanelen|zonnestroom|teruglevert|terugleverkosten|vaatwasser)\b",
+        r"|zonnepanelen|zonnestroom|teruglevert|terugleverkosten|vaatwasser"
+        r"|het|een|geen|deze|dat|wordt|worden|zijn|hebben|wettelijk|jaar"
+        r"|kosten|bedrag|prijs|meeste|grote|volgens|omdat|maar|ook|nog)\b",
         re.IGNORECASE,
     )
     package = Path(ADVICE_PACKAGE.__file__ or "").parent
@@ -278,7 +283,7 @@ def test_the_golden_battery_sizing_is_stable(name: str) -> None:
         assert battery is None
         return
     assert battery is not None
-    assert battery.recommended_capacity_kwh == expected["battery_capacity_kwh"]
+    assert battery.sized_capacity_kwh == expected["battery_capacity_kwh"]
     assert float(battery.payback_years_p50) == pytest.approx(
         expected["battery_payback_p50_years"], abs=expected["payback_tolerance_years"]
     )
@@ -505,3 +510,62 @@ def test_the_simulation_result_and_the_advice_compose() -> None:
     # the band is measured rather than a percentage of the middle value.
     assert advice.headline.p10_eur < advice.headline.p50_eur < advice.headline.p90_eur
     assert advice.headline.p50_eur > Decimal("0")
+
+
+def test_no_rule_reads_anything_outside_the_advice_context() -> None:
+    """Spec section 9 point 5: the rule table cannot see a commercial relationship.
+
+    AdviceContext holds no supplier, no installer, no affiliate and no price a
+    partner sets, so a rule structurally cannot judge on one. That was true by
+    construction and enforced by nothing, which means the next field added to
+    the context is the moment it could stop being true quietly. This walks every
+    condition and asserts the names it touches are fields of the context.
+    """
+    allowed = {field.name for field in dataclasses.fields(AdviceContext)}
+    for rule in RULES:
+        touched = set(rule.condition.__code__.co_names)
+        closure = inspect.getclosurevars(rule.condition)
+        touched |= set(closure.nonlocals) | set(closure.globals)
+        assert touched <= allowed, f"{rule.rule_id} reads {sorted(touched - allowed)}"
+
+
+def test_the_rule_table_is_pinned_to_the_advice_version() -> None:
+    """A stored advice must stay explainable.
+
+    advice_version is a hand written string and the only test touching it
+    compared it to itself, which cannot fail. Nothing tied it to the content of
+    the rule table, so a threshold could move, a rule could be added or a route
+    could change while the version stayed put, and an advice recorded last month
+    could no longer be reproduced or defended.
+    """
+    snapshot = {
+        "0.1.0": (
+            ("SHIFT_FLEXIBLE_LOAD", "SHIFT_BEHAVIOUR", 10),
+            ("CHARGE_EV_ON_SURPLUS", "SMART_CONTROL", 20),
+            ("CONSIDER_DYNAMIC_CONTRACT", "SMART_CONTROL", 30),
+            ("CONSIDER_BATTERY", "STORAGE", 40),
+            ("BATTERY_DOES_NOT_PAY_BACK", "STORAGE", 45),
+            ("BATTERY_DEPENDS_ON_PRICE", "STORAGE", 46),
+            ("REVIEW_EXISTING_BATTERY", "STORAGE", 50),
+        )
+    }
+    assert ADVICE_VERSION in snapshot, "the rule table moved, so ADVICE_VERSION must move too"
+    actual = tuple((rule.rule_id, rule.route.name, rule.priority) for rule in RULES)
+    assert actual == snapshot[ADVICE_VERSION]
+
+
+def test_an_advice_refuses_a_result_from_a_different_run() -> None:
+    """Two runs must not be mixed into one answer without anybody noticing."""
+    case = HOUSEHOLDS["rob_fixed_contract"]
+    with pytest.raises(ValueError, match="weather year"):
+        advise(
+            household=_household(case),
+            pv_system=PVSystem(peak_power_wp=case["peak_power_wp"], azimuth_deg=0.0, tilt_deg=35.0),
+            scenario=scenario_2027_tariffs(),
+            grid=GRID,
+            profile_provider=FlatProfiles(),
+            production_provider=FallbackProvider(WEATHER_YEAR),
+            result=dataclasses.replace(_stub_result(), weather_year=WEATHER_YEAR - 1),
+            filled_fields=6,
+            weather_year=WEATHER_YEAR,
+        )

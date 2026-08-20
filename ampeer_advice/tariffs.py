@@ -74,7 +74,7 @@ SUPPLY_PRICE = TariffBand(low=Decimal("0.22"), mid=Decimal("0.26"), high=Decimal
 #: Gross feed-in compensation on a fixed contract, euro per kWh, before feed-in
 #: charges. The low end is the statutory floor: suppliers must pay at least 50
 #: percent of the bare supply price until 2030. The high end is Eneco's
-#: published 0.0766. Source: wettelijk minimum and supplier publications, read
+#: published 0.0766. Source: the statutory minimum and supplier publications, read
 #: 2026-08-20.
 FEED_IN_GROSS_FIXED = TariffBand(low=Decimal("0.050"), mid=Decimal("0.065"), high=Decimal("0.077"))
 
