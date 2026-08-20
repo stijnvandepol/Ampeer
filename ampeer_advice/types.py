@@ -92,7 +92,15 @@ class Rule:
 
 @dataclass(frozen=True)
 class BatteryAdvice:
-    recommended_capacity_kwh: float
+    """What a battery would do, not what the household should do.
+
+    The capacity field is named sized rather than recommended on purpose. It
+    is the knee of the curve and it is filled in even when the verdict is
+    BATTERY_DOES_NOT_PAY_BACK, so a field called recommended would let a
+    refusal render as a product suggestion.
+    """
+
+    sized_capacity_kwh: float
     annual_saving_eur: Decimal
     payback_years_p10: Decimal
     payback_years_p50: Decimal

@@ -266,6 +266,16 @@ def advise(
     it was would inflate the confidence label on exactly the households that
     answered the fewest questions.
     """
+    # Result comes from a separate call and carries the years it was computed
+    # for. Nothing else compares them, so a caller could hand over a band from a
+    # different weather year and get an advice that quietly mixes two runs. The
+    # fields exist precisely so that cannot happen silently.
+    if result.weather_year != weather_year or result.profile_year != grid.year:
+        raise ValueError(
+            f"result describes profile year {result.profile_year} and weather year "
+            f"{result.weather_year}, but this advice is for {grid.year} and {weather_year}"
+        )
+
     fractions = profile_provider.fractions(grid.year, household.profile_category)
     hourly_production, temperature, _ = production_provider.hourly_series(
         household.postcode4, pv_system.azimuth_deg, pv_system.tilt_deg
