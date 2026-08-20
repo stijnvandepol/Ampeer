@@ -47,6 +47,10 @@ VARIATIONS: tuple[Variation, ...] = (
     Variation(name="system_loss_fraction", low=0.80, high=1.20),
     # Nobody knows what suppliers will pay for feed-in in 2027.
     Variation(name="feed_in_price", low=0.60, high=1.40),
+    # Feed-in charges run from 4.46 to 11.50 cent per kWh across suppliers, a
+    # 2.6 times spread and the widest of any input here. Leaving it out made the
+    # band silent about the single most uncertain term in the answer.
+    Variation(name="feed_in_cost_per_kwh", low=0.59, high=1.53),
 )
 
 

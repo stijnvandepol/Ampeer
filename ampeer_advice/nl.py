@@ -48,6 +48,15 @@ RULE_TEXTS: dict[str, str] = {
         "terugverdientijd hieronder en naar de marge daaromheen, en vraag pas daarna "
         "offertes op. Wij verkopen zelf geen batterijen."
     ),
+    "BATTERY_DEPENDS_ON_PRICE": (
+        "Of een thuisbatterij zich bij u terugverdient, hangt af van wat u ervoor "
+        "betaalt. Wij rekenen met een prijs tussen 450 en 900 euro per kWh, en dat is "
+        "het verschil tussen wel en niet binnen twaalf jaar terugverdiend. Vraag "
+        "offertes op en reken de prijs per kWh uit door het totaalbedrag te delen door "
+        "de capaciteit. Blijft u onder het bedrag dat wij hierboven noemen, dan verdient "
+        "de batterij zichzelf op tijd terug. Zit u erboven, dan niet. Doe eerst wat "
+        "hierboven staat, want dat kost niets en verlaagt meteen wat u nodig heeft."
+    ),
     "BATTERY_DOES_NOT_PAY_BACK": (
         "Een thuisbatterij is in uw situatie niet de moeite waard. De batterij verdient "
         "zichzelf pas na meer dan twaalf jaar terug, en dat is langer dan de garantie die "

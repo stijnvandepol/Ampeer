@@ -10,15 +10,35 @@ def test_the_capacities_are_the_five_the_spec_names() -> None:
 
 
 def test_the_knee_is_where_marginal_saving_halves() -> None:
-    # 3 kWh earns 300; every kWh after that earns much less.
+    """Both sides of the comparison are euro per kWh.
+
+    The earlier version of this test asserted 5.0 on a curve whose second step
+    earns 45 euro per kWh against a threshold of 50, and it passed only because
+    find_knee compared a whole step's euro total against a per kWh threshold.
+    The comment claimed 45 was above half of 100. It is not. Test and code
+    agreed on the same arithmetic error, which is the failure mode a test is
+    supposed to prevent.
+    """
     curve = [
-        (3.0, Decimal("300")),
-        (5.0, Decimal("390")),  # 45 per kWh, still above half of 100
-        (7.0, Decimal("420")),  # 15 per kWh, below half
+        (3.0, Decimal("300")),  # reference is 100 per kWh, so the threshold is 50
+        (5.0, Decimal("420")),  # 120 over 2 kWh is 60 per kWh, above 50
+        (7.0, Decimal("450")),  # 30 over 2 kWh is 15 per kWh, below 50
+        (10.0, Decimal("460")),
+        (15.0, Decimal("465")),
+    ]
+    assert find_knee(curve) == 5.0
+
+
+def test_a_step_just_under_half_the_reference_ends_the_search() -> None:
+    """The exact curve the old test used, now asserting the correct answer."""
+    curve = [
+        (3.0, Decimal("300")),  # reference 100 per kWh, threshold 50
+        (5.0, Decimal("390")),  # 90 over 2 kWh is 45 per kWh, below 50
+        (7.0, Decimal("420")),
         (10.0, Decimal("430")),
         (15.0, Decimal("435")),
     ]
-    assert find_knee(curve) == 5.0
+    assert find_knee(curve) == 3.0
 
 
 def test_a_perfectly_linear_curve_recommends_the_largest_capacity() -> None:

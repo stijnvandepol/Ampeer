@@ -21,7 +21,13 @@ import pytest
 
 import ampeer_advice as ADVICE_PACKAGE
 from ampeer_advice import ADVICE_VERSION
-from ampeer_advice.advise import MAX_ACCEPTABLE_PAYBACK_YEARS, advise, recommended_route
+from ampeer_advice.advise import (
+    MAX_ACCEPTABLE_PAYBACK_YEARS,
+    _storage_verdict,
+    advise,
+    recommended_route,
+)
+from ampeer_advice.battery import CAPACITIES, battery_advice
 from ampeer_advice.nl import RULE_TEXTS
 from ampeer_advice.tariffs import baseline_tariffs, scenario_2027_tariffs
 from ampeer_advice.types import Advice, Confidence, Route
@@ -258,28 +264,64 @@ def test_a_battery_recommendation_never_arrives_as_a_single_number(name: str) ->
 def test_a_household_whose_battery_takes_over_twelve_years_is_told_so() -> None:
     """The case the neutrality of this product rests on.
 
-    Marloes charges her car at night, so her evening demand is large enough that
-    the curve keeps rising to the biggest battery on offer. That makes the
-    saving look impressive and the invoice more so: fifteen kWh at the central
-    price does not earn itself back inside the warranty, and the free advice
-    above it does the same job for nothing.
+    Sander heats with a pump, so his winter demand is enormous and falls in the
+    months with no sun to store. The curve flattens at seven kWh and even that
+    does not earn itself back inside the warranty at the central price. He is
+    told not to buy one, which is the sentence that makes the rest of the advice
+    worth believing.
+
+    This used to be Marloes. It moved when find_knee was fixed: it had been
+    comparing a whole step's euro total against a per kWh threshold, which sized
+    her battery at fifteen kWh instead of ten and pushed the payback past the
+    limit for the wrong reason. A negative verdict produced by an arithmetic
+    error is not neutrality, it is luck.
     """
-    advice = _golden_advice("marloes_ev_at_night")
+    advice = _golden_advice("sander_heat_pump")
     ids = [fired.rule_id for fired in advice.fired]
     assert "BATTERY_DOES_NOT_PAY_BACK" in ids
     assert "CONSIDER_BATTERY" not in ids
+    assert "BATTERY_DEPENDS_ON_PRICE" not in ids
     assert advice.battery is not None
     assert advice.battery.payback_years_p50 > MAX_ACCEPTABLE_PAYBACK_YEARS
-    assert "CHARGE_EV_ON_SURPLUS" in ids
 
 
-def test_a_household_whose_battery_pays_back_keeps_the_positive_rule() -> None:
+def test_a_payback_inside_the_cost_band_is_reported_as_depending_on_the_price() -> None:
+    """Rob is why the verdict has three states instead of two.
+
+    His central payback is 11.83 years against a limit of twelve, so a midpoint
+    test would tell the most common household in the country to buy a battery.
+    The same band puts the pessimistic end at 15.77. Nothing about the household
+    decides that; the price of the quote does, and that is the one variable he
+    can go and find out. So he is told the price at which it flips instead of a
+    yes he cannot check.
+    """
     advice = _golden_advice("rob_fixed_contract")
     ids = [fired.rule_id for fired in advice.fired]
-    assert "CONSIDER_BATTERY" in ids
+    assert "BATTERY_DEPENDS_ON_PRICE" in ids
+    assert "CONSIDER_BATTERY" not in ids
     assert "BATTERY_DOES_NOT_PAY_BACK" not in ids
     assert advice.battery is not None
     assert advice.battery.payback_years_p50 <= MAX_ACCEPTABLE_PAYBACK_YEARS
+    assert advice.battery.payback_years_p90 > MAX_ACCEPTABLE_PAYBACK_YEARS
+    # The actionable number: below this installed price it pays back in time.
+    assert advice.battery.break_even_cost_per_kwh == Decimal("684.92")
+
+
+def test_an_unambiguous_buy_needs_the_whole_band_inside_the_limit() -> None:
+    """Reachable, and deliberately hard to reach.
+
+    CONSIDER_BATTERY requires the pessimistic end of the cost band to clear
+    twelve years, so the break even price must sit above the 900 euro per kWh
+    top of that band. No golden household manages it, which is itself the
+    finding: at today's installed prices and the 2027 tariffs suppliers have
+    published, an unconditional yes is rare. This test builds the curve directly
+    rather than pretending a household produces it, so the branch stays covered
+    and the threshold stays honest.
+    """
+    generous = [(capacity, Decimal(str(capacity * 200))) for capacity in CAPACITIES]
+    battery = battery_advice(generous)
+    assert battery.payback_years_p90 <= MAX_ACCEPTABLE_PAYBACK_YEARS
+    assert _storage_verdict(battery) == "CONSIDER_BATTERY"
 
 
 def test_a_household_with_nothing_to_gain_gets_no_advice_and_no_curve() -> None:

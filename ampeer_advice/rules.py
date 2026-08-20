@@ -156,6 +156,19 @@ RULES: tuple[Rule, ...] = (
         saving=_no_estimate,
     ),
     Rule(
+        rule_id="BATTERY_DEPENDS_ON_PRICE",
+        route=Route.STORAGE,
+        priority=46,
+        # Also deliberately always false, for the same reason as the rule above.
+        # This is the honest outcome when the payback lands inside the cost band
+        # rather than clearly on one side of it: at 450 euro per kWh it pays
+        # back in time and at 900 it does not, so the answer genuinely depends
+        # on the quote. Collapsing that to a yes or a no would be exactly the
+        # single number without a band that CLAUDE.md forbids.
+        condition=lambda context: False,
+        saving=_no_estimate,
+    ),
+    Rule(
         rule_id="REVIEW_EXISTING_BATTERY",
         route=Route.STORAGE,
         priority=50,

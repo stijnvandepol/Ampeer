@@ -40,6 +40,11 @@ NO_PAYBACK_YEARS = Decimal("999.00")
 #: that, which is exactly why the band is reported next to it.
 PAYBACK_PRECISION = Decimal("0.01")
 
+#: A battery that has not paid for itself within this many years has not paid
+#: for itself, because the warranty runs out around ten. Lives here rather
+#: than in advise.py so the break even price and the verdict cannot drift.
+MAX_ACCEPTABLE_PAYBACK_YEARS = Decimal("12")
+
 
 def find_knee(curve: Sequence[tuple[float, Decimal]]) -> float:
     """Return the largest capacity that still earns its extra kWh.
@@ -56,8 +61,14 @@ def find_knee(curve: Sequence[tuple[float, Decimal]]) -> float:
     reference = first_saving / Decimal(str(first_capacity))
     threshold = reference / 2
     knee = first_capacity
-    for (_, previous_saving), (capacity, saving) in pairwise(points):
-        if saving - previous_saving < threshold:
+    for (previous_capacity, previous_saving), (capacity, saving) in pairwise(points):
+        # Both sides must be euro per kWh. Comparing a whole step's euro total
+        # against a per kWh threshold made every step look worthwhile, because
+        # the steps are two to five kWh wide, and that sized batteries larger
+        # than this docstring promises. It failed in the direction that sells
+        # more storage, which is the direction this product must never fail in.
+        width = Decimal(str(capacity - previous_capacity))
+        if (saving - previous_saving) / width < threshold:
             break
         knee = capacity
     return knee
@@ -82,6 +93,12 @@ def battery_advice(curve: Sequence[tuple[float, Decimal]]) -> BatteryAdvice:
         investment = Decimal(str(capacity)) * cost_per_kwh
         return (investment / saving).quantize(PAYBACK_PRECISION)
 
+    break_even = (
+        (saving * MAX_ACCEPTABLE_PAYBACK_YEARS / Decimal(str(capacity))).quantize(PAYBACK_PRECISION)
+        if saving > Decimal("0")
+        else Decimal("0")
+    )
+
     return BatteryAdvice(
         recommended_capacity_kwh=capacity,
         annual_saving_eur=saving,
@@ -89,4 +106,5 @@ def battery_advice(curve: Sequence[tuple[float, Decimal]]) -> BatteryAdvice:
         payback_years_p50=payback(BATTERY_COST_PER_KWH.mid),
         payback_years_p90=payback(BATTERY_COST_PER_KWH.high),
         curve=points,
+        break_even_cost_per_kwh=break_even,
     )
