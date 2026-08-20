@@ -40,9 +40,7 @@ def annual_cost(
             raise ValueError("a dynamic tariff needs a price series")
         if offtake_series.shape != prices_per_quarter.shape:
             raise ValueError("the price series must have the same length as the flow series")
-        supply_cost = _to_decimal(
-            float((offtake_series * prices_per_quarter).sum()), EUR_PRECISION
-        )
+        supply_cost = _to_decimal(float((offtake_series * prices_per_quarter).sum()), EUR_PRECISION)
         feed_in_revenue = _to_decimal(
             float((feed_in_series * prices_per_quarter).sum()), EUR_PRECISION
         )

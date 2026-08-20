@@ -48,6 +48,19 @@ geen I/O. Reden: dit is het enige onderdeel waar een fout geen foutmelding geeft
 maar een plausibel verkeerd getal, dus het moet zonder database en zonder server
 te testen en te valideren zijn.
 
+## Werkwijze en poorten
+- Werk op `dev` of op een `feat/**`-branch, nooit direct op `main`
+- Naar `main` gaat alleen een pull request waarvan alle vereiste checks groen zijn
+- Elke nieuwe afhankelijkheid gaat via `uv add`, en `uv.lock` wordt meegecommit
+- Elke GitHub Action staat op een commit-SHA, met de versie als comment erachter
+- De jobnamen `quality`, `test`, `dependencies`, `sast` en `secrets` zijn een
+  interface met de rulesets. Hernoem er nooit een zonder
+  `scripts/setup_rulesets.sh` in dezelfde commit mee te wijzigen
+- De dekkingsdrempel mag omhoog en nooit omlaag, en `precision = 2` blijft staan:
+  zonder die instelling rondt pytest-cov af voordat het vergelijkt en kan de
+  poort niet rood worden. Controleer een wijziging op de exitcode, niet op het
+  getoonde percentage
+
 ## Stack
 - Backend: Django 5 + Django REST Framework, Python 3.12
 - Database: PostgreSQL 16 + TimescaleDB (hypertables voor tijdreeksen)

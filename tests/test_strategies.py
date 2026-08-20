@@ -47,9 +47,7 @@ def test_a_battery_that_may_not_grid_charge_produces_no_plans() -> None:
     no_trading = BatterySpec(
         capacity_kwh=10.0, max_charge_kw=4.0, max_discharge_kw=4.0, allow_grid_charging=False
     )
-    charge, discharge = build_plans(
-        Strategy.ARBITRAGE, no_trading, _sawtooth_prices(), GRID
-    )
+    charge, discharge = build_plans(Strategy.ARBITRAGE, no_trading, _sawtooth_prices(), GRID)
     assert charge.sum() == pytest.approx(0.0)
     assert discharge.sum() == pytest.approx(0.0)
 

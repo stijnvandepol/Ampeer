@@ -107,9 +107,7 @@ def ev_grid_topup(ev: EV, grid: YearGrid, solar_charged_kwh: np.ndarray) -> np.n
     daily_need = ev.annual_kwh / grid.days
     charged_per_day = solar_charged_kwh.reshape(grid.days, QUARTERS_PER_DAY).sum(axis=1)
     shortfall = np.clip(daily_need - charged_per_day, 0.0, None)
-    return _allocate_daily(
-        shortfall, grid, NIGHT_WINDOW, ev.charge_power_kw / QUARTERS_PER_HOUR
-    )
+    return _allocate_daily(shortfall, grid, NIGHT_WINDOW, ev.charge_power_kw / QUARTERS_PER_HOUR)
 
 
 def heat_pump_profile(

@@ -77,26 +77,20 @@ def test_without_net_metering_feed_in_earns_the_feed_in_price() -> None:
 
 
 def test_a_dynamic_contract_prices_each_quarter_separately() -> None:
-    tariffs = TariffSet(
-        supply_price=Decimal("0.27"), feed_in_price=Decimal("0.05"), dynamic=True
-    )
+    tariffs = TariffSet(supply_price=Decimal("0.27"), feed_in_price=Decimal("0.05"), dynamic=True)
     prices = np.array([0.10, 0.20, 0.30, 0.40])
     cost = annual_cost(_flows(400.0, 0.0), tariffs, prices_per_quarter=prices)
     assert cost == Decimal("100.000")
 
 
 def test_a_dynamic_contract_requires_prices() -> None:
-    tariffs = TariffSet(
-        supply_price=Decimal("0.27"), feed_in_price=Decimal("0.05"), dynamic=True
-    )
+    tariffs = TariffSet(supply_price=Decimal("0.27"), feed_in_price=Decimal("0.05"), dynamic=True)
     with pytest.raises(ValueError, match="dynamic"):
         annual_cost(_flows(400.0, 0.0), tariffs)
 
 
 def test_a_dynamic_contract_rejects_a_mismatched_price_series() -> None:
-    tariffs = TariffSet(
-        supply_price=Decimal("0.27"), feed_in_price=Decimal("0.05"), dynamic=True
-    )
+    tariffs = TariffSet(supply_price=Decimal("0.27"), feed_in_price=Decimal("0.05"), dynamic=True)
     with pytest.raises(ValueError, match="same length"):
         annual_cost(_flows(400.0, 0.0), tariffs, prices_per_quarter=np.zeros(3))
 

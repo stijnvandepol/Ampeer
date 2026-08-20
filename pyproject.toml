@@ -5,8 +5,19 @@ description = "Ampeer simulation core: synthetic household energy profiles and s
 requires-python = ">=3.12"
 dependencies = ["numpy>=2.0", "requests>=2.32"]
 
-[project.optional-dependencies]
-dev = ["pytest>=8.0", "hypothesis>=6.100", "mypy>=1.10", "ruff>=0.5", "types-requests"]
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "hypothesis>=6.100",
+    "mypy>=1.10",
+    "ruff>=0.5",
+    "types-requests",
+    "bandit[toml]>=1.7",
+    "pip-audit>=2.7",
+    "cyclonedx-bom>=4.4",
+    "pre-commit>=3.7",
+]
 
 [build-system]
 requires = ["setuptools>=69"]
@@ -23,6 +34,39 @@ strict = true
 line-length = 100
 target-version = "py312"
 
+[tool.ruff.lint]
+# Ruff's default rule set applies. FURB157 is the single exception: it rewrites
+# Decimal("800") into Decimal(800), and this project writes every monetary literal
+# as a quoted string on purpose. Decimal("0.05") is exact where Decimal(0.05) is
+# not, so a rule that trains the reader to drop the quotes is a hazard in code
+# that handles money. Drop this ignore once no monetary literal depends on it.
+ignore = ["FURB157"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning:pytest_asyncio.*"]
+
+[tool.coverage.run]
+source = ["ampeer_sim", "tools"]
+# Statement coverage, not branch coverage. The 97 percent floor below is the
+# statement figure measured on 2026-08-20 over these two packages. Turning
+# branch coverage on measures a different, stricter thing (95.81 percent on the
+# same tree), so it may only be enabled together with a floor re-measured under
+# it, and never by lowering the floor.
+
+[tool.coverage.report]
+# precision = 2 is load bearing, not cosmetic. pytest-cov decides its exit code
+# with round(total, precision) < fail_under. At the default precision of 0 a
+# real 96.86 rounds to 97 and the run exits green while printing FAIL in its own
+# log, which makes a required status check that can never go red. Verified by
+# raising the floor and asserting a non-zero exit.
+precision = 2
+# Measured at two decimals, not read off the rounded TOTAL row. Raised from
+# 97 to 98 on 2026-08-20 after covering the ingest CLI took the tree to
+# 98.03. May be raised, never lowered: a floor below the current level makes
+# a regression invisible.
+fail_under = 98
+show_missing = true
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", "build"]

@@ -1,2 +1,17 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Shell scripts must stay LF even in a Windows working tree. A script checked
+# out with CRLF and then run inside a Linux container fails with an error that
+# has nothing to do with its contents.
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Keep the working tree LF on Windows too. Without this, a fresh clone with
+# core.autocrlf=true arrives CRLF and the mixed-line-ending hook rewrites
+# every file on the first commit, so the first hook run always looks broken.
+*.py text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
+*.json text eol=lf

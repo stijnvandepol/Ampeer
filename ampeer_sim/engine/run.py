@@ -122,6 +122,5 @@ def assert_energy_balance(flows: EnergyFlows, tolerance: float = 1e-9) -> None:
     if np.any(np.abs(production_residual) > tolerance):
         worst = int(np.argmax(np.abs(production_residual)))
         raise EnergyBalanceError(
-            f"production does not balance at step {worst}: "
-            f"residual {production_residual[worst]!r}"
+            f"production does not balance at step {worst}: residual {production_residual[worst]!r}"
         )

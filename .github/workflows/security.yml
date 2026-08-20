@@ -1,0 +1,80 @@
+name: security
+
+on:
+  pull_request:
+    branches: [dev, main]
+  schedule:
+    # Monday 06:00 UTC. The CVE database changes daily and the code does not,
+    # so a new advisory against an untouched dependency needs its own trigger.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # WARNING: required status check in the main ruleset. Do not rename.
+  dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+      - run: uv sync --locked --group dev
+      - name: Export the locked set
+        run: uv export --format requirements-txt --no-emit-project --all-groups > requirements-audit.txt
+      - name: Audit the locked set
+        run: uv run pip-audit --requirement requirements-audit.txt --strict
+
+  # WARNING: required status check in the main ruleset. Do not rename.
+  sast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+      - run: uv sync --locked --group dev
+      - run: uv run bandit -c pyproject.toml -r ampeer_sim tools
+
+  # WARNING: required status check in the main ruleset. Do not rename.
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks
+        run: |
+          curl -sSfL -o gitleaks.tar.gz \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          tar -xzf gitleaks.tar.gz gitleaks
+          chmod +x gitleaks
+      - name: Scan the commits this pull request adds
+        if: github.event_name == 'pull_request'
+        run: |
+          ./gitleaks detect --source . --redact --no-banner \
+            --log-opts "origin/${{ github.base_ref }}..HEAD"
+      - name: Scan the full history and report only
+        if: github.event_name != 'pull_request'
+        run: ./gitleaks detect --source . --redact --no-banner || true
+
+  sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+      - run: uv sync --locked --group dev
+      - run: uv export --format requirements-txt --no-emit-project --all-groups > requirements-sbom.txt
+      - run: uv run cyclonedx-py requirements requirements-sbom.txt --output-format JSON --output-file sbom.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom
+          path: sbom.json

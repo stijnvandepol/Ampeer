@@ -1,0 +1,31 @@
+# Fast hooks only. Anything over roughly two seconds belongs in CI: a slow hook
+# gets skipped with --no-verify, and a bypassed gate is worse than no gate
+# because you think it is there. That is why mypy is not in this list.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: check-yaml
+      - id: check-toml
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  # Must match the ruff version in uv.lock. Two formatters on different
+  # versions take turns rewriting the same files, and the loop only shows up
+  # as a pull request that is never quite formatted.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.3
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks

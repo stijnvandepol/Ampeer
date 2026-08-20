@@ -2,17 +2,41 @@ name: ci
 
 on:
   push:
+    branches: [dev, "feat/**"]
   pull_request:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  # WARNING: this job name is a required status check in the main ruleset.
+  # Renaming it makes that check never arrive, and every pull request to main
+  # hangs forever waiting for it. Change scripts/setup_rulesets.sh at the same
+  # time or not at all.
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+      - run: uv sync --locked --group dev
+      - run: uv run ruff check ampeer_sim tests tools
+      - run: uv run ruff format --check ampeer_sim tests tools
+      - run: uv run mypy ampeer_sim
+
+  # WARNING: required status check. See the note on `quality`.
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
-          python-version: "3.12"
-      - run: pip install -e ".[dev]"
-      - run: ruff check ampeer_sim tests tools
-      - run: mypy ampeer_sim
-      - run: pytest -v
+          enable-cache: true
+      - run: uv sync --locked --group dev
+      - run: uv run pytest --cov --cov-report=term-missing

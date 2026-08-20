@@ -36,7 +36,12 @@ Buiten scope, eigen deelproject:
   beschikbaar zijn en gebruikt open-source equivalenten. Die zijn hier ook beter: ze
   draaien overal, ze zijn na te lezen, en ze zijn niet aan een leverancier gebonden
 - `gh` versie 2.89 is lokaal beschikbaar, dus de rulesets kunnen via de API gezet worden
-- De testdekking is op dit moment **97 procent** over `ampeer_sim` en `tools`
+- De testdekking is op dit moment **98,03 procent** over `ampeer_sim` en `tools`.
+  Let op: bij het schrijven van deze spec stond hier 97, afgelezen van de
+  afgeronde TOTAL-regel. De echte waarde was toen 96,86. Dat verschil is geen
+  detail: pytest-cov bepaalt zijn exitcode met `round(total, precision)`, en bij
+  de standaardprecisie van 0 kon de drempel van 97 dus nooit falen. Daarom staat
+  `precision = 2` nu expliciet in de configuratie
 - `main` staat lokaal twaalf commits voor op `origin/main`
 
 ## 3. Vertakkingsmodel
@@ -79,10 +84,16 @@ run afbreekt.
 | Job | Naam in de ruleset | Inhoud |
 |---|---|---|
 | Kwaliteit | `quality` | `ruff check`, `ruff format --check`, `mypy --strict` |
-| Tests | `test` | `pytest` met dekkingsmeting, drempel 97 procent |
+| Tests | `test` | `pytest` met dekkingsmeting, drempel 98 procent bij `precision = 2` |
 
 De dekkingsdrempel staat gelijk aan de gemeten stand en mag alleen omhoog. Een drempel
 onder de huidige stand maakt achteruitgang onzichtbaar.
+
+`precision = 2` hoort daarbij en is niet cosmetisch. Zonder die instelling rondt
+pytest-cov af naar hele procenten voordat het vergelijkt, en dan haalt 96,86 een
+drempel van 97. Een vereiste check die niet rood kan worden, is niet te
+onderscheiden van een check die er niet is. Controleer een drempelwijziging altijd
+op de exitcode en nooit op het getoonde percentage.
 
 ### security.yml
 

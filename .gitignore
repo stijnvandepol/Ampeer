@@ -8,3 +8,8 @@ __pycache__/
 build/
 dist/
 data/
+.coverage
+coverage.xml
+htmlcov/
+sbom.json
+requirements-*.txt
