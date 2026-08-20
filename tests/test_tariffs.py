@@ -117,3 +117,32 @@ def test_compare_returns_the_difference_between_two_tariff_sets() -> None:
     result = compare(_flows(2_000.0, 800.0), baseline=FIXED_2026, scenario=FIXED_2027)
     assert result.difference_eur == result.scenario_eur - result.baseline_eur
     assert result.difference_eur > 0
+
+
+def test_feed_in_charges_scale_with_exported_volume() -> None:
+    """Suppliers price feed-in charges per kWh, not as a flat annual fee.
+
+    That is not only a different number but different behaviour: a per kWh
+    charge falls hardest on the household with the largest array, which is
+    exactly the audience this product is for.
+    """
+    tariffs = TariffSet(
+        supply_price=Decimal("0.26"),
+        feed_in_price=Decimal("0.065"),
+        feed_in_cost_per_kwh=Decimal("0.075"),
+    )
+    small = annual_cost(_flows(0.0, 1_000.0), tariffs)
+    large = annual_cost(_flows(0.0, 2_000.0), tariffs)
+    # Net feed-in is 0.065 - 0.075 = -0.010 per kWh, so exporting costs money
+    # and twice the export costs twice as much.
+    assert small == Decimal("10.000")
+    assert large == Decimal("20.000")
+
+
+def test_a_household_that_never_exports_pays_no_per_kwh_feed_in_charge() -> None:
+    tariffs = TariffSet(
+        supply_price=Decimal("0.26"),
+        feed_in_price=Decimal("0.065"),
+        feed_in_cost_per_kwh=Decimal("0.075"),
+    )
+    assert annual_cost(_flows(1_000.0, 0.0), tariffs) == Decimal("260.000")

@@ -152,7 +152,79 @@ Dat is bewust zo gedaan. Zouden wij die aannames een voor een verschuiven en de 
 hun middenwaarde laten staan, dan bereikt de band zijn eigen hoeken nooit en ziet het er
 veel zekerder uit dan het is.
 
-## 10. Wat wij niet weten
+## 10. Waar onze tariefgetallen vandaan komen
+
+Wij werken niet met een lijst van leveranciers. Wij gebruiken landelijke waarden met een
+lage, een middelste en een hoge waarde erbij, allemaal op dezelfde dag opgezocht, en die
+datum staat in de code naast het getal.
+
+Dit zijn ze, opgezocht op 20 augustus 2026:
+
+| Wat | Laag | Midden | Hoog |
+|---|---|---|---|
+| Stroomprijs per kWh, alles inbegrepen | 0,22 | 0,26 | 0,30 |
+| Bruto terugleververgoeding, vast contract | 0,050 | 0,065 | 0,077 |
+| Terugleverkosten per teruggeleverde kWh | 0,0446 | 0,075 | 0,115 |
+| Netto terugleververgoeding, dynamisch contract | 0,05 | 0,06 | 0,07 |
+| Thuisbatterij per kWh capaciteit, geplaatst | 450 | 675 | 900 |
+
+**Waarom geen lijst per leverancier.** Zo'n lijst moet met de hand worden bijgehouden.
+Gaat hij verouderen, dan geeft hij geen foutmelding maar gewoon een verkeerd getal, en jij
+kunt niet zien dat dat gebeurd is. Een bandbreedte kan niet op die manier stilletjes
+verouderen: hij draagt zijn eigen spreiding met zich mee, hij draagt de datum met zich mee
+en de 81 doorrekeningen variëren eroverheen. Bovendien lopen de leveranciers zo ver uiteen
+dat een landelijk midden met een band je eerlijker informeert dan een precies getal dat
+toevallig van de verkeerde leverancier komt.
+
+Heb je je eigen contract bij de hand, vul dan je eigen bedragen in. Deze getallen zijn wat
+wij gebruiken als je dat niet doet.
+
+## 11. De terugleververgoeding is lager dan vaak gedacht
+
+Je leest vaak dat je na 2027 nog drie tot acht cent per teruggeleverde kWh krijgt. Dat is
+de bruto vergoeding. Daar gaan de terugleverkosten nog vanaf, en die rekenen leveranciers
+per teruggeleverde kWh en niet als een vast bedrag per jaar.
+
+Trek je die er wel vanaf, dan houd je op een vast contract dit over per teruggeleverde
+kWh:
+
+- laag: 0,050 min 0,0446 is plus 0,5 cent
+- midden: 0,065 min 0,075 is min 1,0 cent
+- hoog: 0,077 min 0,115 is min 3,8 cent
+
+In het midden en aan de bovenkant is dat dus negatief: terugleveren kost je geld in plaats
+van dat het iets oplevert. Over alle combinaties heen loopt het van ongeveer min 6,5 cent
+tot plus 3,2 cent.
+
+Dat verandert het hele advies. Een kWh die je zelf gebruikt in plaats van teruglevert is
+je bespaarde stroomprijs plus de vergoeding die je misloopt, en bij een negatieve netto
+vergoeding telt dat tweede stuk op in plaats van af. In het midden is een zelf gebruikte
+kWh daarmee ongeveer 27 cent waard, niet 19. Precies daarom staan verschuiven en zelf
+verbruiken bij ons bovenaan, ook al verdienen wij daar niets aan.
+
+Op een dynamisch contract ligt het anders. Daar wordt met het uurtarief afgerekend en
+zitten er geen aparte terugleverkosten op, dus de netto vergoeding blijft daar 5 tot 7
+cent en dus positief.
+
+## 12. Het batterijadvies heeft een grovere band dan het bedrag bovenaan
+
+Het bedrag bovenaan komt uit 81 doorrekeningen, met elke combinatie van laag, midden en
+hoog voor de vier aannames uit hoofdstuk 9. De capaciteitscurve van de batterij draaien
+wij niet 81 keer maar één keer, op de middenwaarden. Dat is een bewuste keuze om de
+berekening snel te houden.
+
+Gevolg: de marge die je bij de terugverdientijd ziet komt alleen uit de prijs van de
+batterij zelf, die 450 tot 900 euro per kWh loopt. De onzekerheid over je jaarverbruik,
+het systeemverlies en de terugleververgoeding zit er niet in. De echte marge rond die
+terugverdientijd is dus breder dan de marge die je ziet, en niet smaller. Wij zeggen dat
+er liever bij dan dat wij een cijfer achter de komma suggereren dat er niet is.
+
+Wij noemen een batterij niet de moeite waard als hij zichzelf in het midden pas na meer
+dan twaalf jaar terugverdient. Twaalf jaar, omdat er doorgaans tien jaar garantie op zit:
+verdien je hem pas daarna terug, dan gok je erop dat hij langer meegaat dan de garantie
+die je erop krijgt.
+
+## 13. Wat wij niet weten
 
 Voor de volledigheid, op een rij:
 

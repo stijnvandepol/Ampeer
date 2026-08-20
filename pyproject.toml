@@ -38,7 +38,7 @@ required-version = ">=0.12.5"
 build-constraint-dependencies = ["setuptools==84.0.0"]
 
 [tool.setuptools.packages.find]
-include = ["ampeer_sim*", "tools*"]
+include = ["ampeer_sim*", "ampeer_advice*", "tools*"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -61,7 +61,7 @@ testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning:pytest_asyncio.*"]
 
 [tool.coverage.run]
-source = ["ampeer_sim", "tools"]
+source = ["ampeer_sim", "ampeer_advice", "tools"]
 # Statement coverage, not branch coverage. The 97 percent floor below is the
 # statement figure measured on 2026-08-20 over these two packages. Turning
 # branch coverage on measures a different, stricter thing (95.81 percent on the

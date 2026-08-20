@@ -52,6 +52,10 @@ def annual_cost(
         supply_cost = offtake * tariffs.supply_price
         feed_in_revenue = feed_in * tariffs.feed_in_price
 
+    # The per kWh charge applies to every exported kWh regardless of contract
+    # type, so it is subtracted once here rather than in each branch.
+    feed_in_revenue -= feed_in * tariffs.feed_in_cost_per_kwh
+
     # Feed-in charges are levied on households that feed in. A household that
     # never exports is not billed for the privilege.
     feed_in_fixed = tariffs.feed_in_fixed_cost_year if feed_in > 0 else Decimal("0")

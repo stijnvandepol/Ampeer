@@ -5,9 +5,13 @@ from __future__ import annotations
 import ast
 import pathlib
 
+import ampeer_advice
 import ampeer_sim
 
-PACKAGE_ROOT = pathlib.Path(ampeer_sim.__file__).parent
+PACKAGE_ROOTS = (
+    pathlib.Path(ampeer_sim.__file__).parent,
+    pathlib.Path(ampeer_advice.__file__).parent,
+)
 
 
 def _imported_module_names(path: pathlib.Path) -> set[str]:
@@ -21,13 +25,14 @@ def _imported_module_names(path: pathlib.Path) -> set[str]:
     return names
 
 
-def test_package_never_imports_django() -> None:
+def test_packages_never_import_django() -> None:
     offenders = [
-        path.relative_to(PACKAGE_ROOT)
-        for path in PACKAGE_ROOT.rglob("*.py")
+        str(path)
+        for root in PACKAGE_ROOTS
+        for path in root.rglob("*.py")
         if "django" in _imported_module_names(path)
     ]
-    assert offenders == [], f"ampeer_sim must not import django: {offenders}"
+    assert offenders == [], f"pure packages must not import django: {offenders}"
 
 
 def test_engine_version_is_declared() -> None:
