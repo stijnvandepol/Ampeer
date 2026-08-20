@@ -140,6 +140,15 @@ class TariffSet:
 
 @dataclass(frozen=True)
 class EnergyFlows:
+    """Quarter-hour energy flows in kWh.
+
+    ``from_grid`` and ``to_grid`` are the household's own offtake and feed-in.
+    Energy the battery moves for price reasons is kept apart in ``grid_charge``
+    and ``grid_discharge``, so the per-step energy balance stays two plain
+    equations with no correction terms. Anything that bills the meter should use
+    ``total_import`` and ``total_export``.
+    """
+
     consumption: np.ndarray
     production: np.ndarray
     self_consumption: np.ndarray
@@ -147,6 +156,8 @@ class EnergyFlows:
     to_grid: np.ndarray
     battery_charge: np.ndarray
     battery_discharge: np.ndarray
+    grid_charge: np.ndarray | None = None
+    grid_discharge: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         lengths = {
@@ -158,8 +169,26 @@ class EnergyFlows:
             len(self.battery_charge),
             len(self.battery_discharge),
         }
+        if self.grid_charge is not None:
+            lengths.add(len(self.grid_charge))
+        if self.grid_discharge is not None:
+            lengths.add(len(self.grid_discharge))
         if len(lengths) != 1:
             raise ValueError("all flow series must have the same length")
+
+    @property
+    def total_import(self) -> np.ndarray:
+        """Everything the meter counts as offtake."""
+        if self.grid_charge is None:
+            return self.from_grid
+        return self.from_grid + self.grid_charge
+
+    @property
+    def total_export(self) -> np.ndarray:
+        """Everything the meter counts as feed-in."""
+        if self.grid_discharge is None:
+            return self.to_grid
+        return self.to_grid + self.grid_discharge
 
     @property
     def self_consumption_rate(self) -> float:
