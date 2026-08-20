@@ -64,6 +64,20 @@ Correcties op eerdere aannames in het projectplan:
 - Geverifieerde testcall (51.66, 5.61, 3,5 kWp, zuid, 35 graden, verlies 14 procent,
   jaar 2020) gaf 3.766 kWh
 
+Herziene beslissing, gemeten op 2026-08-20 tijdens de bouw: wij rekenen de opwek NIET
+zelf uit de instraling. Een eigen model met `G(i)/1000 x kWp x (1 - verlies)` kwam
+9,8 procent te hoog uit tegenover PVGIS zelf, omdat moduletemperatuur, reflectie en
+spectrale respons ontbreken. De standaard temperatuurcorrectie bracht dat naar 5,3
+procent, nog steeds structureel en altijd dezelfde kant op.
+
+Daarom vraagt de provider `pvcalculation=1` met `peakpower=1` en `loss=0`, en levert
+een opwekreeks in watt per kWp waar de fysica al in verwerkt zit. Wij passen daarna
+alleen lineaire factoren toe: arraygrootte, systeemverlies en degradatie. Dat geeft
+0,00 procent afwijking, geverifieerd tegen een live call, en het houdt de
+gevoeligheidsanalyse op een enkele API-call, want alleen lineaire factoren varieren.
+
+`T2m` komt in dezelfde respons mee, dus KNMI blijft onnodig.
+
 Gevolg: KNMI is niet nodig. De temperatuurreeks voor het warmtepompmodel komt uit
 dezelfde call als de opwek, op dezelfde locatie en dezelfde uren, en is daarmee per
 constructie consistent met de instraling.
@@ -157,9 +171,11 @@ Beslissingen:
 
 - Het rooster volgt het NEDU-profieljaar: kwartierresolutie, doorlopende wintertijd
 - Opwek wordt van uur naar kwartier gebracht door lineair te interpoleren op de
-  instraling `G(i)` en pas daarna naar vermogen te rekenen. Reden: de omzetting van
-  instraling naar vermogen is niet-lineair, dus interpoleren en omrekenen zijn niet
-  verwisselbaar. Interpoleren op de gladde grootheid is de juiste volgorde
+  opwekreeks per kWp. Deze beslissing luidde eerder: interpoleer op de instraling en
+  reken pas daarna naar vermogen, omdat die omzetting niet-lineair is en interpoleren
+  en omrekenen dus niet verwisselbaar zijn. Die redenering klopte, maar de premisse is
+  vervallen: wij doen die omzetting niet meer zelf, PVGIS doet hem. Alles wat wij nog
+  toepassen is lineair, dus de volgorde maakt niet meer uit
 - Profieljaar en PVGIS-weerjaar mogen verschillen. Ze worden uitgelijnd op
   kalenderdatum, niet op weekdag. Opwek is niet weekdagafhankelijk, verbruik wel, en
   het profieljaar bepaalt de weekdagstructuur
@@ -215,19 +231,21 @@ winterverbruik onderschatten, precies in de maanden zonder opwek.
 ### Stap 3: aanwezigheid
 
 Model: verplaatsbaar blok. Een vaste hoeveelheid verplaatsbaar verbruik per dag (was,
-vaatwas, droger, boiler; default 1,75 kWh per dag, in de gevoeligheidsanalyse
-gevarieerd tussen 1,0 en 2,5 kWh) verhuist tussen de avondpiek en het
+vaatwas, droger, boiler; default 1,0 kWh per dag, in de gevoeligheidsanalyse
+gevarieerd tussen 0,5 en 2,0 kWh) verhuist tussen de avondpiek en het
 middaguur, afhankelijk van het antwoord op "is er doordeweeks overdag iemand thuis".
 
 Dit is een verschuiving, geen schaling: het dagtotaal blijft gelijk. De omvang van het
-blok is een expliciete parameter die later gekalibreerd wordt. Het model sluit direct
+blok is gekalibreerd op 2026-08-20 tegen de enige externe kennis die we erover hebben:
+het projectplan zegt dat overdag thuis zijn tien tot vijftien procentpunt zelfconsumptie
+scheelt. Bij 1,75 kWh gaf het model 22 procentpunt, bij 1,0 kWh 13,7. Vandaar 1,0. Het model sluit direct
 aan op adviesregel 1, die de gebruiker vertelt datzelfde blok te verschuiven.
 
 ### Stap 4: opwek en terugkoppeling
 
-Opwek uit PVGIS, geschaald op wattpiek, met systeemverliesfactor (standaard 14 procent,
-instelbaar) en paneeldegradatie op basis van bouwjaar. Daarna pas het `SOLAR`-laadgedrag
-van de EV.
+Opwek uit PVGIS als watt per kWp, geschaald op wattpiek, met systeemverliesfactor
+(standaard 14 procent, instelbaar) en paneeldegradatie op basis van bouwjaar. Alle drie
+lineair. Daarna pas het `SOLAR`-laadgedrag van de EV.
 
 ### IJking zonder gebruikers
 
@@ -308,7 +326,13 @@ invoer waarvan bekend is dat hij onzeker is:
 - terugleververgoeding en terugleverkosten
 - de aanwezigheidsaanname
 
-De simulatie draait over die variaties; p10, midden en p90 vormen de band.
+De variaties worden gecombineerd, niet een voor een toegepast. Een run die drie van de
+vier aannames op hun middenwaarde houdt, bereikt de hoeken van de band nooit, en een band
+die zijn eigen hoeken niet haalt is decoratie. Het raster is volledig factorieel over drie
+niveaus van vier aannames, dus 81 doorrekeningen. Bij ongeveer zes milliseconden per
+doorrekening past dat ruim binnen het tijdbudget.
+
+De simulatie draait over die combinaties; p10, midden en p90 vormen de band.
 
 Label en band zijn twee verschillende dingen en mogen niet door elkaar lopen. Het label
 INDICATIEF, GOED of PRECIES volgt uit welke invoervelden ingevuld zijn en wordt bepaald
