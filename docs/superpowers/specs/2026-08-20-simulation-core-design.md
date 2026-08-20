@@ -99,6 +99,8 @@ ampeer_sim/
   types.py          Household, PVSystem, BatterySpec, TariffSet, Scenario, Result
   timebase.py       het jaarrooster en alle tijdzonelogica
   providers.py      Protocols voor profiel-, productie- en prijsdata
+  simulate.py       compositiewortel: antwoorden in, Result uit
+  validate.py       CLI om het model tegen een echte jaarafrekening te leggen
   profiles/
     nedu.py         fracties inlezen, valideren en schalen naar kWh
     assets.py       ev_profile, heatpump_profile
