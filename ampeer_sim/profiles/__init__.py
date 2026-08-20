@@ -1,0 +1,1 @@
+"""Consumption profile construction."""
