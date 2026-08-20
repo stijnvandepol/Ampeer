@@ -135,6 +135,11 @@ class TariffSet:
 
     supply_price: Decimal
     feed_in_price: Decimal
+    #: Suppliers price feed-in charges per exported kWh, typically 4.46 to 11.50
+    #: cent in the 2027 tariffs published by August 2026. Modelling this as a
+    #: flat annual fee spreads the cost evenly and therefore understates what a
+    #: large array costs its owner.
+    feed_in_cost_per_kwh: Decimal = Decimal("0")
     feed_in_fixed_cost_year: Decimal = Decimal("0")
     standing_charge_year: Decimal = Decimal("0")
     net_metering: bool = False
