@@ -5,7 +5,7 @@
     "daytime_occupancy": false,
     "shiftable_block_kwh": 0.0,
     "peak_power_wp": 1000,
-    "expected_self_consumption_rate": 0.9069,
+    "expected_self_consumption_rate": 0.9381,
     "expected_consumption_kwh": 3650.0,
     "tolerance": 0.005
   },
@@ -15,7 +15,7 @@
     "daytime_occupancy": false,
     "shiftable_block_kwh": 1.0,
     "peak_power_wp": 3500,
-    "expected_self_consumption_rate": 0.3203,
+    "expected_self_consumption_rate": 0.332,
     "expected_consumption_kwh": 3500.0,
     "tolerance": 0.005
   },
@@ -26,8 +26,8 @@
     "shiftable_block_kwh": 1.0,
     "peak_power_wp": 5000,
     "heat_pump_demand_kwh": 9000.0,
-    "expected_self_consumption_rate": 0.4731,
-    "expected_consumption_kwh": 6824.0,
+    "expected_self_consumption_rate": 0.5032,
+    "expected_consumption_kwh": 6802.0,
     "tolerance": 0.005
   },
   "marloes_ev_at_night": {
@@ -38,7 +38,7 @@
     "peak_power_wp": 4000,
     "ev_behaviour": "NIGHT",
     "ev_annual_km": 15000,
-    "expected_self_consumption_rate": 0.2473,
+    "expected_self_consumption_rate": 0.2557,
     "expected_consumption_kwh": 5700.0,
     "tolerance": 0.005
   },
@@ -50,7 +50,7 @@
     "peak_power_wp": 4000,
     "ev_behaviour": "SOLAR",
     "ev_annual_km": 15000,
-    "expected_self_consumption_rate": 0.7057,
+    "expected_self_consumption_rate": 0.7572,
     "expected_consumption_kwh": 5700.0,
     "tolerance": 0.005
   },
@@ -60,7 +60,7 @@
     "daytime_occupancy": false,
     "shiftable_block_kwh": 1.0,
     "peak_power_wp": 7000,
-    "expected_self_consumption_rate": 0.1101,
+    "expected_self_consumption_rate": 0.1134,
     "expected_consumption_kwh": 2200.0,
     "tolerance": 0.005
   }

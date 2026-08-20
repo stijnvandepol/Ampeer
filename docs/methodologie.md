@@ -301,7 +301,47 @@ huishouden dat zijn auto overdag op eigen stroom laadt, houdt vaak zo weinig ove
 batterij niets meer te bewaren heeft. Eerder kreeg zo iemand alsnog een batterijadvies,
 voor kilowatturen die het advies erboven net had geleerd zelf te gebruiken.
 
-## 15. Wat wij niet weten
+## 15. Wij houden ons model tegen echte Nederlandse meetgegevens
+
+Er is één gemeten Nederlandse reeks die wij kunnen gebruiken zonder dat er ook maar
+iemand zijn meter gekoppeld heeft: het NEDU-profiel van aansluitingen die daadwerkelijk
+terugleveren. Dat is het landelijk gemiddelde van wanneer er stroom het net op gaat.
+
+Wij leggen ons eigen gemodelleerde terugleverprofiel daarnaast. Niet om te kijken of de
+hoeveelheden kloppen, want dat gemiddelde gaat over het hele land en ons model over één
+huis, maar om te kijken of de vórm klopt: in welke maanden en op welke uren de stroom
+weggaat.
+
+**Wat dat oplevert.** Per maand zitten wij er hooguit een paar procentpunt naast en de
+piek zit bij ons en bij de meting allebei in de hoogzomer. Over het dagverloop is er wel
+een duidelijk verschil:
+
+| uur | landelijk gemeten | ons model |
+|---|---|---|
+| 12:00 | 13,6 % | 16,2 % |
+| 16:00 | 8,9 % | 5,2 % |
+| 18:00 | 3,0 % | vrijwel niets |
+
+Ons model levert 's avonds vrijwel niets meer terug, terwijl Nederlandse huishoudens dat
+gemiddeld wel doen. De verklaring is dat het landelijk gemiddelde alle dakoriëntaties
+bevat. Daken op het westen produceren later op de dag door, daken op het oosten juist
+eerder, en samen geven die een bredere dagcurve dan één dak ooit kan hebben.
+
+**Wat dat voor jouw advies betekent.** Als jouw dak op het zuiden ligt, klopt onze
+smallere curve voor jou beter dan het landelijk gemiddelde. Ligt hij op het westen, dan
+schatten wij je overschot in de late middag te laag in en dus ook wat je verdient met je
+auto op eigen stroom laden. Wij vragen naar je dakoriëntatie en rekenen die mee, maar de
+vergelijking hierboven is met een zuidelijk dak gemaakt en dat is waar dit verschil
+vandaan komt.
+
+**Wat het al gerepareerd heeft.** Deze vergelijking heeft een fout in onze eigen
+terugvaloptie gevonden, de tabel die wij gebruiken als de Europese rekentool onbereikbaar
+is. Die was afgeleid uit één weerjaar, en dat jaar legde de zonnigste maand op mei terwijl
+Nederland in juni piekt, en maakte november helderder dan oktober. Allebei waar voor dat
+ene jaar en geen van beide waar voor Nederland. De tabel is nu een gemiddelde over negen
+jaar.
+
+## 16. Wat wij niet weten
 
 Voor de volledigheid, op een rij:
 
