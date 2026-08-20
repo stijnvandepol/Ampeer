@@ -17,11 +17,25 @@ dev = [
     "pip-audit>=2.7",
     "cyclonedx-bom>=4.4",
     "pre-commit>=3.7",
+    "pyyaml>=6.0",
 ]
 
 [build-system]
-requires = ["setuptools>=69"]
+# Pinned, not floored. uv does not lock build backend requirements, so with a
+# range here `uv sync --locked` reaches out to PyPI and executes whatever
+# setuptools is newest that minute, under the very flag whose job is to
+# forbid unlocked resolution. It is also invisible to pip-audit, which is fed
+# the export rather than the build environment.
+requires = ["setuptools==84.0.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.uv]
+# Floor, so a stale uv cannot silently ignore flags this pipeline relies on.
+# CI pins the exact version in the setup-uv step.
+required-version = ">=0.12.5"
+# Same reason as the build-system pin above: this is the only way to make
+# the build environment reproducible, because uv.lock does not cover it.
+build-constraint-dependencies = ["setuptools==84.0.0"]
 
 [tool.setuptools.packages.find]
 include = ["ampeer_sim*", "tools*"]

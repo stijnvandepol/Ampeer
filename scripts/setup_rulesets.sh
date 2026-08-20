@@ -42,17 +42,17 @@ apply_ruleset "protect-main" "$(cat <<'JSON'
       "require_code_owner_review": false,
       "require_last_push_approval": false,
       "required_review_thread_resolution": true,
-      "allowed_merge_methods": ["squash", "merge"]
+      "allowed_merge_methods": ["squash"]
     }},
     {"type": "required_status_checks", "parameters": {
       "strict_required_status_checks_policy": true,
       "do_not_enforce_on_create": false,
       "required_status_checks": [
-        {"context": "quality"},
-        {"context": "test"},
-        {"context": "dependencies"},
-        {"context": "sast"},
-        {"context": "secrets"}
+        {"context": "quality", "integration_id": 15368},
+        {"context": "test", "integration_id": 15368},
+        {"context": "dependencies", "integration_id": 15368},
+        {"context": "sast", "integration_id": 15368},
+        {"context": "secrets", "integration_id": 15368}
       ]
     }}
   ]
@@ -71,11 +71,31 @@ apply_ruleset "protect-dev" "$(cat <<'JSON'
   "conditions": {"ref_name": {"include": ["refs/heads/dev"], "exclude": []}},
   "rules": [
     {"type": "deletion"},
-    {"type": "non_fast_forward"}
+    {"type": "non_fast_forward"},
+    {"type": "required_status_checks", "parameters": {
+      "strict_required_status_checks_policy": false,
+      "do_not_enforce_on_create": false,
+      "required_status_checks": [
+        {"context": "quality", "integration_id": 15368},
+        {"context": "test", "integration_id": 15368}
+      ]
+    }}
   ]
 }
 JSON
 )"
+
+# Dependabot alerts and automated security fixes are off by default on a
+# private repository, so .github/dependabot.yml alone does nothing. These are
+# idempotent PUTs, the same contract as the rulesets above.
+echo "enabling vulnerability alerts and automated security fixes"
+gh api "repos/${REPO}/vulnerability-alerts" -X PUT
+gh api "repos/${REPO}/automated-security-fixes" -X PUT
+
+# GitHub itself rejects tag-pinned actions once this is on, which turns the
+# project's SHA-pinning rule from a convention into a server-side check.
+echo "requiring SHA-pinned actions"
+gh api "repos/${REPO}/actions/permissions/workflow" -X PUT   -f default_workflow_permissions=read   -F can_approve_pull_request_reviews=false
 
 echo
 echo "rulesets now on ${REPO}:"

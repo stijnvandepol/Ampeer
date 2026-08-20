@@ -1,6 +1,10 @@
 name: security
 
 on:
+  push:
+    # Direct commits to dev are allowed, so without this trigger they would
+    # reach the default branch with no security scan at all.
+    branches: [dev]
   pull_request:
     branches: [dev, main]
   schedule:
@@ -16,28 +20,43 @@ concurrency:
   group: security-${{ github.ref }}
   cancel-in-progress: true
 
+# See the note in ci.yml: runs-on is pinned to a GitHub hosted runner in every
+# job, and tests/test_pipeline_contract.py enforces it.
 jobs:
   # WARNING: required status check in the main ruleset. Do not rename.
   dependencies:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
+          version: "0.12.5"
+          python-version-file: ".python-version"
           enable-cache: true
       - run: uv sync --locked --group dev
       - name: Export the locked set
-        run: uv export --format requirements-txt --no-emit-project --all-groups > requirements-audit.txt
+        # --output-file, not a shell redirect: uv colourises when it thinks it
+        # is writing to a terminal, and those escape codes make pip-audit
+        # reject line 1 as an invalid specifier.
+        run: uv export --format requirements-txt --no-emit-project --all-groups --output-file requirements-audit.txt
       - name: Audit the locked set
         run: uv run pip-audit --requirement requirements-audit.txt --strict
 
   # WARNING: required status check in the main ruleset. Do not rename.
   sast:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
+          version: "0.12.5"
+          python-version-file: ".python-version"
           enable-cache: true
       - run: uv sync --locked --group dev
       - run: uv run bandit -c pyproject.toml -r ampeer_sim tools
@@ -45,34 +64,60 @@ jobs:
   # WARNING: required status check in the main ruleset. Do not rename.
   secrets:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # Needs history to scan it, never needs to push. Without
+          # persist-credentials: false the token stays in .git/config while a
+          # third party binary walks every commit this repository ever had.
           fetch-depth: 0
+          persist-credentials: false
       - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: "8.30.1"
+          # From gitleaks_8.30.1_checksums.txt, published upstream beside the
+          # binary. A release tag is mutable; this digest is not. Without this
+          # line the only unhashed executable in the pipeline runs inside the
+          # job that holds the full history of a private repository.
+          GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
         run: |
+          set -euo pipefail
           curl -sSfL -o gitleaks.tar.gz \
-            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c -
           tar -xzf gitleaks.tar.gz gitleaks
           chmod +x gitleaks
       - name: Scan the commits this pull request adds
         if: github.event_name == 'pull_request'
+        env:
+          # Through the environment rather than the template, so the value
+          # never reaches the shell as source text.
+          BASE_REF: ${{ github.base_ref }}
         run: |
+          set -euo pipefail
           ./gitleaks detect --source . --redact --no-banner \
-            --log-opts "origin/${{ github.base_ref }}..HEAD"
+            --log-opts "origin/${BASE_REF}..HEAD"
       - name: Scan the full history and report only
         if: github.event_name != 'pull_request'
+        # Report only on purpose: a finding from last year must not block a
+        # change that cannot fix it. The pull request scan above is blocking.
         run: ./gitleaks detect --source . --redact --no-banner || true
 
   sbom:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
+          version: "0.12.5"
+          python-version-file: ".python-version"
           enable-cache: true
       - run: uv sync --locked --group dev
-      - run: uv export --format requirements-txt --no-emit-project --all-groups > requirements-sbom.txt
+      - run: uv export --format requirements-txt --no-emit-project --all-groups --output-file requirements-sbom.txt
       - run: uv run cyclonedx-py requirements requirements-sbom.txt --output-format JSON --output-file sbom.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

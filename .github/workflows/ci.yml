@@ -13,6 +13,12 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Every job here pins runs-on to a GitHub hosted runner on purpose. A
+# self-hosted runner is registered on this repository, and these workflows
+# trigger on push to feat/** where no ruleset applies. A job that selected
+# self-hosted would therefore run unreviewed code inside the owner's own
+# network. tests/test_pipeline_contract.py fails if any job here says
+# self-hosted, so the rule defends itself rather than relying on this comment.
 jobs:
   # WARNING: this job name is a required status check in the main ruleset.
   # Renaming it makes that check never arrive, and every pull request to main
@@ -20,23 +26,39 @@ jobs:
   # time or not at all.
   quality:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # This job only reads. Leaving the token in .git/config would hand it
+          # to every tool that runs afterwards.
+          persist-credentials: false
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
+          version: "0.12.5"
+          python-version-file: ".python-version"
           enable-cache: true
       - run: uv sync --locked --group dev
       - run: uv run ruff check ampeer_sim tests tools
       - run: uv run ruff format --check ampeer_sim tests tools
-      - run: uv run mypy ampeer_sim
+      - run: uv run mypy ampeer_sim tools
+      # The pre-commit hooks are opt-in per clone and skippable with
+      # --no-verify. Running them here makes that a local convenience rather
+      # than a permanent exit.
+      - run: uv run pre-commit run --all-files --show-diff-on-failure
 
   # WARNING: required status check. See the note on `quality`.
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
+          version: "0.12.5"
+          python-version-file: ".python-version"
           enable-cache: true
       - run: uv sync --locked --group dev
       - run: uv run pytest --cov --cov-report=term-missing
