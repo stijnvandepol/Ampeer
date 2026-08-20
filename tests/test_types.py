@@ -64,7 +64,7 @@ def test_ev_charging_behaviour_members() -> None:
 def test_fake_provider_satisfies_production_protocol() -> None:
     class FakeProduction:
         def hourly_series(
-            self, postcode4: str, azimuth_deg: float, tilt_deg: float, peak_power_wp: int
+            self, postcode4: str, azimuth_deg: float, tilt_deg: float
         ) -> tuple[np.ndarray, np.ndarray, ProductionSource]:
             return np.zeros(8760), np.zeros(8760), ProductionSource.FALLBACK
 

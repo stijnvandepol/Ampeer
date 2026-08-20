@@ -64,6 +64,20 @@ Correcties op eerdere aannames in het projectplan:
 - Geverifieerde testcall (51.66, 5.61, 3,5 kWp, zuid, 35 graden, verlies 14 procent,
   jaar 2020) gaf 3.766 kWh
 
+Herziene beslissing, gemeten op 2026-08-20 tijdens de bouw: wij rekenen de opwek NIET
+zelf uit de instraling. Een eigen model met `G(i)/1000 x kWp x (1 - verlies)` kwam
+9,8 procent te hoog uit tegenover PVGIS zelf, omdat moduletemperatuur, reflectie en
+spectrale respons ontbreken. De standaard temperatuurcorrectie bracht dat naar 5,3
+procent, nog steeds structureel en altijd dezelfde kant op.
+
+Daarom vraagt de provider `pvcalculation=1` met `peakpower=1` en `loss=0`, en levert
+een opwekreeks in watt per kWp waar de fysica al in verwerkt zit. Wij passen daarna
+alleen lineaire factoren toe: arraygrootte, systeemverlies en degradatie. Dat geeft
+0,00 procent afwijking, geverifieerd tegen een live call, en het houdt de
+gevoeligheidsanalyse op een enkele API-call, want alleen lineaire factoren varieren.
+
+`T2m` komt in dezelfde respons mee, dus KNMI blijft onnodig.
+
 Gevolg: KNMI is niet nodig. De temperatuurreeks voor het warmtepompmodel komt uit
 dezelfde call als de opwek, op dezelfde locatie en dezelfde uren, en is daarmee per
 constructie consistent met de instraling.
@@ -157,9 +171,11 @@ Beslissingen:
 
 - Het rooster volgt het NEDU-profieljaar: kwartierresolutie, doorlopende wintertijd
 - Opwek wordt van uur naar kwartier gebracht door lineair te interpoleren op de
-  instraling `G(i)` en pas daarna naar vermogen te rekenen. Reden: de omzetting van
-  instraling naar vermogen is niet-lineair, dus interpoleren en omrekenen zijn niet
-  verwisselbaar. Interpoleren op de gladde grootheid is de juiste volgorde
+  opwekreeks per kWp. Deze beslissing luidde eerder: interpoleer op de instraling en
+  reken pas daarna naar vermogen, omdat die omzetting niet-lineair is en interpoleren
+  en omrekenen dus niet verwisselbaar zijn. Die redenering klopte, maar de premisse is
+  vervallen: wij doen die omzetting niet meer zelf, PVGIS doet hem. Alles wat wij nog
+  toepassen is lineair, dus de volgorde maakt niet meer uit
 - Profieljaar en PVGIS-weerjaar mogen verschillen. Ze worden uitgelijnd op
   kalenderdatum, niet op weekdag. Opwek is niet weekdagafhankelijk, verbruik wel, en
   het profieljaar bepaalt de weekdagstructuur
@@ -225,9 +241,9 @@ aan op adviesregel 1, die de gebruiker vertelt datzelfde blok te verschuiven.
 
 ### Stap 4: opwek en terugkoppeling
 
-Opwek uit PVGIS, geschaald op wattpiek, met systeemverliesfactor (standaard 14 procent,
-instelbaar) en paneeldegradatie op basis van bouwjaar. Daarna pas het `SOLAR`-laadgedrag
-van de EV.
+Opwek uit PVGIS als watt per kWp, geschaald op wattpiek, met systeemverliesfactor
+(standaard 14 procent, instelbaar) en paneeldegradatie op basis van bouwjaar. Alle drie
+lineair. Daarna pas het `SOLAR`-laadgedrag van de EV.
 
 ### IJking zonder gebruikers
 

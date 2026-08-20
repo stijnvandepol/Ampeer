@@ -25,9 +25,14 @@ class ProfileProvider(Protocol):
 @runtime_checkable
 class ProductionProvider(Protocol):
     def hourly_series(
-        self, postcode4: str, azimuth_deg: float, tilt_deg: float, peak_power_wp: int
+        self, postcode4: str, azimuth_deg: float, tilt_deg: float
     ) -> tuple[np.ndarray, np.ndarray, ProductionSource]:
-        """Return (irradiance_w_m2, temperature_c, source) at hourly resolution."""
+        """Return (production_w_per_kwp, temperature_c, source) at hourly resolution.
+
+        Production is expressed per installed kWp and before system losses, so
+        the caller can scale it and vary the loss factor without asking the
+        provider again. That keeps the sensitivity analysis to a single call.
+        """
 
 
 @runtime_checkable
