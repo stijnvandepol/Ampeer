@@ -44,6 +44,7 @@ from ampeer_sim.simulate import DEFAULT_WEATHER_YEAR
 from ampeer_sim.timebase import YearGrid
 from ampeer_sim.types import (
     BatterySpec,
+    EnergyFlows,
     EVChargingBehaviour,
     Household,
     PVSystem,
@@ -176,20 +177,19 @@ def _measure_free_routes(
             production_kwh=production,
         )
 
-    def cost(consumption: np.ndarray, tariffs: TariffSet) -> Decimal:
-        return annual_cost(simulate(consumption, production, battery_spec=battery_spec), tariffs)
+    def run(for_household: Household) -> tuple[EnergyFlows, Decimal]:
+        flows = simulate(compose(for_household), production, battery_spec=battery_spec)
+        return flows, annual_cost(flows, scenario)
 
     savings: dict[str, Decimal] = {}
     current = household
-    consumption = compose(current)
-    running_cost = cost(consumption, scenario)
+    flows, running_cost = run(current)
 
     if "SHIFT_FLEXIBLE_LOAD" in fired_ids:
         # The advice is to run the washing machine at midday, which is exactly
         # what daytime occupancy models: the same block, moved.
         current = dataclasses.replace(current, daytime_occupancy=True)
-        consumption = compose(current)
-        after = cost(consumption, scenario)
+        flows, after = run(current)
         savings["SHIFT_FLEXIBLE_LOAD"] = running_cost - after
         running_cost = after
 
@@ -198,19 +198,20 @@ def _measure_free_routes(
             current,
             ev=dataclasses.replace(current.ev, behaviour=EVChargingBehaviour.SOLAR),
         )
-        consumption = compose(current)
-        after = cost(consumption, scenario)
+        flows, after = run(current)
         savings["CHARGE_EV_ON_SURPLUS"] = running_cost - after
         running_cost = after
 
     if "CONSIDER_DYNAMIC_CONTRACT" in fired_ids:
-        # Same energy, different contract. Measured last so it prices what is
-        # left after the free changes rather than the export the household has
-        # before doing any of them.
-        savings["CONSIDER_DYNAMIC_CONTRACT"] = running_cost - cost(consumption, dynamic_scenario)
+        # Switching contract moves no energy at all, it only changes what the
+        # same kilowatt hours are worth. So the flows are reused rather than
+        # simulated again, which is both the honest expression of what a
+        # contract switch is and two fewer passes through the timestep loop.
+        savings["CONSIDER_DYNAMIC_CONTRACT"] = running_cost - annual_cost(flows, dynamic_scenario)
 
-    residual = simulate(consumption, production, battery_spec=battery_spec)
-    return savings, float(residual.total_export.sum())
+    # The last flows already describe the household with every free route
+    # applied, so the residual needs no further simulation.
+    return savings, float(flows.total_export.sum())
 
 
 def _substitute(
