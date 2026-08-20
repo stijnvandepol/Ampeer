@@ -184,14 +184,16 @@ class EnergyFlows:
         """Everything the meter counts as offtake."""
         if self.grid_charge is None:
             return self.from_grid
-        return self.from_grid + self.grid_charge
+        imported: np.ndarray = self.from_grid + self.grid_charge
+        return imported
 
     @property
     def total_export(self) -> np.ndarray:
         """Everything the meter counts as feed-in."""
         if self.grid_discharge is None:
             return self.to_grid
-        return self.to_grid + self.grid_discharge
+        exported: np.ndarray = self.to_grid + self.grid_discharge
+        return exported
 
     @property
     def self_consumption_rate(self) -> float:

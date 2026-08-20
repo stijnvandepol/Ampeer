@@ -3,7 +3,12 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from ampeer_sim.profiles.assets import ev_profile, ev_solar_profile, heat_pump_profile
+from ampeer_sim.profiles.assets import (
+    ev_grid_topup,
+    ev_profile,
+    ev_solar_profile,
+    heat_pump_profile,
+)
 from ampeer_sim.timebase import YearGrid
 from ampeer_sim.types import EV, EVChargingBehaviour, HeatPump
 
@@ -71,6 +76,26 @@ def test_solar_charging_is_capped_by_the_available_surplus() -> None:
     surplus[GRID.local_hour == 12] = 0.1
     series = ev_solar_profile(ev, GRID, surplus_kwh=surplus)
     assert np.all(series <= surplus + 1e-9)
+
+
+def test_a_solar_ev_tops_up_from_the_grid_when_the_sun_falls_short() -> None:
+    ev = EV(behaviour=EVChargingBehaviour.SOLAR, annual_km=15_000)
+    from_sun = ev_solar_profile(ev, GRID, surplus_kwh=np.zeros(GRID.quarters))
+    topup = ev_grid_topup(ev, GRID, from_sun)
+    assert topup.sum() == pytest.approx(ev.annual_kwh)
+
+
+def test_a_solar_ev_needs_no_top_up_when_the_sun_covers_it() -> None:
+    ev = EV(behaviour=EVChargingBehaviour.SOLAR, annual_km=3_650, kwh_per_100km=20.0)
+    surplus = np.zeros(GRID.quarters)
+    surplus[(GRID.local_hour >= 11) & (GRID.local_hour < 15)] = 1.0
+    from_sun = ev_solar_profile(ev, GRID, surplus_kwh=surplus)
+    assert ev_grid_topup(ev, GRID, from_sun).sum() == pytest.approx(0.0, abs=1e-9)
+
+
+def test_the_top_up_only_applies_to_solar_charging() -> None:
+    ev = EV(behaviour=EVChargingBehaviour.NIGHT)
+    assert ev_grid_topup(ev, GRID, np.zeros(GRID.quarters)).sum() == pytest.approx(0.0)
 
 
 def test_a_non_solar_ev_charges_nothing_from_surplus() -> None:

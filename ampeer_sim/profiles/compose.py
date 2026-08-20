@@ -13,7 +13,12 @@ from __future__ import annotations
 
 import numpy as np
 
-from ampeer_sim.profiles.assets import ev_profile, ev_solar_profile, heat_pump_profile
+from ampeer_sim.profiles.assets import (
+    ev_grid_topup,
+    ev_profile,
+    ev_solar_profile,
+    heat_pump_profile,
+)
 from ampeer_sim.profiles.nedu import scale_to_annual, validate_fractions
 from ampeer_sim.profiles.presence import apply_presence
 from ampeer_sim.timebase import YearGrid
@@ -52,6 +57,7 @@ def compose_consumption(
         if production_kwh is None:
             raise ValueError("solar EV charging needs a production series")
         surplus = np.clip(production_kwh - series, 0.0, None)
-        series = series + ev_solar_profile(household.ev, grid, surplus_kwh=surplus)
+        from_sun = ev_solar_profile(household.ev, grid, surplus_kwh=surplus)
+        series = series + from_sun + ev_grid_topup(household.ev, grid, from_sun)
 
     return series

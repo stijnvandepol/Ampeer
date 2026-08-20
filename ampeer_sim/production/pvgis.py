@@ -92,7 +92,7 @@ class PvgisProvider:
         self, postcode4: str, azimuth_deg: float, tilt_deg: float
     ) -> tuple[np.ndarray, np.ndarray, ProductionSource]:
         latitude, longitude = postcode4_to_latlon(postcode4)
-        params = {
+        params: dict[str, str | float] = {
             "lat": float(latitude),
             "lon": float(longitude),
             "raddatabase": RADIATION_DATABASE,

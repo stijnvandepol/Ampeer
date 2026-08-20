@@ -107,7 +107,8 @@ class YearGrid:
             raise ValueError(f"expected {self.hours} hourly values, got {hourly.shape}")
         hour_midpoints = np.arange(self.hours, dtype=float) * QUARTERS_PER_HOUR + 1.5
         quarter_positions = np.arange(self.quarters, dtype=float)
-        return np.interp(quarter_positions, hour_midpoints, hourly)
+        interpolated: np.ndarray = np.interp(quarter_positions, hour_midpoints, hourly)
+        return interpolated
 
     def align_hourly_year(self, hourly: np.ndarray, weather_year: int) -> np.ndarray:
         """Align an hourly series from another year onto this grid by calendar date.

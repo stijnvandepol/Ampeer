@@ -40,6 +40,30 @@ def _charging_priority(in_window: np.ndarray) -> np.ndarray:
     return np.argsort(distance, kind="stable")
 
 
+def _allocate_daily(
+    daily_need: np.ndarray, grid: YearGrid, window: tuple[int, int], cap: float
+) -> np.ndarray:
+    """Place each day's charging need into its window, spilling outward if needed."""
+    if float(daily_need.max(initial=0.0)) > cap * QUARTERS_PER_DAY:
+        raise ValueError(
+            f"charging {daily_need.max():.1f} kWh a day needs more than charge_power_kw="
+            f"{cap * QUARTERS_PER_HOUR}"
+        )
+    in_window = _window_mask(grid, window).reshape(grid.days, QUARTERS_PER_DAY)
+    series = np.zeros((grid.days, QUARTERS_PER_DAY))
+    for day in range(grid.days):
+        remaining = float(daily_need[day])
+        if remaining <= 0.0:
+            continue
+        for position in _charging_priority(in_window[day]):
+            if remaining <= 0.0:
+                break
+            take = min(cap, remaining)
+            series[day, position] = take
+            remaining -= take
+    return series.reshape(grid.quarters)
+
+
 def ev_profile(ev: EV, grid: YearGrid) -> np.ndarray:
     """Return quarter-hour EV consumption in kWh for NIGHT and ARRIVAL behaviour.
 
@@ -49,27 +73,9 @@ def ev_profile(ev: EV, grid: YearGrid) -> np.ndarray:
     if ev.behaviour is EVChargingBehaviour.SOLAR:
         return np.zeros(grid.quarters)
 
-    cap = ev.charge_power_kw / QUARTERS_PER_HOUR
-    daily_need = ev.annual_kwh / grid.days
-    if daily_need > cap * QUARTERS_PER_DAY:
-        raise ValueError(
-            f"charging {daily_need:.1f} kWh a day needs more than charge_power_kw="
-            f"{ev.charge_power_kw}"
-        )
-
     window = NIGHT_WINDOW if ev.behaviour is EVChargingBehaviour.NIGHT else ARRIVAL_WINDOW
-    in_window = _window_mask(grid, window).reshape(grid.days, QUARTERS_PER_DAY)
-
-    series = np.zeros((grid.days, QUARTERS_PER_DAY))
-    for day in range(grid.days):
-        remaining = daily_need
-        for position in _charging_priority(in_window[day]):
-            if remaining <= 0.0:
-                break
-            take = min(cap, remaining)
-            series[day, position] = take
-            remaining -= take
-    return series.reshape(grid.quarters)
+    daily_need = np.full(grid.days, ev.annual_kwh / grid.days)
+    return _allocate_daily(daily_need, grid, window, ev.charge_power_kw / QUARTERS_PER_HOUR)
 
 
 def ev_solar_profile(ev: EV, grid: YearGrid, surplus_kwh: np.ndarray) -> np.ndarray:
@@ -83,7 +89,27 @@ def ev_solar_profile(ev: EV, grid: YearGrid, surplus_kwh: np.ndarray) -> np.ndar
 
     cumulative_before = np.cumsum(available, axis=1) - available
     headroom = np.clip(daily_need - cumulative_before, 0.0, None)
-    return np.minimum(available, headroom).reshape(grid.quarters)
+    charged: np.ndarray = np.minimum(available, headroom).reshape(grid.quarters)
+    return charged
+
+
+def ev_grid_topup(ev: EV, grid: YearGrid, solar_charged_kwh: np.ndarray) -> np.ndarray:
+    """Charge whatever the sun did not deliver, from the grid, at night.
+
+    Without this the model would let a solar-charging car quietly drive fewer
+    kilometres on a dull week. That understates consumption and flatters the
+    self consumption rate, both in the direction that makes solar charging look
+    better than it is.
+    """
+    if ev.behaviour is not EVChargingBehaviour.SOLAR:
+        return np.zeros(grid.quarters)
+
+    daily_need = ev.annual_kwh / grid.days
+    charged_per_day = solar_charged_kwh.reshape(grid.days, QUARTERS_PER_DAY).sum(axis=1)
+    shortfall = np.clip(daily_need - charged_per_day, 0.0, None)
+    return _allocate_daily(
+        shortfall, grid, NIGHT_WINDOW, ev.charge_power_kw / QUARTERS_PER_HOUR
+    )
 
 
 def heat_pump_profile(

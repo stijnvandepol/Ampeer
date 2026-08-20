@@ -1,0 +1,67 @@
+{
+  "hand_checkable": {
+    "postcode4": "5401",
+    "annual_consumption_kwh": 3650.0,
+    "daytime_occupancy": false,
+    "shiftable_block_kwh": 0.0,
+    "peak_power_wp": 1000,
+    "expected_self_consumption_rate": 0.9069,
+    "expected_consumption_kwh": 3650.0,
+    "tolerance": 0.005
+  },
+  "rob_fixed_contract": {
+    "postcode4": "5401",
+    "annual_consumption_kwh": 3500.0,
+    "daytime_occupancy": false,
+    "shiftable_block_kwh": 1.0,
+    "peak_power_wp": 3500,
+    "expected_self_consumption_rate": 0.3203,
+    "expected_consumption_kwh": 3500.0,
+    "tolerance": 0.005
+  },
+  "sander_heat_pump": {
+    "postcode4": "3512",
+    "annual_consumption_kwh": 4200.0,
+    "daytime_occupancy": true,
+    "shiftable_block_kwh": 1.0,
+    "peak_power_wp": 5000,
+    "heat_pump_demand_kwh": 9000.0,
+    "expected_self_consumption_rate": 0.4731,
+    "expected_consumption_kwh": 6824.0,
+    "tolerance": 0.005
+  },
+  "marloes_ev_at_night": {
+    "postcode4": "1017",
+    "annual_consumption_kwh": 3000.0,
+    "daytime_occupancy": false,
+    "shiftable_block_kwh": 1.0,
+    "peak_power_wp": 4000,
+    "ev_behaviour": "NIGHT",
+    "ev_annual_km": 15000,
+    "expected_self_consumption_rate": 0.2473,
+    "expected_consumption_kwh": 5700.0,
+    "tolerance": 0.005
+  },
+  "marloes_ev_on_solar": {
+    "postcode4": "1017",
+    "annual_consumption_kwh": 3000.0,
+    "daytime_occupancy": false,
+    "shiftable_block_kwh": 1.0,
+    "peak_power_wp": 4000,
+    "ev_behaviour": "SOLAR",
+    "ev_annual_km": 15000,
+    "expected_self_consumption_rate": 0.7057,
+    "expected_consumption_kwh": 5700.0,
+    "tolerance": 0.005
+  },
+  "large_array_small_use": {
+    "postcode4": "9711",
+    "annual_consumption_kwh": 2200.0,
+    "daytime_occupancy": false,
+    "shiftable_block_kwh": 1.0,
+    "peak_power_wp": 7000,
+    "expected_self_consumption_rate": 0.1101,
+    "expected_consumption_kwh": 2200.0,
+    "tolerance": 0.005
+  }
+}
