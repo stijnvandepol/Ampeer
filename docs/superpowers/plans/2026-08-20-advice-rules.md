@@ -919,10 +919,21 @@ uv run pre-commit run --all-files
 
 Coverage must stay at 98 or above. If it drops, add tests. Do not lower the floor.
 
-Note: `ampeer_advice` must be added to `[tool.coverage.run] source` and to the ruff,
-mypy and bandit invocations in `.github/workflows/ci.yml` and `security.yml`. The
-contract test `test_every_top_level_package_is_measured_for_coverage` will fail until
-`pyproject.toml` lists it, which is exactly what that test is for.
+Note: `ampeer_advice` must be added in **two** places in `pyproject.toml`, and to the
+ruff, mypy and bandit invocations in `.github/workflows/ci.yml` and `security.yml`.
+
+1. `[tool.setuptools.packages.find] include` — without this the editable install never
+   maps the package and every `import ampeer_advice` fails at collection, with a
+   `ModuleNotFoundError` that looks like a missing file rather than a packaging
+   setting. Requires `uv sync` afterwards to regenerate the editable finder.
+2. `[tool.coverage.run] source` — without this the contract test
+   `test_every_top_level_package_is_measured_for_coverage` fails, which is exactly
+   what that test is for.
+
+Both were done centrally before the lanes started, in commit `cedfb9e`, precisely so
+four concurrent lanes would not race on the same file. The first was missing from an
+earlier revision of this plan; the foundation agent stopped and reported it rather
+than editing a file outside its ownership row, which is the discipline working.
 
 - [ ] **Step 6: Commit**
 
