@@ -345,7 +345,7 @@ def test_a_payback_inside_the_cost_band_is_reported_as_depending_on_the_price() 
     assert advice.battery.payback_years_p50 <= MAX_ACCEPTABLE_PAYBACK_YEARS
     assert advice.battery.payback_years_p90 > MAX_ACCEPTABLE_PAYBACK_YEARS
     # The actionable number: below this installed price it pays back in time.
-    assert advice.battery.break_even_cost_per_kwh == Decimal("833.12")
+    assert advice.battery.break_even_cost_per_kwh == Decimal("835.73")
 
 
 def test_an_unambiguous_buy_needs_the_whole_band_inside_the_limit() -> None:

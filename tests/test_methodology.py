@@ -101,7 +101,7 @@ def test_the_document_still_names_its_own_limitations() -> None:
     Losing it would be the single most damaging edit anyone could make to this
     file, and the easiest to make by accident while tidying.
     """
-    assert "## 15. Wat wij niet weten" in TEXT
+    assert "## 16. Wat wij niet weten" in TEXT
     for limitation in ("schaduw", "gemiddelde", "aangenomen"):
         assert limitation in TEXT, f"the limitations section no longer mentions {limitation}"
 
