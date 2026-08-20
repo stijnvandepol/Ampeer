@@ -1,0 +1,27 @@
+[project]
+name = "ampeer-sim"
+version = "0.1.0"
+description = "Ampeer simulation core: synthetic household energy profiles and scenario simulation"
+requires-python = ">=3.12"
+dependencies = ["numpy>=2.0", "requests>=2.32"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "hypothesis>=6.100", "mypy>=1.10", "ruff>=0.5", "types-requests"]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["ampeer_sim*", "tools*"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
