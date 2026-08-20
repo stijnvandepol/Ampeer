@@ -231,12 +231,14 @@ winterverbruik onderschatten, precies in de maanden zonder opwek.
 ### Stap 3: aanwezigheid
 
 Model: verplaatsbaar blok. Een vaste hoeveelheid verplaatsbaar verbruik per dag (was,
-vaatwas, droger, boiler; default 1,75 kWh per dag, in de gevoeligheidsanalyse
-gevarieerd tussen 1,0 en 2,5 kWh) verhuist tussen de avondpiek en het
+vaatwas, droger, boiler; default 1,0 kWh per dag, in de gevoeligheidsanalyse
+gevarieerd tussen 0,5 en 2,0 kWh) verhuist tussen de avondpiek en het
 middaguur, afhankelijk van het antwoord op "is er doordeweeks overdag iemand thuis".
 
 Dit is een verschuiving, geen schaling: het dagtotaal blijft gelijk. De omvang van het
-blok is een expliciete parameter die later gekalibreerd wordt. Het model sluit direct
+blok is gekalibreerd op 2026-08-20 tegen de enige externe kennis die we erover hebben:
+het projectplan zegt dat overdag thuis zijn tien tot vijftien procentpunt zelfconsumptie
+scheelt. Bij 1,75 kWh gaf het model 22 procentpunt, bij 1,0 kWh 13,7. Vandaar 1,0. Het model sluit direct
 aan op adviesregel 1, die de gebruiker vertelt datzelfde blok te verschuiven.
 
 ### Stap 4: opwek en terugkoppeling
@@ -324,7 +326,13 @@ invoer waarvan bekend is dat hij onzeker is:
 - terugleververgoeding en terugleverkosten
 - de aanwezigheidsaanname
 
-De simulatie draait over die variaties; p10, midden en p90 vormen de band.
+De variaties worden gecombineerd, niet een voor een toegepast. Een run die drie van de
+vier aannames op hun middenwaarde houdt, bereikt de hoeken van de band nooit, en een band
+die zijn eigen hoeken niet haalt is decoratie. Het raster is volledig factorieel over drie
+niveaus van vier aannames, dus 81 doorrekeningen. Bij ongeveer zes milliseconden per
+doorrekening past dat ruim binnen het tijdbudget.
+
+De simulatie draait over die combinaties; p10, midden en p90 vormen de band.
 
 Label en band zijn twee verschillende dingen en mogen niet door elkaar lopen. Het label
 INDICATIEF, GOED of PRECIES volgt uit welke invoervelden ingevuld zijn en wordt bepaald

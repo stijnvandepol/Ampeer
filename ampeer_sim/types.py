@@ -114,7 +114,10 @@ class Household:
     postcode4: str
     annual_consumption_kwh: float
     daytime_occupancy: bool = False
-    shiftable_block_kwh: float = 1.75
+    #: Calibrated on 2026-08-20 so that daytime occupancy moves self consumption
+    #: by 13.7 percentage points, matching the 10 to 15 the domain document
+    #: reports. At 1.75 kWh the model produced 22 points, which is too much.
+    shiftable_block_kwh: float = 1.0
     profile_category: ProfileCategory = ProfileCategory.E1A
     ev: EV | None = None
     heat_pump: HeatPump | None = None
