@@ -15,11 +15,11 @@
     ],
     "recommended_route": "SHIFT_BEHAVIOUR",
     "battery_capacity_kwh": 5.0,
-    "battery_payback_p50_years": 9.22,
+    "battery_payback_p50_years": 9.72,
     "payback_tolerance_years": 0.25,
     "note": "Seven kWp on 2200 kWh of demand: the archetypal loser of the 2027 change, exporting 89 percent of what it makes. The curve flattens hard above 5 kWh because the whole house only uses about 6 kWh a day, so a larger battery has nothing to discharge into. Payback 9.2 years at the central cost, which is why the positive rule stands.",
-    "battery_break_even_cost_per_kwh": 878.14,
-    "concern": "The closest any golden household comes to an unconditional yes: at 878.14 euro per kWh the break even price nearly clears the 900 top of the cost band. It does not quite, so the verdict stays price dependent. That no household reaches an unconditional CONSIDER_BATTERY is itself a finding worth keeping visible: at today's installed prices and the 2027 tariffs suppliers have published, a battery that is unambiguously worth buying is rare."
+    "battery_break_even_cost_per_kwh": 833.12,
+    "concern": "The only household left with a maybe. Exports 89 percent of what it makes, so it is the archetypal loser of 2027 and the one case where storage is close to worth it: below 833.12 euro per installed kWh it pays back inside twelve years."
   },
   "marloes_ev_at_night": {
     "fired": [
@@ -46,15 +46,15 @@
     "fired": [
       "SHIFT_FLEXIBLE_LOAD",
       "CONSIDER_DYNAMIC_CONTRACT",
-      "BATTERY_DEPENDS_ON_PRICE"
+      "BATTERY_DOES_NOT_PAY_BACK"
     ],
     "recommended_route": "SHIFT_BEHAVIOUR",
     "battery_capacity_kwh": 7.0,
-    "battery_payback_p50_years": 11.83,
+    "battery_payback_p50_years": 12.46,
     "payback_tolerance_years": 0.25,
     "note": "The reference household: 3.5 kWp, 3500 kWh, nobody home during the day. Loses roughly 690 euro a year to the end of net metering, of which the two free routes recover about 280.",
-    "concern": "RESOLVED. The knife edge this note described is why the storage verdict now has three states instead of two. A payback of 11.83 against a limit of 12, inside a cost band that runs from 450 to 900 euro per kWh, is not a yes. Rob is now told the price at which it flips, 684.92 euro per kWh installed, which he can check against a quote. The 15.77 year figure at the top of the band is the reason.",
-    "battery_break_even_cost_per_kwh": 684.92
+    "concern": "Moved to a clear no by the tariff correction. The central net feed-in was derived by pairing two independently chosen midpoints and came out at -0.010 per kWh, a figure no supplier offers; the published net tariffs cluster at +0.0025. Correcting it means exporting is mildly profitable rather than costly, so a battery prevents less loss and Rob's payback goes from 11.83 to 12.46 years. His shock drops from 700 to 665 euro at the same time. The correction makes this product's own story weaker, which is the direction that matters: an error that flatters the premise is the one least likely to be questioned.",
+    "battery_break_even_cost_per_kwh": 649.83
   },
   "sander_heat_pump": {
     "fired": [
@@ -63,10 +63,10 @@
     ],
     "recommended_route": "SMART_CONTROL",
     "battery_capacity_kwh": 7.0,
-    "battery_payback_p50_years": 14.71,
+    "battery_payback_p50_years": 15.5,
     "payback_tolerance_years": 0.25,
     "note": "Somebody home during the day plus a heat pump. Self consumption is already 47 percent so the shifting rule stays silent, correctly: there is little left to move and the presence check blocks it anyway. The heat pump load falls in winter when there is no surplus to store, so the battery saves only 321 euro a year against a 4725 euro invoice and does not pay back.",
-    "battery_break_even_cost_per_kwh": 550.63,
-    "concern": "Unchanged by any of the fixes, and now the household that carries the neutrality proof. A heat pump puts the demand in the months with no sun to store, so seven kWh is where the curve flattens and even that needs 14.71 years at the central price. BATTERY_DOES_NOT_PAY_BACK is reachable and this is where it fires."
+    "battery_break_even_cost_per_kwh": 522.42,
+    "concern": "Still a clear no, and further from the line than before. A heat pump puts the demand in the months with no sun to store, so seven kWh is where the curve flattens and even that needs 15.5 years at the central price."
   }
 }

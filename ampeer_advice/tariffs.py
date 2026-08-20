@@ -34,6 +34,19 @@ from ampeer_sim.types import TariffSet
 #: ``tests/test_advice_tariffs.py`` fails on it.
 SOURCED_ON = date(2026, 8, 20)
 
+#: Bumped whenever any value above changes, for whatever reason. ``SOURCED_ON``
+#: says when the sources were last read; this says when the numbers last moved.
+#: Conflating the two forces a lie: a methodological correction is not a re-read,
+#: and dating it as one would make the freshness of the table unverifiable.
+#:
+#: 1: first table, 2026-08-20.
+#: 2: FEED_IN_COST.mid moved from 0.075 to 0.0625. The arithmetic midpoint of the
+#:    observed charge range, paired with the midpoint of the compensation, gave a
+#:    central net of -0.010 per kWh, which no supplier offers. The published net
+#:    figures cluster at +0.0025, so the middle is now anchored on that. Sources
+#:    unchanged.
+VALUES_REVISION = 2
+
 #: Levels accepted by :func:`scenario_2027_tariffs`, in order.
 LEVELS = ("low", "mid", "high")
 
@@ -65,10 +78,31 @@ SUPPLY_PRICE = TariffBand(low=Decimal("0.22"), mid=Decimal("0.26"), high=Decimal
 #: 2026-08-20.
 FEED_IN_GROSS_FIXED = TariffBand(low=Decimal("0.050"), mid=Decimal("0.065"), high=Decimal("0.077"))
 
+#: The net figure published per supplier, euro per exported kWh, gross
+#: compensation minus the feed-in charge. Directly observed rather than derived:
+#: -0.0743 at Innova and GewoonEnergie, +0.0119 at Eneco, and most large
+#: suppliers at +0.0025. Source: energievergelijk and keuze.nl overviews, read
+#: 2026-08-20. Kept here because it is the quantity a household actually
+#: experiences, and because it anchors the central case below.
+PUBLISHED_NET_FEED_IN_MODE = Decimal("0.0025")
+
 #: Feed-in charges in euro per exported kWh. Per kWh, not per year: the charge
 #: falls hardest on the household with the largest array, which is the audience
-#: this product is for. Source: keuze.nl overview per supplier, read 2026-08-20.
-FEED_IN_COST = TariffBand(low=Decimal("0.0446"), mid=Decimal("0.075"), high=Decimal("0.115"))
+#: this product is for. Source: keuze.nl overview per supplier, read 2026-08-20,
+#: observed range 0.0446 to 0.115.
+#:
+#: The middle is 0.0625 rather than the arithmetic midpoint of that range. Taking
+#: the midpoint of the charge independently of the midpoint of the compensation
+#: produced a central net of -0.010 per kWh, a figure no supplier offers, while
+#: the published net figures cluster at +0.0025. The middle is therefore anchored
+#: so the net matches what is actually on offer: 0.065 - 0.0625 = 0.0025. The
+#: observed range still sets the band, so the spread is unaffected and the
+#: sensitivity analysis still reaches -0.076 to +0.047 per kWh.
+#:
+#: This correction moves the headline down. A central case that is more
+#: pessimistic than the market makes the case for this product stronger, which
+#: is exactly the direction an error must not be allowed to sit in.
+FEED_IN_COST = TariffBand(low=Decimal("0.0446"), mid=Decimal("0.0625"), high=Decimal("0.115"))
 
 #: Net feed-in compensation on a dynamic contract, euro per kWh. Net already:
 #: suppliers of dynamic contracts settle at the hourly price and do not levy a
@@ -158,8 +192,10 @@ __all__ = [
     "FEED_IN_GROSS_FIXED",
     "FEED_IN_NET_DYNAMIC",
     "LEVELS",
+    "PUBLISHED_NET_FEED_IN_MODE",
     "SOURCED_ON",
     "SUPPLY_PRICE",
+    "VALUES_REVISION",
     "TariffBand",
     "baseline_tariffs",
     "net_feed_in_fixed",

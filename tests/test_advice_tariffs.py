@@ -78,20 +78,48 @@ def test_a_changed_value_forces_a_changed_source_date() -> None:
     """Spec section 9, point 4: values and their date move together.
 
     A tariff table that goes stale gives no error message, only a confident
-    wrong number. This snapshot is the error message. When a value is genuinely
-    re-read, update the value, the comment beside it, ``SOURCED_ON`` and this
-    snapshot in the same commit.
+    wrong number. This snapshot is the error message.
+
+    Keyed on both the source date and the revision, because they answer
+    different questions. ``SOURCED_ON`` says when the sources were last read.
+    ``VALUES_REVISION`` says when the numbers last moved, which also happens
+    when a value is corrected without re-reading anything. Keying on the date
+    alone forced a methodological correction to be dated as a re-read, which
+    would quietly destroy the one thing this test exists to protect.
+
+    When a value is genuinely re-read: update the value, its comment,
+    ``SOURCED_ON``, ``VALUES_REVISION`` and this snapshot in one commit. When a
+    value is corrected without re-reading: everything except ``SOURCED_ON``.
     """
     snapshot = {
-        date(2026, 8, 20): {
+        (date(2026, 8, 20), 2): {
             "SUPPLY_PRICE": (Decimal("0.22"), Decimal("0.26"), Decimal("0.30")),
             "FEED_IN_GROSS_FIXED": (Decimal("0.050"), Decimal("0.065"), Decimal("0.077")),
-            "FEED_IN_COST": (Decimal("0.0446"), Decimal("0.075"), Decimal("0.115")),
+            "FEED_IN_COST": (Decimal("0.0446"), Decimal("0.0625"), Decimal("0.115")),
             "FEED_IN_NET_DYNAMIC": (Decimal("0.05"), Decimal("0.06"), Decimal("0.07")),
             "BATTERY_COST_PER_KWH": (Decimal("450"), Decimal("675"), Decimal("900")),
         }
     }
-    assert tariffs.SOURCED_ON in snapshot, "values were re-read, so SOURCED_ON must move too"
-    for name, expected in snapshot[tariffs.SOURCED_ON].items():
+    key = (tariffs.SOURCED_ON, tariffs.VALUES_REVISION)
+    assert key in snapshot, "a value moved, so SOURCED_ON or VALUES_REVISION must move too"
+    for name, expected in snapshot[key].items():
         band = getattr(tariffs, name)
         assert (band.low, band.mid, band.high) == expected, name
+
+
+def test_the_central_net_feed_in_matches_what_suppliers_actually_publish() -> None:
+    """The central case must be a figure somebody offers.
+
+    Pairing the midpoint of the gross compensation with the midpoint of the
+    charge, each chosen independently, produced -0.010 per kWh. The published
+    net tariffs cluster at +0.0025, so the derived middle was more pessimistic
+    than the market by more than a cent on every exported kWh. That error made
+    the shock this product reports larger, which is the direction an error is
+    least likely to be questioned and therefore the one to pin down.
+    """
+    assert tariffs.net_feed_in_fixed("mid") == tariffs.PUBLISHED_NET_FEED_IN_MODE
+
+
+def test_the_charge_middle_stays_inside_its_observed_range() -> None:
+    """Anchoring the middle must not push it outside what was measured."""
+    assert tariffs.FEED_IN_COST.low < tariffs.FEED_IN_COST.mid < tariffs.FEED_IN_COST.high

@@ -75,7 +75,7 @@ puntschatting die toevallig van de verkeerde leverancier komt.
 |---|---|---|---|---|
 | Leveringstarief all-in (euro/kWh) | 0,22 | 0,26 | 0,30 | energievergelijk, pure-energie, augustus 2026 |
 | Terugleververgoeding bruto, vast contract (euro/kWh) | 0,050 | 0,065 | 0,077 | wettelijk minimum 50 procent van het kale leveringstarief tot 2030; Eneco publiceert 0,0766 |
-| Terugleverkosten (euro/kWh) | 0,0446 | 0,075 | 0,115 | keuze.nl overzicht per leverancier |
+| Terugleverkosten (euro/kWh) | 0,0446 | 0,0625 | 0,115 | keuze.nl overzicht per leverancier, midden verankerd, zie hieronder |
 | Terugleververgoeding netto, dynamisch contract (euro/kWh) | 0,05 | 0,06 | 0,07 | historisch gemiddelde uurprijs |
 | Batterij geinstalleerd (euro/kWh capaciteit) | 450 | 675 | 900 | HuisAssist, 1KOMMA5, thuisbatterijmagazine, augustus 2026 |
 
@@ -91,9 +91,33 @@ dat het verschil tussen ongeveer 7 euro en 200 euro per jaar. De schok is dus gr
 dan het plan aannam, en het verschil tussen een vast en een dynamisch contract is
 veel groter dan het plan aannam.
 
+### Het midden van de terugleverkosten is verankerd, niet berekend
+
+Herziene beslissing van 2026-08-20. Het midden van de terugleverkosten stond eerst op
+0,075, het rekenkundige midden van het waargenomen bereik. Gepaard met het midden van
+de brutovergoeding gaf dat een centrale netto vergoeding van min 1,0 cent per kWh.
+
+Dat is een waarde die geen enkele leverancier aanbiedt. De gepubliceerde nettocijfers
+lopen van min 7,43 tot plus 1,19 cent en clusteren rond **plus 0,25 cent**. Het midden
+van twee onafhankelijk gekozen middens is geen waarneming.
+
+Het midden van de kosten staat daarom op 0,0625, zodat de netto uitkomst gelijk is aan
+het gepubliceerde cijfer: 0,065 min 0,0625 is 0,0025. Het waargenomen bereik bepaalt
+nog steeds de band, dus de spreiding verandert niet en de gevoeligheidsanalyse haalt
+nog altijd min 7,6 tot plus 4,7 cent.
+
+Gemeten gevolg: de schok van het referentiehuishouden zakt van 700 naar 665 euro, en
+zijn terugverdientijd voor een batterij gaat van 11,83 naar 12,46 jaar, waarmee hij van
+"hangt van de prijs af" naar "niet doen" schuift. **De correctie maakt het verhaal van
+dit product zwakker.** Dat is de richting die telt: een fout die de eigen premisse
+vleit, is de fout die het minst snel iemand opvalt.
+
 Elke waarde hierboven staat in `ampeer_advice/tariffs.py` met de datum en de bron in
-een comment, en met een test die faalt als een waarde verandert zonder dat de datum
-mee verandert.
+een comment, en met een snapshot-test die faalt zodra een waarde verandert. Die test
+is gesleuteld op twee dingen tegelijk: `SOURCED_ON` zegt wanneer de bronnen gelezen
+zijn, en `VALUES_REVISION` wanneer de getallen voor het laatst zijn verschoven. Alleen
+op de datum sleutelen zou een correctie als deze dwingen zich voor te doen als een
+nieuwe raadpleging, en dan is de versheid van de tabel niet meer te controleren.
 
 ## 5. Architectuur
 
