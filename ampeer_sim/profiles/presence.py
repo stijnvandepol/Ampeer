@@ -34,13 +34,25 @@ def apply_presence(
     target = _mask(grid, target_window).reshape(grid.days, QUARTERS_PER_DAY)
 
     shifted = series.copy().reshape(grid.days, QUARTERS_PER_DAY)
-    for day in range(grid.days):
-        source_slots = shifted[day][source[day]]
-        available = float(source_slots.sum())
-        moved = min(block_kwh, available)
-        target_slot_count = int(target[day].sum())
-        if moved <= 0.0 or target_slot_count == 0:
-            continue
-        shifted[day, source[day]] = source_slots * (1.0 - moved / available)
-        shifted[day, target[day]] += moved / target_slot_count
+
+    # Vectorised rather than a loop over days. This runs once per composition,
+    # and a composition happens 243 times for the sensitivity band plus once per
+    # measured free route, so the day loop showed up as half a second on a CI
+    # runner. The arithmetic is unchanged: take a share out of the source window
+    # proportionally, put it into the target window evenly.
+    available = np.where(source, shifted, 0.0).sum(axis=1)
+    target_slots = target.sum(axis=1)
+    moved = np.minimum(block_kwh, available)
+
+    # A day with nothing in the source window, or nowhere to put it, is left
+    # alone. Guarding the divisors keeps that from becoming a nan.
+    movable = (moved > 0.0) & (target_slots > 0)
+    safe_available = np.where(available > 0.0, available, 1.0)
+    safe_slots = np.where(target_slots > 0, target_slots, 1)
+
+    scale = np.where(movable, 1.0 - moved / safe_available, 1.0)[:, None]
+    addition = np.where(movable, moved / safe_slots, 0.0)[:, None]
+
+    shifted = np.where(source, shifted * scale, shifted)
+    shifted = np.where(target, shifted + addition, shifted)
     return shifted.reshape(grid.quarters)
