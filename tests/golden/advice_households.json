@@ -25,16 +25,14 @@
     "fired": [
       "SHIFT_FLEXIBLE_LOAD",
       "CHARGE_EV_ON_SURPLUS",
-      "CONSIDER_DYNAMIC_CONTRACT",
-      "BATTERY_DEPENDS_ON_PRICE"
+      "CONSIDER_DYNAMIC_CONTRACT"
     ],
     "recommended_route": "SHIFT_BEHAVIOUR",
-    "battery_capacity_kwh": 10.0,
-    "battery_payback_p50_years": 11.42,
+    "battery_capacity_kwh": null,
+    "battery_payback_p50_years": null,
     "payback_tolerance_years": 0.25,
-    "note": "The case that proves the product is neutral. Charging at night gives her 13 kWh of evening and night demand, so the capacity curve keeps rising all the way to the largest battery on offer and the annual saving looks impressive at 743 euro. Fifteen kWh at 675 euro per kWh is 10125 euro, which is 13.6 years, past the warranty, so she is told not to buy it. The free advice above it, charging the car on her own surplus, is worth 536 euro a year and costs nothing.",
-    "concern": "Changed by the find_knee fix, and the change is the point. find_knee compared a whole step's euro total against a per kWh threshold, so it never stopped and sized her at fifteen kWh, the largest offered. At that size the payback ran past the warranty and she was told not to buy one. The verdict was right for the wrong reason. At the correct size of ten kWh it depends on the price, below 709.54 euro per kWh it pays back in time. The free advice above it still does most of the job.",
-    "battery_break_even_cost_per_kwh": 709.54
+    "note": "The case that proves the product is neutral. Charging at night gives her 13 kWh of evening and night demand, so the capacity curve keeps rising all the way to the largest battery on offer and the annual saving looks impressive at 743 euro. Fifteen kWh at 675 euro per kWh is 10125 euro, which is 13.6 years, past the warranty, so she is told not to buy it. The free advice above it, charging the car on her own surplus, is worth 536 euro a year and costs nothing. Free routes measured by simulating each intervention on top of the last: shifting the flexible load 145.60 euro, charging the car on surplus 465.57, switching to a dynamic contract 68.69, together 679.85 against a shock of 876.11.",
+    "concern": "No storage advice at all now, and that is the correction rather than a regression. CONSIDER_BATTERY used to read the export Marloes has as she lives today. The spec and the Dutch copy both say storage is judged on what is left after routes 1 and 2. Charging her car on her own surplus absorbs almost all of it, so the residual falls under the 1500 kWh threshold and there is nothing left for a battery to store. She was previously told to buy one for kilowatt hours the line above had just told her how to use."
   },
   "marloes_ev_on_solar": {
     "fired": [],

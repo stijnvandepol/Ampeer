@@ -79,6 +79,10 @@ def build_context(
         mean_evening_night_consumption_kwh=float(flows.consumption[evening_night].sum())
         / grid.days,
         midday_surplus_kwh=float(surplus[midday].sum()),
+        # Nothing has been applied yet on this pass, so the residual equals
+        # today's export. advise.py rebuilds the context with the measured
+        # figure before the storage rules are evaluated.
+        export_after_free_routes_kwh=float(flows.total_export.sum()),
         daytime_occupancy=household.daytime_occupancy,
         has_ev=household.ev is not None,
         ev_charges_on_solar=household.ev is not None
