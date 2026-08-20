@@ -318,16 +318,20 @@ def test_a_household_whose_battery_takes_over_twelve_years_is_told_so() -> None:
 
 
 def test_a_payback_inside_the_cost_band_is_reported_as_depending_on_the_price() -> None:
-    """Rob is why the verdict has three states instead of two.
+    """The one household left with a maybe, and why the verdict has three states.
 
-    His central payback is 11.83 years against a limit of twelve, so a midpoint
-    test would tell the most common household in the country to buy a battery.
-    The same band puts the pessimistic end at 15.77. Nothing about the household
-    decides that; the price of the quote does, and that is the one variable he
-    can go and find out. So he is told the price at which it flips instead of a
-    yes he cannot check.
+    This case exports 89 percent of what it makes, so storage is closer to worth
+    it here than anywhere else in the golden set. Its central payback clears
+    twelve years and its pessimistic end does not, and nothing about the
+    household decides which it turns out to be: the price of the quote does.
+    That is the one variable the reader can go and find out, so they are told
+    the price at which it flips rather than a yes they cannot check.
+
+    This used to be Rob, at 11.83 years against a limit of twelve. Correcting
+    the central net feed-in from a derived -0.010 per kWh to the published
+    +0.0025 pushed him to 12.46 and a clear no.
     """
-    advice = _golden_advice("rob_fixed_contract")
+    advice = _golden_advice("large_array_small_use")
     ids = [fired.rule_id for fired in advice.fired]
     assert "BATTERY_DEPENDS_ON_PRICE" in ids
     assert "CONSIDER_BATTERY" not in ids
@@ -336,7 +340,7 @@ def test_a_payback_inside_the_cost_band_is_reported_as_depending_on_the_price() 
     assert advice.battery.payback_years_p50 <= MAX_ACCEPTABLE_PAYBACK_YEARS
     assert advice.battery.payback_years_p90 > MAX_ACCEPTABLE_PAYBACK_YEARS
     # The actionable number: below this installed price it pays back in time.
-    assert advice.battery.break_even_cost_per_kwh == Decimal("684.92")
+    assert advice.battery.break_even_cost_per_kwh == Decimal("833.12")
 
 
 def test_an_unambiguous_buy_needs_the_whole_band_inside_the_limit() -> None:
