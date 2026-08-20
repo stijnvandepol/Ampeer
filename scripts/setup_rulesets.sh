@@ -62,6 +62,14 @@ JSON
 
 # dev: you work here, so direct commits are allowed. What is forbidden is losing
 # history, because that is the one mistake nothing else can undo.
+#
+# Deliberately no required_status_checks here. Tried on 2026-08-20 and reverted:
+# a status check rule on a branch ruleset applies to direct pushes as well as to
+# pull requests, so `git push origin dev` was rejected with "2 of 2 required
+# status checks are expected". There is no setting that scopes it to pull
+# requests only. Requiring checks on dev therefore means requiring a pull request
+# for every commit, which is the workflow this branch exists to avoid. The gate
+# that matters is on main.
 apply_ruleset "protect-dev" "$(cat <<'JSON'
 {
   "name": "protect-dev",
@@ -71,15 +79,7 @@ apply_ruleset "protect-dev" "$(cat <<'JSON'
   "conditions": {"ref_name": {"include": ["refs/heads/dev"], "exclude": []}},
   "rules": [
     {"type": "deletion"},
-    {"type": "non_fast_forward"},
-    {"type": "required_status_checks", "parameters": {
-      "strict_required_status_checks_policy": false,
-      "do_not_enforce_on_create": false,
-      "required_status_checks": [
-        {"context": "quality", "integration_id": 15368},
-        {"context": "test", "integration_id": 15368}
-      ]
-    }}
+    {"type": "non_fast_forward"}
   ]
 }
 JSON
@@ -92,10 +92,16 @@ echo "enabling vulnerability alerts and automated security fixes"
 gh api "repos/${REPO}/vulnerability-alerts" -X PUT
 gh api "repos/${REPO}/automated-security-fixes" -X PUT
 
-# GitHub itself rejects tag-pinned actions once this is on, which turns the
-# project's SHA-pinning rule from a convention into a server-side check.
-echo "requiring SHA-pinned actions"
+# Caps what GITHUB_TOKEN can do by default, so a compromised step starts from
+# read rather than write. This does NOT enforce SHA pinning; see the next call.
+echo "restricting default workflow token permissions to read"
 gh api "repos/${REPO}/actions/permissions/workflow" -X PUT   -f default_workflow_permissions=read   -F can_approve_pull_request_reviews=false
+
+# GitHub itself then refuses to run any action referenced by tag or branch, so
+# the project's SHA-pinning rule stops depending on a test that happens to check
+# it. tests/test_pipeline_contract.py stays as the local, faster copy.
+echo "requiring SHA-pinned actions server side"
+gh api "repos/${REPO}/actions/permissions" -X PUT   -F enabled=true -f allowed_actions=all -F sha_pinning_required=true
 
 echo
 echo "rulesets now on ${REPO}:"
