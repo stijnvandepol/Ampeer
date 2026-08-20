@@ -22,10 +22,26 @@ apply_ruleset() {
   fi
 }
 
-# Rebase is allowed beside squash. Squash alone was too strict: it collapses
-# every commit message into one, and in this project the reasoning behind a
-# correction lives in those messages. Rebase gives the same linear history and
-# keeps them, so required_linear_history is satisfied either way.
+# No required_linear_history, and merge commits are allowed. This reverses two
+# earlier decisions, and the reason is worth writing down because the earlier
+# ones looked right.
+#
+# Linear history was set first, which forced squash merges, which collapse every
+# commit message into one. In this project the reasoning behind a correction
+# lives in those messages, so rebase was allowed instead: same linear history,
+# messages intact.
+#
+# That worked exactly once. dev is long lived and cannot be force pushed, quite
+# rightly, so after a rebase merge it has to take main back to stay in step, and
+# that back merge puts a merge commit in dev. GitHub then refuses to rebase dev
+# onto main at all, and the only method left is the one that destroys the
+# messages.
+#
+# Linear history on main and a protected long lived integration branch are not
+# compatible without force pushes. Given the choice, the commit messages are
+# worth more than the straight line: a merge commit per promotion keeps every
+# message and marks where each promotion happened, which is more informative for
+# a reader than either alternative.
 # main: nothing lands here except through a green pull request. bypass_actors is
 # empty on purpose, including for the repository owner. A rule with an exception
 # for the only person who works on the project is not a rule.
@@ -39,14 +55,13 @@ apply_ruleset "protect-main" "$(cat <<'JSON'
   "rules": [
     {"type": "deletion"},
     {"type": "non_fast_forward"},
-    {"type": "required_linear_history"},
     {"type": "pull_request", "parameters": {
       "required_approving_review_count": 0,
       "dismiss_stale_reviews_on_push": true,
       "require_code_owner_review": false,
       "require_last_push_approval": false,
       "required_review_thread_resolution": true,
-      "allowed_merge_methods": ["squash", "rebase"]
+      "allowed_merge_methods": ["merge", "squash", "rebase"]
     }},
     {"type": "required_status_checks", "parameters": {
       "strict_required_status_checks_policy": true,
