@@ -39,9 +39,9 @@ jobs:
           python-version-file: ".python-version"
           enable-cache: true
       - run: uv sync --locked --group dev
-      - run: uv run ruff check ampeer_sim tests tools
-      - run: uv run ruff format --check ampeer_sim tests tools
-      - run: uv run mypy ampeer_sim tools
+      - run: uv run ruff check ampeer_sim ampeer_advice tests tools
+      - run: uv run ruff format --check ampeer_sim ampeer_advice tests tools
+      - run: uv run mypy ampeer_sim ampeer_advice tools
       # The pre-commit hooks are opt-in per clone and skippable with
       # --no-verify. Running them here makes that a local convenience rather
       # than a permanent exit.
