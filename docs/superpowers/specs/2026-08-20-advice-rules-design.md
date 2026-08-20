@@ -172,6 +172,38 @@ De drempel van 3,0 kWh avondverbruik bij `CONSIDER_BATTERY` volgt dezelfde logic
 een batterij levert alleen iets op als er vraag is wanneer de zon weg is. Onder die
 waarde staat hij 's avonds vol en 's ochtends nog steeds vol.
 
+### De uitkomst is drieledig, niet binair
+
+Herziene beslissing, genomen op 2026-08-20 naar aanleiding van de audit. De spec had
+twee uitkomsten: koop er een, of doe het niet, beslist op de middelste
+terugverdientijd tegen een grens van twaalf jaar.
+
+Dat gaat niet op binnen een kostenband van 450 tot 900 euro per kWh, een factor twee,
+die dit pakket zelf publiceert. Rob, het meest voorkomende huishouden van Nederland,
+kwam uit op 11,83 jaar en kreeg dus "koop een batterij", terwijl dezelfde band aan de
+pessimistische kant 15,77 jaar geeft. Een enkel getal binnen een band besliste de
+zwaarste zin van het product, en dat is precies wat CLAUDE.md verbiedt.
+
+Er zijn nu drie uitkomsten:
+
+| Uitkomst | Voorwaarde |
+|---|---|
+| `CONSIDER_BATTERY` | p90 binnen twaalf jaar, dus lonend zelfs bij de hoogste prijs |
+| `BATTERY_DEPENDS_ON_PRICE` | p50 binnen twaalf jaar maar p90 niet |
+| `BATTERY_DOES_NOT_PAY_BACK` | p50 buiten twaalf jaar |
+
+De middelste uitkomst geeft de **omslagprijs** mee: de prijs per geinstalleerde kWh
+waarbij de terugverdientijd precies op twaalf jaar uitkomt. Voor Rob is dat 684,92
+euro per kWh. Dat is het enige getal in het hele advies waar de lezer direct iets mee
+kan, want anders dan de terugleververgoeding van 2027 is de prijs van een batterij
+iets wat hij kan opvragen.
+
+Gemeten gevolg dat zichtbaar moet blijven: geen enkel goldenhuishouden haalt een
+onvoorwaardelijke `CONSIDER_BATTERY`. Daarvoor moet de omslagprijs boven de 900 euro
+per kWh liggen en het meest extreme geval komt op 878. Bij de huidige prijzen en de
+gepubliceerde tarieven van 2027 is een batterij die onmiskenbaar de moeite waard is
+dus zeldzaam.
+
 Kosten volgen uit de tabel in hoofdstuk 4, met de bandbreedte. Terugverdientijd is
 investering gedeeld door jaarlijkse besparing, en levert daardoor zelf ook een p10,
 midden en p90.

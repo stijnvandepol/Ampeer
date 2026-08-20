@@ -55,6 +55,32 @@ ROUTES: tuple[Route, ...] = (Route.SHIFT_BEHAVIOUR, Route.SMART_CONTROL, Route.S
 #: number out loud, so the reader can check the reasoning rather than trust it.
 MAX_ACCEPTABLE_PAYBACK_YEARS = Decimal("12")
 
+
+def _storage_verdict(battery: BatteryAdvice) -> str:
+    """Decide the storage outcome from the whole payback band, not its midpoint.
+
+    A battery costs between 450 and 900 euro per kWh installed, a spread of a
+    factor two, and the package publishes that band itself. Flipping a buy or
+    do-not-buy recommendation on the midpoint alone would put a household like
+    Rob, whose central payback is 11.83 years against a limit of 12, on the
+    recommend side while the pessimistic end of the same band says 15.77. That
+    is a single number without a band deciding the most consequential sentence
+    in the product.
+
+    So there are three outcomes rather than two:
+
+    - worth it even at the worst price in the band
+    - not worth it even at the middle of it
+    - and in between, where the honest answer is that it depends on the quote,
+      which is the one variable the reader can actually go and find out
+    """
+    if battery.payback_years_p90 <= MAX_ACCEPTABLE_PAYBACK_YEARS:
+        return "CONSIDER_BATTERY"
+    if battery.payback_years_p50 > MAX_ACCEPTABLE_PAYBACK_YEARS:
+        return "BATTERY_DOES_NOT_PAY_BACK"
+    return "BATTERY_DEPENDS_ON_PRICE"
+
+
 #: Charge and discharge power as a fraction of capacity, used to build the
 #: specs for the capacity curve. Home batteries ship at roughly half a C: a
 #: 5 kWh unit at 2.2 kW, a 13.5 kWh unit at 5 kW. Measured on the golden
@@ -179,8 +205,7 @@ def advise(
     battery: BatteryAdvice | None = None
     if any(item.rule_id == "CONSIDER_BATTERY" for item in fired):
         battery = battery_advice(_capacity_curve(consumption, production, scenario))
-        if battery.payback_years_p50 > MAX_ACCEPTABLE_PAYBACK_YEARS:
-            fired = _substitute(fired, "CONSIDER_BATTERY", "BATTERY_DOES_NOT_PAY_BACK")
+        fired = _substitute(fired, "CONSIDER_BATTERY", _storage_verdict(battery))
 
     return Advice(
         engine_version=result.engine_version,

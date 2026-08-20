@@ -8,26 +8,33 @@
     "note": "One kWp on a 3650 kWh house. It uses 91 percent of its own production and exports 100 kWh a year, so the end of net metering barely touches it and there is nothing to advise. An empty advice is the correct answer here, not a missing one."
   },
   "large_array_small_use": {
-    "fired": ["SHIFT_FLEXIBLE_LOAD", "CONSIDER_DYNAMIC_CONTRACT", "CONSIDER_BATTERY"],
+    "fired": [
+      "SHIFT_FLEXIBLE_LOAD",
+      "CONSIDER_DYNAMIC_CONTRACT",
+      "BATTERY_DEPENDS_ON_PRICE"
+    ],
     "recommended_route": "SHIFT_BEHAVIOUR",
     "battery_capacity_kwh": 5.0,
     "battery_payback_p50_years": 9.22,
     "payback_tolerance_years": 0.25,
-    "note": "Seven kWp on 2200 kWh of demand: the archetypal loser of the 2027 change, exporting 89 percent of what it makes. The curve flattens hard above 5 kWh because the whole house only uses about 6 kWh a day, so a larger battery has nothing to discharge into. Payback 9.2 years at the central cost, which is why the positive rule stands."
+    "note": "Seven kWp on 2200 kWh of demand: the archetypal loser of the 2027 change, exporting 89 percent of what it makes. The curve flattens hard above 5 kWh because the whole house only uses about 6 kWh a day, so a larger battery has nothing to discharge into. Payback 9.2 years at the central cost, which is why the positive rule stands.",
+    "battery_break_even_cost_per_kwh": 878.14,
+    "concern": "The closest any golden household comes to an unconditional yes: at 878.14 euro per kWh the break even price nearly clears the 900 top of the cost band. It does not quite, so the verdict stays price dependent. That no household reaches an unconditional CONSIDER_BATTERY is itself a finding worth keeping visible: at today's installed prices and the 2027 tariffs suppliers have published, a battery that is unambiguously worth buying is rare."
   },
   "marloes_ev_at_night": {
     "fired": [
       "SHIFT_FLEXIBLE_LOAD",
       "CHARGE_EV_ON_SURPLUS",
       "CONSIDER_DYNAMIC_CONTRACT",
-      "BATTERY_DOES_NOT_PAY_BACK"
+      "BATTERY_DEPENDS_ON_PRICE"
     ],
     "recommended_route": "SHIFT_BEHAVIOUR",
-    "battery_capacity_kwh": 15.0,
-    "battery_payback_p50_years": 13.62,
+    "battery_capacity_kwh": 10.0,
+    "battery_payback_p50_years": 11.42,
     "payback_tolerance_years": 0.25,
     "note": "The case that proves the product is neutral. Charging at night gives her 13 kWh of evening and night demand, so the capacity curve keeps rising all the way to the largest battery on offer and the annual saving looks impressive at 743 euro. Fifteen kWh at 675 euro per kWh is 10125 euro, which is 13.6 years, past the warranty, so she is told not to buy it. The free advice above it, charging the car on her own surplus, is worth 536 euro a year and costs nothing.",
-    "concern": "The rule table judged her as she is today. Following the free advice would drop her export from 3245 to 1269 kWh, below the 1500 kWh threshold, so CONSIDER_BATTERY would not have fired at all afterwards. The payback check rescued the outcome here, but the Dutch text for CONSIDER_BATTERY claims the surplus remains after the free steps, and the model has not checked that. Raised for the audit phase."
+    "concern": "Changed by the find_knee fix, and the change is the point. find_knee compared a whole step's euro total against a per kWh threshold, so it never stopped and sized her at fifteen kWh, the largest offered. At that size the payback ran past the warranty and she was told not to buy one. The verdict was right for the wrong reason. At the correct size of ten kWh it depends on the price, below 709.54 euro per kWh it pays back in time. The free advice above it still does most of the job.",
+    "battery_break_even_cost_per_kwh": 709.54
   },
   "marloes_ev_on_solar": {
     "fired": [],
@@ -38,20 +45,30 @@
     "note": "Same household, same car, same kilometres, charged at midday instead. Self consumption 71 percent, export 1269 kWh, and every rule falls silent. The pair with marloes_ev_at_night is the point: the advice disappears once you follow it."
   },
   "rob_fixed_contract": {
-    "fired": ["SHIFT_FLEXIBLE_LOAD", "CONSIDER_DYNAMIC_CONTRACT", "CONSIDER_BATTERY"],
+    "fired": [
+      "SHIFT_FLEXIBLE_LOAD",
+      "CONSIDER_DYNAMIC_CONTRACT",
+      "BATTERY_DEPENDS_ON_PRICE"
+    ],
     "recommended_route": "SHIFT_BEHAVIOUR",
     "battery_capacity_kwh": 7.0,
     "battery_payback_p50_years": 11.83,
     "payback_tolerance_years": 0.25,
     "note": "The reference household: 3.5 kWp, 3500 kWh, nobody home during the day. Loses roughly 690 euro a year to the end of net metering, of which the two free routes recover about 280.",
-    "concern": "This case sits 0.17 years under the twelve year threshold, so the recommendation flips on a very small change in the cost band or the saving estimate. At the high end of the battery cost band the payback is 15.8 years, well past the warranty. The band is reported next to the figure, so nothing is hidden, but the binary rule is on a knife edge for the single most common household in the country."
+    "concern": "RESOLVED. The knife edge this note described is why the storage verdict now has three states instead of two. A payback of 11.83 against a limit of 12, inside a cost band that runs from 450 to 900 euro per kWh, is not a yes. Rob is now told the price at which it flips, 684.92 euro per kWh installed, which he can check against a quote. The 15.77 year figure at the top of the band is the reason.",
+    "battery_break_even_cost_per_kwh": 684.92
   },
   "sander_heat_pump": {
-    "fired": ["CONSIDER_DYNAMIC_CONTRACT", "BATTERY_DOES_NOT_PAY_BACK"],
+    "fired": [
+      "CONSIDER_DYNAMIC_CONTRACT",
+      "BATTERY_DOES_NOT_PAY_BACK"
+    ],
     "recommended_route": "SMART_CONTROL",
     "battery_capacity_kwh": 7.0,
     "battery_payback_p50_years": 14.71,
     "payback_tolerance_years": 0.25,
-    "note": "Somebody home during the day plus a heat pump. Self consumption is already 47 percent so the shifting rule stays silent, correctly: there is little left to move and the presence check blocks it anyway. The heat pump load falls in winter when there is no surplus to store, so the battery saves only 321 euro a year against a 4725 euro invoice and does not pay back."
+    "note": "Somebody home during the day plus a heat pump. Self consumption is already 47 percent so the shifting rule stays silent, correctly: there is little left to move and the presence check blocks it anyway. The heat pump load falls in winter when there is no surplus to store, so the battery saves only 321 euro a year against a 4725 euro invoice and does not pay back.",
+    "battery_break_even_cost_per_kwh": 550.63,
+    "concern": "Unchanged by any of the fixes, and now the household that carries the neutrality proof. A heat pump puts the demand in the months with no sun to store, so seven kWh is where the curve flattens and even that needs 14.71 years at the central price. BATTERY_DOES_NOT_PAY_BACK is reachable and this is where it fires."
   }
 }

@@ -64,6 +64,11 @@ def _apply_variations(
             tariffs = dataclasses.replace(
                 tariffs, feed_in_price=tariffs.feed_in_price * Decimal(repr(factor))
             )
+        elif name == "feed_in_cost_per_kwh":
+            tariffs = dataclasses.replace(
+                tariffs,
+                feed_in_cost_per_kwh=tariffs.feed_in_cost_per_kwh * Decimal(repr(factor)),
+            )
         else:
             raise ValueError(f"unknown variation {name!r}")
     return household, pv_system, tariffs

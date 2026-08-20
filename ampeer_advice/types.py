@@ -85,6 +85,12 @@ class BatteryAdvice:
     payback_years_p90: Decimal
     #: (capacity_kwh, annual_saving_eur) for every capacity that was simulated.
     curve: tuple[tuple[float, Decimal], ...]
+    #: The installed price per kWh at which payback lands exactly on the twelve
+    #: year limit. Quotes below this pay back in time, quotes above it do not.
+    #: This is the one figure in the whole advice the reader can act on directly,
+    #: because unlike the 2027 feed-in tariff, the price of a battery is
+    #: something they can go and ask for.
+    break_even_cost_per_kwh: Decimal
 
 
 @dataclass(frozen=True)
