@@ -22,6 +22,10 @@ apply_ruleset() {
   fi
 }
 
+# Rebase is allowed beside squash. Squash alone was too strict: it collapses
+# every commit message into one, and in this project the reasoning behind a
+# correction lives in those messages. Rebase gives the same linear history and
+# keeps them, so required_linear_history is satisfied either way.
 # main: nothing lands here except through a green pull request. bypass_actors is
 # empty on purpose, including for the repository owner. A rule with an exception
 # for the only person who works on the project is not a rule.
@@ -42,7 +46,7 @@ apply_ruleset "protect-main" "$(cat <<'JSON'
       "require_code_owner_review": false,
       "require_last_push_approval": false,
       "required_review_thread_resolution": true,
-      "allowed_merge_methods": ["squash"]
+      "allowed_merge_methods": ["squash", "rebase"]
     }},
     {"type": "required_status_checks", "parameters": {
       "strict_required_status_checks_policy": true,
