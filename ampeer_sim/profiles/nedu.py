@@ -29,6 +29,11 @@ SUM_TOLERANCE = 1e-6
 #: The base consumption shape always comes from connections without feed-in.
 BASE_SERIES_SUFFIX = "AZI_A"
 
+#: The measured feed-in shape of connections that do export. Not an input to
+#: the model, which would double count the sun, but the only measured Dutch
+#: series available to calibrate a modelled export profile against.
+FEED_IN_SERIES_SUFFIX = "AMI_I"
+
 
 class ProfileValidationError(ValueError):
     """The profile file or series did not match what the format guarantees."""
@@ -77,14 +82,29 @@ class NeduFileProvider:
         self._path = path
 
     def fractions(self, year: int, category: ProfileCategory) -> np.ndarray:
+        return self._series(year, category, BASE_SERIES_SUFFIX)
+
+    def feed_in_fractions(self, year: int, category: ProfileCategory) -> np.ndarray:
+        """The measured feed-in shape of connections that export.
+
+        Deliberately not part of ``ProfileProvider``. This series is never an
+        input to the simulation, because the sun is already in it and feeding it
+        back in would count the same kilowatt hours twice. It exists so a
+        modelled export profile can be held against a measured one.
+        """
+        return self._series(year, category, FEED_IN_SERIES_SUFFIX)
+
+    def _series(self, year: int, category: ProfileCategory, suffix: str) -> np.ndarray:
         with self._path.open(encoding="utf-8-sig", newline="") as handle:
             rows = list(csv.reader(handle, delimiter=";"))
-        column = self._locate_column(rows, year, category)
+        column = self._locate_column(rows, year, category, suffix)
         values = [float(row[column]) for row in rows[HEADER_ROWS:] if row[column].strip()]
         return np.array(values, dtype=float)
 
-    def _locate_column(self, rows: list[list[str]], year: int, category: ProfileCategory) -> int:
-        wanted = f"{category.value}_{BASE_SERIES_SUFFIX}"
+    def _locate_column(
+        self, rows: list[list[str]], year: int, category: ProfileCategory, suffix: str
+    ) -> int:
+        wanted = f"{category.value}_{suffix}"
         for index, name in enumerate(rows[NAME_ROW]):
             if index < FIRST_DATA_COLUMN or not name.endswith(wanted):
                 continue

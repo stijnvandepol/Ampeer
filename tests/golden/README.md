@@ -23,3 +23,23 @@ test.
 Values were produced with the offline fallback yield table, not with PVGIS, so
 the suite runs without a network connection. They are therefore not predictions
 about a real roof in that postcode.
+
+## Revised on 2026-08-21
+
+Every self consumption rate moved up by one to five percentage points, and
+sander_heat_pump's annual consumption dropped by 22 kWh. Neither is a change in
+the engine. The offline yield table was rebuilt from nine weather years instead
+of one, and its temperatures now come from the same PVGIS call as its
+irradiance rather than from a different station.
+
+The direction is what you would expect and is worth checking rather than
+assuming: nine years have a flatter seasonal curve than 2020 alone, so there is
+less extreme midsummer surplus and more shoulder season production, and
+shoulder season production is the kind a household uses itself. marloes_ev_on_solar
+gains the most, from 0.7057 to 0.7572, because charging a car on surplus is
+exactly the behaviour a wider production curve helps.
+
+The old table was found to be wrong by the calibration against the measured
+national feed-in profile: it put the annual peak in May, where the country peaks
+in June, and made November brighter than October. Both were properties of 2020
+rather than of the Netherlands.
