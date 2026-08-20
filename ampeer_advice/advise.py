@@ -23,6 +23,7 @@ never needs the number.
 
 from __future__ import annotations
 
+import dataclasses
 from decimal import Decimal
 
 import numpy as np
@@ -32,6 +33,7 @@ from ampeer_advice.battery import CAPACITIES, battery_advice
 from ampeer_advice.confidence import confidence_for
 from ampeer_advice.facts import build_context
 from ampeer_advice.rules import RULES, evaluate
+from ampeer_advice.tariffs import scenario_2027_tariffs
 from ampeer_advice.types import Advice, BatteryAdvice, FiredRule, Route
 from ampeer_sim.economics.tariffs import annual_cost
 from ampeer_sim.engine.run import simulate
@@ -40,7 +42,14 @@ from ampeer_sim.profiles.compose import compose_consumption
 from ampeer_sim.providers import ProductionProvider, ProfileProvider
 from ampeer_sim.simulate import DEFAULT_WEATHER_YEAR
 from ampeer_sim.timebase import YearGrid
-from ampeer_sim.types import BatterySpec, Household, PVSystem, Result, TariffSet
+from ampeer_sim.types import (
+    BatterySpec,
+    EVChargingBehaviour,
+    Household,
+    PVSystem,
+    Result,
+    TariffSet,
+)
 
 #: The routes, always in this order, whether or not a rule fired in each of
 #: them. The frontend renders three sections and the free ones come first even
@@ -125,6 +134,85 @@ def _capacity_curve(
     return tuple(curve)
 
 
+#: The free routes, in the order the household should do them. Each one is
+#: measured by simulating the household with that change applied on top of the
+#: previous one, so the figures are additive by construction rather than three
+#: independent estimates of the same kilowatt hours.
+FREE_ROUTE_ORDER = ("SHIFT_FLEXIBLE_LOAD", "CHARGE_EV_ON_SURPLUS", "CONSIDER_DYNAMIC_CONTRACT")
+
+
+def _measure_free_routes(
+    household: Household,
+    grid: YearGrid,
+    fractions: np.ndarray,
+    temperature: np.ndarray,
+    production: np.ndarray,
+    scenario: TariffSet,
+    dynamic_scenario: TariffSet,
+    fired_ids: frozenset[str],
+    battery_spec: BatterySpec | None,
+    weather_year: int,
+) -> tuple[dict[str, Decimal], float]:
+    """Apply each free route on top of the last and measure what it is worth.
+
+    This replaces three analytic estimators that priced the same surplus
+    independently. Two of them drew from the same midday kilowatt hours and the
+    third valued the entire annual export, so the numbers could not be read
+    together, and the first valued a shifted kWh at 0.27 euro where this
+    measurement puts it near 0.16.
+
+    Returns the measured saving per rule and the export that is left once every
+    free route has been applied. That residual is what the storage rules judge,
+    which is what the spec and the Dutch copy have always claimed happens.
+    """
+
+    def compose(for_household: Household) -> np.ndarray:
+        return compose_consumption(
+            for_household,
+            grid,
+            fractions,
+            temperature,
+            weather_year=weather_year,
+            production_kwh=production,
+        )
+
+    def cost(consumption: np.ndarray, tariffs: TariffSet) -> Decimal:
+        return annual_cost(simulate(consumption, production, battery_spec=battery_spec), tariffs)
+
+    savings: dict[str, Decimal] = {}
+    current = household
+    consumption = compose(current)
+    running_cost = cost(consumption, scenario)
+
+    if "SHIFT_FLEXIBLE_LOAD" in fired_ids:
+        # The advice is to run the washing machine at midday, which is exactly
+        # what daytime occupancy models: the same block, moved.
+        current = dataclasses.replace(current, daytime_occupancy=True)
+        consumption = compose(current)
+        after = cost(consumption, scenario)
+        savings["SHIFT_FLEXIBLE_LOAD"] = running_cost - after
+        running_cost = after
+
+    if "CHARGE_EV_ON_SURPLUS" in fired_ids and current.ev is not None:
+        current = dataclasses.replace(
+            current,
+            ev=dataclasses.replace(current.ev, behaviour=EVChargingBehaviour.SOLAR),
+        )
+        consumption = compose(current)
+        after = cost(consumption, scenario)
+        savings["CHARGE_EV_ON_SURPLUS"] = running_cost - after
+        running_cost = after
+
+    if "CONSIDER_DYNAMIC_CONTRACT" in fired_ids:
+        # Same energy, different contract. Measured last so it prices what is
+        # left after the free changes rather than the export the household has
+        # before doing any of them.
+        savings["CONSIDER_DYNAMIC_CONTRACT"] = running_cost - cost(consumption, dynamic_scenario)
+
+    residual = simulate(consumption, production, battery_spec=battery_spec)
+    return savings, float(residual.total_export.sum())
+
+
 def _substitute(
     fired: tuple[FiredRule, ...], rule_id: str, replacement_id: str
 ) -> tuple[FiredRule, ...]:
@@ -161,6 +249,7 @@ def advise(
     has_meter_data: bool = False,
     dynamic_contract: bool = False,
     battery_spec: BatterySpec | None = None,
+    dynamic_scenario: TariffSet | None = None,
     weather_year: int = DEFAULT_WEATHER_YEAR,
 ) -> Advice:
     """Turn a simulated year into an explainable advice.
@@ -200,7 +289,28 @@ def advise(
         dynamic_contract=dynamic_contract,
         battery=battery_spec,
     )
-    fired = evaluate(context)
+    # First pass decides which free routes apply. The storage rules are read on
+    # the second pass, once there is a measured residual for them to judge.
+    free_ids = frozenset(
+        item.rule_id for item in evaluate(context) if item.route is not Route.STORAGE
+    )
+    savings, residual_export = _measure_free_routes(
+        household=household,
+        grid=grid,
+        fractions=fractions,
+        temperature=temperature,
+        production=production,
+        scenario=scenario,
+        dynamic_scenario=dynamic_scenario or scenario_2027_tariffs(dynamic=True),
+        fired_ids=free_ids,
+        battery_spec=battery_spec,
+        weather_year=weather_year,
+    )
+    context = dataclasses.replace(context, export_after_free_routes_kwh=residual_export)
+    fired = tuple(
+        dataclasses.replace(item, estimated_saving_eur=savings.get(item.rule_id))
+        for item in evaluate(context)
+    )
 
     battery: BatteryAdvice | None = None
     if any(item.rule_id == "CONSIDER_BATTERY" for item in fired):

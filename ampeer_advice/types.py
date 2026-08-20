@@ -48,6 +48,12 @@ class AdviceContext:
     mean_evening_night_consumption_kwh: float
     #: Annual production that exceeded consumption between 11:00 and 15:00.
     midday_surplus_kwh: float
+    #: Export left after the free routes have been applied and measured. On the
+    #: first pass this equals annual_export_kwh, because nothing has been applied
+    #: yet; only the storage rules read it, and they run on the second pass. The
+    #: spec and the Dutch copy both promise storage is judged on what is left
+    #: over, so judging it on today's export would make the text untrue.
+    export_after_free_routes_kwh: float
     daytime_occupancy: bool
     has_ev: bool
     ev_charges_on_solar: bool
@@ -69,11 +75,19 @@ class FiredRule:
 
 @dataclass(frozen=True)
 class Rule:
+    """A rule decides whether, never how much.
+
+    Estimating a euro figure from the context meant three rules pricing the same
+    kilowatt hours independently, so their numbers could not be added up, and it
+    meant valuing a shifted kWh at 0.27 euro where the engine measures 0.16. The
+    saving is now measured by simulating the intervention, which is additive by
+    construction and uses the same code path as the answer it belongs to.
+    """
+
     rule_id: str
     route: Route
     priority: int
     condition: Callable[[AdviceContext], bool]
-    saving: Callable[[AdviceContext], Decimal | None]
 
 
 @dataclass(frozen=True)

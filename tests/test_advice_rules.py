@@ -24,6 +24,7 @@ _NEUTRAL: dict[str, Any] = {
     "annual_import_kwh": 2_000.0,
     "mean_evening_night_consumption_kwh": 5.0,
     "midday_surplus_kwh": 800.0,
+    "export_after_free_routes_kwh": 1_000.0,
     "daytime_occupancy": False,
     "has_ev": False,
     "ev_charges_on_solar": False,
@@ -107,12 +108,10 @@ def test_rules_are_in_priority_order() -> None:
 def test_shift_flexible_load_fires_on_low_self_consumption_and_nobody_home() -> None:
     context = _context(self_consumption_rate=0.30, daytime_occupancy=False)
     assert "SHIFT_FLEXIBLE_LOAD" in _fired_ids(context)
-    # 365 days times one shiftable kWh times (0.26 supply minus -0.01 net feed-in).
-    assert _saving(context, "SHIFT_FLEXIBLE_LOAD") == Decimal("98.55")
-    # You cannot shift a load into a surplus that is not there, so the estimate
-    # is capped by the surplus the household actually has.
-    capped = _context(self_consumption_rate=0.30, midday_surplus_kwh=100.0)
-    assert _saving(capped, "SHIFT_FLEXIBLE_LOAD") == Decimal("27.00")
+    # No euro figure here on purpose. What this intervention is worth is measured
+    # by simulating it, in advise.py, because three rules estimating from the
+    # same context priced the same kilowatt hours three times over.
+    assert _saving(context, "SHIFT_FLEXIBLE_LOAD") is None
 
 
 def test_shift_flexible_load_does_not_fire_when_somebody_is_home() -> None:
@@ -125,8 +124,7 @@ def test_shift_flexible_load_does_not_fire_when_somebody_is_home() -> None:
 def test_charge_ev_on_surplus_needs_an_ev_that_is_not_already_solar_charging() -> None:
     charging_at_night = _context(has_ev=True, ev_charges_on_solar=False, midday_surplus_kwh=800.0)
     assert "CHARGE_EV_ON_SURPLUS" in _fired_ids(charging_at_night)
-    # 800 kWh of surplus at 0.27 euro of avoided value per kWh.
-    assert _saving(charging_at_night, "CHARGE_EV_ON_SURPLUS") == Decimal("216.00")
+    assert _saving(charging_at_night, "CHARGE_EV_ON_SURPLUS") is None
 
     already_solar = _context(has_ev=True, ev_charges_on_solar=True, midday_surplus_kwh=800.0)
     assert "CHARGE_EV_ON_SURPLUS" not in _fired_ids(already_solar)
@@ -139,8 +137,7 @@ def test_charge_ev_on_surplus_needs_an_ev_that_is_not_already_solar_charging() -
 def test_consider_dynamic_contract_needs_a_fixed_contract_and_heavy_export() -> None:
     heavy = _context(annual_production_kwh=3_500.0, annual_export_kwh=2_000.0)
     assert "CONSIDER_DYNAMIC_CONTRACT" in _fired_ids(heavy)
-    # 2000 kWh times (0.06 dynamic net minus -0.01 fixed net).
-    assert _saving(heavy, "CONSIDER_DYNAMIC_CONTRACT") == Decimal("140.00")
+    assert _saving(heavy, "CONSIDER_DYNAMIC_CONTRACT") is None
 
     assert "CONSIDER_DYNAMIC_CONTRACT" not in _fired_ids(
         _context(annual_production_kwh=3_500.0, annual_export_kwh=2_000.0, dynamic_contract=True)
@@ -154,19 +151,41 @@ def test_consider_dynamic_contract_needs_a_fixed_contract_and_heavy_export() -> 
     )
 
 
-def test_consider_battery_needs_export_and_evening_demand() -> None:
-    context = _context(annual_export_kwh=2_000.0, mean_evening_night_consumption_kwh=5.0)
+def test_consider_battery_judges_the_export_left_after_the_free_routes() -> None:
+    """Storage is judged on the residual, which is what the Dutch copy claims.
+
+    The rule used to read annual_export_kwh, the export the household has
+    before doing anything, while the spec and the text both said "after routes
+    1 and 2". A household could therefore be told to buy a battery sized on
+    kilowatt hours it would no longer be exporting once it had done the free
+    things it was told to do first.
+    """
+    context = _context(export_after_free_routes_kwh=2_000.0)
     assert "CONSIDER_BATTERY" in _fired_ids(context)
     # Its value is the advice itself, so it carries no invented figure.
     assert _saving(context, "CONSIDER_BATTERY") is None
 
-    assert "CONSIDER_BATTERY" not in _fired_ids(
-        _context(annual_export_kwh=1_500.0, mean_evening_night_consumption_kwh=5.0)
-    )
+    assert "CONSIDER_BATTERY" not in _fired_ids(_context(export_after_free_routes_kwh=1_500.0))
     # A battery that is full at sunset and still full at sunrise saves nothing.
     assert "CONSIDER_BATTERY" not in _fired_ids(
-        _context(annual_export_kwh=2_000.0, mean_evening_night_consumption_kwh=3.0)
+        _context(export_after_free_routes_kwh=2_000.0, mean_evening_night_consumption_kwh=3.0)
     )
+
+
+def test_a_large_export_today_does_not_justify_storage_if_the_free_routes_absorb_it() -> None:
+    """The case that made this change necessary.
+
+    Marloes exports plenty as she lives now, and none of it survives charging
+    her car on her own surplus. Before this, she was told to buy a battery for
+    kilowatt hours the previous line of the same advice had just told her how
+    to use.
+    """
+    absorbed = _context(
+        annual_export_kwh=4_000.0,
+        export_after_free_routes_kwh=900.0,
+        mean_evening_night_consumption_kwh=8.0,
+    )
+    assert "CONSIDER_BATTERY" not in _fired_ids(absorbed)
 
 
 def test_consider_battery_does_not_fire_when_a_battery_is_present() -> None:
@@ -205,12 +224,18 @@ def test_free_routes_are_always_ordered_before_storage() -> None:
         assert routes == sorted(routes), context
 
 
-def test_savings_are_decimal_or_none() -> None:
+def test_the_rule_table_never_estimates_a_saving() -> None:
+    """A rule decides whether, never how much.
+
+    The table can only see AdviceContext, so any euro figure it produced was an
+    analytic guess. Three of them drew on the same kilowatt hours independently,
+    which meant the numbers could not be added together, and one valued a
+    shifted kWh at 0.27 euro where the engine measures a different figure
+    entirely. advise.py measures each intervention by simulating it.
+    """
     for context in _every_context():
         for fired in evaluate(context):
-            saving = fired.estimated_saving_eur
-            assert saving is None or isinstance(saving, Decimal), fired
-            assert not isinstance(saving, float), fired
+            assert fired.estimated_saving_eur is None, fired
 
 
 def test_no_rule_returns_dutch_text() -> None:

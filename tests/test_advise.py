@@ -31,7 +31,11 @@ from ampeer_advice.battery import CAPACITIES, battery_advice
 from ampeer_advice.nl import RULE_TEXTS
 from ampeer_advice.tariffs import baseline_tariffs, scenario_2027_tariffs
 from ampeer_advice.types import Advice, Confidence, Route
+from ampeer_sim.economics.tariffs import annual_cost
+from ampeer_sim.engine.run import simulate
+from ampeer_sim.production.model import production_series
 from ampeer_sim.production.pvgis import FallbackProvider
+from ampeer_sim.profiles.compose import compose_consumption
 from ampeer_sim.simulate import run_advice
 from ampeer_sim.timebase import YearGrid
 from ampeer_sim.types import (
@@ -134,6 +138,34 @@ def _advise(
         battery_spec=battery_spec,
         weather_year=WEATHER_YEAR,
     )
+
+
+@cache
+def _central_shock(name: str) -> Decimal:
+    """What the end of net metering costs this household in the central case.
+
+    Computed here rather than taken from ``advice.headline``, because the tests
+    feed advise() a stub Result with a fixed band. This is the same difference
+    the headline reports: identical flows, priced once under net metering and
+    once under the 2027 regime.
+    """
+    case = HOUSEHOLDS[name]
+    household = _household(case)
+    system = PVSystem(peak_power_wp=case["peak_power_wp"], azimuth_deg=0.0, tilt_deg=35.0)
+    hourly, temperature, _ = FallbackProvider(WEATHER_YEAR).hourly_series(
+        household.postcode4, system.azimuth_deg, system.tilt_deg
+    )
+    production = production_series(hourly, system, GRID, weather_year=WEATHER_YEAR)
+    consumption = compose_consumption(
+        household,
+        GRID,
+        FlatProfiles().fractions(GRID.year, household.profile_category),
+        temperature,
+        weather_year=WEATHER_YEAR,
+        production_kwh=production,
+    )
+    flows = simulate(consumption, production)
+    return annual_cost(flows, scenario_2027_tariffs()) - annual_cost(flows, baseline_tariffs())
 
 
 @cache
@@ -322,6 +354,41 @@ def test_an_unambiguous_buy_needs_the_whole_band_inside_the_limit() -> None:
     battery = battery_advice(generous)
     assert battery.payback_years_p90 <= MAX_ACCEPTABLE_PAYBACK_YEARS
     assert _storage_verdict(battery) == "CONSIDER_BATTERY"
+
+
+@pytest.mark.parametrize(
+    "name", ["rob_fixed_contract", "large_array_small_use", "marloes_ev_at_night"]
+)
+def test_the_free_routes_never_save_more_than_the_problem_is_worth(name: str) -> None:
+    """The invariant that proves the figures are not double counted.
+
+    Each free route is measured by simulating it on top of the previous one, so
+    the savings are additive by construction. Their total therefore cannot
+    exceed the headline, which is the whole cost the end of net metering adds:
+    under net metering self consumption was worth nothing, so none of these
+    interventions would have earned anything before 2027.
+
+    The estimators this replaced could and did break it. Two of them drew on the
+    same midday kilowatt hours and the third valued the entire annual export, so
+    three separate numbers were charged against one physical surplus.
+    """
+    advice = _golden_advice(name)
+    measured = sum(
+        (fired.estimated_saving_eur for fired in advice.fired if fired.estimated_saving_eur),
+        start=Decimal("0"),
+    )
+    assert measured > Decimal("0"), "a household with free routes should have measured savings"
+    assert measured <= _central_shock(name)
+
+
+def test_every_free_route_that_fires_carries_a_measured_figure() -> None:
+    """Route 1 and 2 always say what they are worth; route 3 never invents one."""
+    advice = _golden_advice("marloes_ev_at_night")
+    for fired in advice.fired:
+        if fired.route is Route.STORAGE:
+            assert fired.estimated_saving_eur is None, fired
+        else:
+            assert isinstance(fired.estimated_saving_eur, Decimal), fired
 
 
 def test_a_household_with_nothing_to_gain_gets_no_advice_and_no_curve() -> None:

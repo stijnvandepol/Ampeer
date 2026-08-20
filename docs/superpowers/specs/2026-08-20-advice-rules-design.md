@@ -125,6 +125,47 @@ staan in `nl.py` en worden pas aan de rand toegevoegd. Daardoor breken tekstwijz
 en gedragswijziging niet dezelfde test, en is een tweede taal later een extra bestand
 in plaats van een herschrijving.
 
+### Regels beslissen of, nooit hoeveel
+
+Herziene beslissing, genomen op 2026-08-20 naar aanleiding van de audit. De regels
+schatten hun besparing eerst zelf uit `AdviceContext`, met analytische formules. Dat
+ging op drie manieren mis tegelijk.
+
+De formules telden dubbel. `SHIFT_FLEXIBLE_LOAD` en `CHARGE_EV_ON_SURPLUS` putten
+allebei uit hetzelfde middagoverschot en `CONSIDER_DYNAMIC_CONTRACT` waardeerde de
+volledige jaarlijkse teruglevering, dus drie bedragen werden op dezelfde
+kilowatturen geboekt en mochten niet bij elkaar opgeteld worden. De uitvoer nodigde
+daar wel toe uit.
+
+De formules waren bovendien niet geijkt. `SHIFT_FLEXIBLE_LOAD` rekende met een vaste
+waarde per verschoven kWh, terwijl dezelfde motor die het hoofdgetal berekent een
+ander bedrag meet zodra je de interventie echt doorrekent.
+
+En `CONSIDER_BATTERY` keek naar de teruglevering van vandaag, terwijl deze spec en de
+Nederlandse tekst allebei zeggen dat opslag beoordeeld wordt op wat er na route 1 en 2
+overblijft.
+
+Daarom geldt nu: **een regel beslist of, de motor meet hoeveel.** `Rule` heeft geen
+`saving` meer. `advise.py` past de gratis routes gestapeld toe, elk bovenop de
+vorige, en meet per stap het verschil in de jaarrekening:
+
+1. het verplaatsbare blok naar het middaguur
+2. de auto op eigen overschot laden
+3. dezelfde energie onder een dynamisch contract prijzen
+
+Daarmee zijn de bedragen optelbaar per constructie, en komt er een gemeten restpost
+uit die de opslagregels beoordelen. Dat kost drie extra doorrekeningen van zes
+milliseconden, tegenover een compleet advies in ongeveer 240 milliseconden.
+
+Gemeten gevolg: Marloes, die haar auto 's nachts laadt, krijgt nu geen batterijadvies
+meer. Haar overschot wordt vrijwel volledig opgenomen door haar auto overdag te laden,
+dus de restpost zakt onder de drempel. Ze kreeg eerder een batterij aangeraden voor
+kilowatturen die de regel erboven haar net had geleerd zelf te gebruiken.
+
+De invariant die dit afdekt staat in de testset: de som van de gemeten gratis routes
+kan het hoofdgetal nooit overschrijden. Onder saldering was zelfconsumptie namelijk
+niets waard, dus geen van deze ingrepen leverde voor 2027 iets op.
+
 ### Regels oordelen op feiten, niet op arrays
 
 `facts.py` leidt uit de energiestromen af waar de regels op oordelen:
