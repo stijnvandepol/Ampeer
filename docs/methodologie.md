@@ -148,12 +148,32 @@ rekenen wij met een eigen tabel. Die tabel is een gemiddelde van negen weerjaren
 en met 2023, voor een dak van 35 graden op het zuiden in Uden, en komt uit op 1221 kWh per
 kWp voor aftrek van systeemverlies.
 
-Dat is een slechter antwoord en het staat erbij in je antwoord zelf, niet alleen hier. De
-tabel kent jouw postcodegebied niet en jouw dakrichting niet, en dat is precies waar wij
-PVGIS voor gebruiken. Bovendien is de vorm van een dag erin een vaste halve sinus in
-plaats van de echte stand van de zon, dus winterdagen zijn er te lang en zomerdagen te
-kort. Hij bestaat om je een antwoord te kunnen geven wanneer PVGIS eruit ligt, en voor
-niets anders. Vraag het advies later opnieuw op voor een scherper getal.
+Dat is een slechter antwoord en het staat erbij in je antwoord zelf, niet alleen hier. Je
+dakrichting en je hellingshoek rekenen wij gewoon door; wat de tabel niet kent is je
+postcodegebied. Hij geeft voor elke postcode in Nederland precies dezelfde reeks terug, en
+dat is nu juist waar wij PVGIS voor gebruiken. Bovendien is de vorm van een dag erin een
+vaste halve sinus in plaats van de echte stand van de zon, dus winterdagen zijn er te lang
+en zomerdagen te kort.
+
+**Hoeveel dat scheelt.** Gemeten op 21 augustus 2026, op ons referentiehuishouden van
+hoofdstuk 17 met dezelfde verbruiksvorm, alleen de opwekbron verschillend:
+
+| Postcode | Met de tabel | Met PVGIS | Verschil |
+|---|---|---|---|
+| 5401, Uden | 632,05 | 668,66 | 5,5 procent lager |
+| 9711, Groningen | 632,05 | 651,24 | 2,9 procent lager |
+| 4331, Middelburg | 632,05 | 709,55 | 10,9 procent lager |
+
+Drie postcodes, door ons gekozen op afstand tot Uden, en geen steekproef. Wat er wel uit
+te lezen valt: de tabel geeft in alle drie de gevallen hetzelfde bedrag, want hij weet niet
+waar je woont, en hij zit er in alle drie dezelfde kant op naast. Het bedrag valt dan lager
+uit dan het is. In Middelburg het meest, omdat daar meer zon valt dan het landelijke
+gemiddelde dat in deze tabel zit.
+
+Ook in Uden zelf scheelt het nog vijf procent, en dat is geen fout in de tabel maar een
+tweede verschil: de tabel middelt negen weerjaren en PVGIS is hier om een enkel jaar
+gevraagd. De tabel bestaat om je een antwoord te kunnen geven wanneer PVGIS eruit ligt, en
+voor niets anders. Vraag het advies later opnieuw op voor een scherper getal.
 
 **De beperking:** wij weten niets van jouw schaduw. Een boom, een dakkapel of het huis
 van de buren kan zomaar tien procent schelen en daar vragen wij niet naar.

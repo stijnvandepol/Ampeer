@@ -768,3 +768,42 @@ def test_the_document_says_the_thresholds_are_chosen_rather_than_measured() -> N
     chapter = _chapter("Wanneer wij iets adviseren")
     assert "grenzen zijn keuzes van ons" in chapter
     assert "niet uit een meting" in chapter
+
+
+def test_the_fallback_answers_every_postcode_with_the_same_series() -> None:
+    """The pinnable half of what chapter 6 now says about the table.
+
+    The euro figures beside it were measured against a live PVGIS and cannot be
+    checked here; this can, and it is the sentence a reader needs most. The
+    table holds one location, so it returns one answer for the whole country,
+    and the error it makes is therefore however far your own irradiance is from
+    Uden's.
+
+    The orientation is a separate matter and the chapter used to get it wrong.
+    A first draft said the table knows neither the postcode nor the roof
+    direction. It applies the direction; only the location is missing. Measured
+    here so the sentence cannot drift back.
+    """
+    import numpy as np
+
+    from ampeer_sim.production.pvgis import FallbackProvider
+    from ampeer_sim.types import ProductionSource
+
+    provider = FallbackProvider(2023)
+    uden, _, source = provider.hourly_series("5401", 0.0, 35.0)
+    groningen, _, _ = provider.hourly_series("9711", 0.0, 35.0)
+    east_facing, _, _ = provider.hourly_series("5401", 90.0, 35.0)
+
+    assert source is ProductionSource.FALLBACK
+    assert np.array_equal(uden, groningen), (
+        "the fallback now varies by postcode, so chapter 6 overstates what it does not know"
+    )
+    assert not np.array_equal(uden, east_facing), (
+        "the fallback ignores the roof direction too, and chapter 6 says it applies it"
+    )
+
+    chapter = _chapter("De opwek van je dak")
+    assert "precies dezelfde reeks terug" in chapter
+    assert "Je\ndakrichting en je hellingshoek rekenen wij gewoon door" in chapter or (
+        "dakrichting en je hellingshoek rekenen wij gewoon door" in chapter
+    )
