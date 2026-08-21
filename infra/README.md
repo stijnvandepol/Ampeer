@@ -32,7 +32,9 @@ published port on every pull request, in three different spellings, because
 that is a line somebody adds while debugging and does not take out again.
 
 The two images built from this repository are pulled at the release tag in
-`AMPEER_VERSION`. A rollback is that one string plus `docker compose up -d`.
+`AMPEER_VERSION`. A rollback is that one string plus `docker compose up -d`,
+which is also what the deploy job does for you when a release refuses to come
+up. Section 5 says what that leaves the stack in.
 
 ---
 
@@ -275,8 +277,10 @@ A tag matching `v*` on `main` triggers `.github/workflows/deploy.yml`:
   `NEXT_PUBLIC_API_BASE=` (empty, so the client uses relative paths), builds
   both images and pushes them to GHCR
 - `deploy` on the self-hosted runner, behind `environment: production`: checks
-  the preflight's digest, runs the preflight, logs in to GHCR, `pull`, `up -d`,
-  `migrate`, `purge_expired_advice --check`, `docker logout`
+  the preflight's digest, checks the compose file's digest, runs the preflight,
+  logs in to GHCR, `pull`, confirms the pulled digests, records the running
+  release, `migrate`, `up -d`, falls back if that failed,
+  `purge_expired_advice --check`, `docker logout`
 
 No checkout, no `docker build`, no token that can read the repository, and
 nothing on the host that is not one of those commands.
@@ -302,33 +306,69 @@ release that changes both image tags: the window in which nothing served went
 from **0.74 s** to **3.29 s**, because `web` now starts after the api's first
 successful probe instead of immediately.
 
-**It is not a rollback.** By the time `up -d` reports the failure the previous
-api container has already been destroyed, because compose recreates rather than
-starts a second one. The only way back is to set `AMPEER_VERSION` in
-`/srv/ampeer/.env` to the previous tag and run `up -d` by hand. Nothing in this
-repository does that automatically and nothing here can.
+**It is still not a second instance.** By the time `up -d` reports the failure
+the previous api container has already been destroyed, because compose recreates
+rather than starts a second one, so the site is down at the moment the deploy
+finds out.
 
-### Every deploy is a short outage, and `migrate` runs after traffic
+What changed on 2026-08-21 is what happens next. The job reads the image tag off
+the running api container before it replaces it, and a failed `up -d` starts that
+tag again. Ending the outage is no longer a person noticing it, editing
+`AMPEER_VERSION` in `/srv/ampeer/.env` and running `up -d` by hand.
 
-Two facts, both measured on 2026-08-21 against a real stack, both properties of
-running one container per service:
+Three things about that fallback are worth knowing before you need it:
 
-- **There is no second instance.** compose stops `web` and starts it again, so
-  between those two moments the site serves nothing at all. With the deploy's
-  own command, `up -d --remove-orphans` on a release that changes both tags,
-  that gap was 3.29 seconds and four consecutive connection refusals. With
-  `up -d --force-recreate`, which the deploy does **not** use, the database is
-  recreated too and the gap was 11.62 seconds over eight refusals.
-- **`migrate` runs after the new API is already answering.** `/api/advice/health/`
-  returned `200` the moment `up -d` returned, and the `migrate` step took a
-  further 3.27 seconds with nothing to apply. A release that adds a column and
-  reads it therefore serves errors for the length of a `docker compose run`.
+- **The run stays red even when the fallback works.** A fallback that turned the
+  run green would mean an outage reported as a successful deploy, and the next
+  release cut on top of a version nobody knows is not running.
+- **It does not undo the migration.** That ran before the switch and has been
+  applied, so the previous release comes back up against the newer schema. That
+  is the window the ordering below is built around, and it is safe exactly as
+  far as the migration was additive.
+- **`/srv/ampeer/.env` is not rewritten**, so a reboot brings back the release
+  that is serving. Nothing on the host needs editing to stay where you are.
 
-Neither is fixable from `infra/`. The first needs a second instance behind
-something that can move traffic, which this deployment does not have; the second
-needs the deploy job to migrate before it switches, which is
-`.github/workflows/deploy.yml`. Both are written down here rather than left to
-be discovered during a release.
+On a first deploy there is no running container to read a tag from, so there is
+nothing to fall back to. The job says so and stops.
+
+### Every deploy is a short outage, and `migrate` runs before it
+
+**There is no second instance.** compose stops `web` and starts it again, so
+between those two moments the site serves nothing at all. Measured on
+2026-08-21 with the deploy's own command, `up -d --remove-orphans` on a release
+that changes both tags, that gap was 3.29 seconds and four consecutive
+connection refusals. With `up -d --force-recreate`, which the deploy does
+**not** use, the database is recreated too and the gap was 11.62 seconds over
+eight refusals.
+
+That one is not fixable from `infra/`. It needs a second instance behind
+something that can move traffic, which this deployment does not have.
+
+**`migrate` used to run after the new API was already answering**, and no longer
+does. Measured the same day: `/api/advice/health/` returned `200` the moment
+`up -d` returned, and the `migrate` step took a further 3.27 seconds. A release
+that added a column and read it therefore served errors for the length of a
+`docker compose run`, and a migration that failed left it serving them with no
+step left to abort.
+
+The deploy now migrates while the previous release is still serving, which
+inverts the window rather than closing it:
+
+| | old order | now |
+|---|---|---|
+| during the window | new code, old schema | old code, new schema |
+| a failed migration | new release already serving errors | deploy stops, previous release untouched |
+| what makes it safe | nothing can | the migration only adding |
+
+So the ordering buys the safe half of a trade, and the price is a rule that
+lives with whoever writes the migration rather than with this file:
+
+> A migration must leave the previous release able to serve. Add a column,
+> backfill it, and only drop the old one in a later release.
+
+That rule is not enforceable from a workflow, and nothing here pretends to
+enforce it. What the ordering does guarantee is that a migration which fails
+stops the deploy while the previous release is still whole.
 
 ### `web` cannot start while `api` does not resolve
 

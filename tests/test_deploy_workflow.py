@@ -454,6 +454,119 @@ def test_no_step_in_the_deploy_can_turn_a_failure_green() -> None:
         )
 
 
+#: The operator's copy of what a deploy does. It is the file somebody reads at
+#: two in the morning, so a description here that no longer matches the job is
+#: worse than no description at all.
+DEPLOY_README = REPO_ROOT / "infra" / "README.md"
+
+#: Each step of the deploy job and the words the README summary uses for it, in
+#: the order the workflow runs them.
+#:
+#: This pairing exists because the README went stale the same day the job was
+#: reordered. Moving `migrate` in front of `up -d` and adding a fallback left
+#: three passages here describing the previous deploy, including a paragraph
+#: stating that nothing in this repository rolls back automatically, which by
+#: then it did. Every gate was green: the workflow tests read the workflow and
+#: nothing read the prose.
+README_STEP_WORDS = (
+    ("Confirm the preflight", "the preflight's digest"),
+    ("Confirm the compose file", "the compose file's digest"),
+    ("Check the nine variables", "runs the preflight"),
+    ("Log in to the registry", "logs in to GHCR"),
+    ("Pull what CI built", "`pull`"),
+    ("Confirm the images", "confirms the pulled digests"),
+    ("Record the release", "records the running release"),
+    ("Migrate", "`migrate`"),
+    ("Start it", "`up -d`"),
+    ("Fall back", "falls back"),
+    ("Confirm expired advice", "`purge_expired_advice --check`"),
+    ("Drop the registry credential", "`docker logout`"),
+)
+
+
+def _readme_deploy_summary() -> str:
+    """The one paragraph in the README that lists what the deploy job runs.
+
+    Scoped to that paragraph rather than the whole file on purpose: `up -d` and
+    `migrate` appear in the sections below it as well, so a search over the
+    whole document would find them there and pass while the summary itself said
+    something else.
+    """
+    text = DEPLOY_README.read_text(encoding="utf-8")
+    assert "- `deploy` on the self-hosted runner" in text, (
+        "the README no longer summarises the deploy job"
+    )
+    paragraph = text.split("- `deploy` on the self-hosted runner", 1)[1].split("\n\n", 1)[0]
+    # Collapsed to one line, because the file is hard wrapped and a phrase
+    # that happens to straddle a line break is still the phrase a reader
+    # reads.
+    return " ".join(paragraph.split())
+
+
+def test_the_readme_summary_names_every_step_the_deploy_runs() -> None:
+    """A step nobody wrote down is a step nobody expects to see fail."""
+    summary = _readme_deploy_summary()
+    names = [str(step.get("name", "")) for step in _steps("deploy")]
+    for step_fragment, words in README_STEP_WORDS:
+        assert any(step_fragment in name for name in names), (
+            f"no deploy step is named like {step_fragment!r} any more; this pairing is stale"
+        )
+        assert words in summary, f"the README summary does not mention {step_fragment!r}"
+
+
+def test_the_readme_lists_the_steps_in_the_order_they_run() -> None:
+    """Order, because the order is the part that changed and went unread.
+
+    A summary that names every step but puts `migrate` after `up -d` describes
+    a deploy with a window this one no longer has, and it is the sentence an
+    operator would act on.
+    """
+    summary = _readme_deploy_summary()
+    names = [str(step.get("name", "")) for step in _steps("deploy")]
+    in_workflow = [
+        next(i for i, name in enumerate(names) if fragment in name)
+        for fragment, _ in README_STEP_WORDS
+    ]
+    in_readme = [summary.index(words) for _, words in README_STEP_WORDS]
+    assert in_workflow == sorted(in_workflow), f"this pairing is out of order: {in_workflow}"
+    assert in_readme == sorted(in_readme), (
+        "the README lists the deploy's steps in an order the job does not run them in:\n"
+        + "\n".join(
+            f"  {words}" for _, words in sorted(zip(in_readme, README_STEP_WORDS, strict=True))
+        )
+    )
+
+
+def test_the_readme_does_not_deny_a_fallback_the_job_performs() -> None:
+    """The sentence that was true until the fallback landed, and then was not.
+
+    Kept as its own test rather than folded into the order check, because the
+    damage is different in kind: an operator reading it would start doing by
+    hand what the job had already done, on a stack whose state they had just
+    been told wrongly.
+    """
+    text = DEPLOY_README.read_text(encoding="utf-8")
+    has_fallback = any("Fall back" in str(step.get("name", "")) for step in _steps("deploy"))
+    if not has_fallback:
+        pytest.skip("the deploy job no longer falls back, so the README should say so")
+    assert "Nothing in this repository does that automatically" not in text, (
+        "the README still says nothing rolls back automatically, and the deploy job does"
+    )
+
+
+def test_the_readme_heading_matches_where_migrate_runs() -> None:
+    """The heading is what a reader skims, so it carries the claim on its own."""
+    text = DEPLOY_README.read_text(encoding="utf-8")
+    migrate = _only_deploy_step(lambda run: "manage.py migrate" in run, "runs migrations")
+    if migrate < _unconditional_start():
+        assert "`migrate` runs before it" in text, (
+            "the deploy migrates before it switches and no heading in the README says so"
+        )
+        assert "`migrate` runs after traffic" not in text
+    else:
+        assert "`migrate` runs after traffic" in text
+
+
 def test_the_workflow_says_what_provenance_true_does_and_does_not_buy() -> None:
     """`provenance: true` was on both build steps from the first version and
     nothing anywhere reads the attestation it produces. An unverified
