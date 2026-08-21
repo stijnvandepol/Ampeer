@@ -56,3 +56,18 @@
 # part of the pattern: `data\r` matches nothing, so the directory it was
 # written to keep out of a public image would be in it.
 .dockerignore text eol=lf
+
+# The last of them. Every one of these showed as modified in `git status` with
+# a zero-line diff, because `* text=auto` leaves the working-tree ending to
+# core.autocrlf while every rule above pins one. Eighty-six files that say
+# "changed" and are not is how a person learns to stop reading git status, and
+# this repository leans on people reading output.
+#
+# .svg is text and Next ships five of them; .mjs is a config file; the three
+# dotfiles have no extension for a pattern to catch.
+*.svg text eol=lf
+*.mjs text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+.nvmrc text eol=lf
+.prettierignore text eol=lf
