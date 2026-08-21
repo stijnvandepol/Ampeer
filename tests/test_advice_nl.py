@@ -67,3 +67,28 @@ def test_a_model_input_without_a_name_refuses_rather_than_falling_back() -> None
 
     with pytest.raises(KeyError, match="no Dutch name"):
         label_for("a_variation_nobody_named")
+
+
+def test_every_production_source_has_a_dutch_sentence() -> None:
+    """The response names where the sun figures came from, and a reader who is
+    told "FALLBACK" learns nothing from it.
+
+    nl.py keys this table by the enum's name rather than by the member, because
+    this file promises to import nothing from the simulation core. That promise
+    is what makes this pairing test necessary: without it the table and the enum
+    can diverge silently, and the first sign would be a KeyError in front of a
+    visitor.
+    """
+    from ampeer_advice.nl import PRODUCTION_SOURCE_TEXTS
+    from ampeer_sim.types import ProductionSource
+
+    assert set(PRODUCTION_SOURCE_TEXTS) == {member.name for member in ProductionSource}
+
+
+def test_an_unknown_production_source_refuses_rather_than_falling_back() -> None:
+    import pytest
+
+    from ampeer_advice.nl import production_source_text
+
+    with pytest.raises(KeyError, match="no Dutch text"):
+        production_source_text("SOME_SOURCE_NOBODY_NAMED")

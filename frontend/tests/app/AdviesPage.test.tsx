@@ -199,9 +199,10 @@ describe("the advice page", () => {
     // counts them rather than looking one up.
     expect(screen.getAllByText(fixture.engine_version)).toHaveLength(2);
     expect(screen.getByText(String(fixture.weather_year))).toBeInTheDocument();
-    // production_source arrives as "FALLBACK" with no Dutch beside it, and an
-    // English identifier in front of a reader is the language boundary being
-    // crossed by the frontend. Left off until the API sends a label.
+    // The Dutch sentence, never the enum. "FALLBACK" in front of a reader is
+    // the language boundary being crossed by the frontend, and which of the two
+    // sources it was changes how much weight the whole answer deserves.
+    expect(screen.getByText(fixture.production_source_text)).toBeInTheDocument();
     expect(screen.queryByText(fixture.production_source)).toBeNull();
   });
 });

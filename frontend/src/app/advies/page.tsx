@@ -162,6 +162,16 @@ function Provenance({ advice }: { readonly advice: Advice }) {
         <dt>Weerjaar</dt>
         <dd>{advice.weather_year}</dd>
       </dl>
+      {/*
+        The sentence, not the enum. production_source arrives as "PVGIS" or
+        "FALLBACK", which is for a machine; the API sends the Dutch beside it so
+        the frontend never has to translate a model identifier. Which of the two
+        it was changes how much weight the whole answer deserves, so it belongs
+        on the page rather than in a log.
+      */}
+      <p data-role="production-source" className="max-w-prose text-sm text-ink-muted">
+        {advice.production_source_text}
+      </p>
     </section>
   );
 }

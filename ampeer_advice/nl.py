@@ -160,3 +160,40 @@ def label_for(input_id: str) -> str:
         return INPUT_LABELS[input_id]
     except KeyError:  # pragma: no cover - the pairing test makes this unreachable
         raise KeyError(f"no Dutch name for model input {input_id!r}") from None
+
+
+#: Where the production series came from, in words a reader can act on.
+#:
+#: The response also sends the enum name, which is English and is for a machine.
+#: A reader who is told "FALLBACK" learns nothing; a reader told the sun figures
+#: came from an offline table rather than from a live measurement knows exactly
+#: how much weight to put on the answer, and that is the kind of thing this
+#: product exists to say out loud.
+#:
+#: Keyed by the enum name rather than by the member, so this file keeps its
+#: promise of importing nothing from the simulation core. A test pairs the two.
+PRODUCTION_SOURCE_TEXTS: dict[str, str] = {
+    "PVGIS": (
+        "De opbrengst van je dak is opgevraagd bij PVGIS, de rekentool van de Europese "
+        "Commissie, op basis van echte instralingsmetingen voor jouw postcodegebied."
+    ),
+    "FALLBACK": (
+        "PVGIS was niet bereikbaar, dus wij hebben gerekend met onze eigen tabel: het "
+        "gemiddelde van negen weerjaren voor Nederland. Dat is nauwkeurig genoeg om je "
+        "een antwoord te geven en minder nauwkeurig dan een berekening voor jouw eigen "
+        "postcodegebied. Vraag het advies later nog eens op voor een scherper getal."
+    ),
+}
+
+
+def production_source_text(source_name: str) -> str:
+    """The Dutch sentence for one production source.
+
+    Raises rather than falling back, for the same reason ``label_for`` does: a
+    fallback would put an English enum name in front of a reader and nothing
+    would say so.
+    """
+    try:
+        return PRODUCTION_SOURCE_TEXTS[source_name]
+    except KeyError:  # pragma: no cover - the pairing test makes this unreachable
+        raise KeyError(f"no Dutch text for production source {source_name!r}") from None

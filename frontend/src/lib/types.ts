@@ -103,6 +103,13 @@ export interface Advice {
   readonly engine_version: string;
   readonly advice_version: string;
   readonly production_source: string;
+  /**
+   * The same fact in Dutch. `production_source` is an enum name for a
+   * machine; a reader told "FALLBACK" learns nothing, while one told the
+   * sun figures came from an offline table rather than a live query knows
+   * how much weight to give the answer. Render this one.
+   */
+  readonly production_source_text: string;
   readonly profile_year: number;
   readonly weather_year: number;
 }

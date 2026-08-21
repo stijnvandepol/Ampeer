@@ -110,7 +110,12 @@ def write_fixture() -> int:
     """Rewrite the committed fixture and report its size in bytes."""
     payload = build_reference_payload()
     FIXTURE.parent.mkdir(parents=True, exist_ok=True)
-    with FIXTURE.open("w", encoding="utf-8") as handle:
+    # newline is pinned to a line feed on purpose. On Windows the default
+    # translates it to a carriage return pair, pre-commit's mixed-line-ending
+    # hook then rewrites the file, and the commit fails. That happened three
+    # times before anybody looked at why, which is what a papercut costs when
+    # nobody writes it down.
+    with FIXTURE.open("w", encoding="utf-8", newline="\n") as handle:
         json.dump(payload, handle, indent=2, ensure_ascii=False)
         handle.write("\n")
     return len(json.dumps(payload))

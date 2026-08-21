@@ -33,6 +33,7 @@ from ampeer_advice.nl import (
     ROUTE_TITLES,
     SIZING_BASIS_TEXTS,
     label_for,
+    production_source_text,
     text_for,
 )
 from ampeer_advice.types import Advice, BatteryAdvice, Route, ScenarioBand
@@ -227,7 +228,12 @@ def render(advice: Advice, result: Result, token: str) -> dict[str, Any]:
         "battery": _battery(advice),
         "engine_version": advice.engine_version,
         "advice_version": advice.advice_version,
+        # The enum name, for a machine, and the sentence, for a reader. A
+        # reader told "FALLBACK" learns nothing; one told the sun figures
+        # came from an offline table knows how much weight to give the
+        # answer. Same boundary as varied_text: the Dutch lives in nl.py.
         "production_source": result.production_source.name,
+        "production_source_text": production_source_text(result.production_source.name),
         "profile_year": result.profile_year,
         "weather_year": result.weather_year,
     }
