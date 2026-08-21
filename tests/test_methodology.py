@@ -569,3 +569,90 @@ def test_the_document_says_precise_cannot_be_reached_yet() -> None:
         "nothing supplies meter data, so no answer can say PRECISE, and chapter 17 "
         "has to keep saying so"
     )
+
+
+def test_the_document_describes_the_table_used_when_pvgis_is_unreachable() -> None:
+    """A path a real visitor lands on, and the chapter did not say it existed.
+
+    backend/advice/production.py wraps PvgisProvider in a
+    ResilientProductionProvider with FallbackProvider behind it, so a network
+    failure produces an answer computed from a table rather than an error. The
+    answer itself says so through nl.py. Chapter 6 said only that we ask PVGIS,
+    which is the sentence somebody would quote back at us.
+
+    The annual total is recomputed from the table rather than read from its
+    docstring, so a rebuilt table cannot leave the document quoting the old one.
+    """
+    import calendar
+
+    from ampeer_sim.production.fallback_yield import MONTHLY_MEAN_PRODUCTION_W_PER_KWP
+
+    days = [calendar.monthrange(2023, month)[1] for month in range(1, 13)]
+    assert len(MONTHLY_MEAN_PRODUCTION_W_PER_KWP) == len(days)
+    annual = sum(
+        watts * count * 24 / 1000.0
+        for watts, count in zip(MONTHLY_MEAN_PRODUCTION_W_PER_KWP, days, strict=True)
+    )
+    chapter = TEXT.split("## 6.", 1)[1].split("## 7.", 1)[0]
+    assert f"{round(annual)} kWh per" in chapter, (
+        f"the fallback table totals {annual:.1f} kWh per kWp and chapter 6 quotes something else"
+    )
+
+    production = (REPO_ROOT / "backend" / "advice" / "production.py").read_text(encoding="utf-8")
+    assert "ResilientProductionProvider" in production, (
+        "nothing falls back any more, so chapter 6 describes a path that is gone"
+    )
+    assert "PVGIS niet bereikbaar" in TEXT or "PVGIS niet bereikbaar is" in chapter
+    assert "halve sinus" in chapter, "the chapter no longer states the weakness of the table"
+
+
+def test_the_document_says_which_of_the_three_household_profiles_is_used() -> None:
+    """Three exist in the enum, one is ever used, and the API cannot choose.
+
+    `Household.profile_category` defaults to E1A and assembly.py does not pass
+    it, so a household on a double tariff is modelled on a single tariff shape.
+    The figures in chapter 2 are the measured consequence rather than a worry:
+    the share of the year falling in the solar window differs by about one
+    point between the three, which is less than the tariff names suggest.
+    """
+    from ampeer_sim.types import ProfileCategory
+
+    assert [category.value for category in ProfileCategory] == ["E1A", "E1B", "E1C"], (
+        "the profile categories changed; chapter 2 says there are three"
+    )
+    chapter = TEXT.split("## 2.", 1)[1].split("## 3.", 1)[0]
+    assert "drie van deze profielen" in chapter
+    assert "enkel tarief" in chapter
+    for share in ("27,05", "26,63", "27,95"):
+        assert share in chapter, f"chapter 2 no longer quotes the measured share {share}"
+
+
+def test_the_measured_shares_in_chapter_two_are_the_ones_the_profiles_have() -> None:
+    """The one measurement in this document taken from the data file itself.
+
+    data/ is git-ignored, so this can only run where the NEDU file is present.
+    Skipping where it is absent is honest; asserting nothing would let the three
+    figures drift with the next profile year and say so nowhere.
+    """
+    import numpy as np
+
+    from ampeer_sim.profiles.nedu import NeduFileProvider
+    from ampeer_sim.types import ProfileCategory
+
+    profiles = REPO_ROOT / "data" / "nedu-profiles-2025.csv"
+    if not profiles.is_file():
+        pytest.skip("the NEDU profile file is not committed; see infra/README.md")
+
+    provider = NeduFileProvider(profiles)
+    chapter = TEXT.split("## 2.", 1)[1].split("## 3.", 1)[0]
+    for category in ProfileCategory:
+        fractions = provider.fractions(2025, category)
+        quarter_of_day = np.arange(len(fractions)) % 96
+        # 10:00 to 16:00, the window the sun and the argument are both about.
+        window = (quarter_of_day >= 40) & (quarter_of_day < 64)
+        share = fractions[window].sum() / fractions.sum() * 100
+        printed = f"{share:.2f}".replace(".", ",")
+        assert printed in chapter, (
+            f"{category.value} puts {printed} percent in the solar window and chapter 2 "
+            "quotes something else"
+        )

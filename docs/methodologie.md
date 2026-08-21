@@ -37,6 +37,17 @@ aansluiting met teruglevering de netto afname van het net is, dus daar is de zon
 afgetrokken. Zouden wij dat gebruiken en er onze eigen opwekberekening bij optellen, dan
 telden wij de zon dubbel.
 
+**Welke van de drie wij nemen.** Voor huishoudens bestaan er drie van deze profielen:
+een voor aansluitingen met een enkel tarief en twee voor aansluitingen met een dag- en
+nachttarief. Wij gebruiken altijd die met een enkel tarief, ook als jij een dubbeltarief
+hebt, want de rekenmachine vraagt niet naar je meter.
+
+Wij hebben nagerekend wat dat scheelt in de vorm die er hier toe doet, namelijk hoeveel
+van je jaarverbruik in het zonnevenster valt. Tussen tien uur en vier uur ligt 27,05
+procent bij het profiel dat wij gebruiken, tegen 26,63 en 27,95 procent bij de twee
+andere. Ruim een procentpunt dus, en minder dan je zou verwachten van een tarief dat
+mensen juist naar de nacht duwt.
+
 **De beperking:** mensen die zonnepanelen kopen zijn geen willekeurige greep uit
 Nederland. Ze wonen vaker in een eengezinswoning, hebben vaker een elektrische auto en
 gebruiken gemiddeld meer stroom. Ons basisprofiel is dus systematisch net niet het
@@ -131,6 +142,18 @@ bedrag bovenaan. Hoeveel dat op je rekening scheelt hangt van je huis af, maar d
 zelf is exact: panelen van tien jaar oud zouden wij op vijf procent minder opwek rekenen
 en panelen van twintig jaar oud op tien procent minder. Hoofdstuk 16 zet dit bij de
 andere aannames.
+
+**Als PVGIS niet bereikbaar is.** Dat gebeurt, en dan weigeren wij geen antwoord maar
+rekenen wij met een eigen tabel. Die tabel is een gemiddelde van negen weerjaren, 2015 tot
+en met 2023, voor een dak van 35 graden op het zuiden in Uden, en komt uit op 1221 kWh per
+kWp voor aftrek van systeemverlies.
+
+Dat is een slechter antwoord en het staat erbij in je antwoord zelf, niet alleen hier. De
+tabel kent jouw postcodegebied niet en jouw dakrichting niet, en dat is precies waar wij
+PVGIS voor gebruiken. Bovendien is de vorm van een dag erin een vaste halve sinus in
+plaats van de echte stand van de zon, dus winterdagen zijn er te lang en zomerdagen te
+kort. Hij bestaat om je een antwoord te kunnen geven wanneer PVGIS eruit ligt, en voor
+niets anders. Vraag het advies later opnieuw op voor een scherper getal.
 
 **De beperking:** wij weten niets van jouw schaduw. Een boom, een dakkapel of het huis
 van de buren kan zomaar tien procent schelen en daar vragen wij niet naar.
