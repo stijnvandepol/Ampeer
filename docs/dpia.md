@@ -35,8 +35,8 @@ geen stelselmatige observatie en het is geen grootschalige monitoring van een
 openbare ruimte.
 
 De afweging is dus: waarschijnlijk niet verplicht in fase 0.5, wel verstandig,
-en verplicht zodra fase 1 begint. Hoofdstuk 8 zet uiteen wat er dan verandert.
-Hoofdstuk 9 laat de conclusie zelf aan de verwerkingsverantwoordelijke.
+en verplicht zodra fase 1 begint. Hoofdstuk 9 zet uiteen wat er dan verandert.
+Hoofdstuk 10 laat de conclusie zelf aan de verwerkingsverantwoordelijke.
 
 ## 2. Wat wij verwerken
 
@@ -95,7 +95,7 @@ instralingsreeks, het jaarverbruik schaalt het profiel, en wattpiek en
 dakopstelling bepalen de opwek. Er is geen vraag die alleen voor de statistiek
 gesteld wordt.
 
-De grondslag hoort bij de verwerkingsverantwoordelijke en staat in hoofdstuk 9.
+De grondslag hoort bij de verwerkingsverantwoordelijke en staat in hoofdstuk 10.
 Feitelijk relevant is dat de bezoeker de gegevens zelf invult om er een antwoord
 voor terug te krijgen, dat er niets gebeurt zonder die invoer, en dat er geen
 tweede doel is: geen advertenties, geen profielopbouw, geen doorverkoop, en geen
@@ -142,7 +142,7 @@ de stack; de tunnelverbinding wordt van binnenuit opgezet. De enige weg naar de
 gegevens loopt via de API, en die geeft op een token precies een advies terug.
 
 Op de host kan root bij alles, en dat is de verwerkingsverantwoordelijke.
-Toegang tot de host is geen onderwerp van dit document en hoort bij hoofdstuk 9.
+Toegang tot de host is geen onderwerp van dit document en hoort bij hoofdstuk 10.
 
 Er is geen verwerker. Niets wordt uitbesteed, er draait geen dienst van derden
 mee in de stack behalve de tunnelverbinding die het verkeer doorgeeft, en er
@@ -164,7 +164,78 @@ levert alleen gevalideerde parameters, en de postcode gaat als tweecijferig
 gebied naar een middelpunt. Er is geen enkele plek waar de backend een door de
 gebruiker aangeleverde URL ophaalt.
 
-## 7. Risico's, en wat ertegen staat
+## 7. Wat een bezoeker kan uitoefenen, en wat vandaag niet kan
+
+Een beoordeling die opsomt wat een dienst bewaart en niet zegt wat de betrokkene
+daarmee kan, is de helft van een beoordeling. Dit hoofdstuk ontbrak in de eerste
+versie van dit document.
+
+De API kent vandaag drie handelingen: twee die rekenen en opslaan, en een die op
+een token teruggeeft wat er staat. Er is geen vierde. `tests/test_dpia.py` leest
+de routes en valt om zodra dat verandert, want dan klopt dit hoofdstuk niet meer.
+
+### Inzage werkt, maar niet volledig
+
+Wie de link heeft, opent het advies. Dat is inzage zonder verzoek, zonder
+wachttijd en zonder dat iemand een identiteit hoeft aan te tonen, en dat kan
+juist omdat het token het enige is dat de rij aanwijst.
+
+Er is wel een verschil dat eerlijk benoemd hoort te worden. De dienst bewaart
+naast het advies ook de antwoorden waarmee het gemaakt is, en de API geeft
+alleen het advies terug. Wie wil weten wat er precies over hem is opgeslagen,
+ziet dus de uitkomst en niet de invoer. Dat is te herleiden, want het advies is
+uit die invoer gemaakt, maar het is niet hetzelfde als het tonen ervan.
+
+### Overdraagbaarheid volgt daaruit
+
+Het antwoord is JSON en dus machineleesbaar. Er is geen knop die het exporteert,
+maar er is ook geen tussenkomst nodig: de link teruggeeft is het bestand.
+Dezelfde beperking geldt, namelijk dat de opgeslagen invoer er niet in zit.
+
+### Rectificatie voegt toe in plaats van te wijzigen
+
+Een antwoord dat verkeerd is ingevuld, is niet te corrigeren. Opnieuw rekenen
+maakt een nieuw advies met een nieuw token, en het oude blijft staan tot het
+verloopt. Een correctie voegt dus een rij toe waar een lezer een vervanging zou
+verwachten.
+
+### Verwijderen kan niet, en dat is een keuze om te nemen
+
+Er is geen verwijderknop en geen verwijderendpoint. Wie zijn advies eerder weg
+wil hebben dan na negentig dagen, kan dat vandaag niet zelf, en er staat ook
+geen contactadres op de site om het te vragen.
+
+`CLAUDE.md` zet de export- en verwijderknop bij de fase waarin accounts bestaan.
+Dat is een verdedigbare fasering voor een knop en het is niet hetzelfde als de
+vraag of het recht nu al uitgeoefend kan worden. De feiten die daarbij horen:
+
+- het advies verdwijnt sowieso na negentig dagen, en dat is geen jaar
+- het token is het enige dat de rij aanwijst, dus wie de link heeft is de enige
+  die om verwijdering zou kunnen vragen, en precies daarom is bezit van het
+  token ook de enige denkbare autorisatie voor een verwijdering
+- een verwijderendpoint zou daarmee onvermijdelijk niet-geauthenticeerd zijn, en
+  iedereen aan wie de link ooit is doorgestuurd zou het advies kunnen weggooien
+- wat er dan verdwijnt is herberekenbaar, want de bezoeker heeft zijn eigen
+  antwoorden nog
+
+Hoofdstuk 10 legt de keuze bij de verwerkingsverantwoordelijke, met die vier
+feiten erbij. Dit document doet er geen aanbeveling over, omdat de fasering in
+`CLAUDE.md` van hem is en niet van dit bestand.
+
+### Een geautomatiseerd besluit is het niet
+
+Het advies komt volledig geautomatiseerd tot stand. Het heeft geen rechtsgevolg
+en het treft niemand in vergelijkbare mate: het is een berekening waar de
+bezoeker zelf om vroeg, er wordt niets op geweigerd of toegekend, en er gaat
+geen gegeven naar een partij die er iets mee doet.
+
+Wat artikel 22 zou eisen als het wel zo was, doet de dienst overigens al. Elk
+advies geeft terug welke regels gevuurd hebben, elk bedrag draagt een
+bandbreedte, en het betrouwbaarheidsniveau staat in het eerste scherm in plaats
+van in een voetnoot. Dat staat er niet omdat het moet maar omdat het het product
+is, en het is de reden dat dit hoofdstuk kort kan zijn.
+
+## 8. Risico's, en wat ertegen staat
 
 | Risico | Wat ertegen staat |
 |---|---|
@@ -183,7 +254,7 @@ die de machine meeneemt neemt de gegevens en de back-ups mee. Dat is een
 beschikbaarheidsrisico en geen vertrouwelijkheidsrisico, en het is opgeschreven
 in hoofdstuk 8 van `infra/README.md` in plaats van hier opgelost.
 
-## 8. Wat er verandert bij fase 1 en 2
+## 9. Wat er verandert bij fase 1 en 2
 
 Dit document beschrijft fase 0.5 en houdt op te kloppen zodra er een account of
 een meterkoppeling bestaat. Wat er dan bij komt:
@@ -200,7 +271,7 @@ een meterkoppeling bestaat. Wat er dan bij komt:
 Bij elk van die vier hoort dit document opnieuw geschreven te worden, en op dat
 moment is de beoordeling waarschijnlijk wel verplicht.
 
-## 9. Wat bij Stijn ligt
+## 10. Wat bij Stijn ligt
 
 Vier dingen kan dit document niet voor de verwerkingsverantwoordelijke
 beslissen.
@@ -213,7 +284,13 @@ beslissen.
 3. **De back-upruil uit hoofdstuk 4.** Zeven dagen is een keuze die ik heb
    gemaakt en verantwoord; korter maakt de kopie kleiner en het herstel
    krapper, en alleen het auditlogboek dumpen laat de dienst onherstelbaar.
-4. **Toegang tot de host**, en of `web2` ephemeer wordt. Die staat los van dit
+4. **Of verwijderen op verzoek mogelijk wordt voor fase 1.** Hoofdstuk 7 zet de
+   vier feiten op een rij. De keuze is tussen het laten zoals het is, met
+   negentig dagen als enige weg, en een endpoint dat op bezit van het token
+   verwijdert en dus door iedereen met de link te gebruiken is. `CLAUDE.md` zet
+   de knop bij de fase waarin accounts bestaan, dus dit is een wijziging van die
+   fasering en daarom niet aan mij.
+5. **Toegang tot de host**, en of `web2` ephemeer wordt. Die staat los van dit
    document en is elders opgeschreven.
 
 Er is verder geen privacyverklaring en geen verwerkersregister. Allebei zijn ze
