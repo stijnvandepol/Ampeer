@@ -75,13 +75,24 @@ Beweging mag de aandacht naar de onzekerheid trekken en nooit naar een aankoop.
 |---|---|---|
 | Next.js | 16.x | `CLAUDE.md` zegt 15, en dat is achterhaald. Next kent geen LTS-spoor: de actuele hoofdversie krijgt actieve ondersteuning en de vorige alleen nog kritieke fixes. De actuele major kiezen is hier dus juist de langst ondersteunde keuze. Dat is de omgekeerde redenering van de Django-keuze eerder vandaag, en dat komt doordat Django wel een LTS-spoor heeft en Next niet. |
 | React | 19.x | Wat Next 16 meebrengt. |
-| TypeScript | wat Next 16 zelf vastzet | TypeScript 7 is de herschrijving in Go en staat op `latest`. Of ESLint en de Next-plugins er al mee overweg kunnen, is niet iets om aan te nemen. Het implementatieplan installeert wat `create-next-app` kiest en legt de gemeten versie vast. |
-| Tailwind | 4.x | |
+| TypeScript | 5.9.3 | **Niet 7.** TypeScript 7, de herschrijving in Go, staat op `latest`, maar `create-next-app` van Next 16.3.1 kiest zelf `^5` en installeert 5.9.3. Het nieuwste nemen zou hier het nemen van iets zijn waar de toolchain eromheen nog niet op gebouwd is. |
+| ESLint | 9.39.5 | **Niet 10.** npm meldt 9.x als deprecated en 10.8.1 als beschikbaar, maar `eslint-config-next@16.3.1` eist `^9`. Dit is de combinatie die Next zelf ondersteunt; 10 nemen betekent de Next-configuratie weggooien. Opnieuw beoordelen zodra `eslint-config-next` 10 accepteert. |
+| Tailwind | 4.3.3 | |
+| pnpm | 10.33.0, via `packageManager` in `package.json` | Strikte `node_modules`, dus een pakket dat niet gedeclareerd is kan ook niet geimporteerd worden. Dat is dezelfde soort grens als de importgrens in `ampeer_sim`: afgedwongen in plaats van afgesproken. `create-next-app` zet het veld zelf. |
+| Node | 24, vastgelegd in `.nvmrc` | Active LTS, en wat er op de ontwikkelmachine staat. Next 16 eist minimaal 20.9. |
 | Vitest + Testing Library | actueel | Eenheden en componenten. |
 | Playwright | actueel | De stromen, en de vijf regels uit hoofdstuk 2. |
 
-Elke versie wordt bij het schrijven van het plan opnieuw opgezocht en met de gemeten
-waarde vastgelegd, zoals bij elke andere afhankelijkheid in deze repository.
+Gemeten op 2026-08-21 door `create-next-app` een keer echt te draaien in een wegwerpmap in
+plaats van de versies af te leiden uit wat het nieuwste is. Dat leverde meteen twee
+correcties op deze tabel op, allebei gevallen waarin het nieuwste niet het juiste was.
+
+Twee dingen die daarbij ook bleken en die het plan moet weten:
+
+- `create-next-app` maakt een eigen git-repository aan, ook met `--no-git`. Scaffolden
+  binnen deze repository levert dus een geneste `.git` op die weg moet.
+- `output: "export"` werkt met Next 16.3.1 en levert een `out/` met statische HTML per
+  route. Geverifieerd met een echte build, niet aangenomen.
 
 ## 4. Statisch gebouwd, en de browser praat zelf met de API
 
