@@ -1,0 +1,75 @@
+# THIS FILE MUST NEVER BE USED ON A HOST. It exists so the seven checks in
+# section 12 of docs/superpowers/specs/2026-08-21-deploy-design.md can be run
+# against a real stack on a developer machine, and for nothing else.
+#
+# It changes exactly three things, and each one is a thing that would be a
+# defect in production:
+#
+#   1. It publishes a port. The whole network design is that nothing listens:
+#      cloudflared makes an outbound connection and there is no inbound route
+#      anywhere. A local run has no tunnel, so there has to be some way in, and
+#      it is bound to 127.0.0.1 so it is a way in from this machine only.
+#   2. It stops the tunnel from starting. A connector needs a real credential,
+#      and running one from here would register a route to a Cloudflare tunnel
+#      that serves a real domain. That is a change to a host, which is out of
+#      bounds for every task in this subproject.
+#   3. It mounts a synthetic consumption profile. See the header of the file it
+#      mounts: it is a flat curve, it proves the plumbing, and the arithmetic
+#      it produces is not an advice.
+#
+# infra/docker-compose.yml is untouched by all of this, and stays the file that
+# runs on the host. tests/test_stack_smoke.py asserts that the production file
+# still publishes nothing, that this override binds only to the loopback, and
+# that this file names no image of its own, so a `docker compose -f
+# docker-compose.yml -f compose.test.yml` run is the production stack with a
+# door held open rather than a different stack.
+#
+# Both fixtures below are generated, git-ignored, and have to exist before this
+# file is used:
+#
+#   uv run python tests/test_stack_smoke.py
+#
+# writes infra/fixtures/nedu-flat-2025.csv and infra/fixtures/env.smoke. Then:
+#
+#   docker compose -f infra/docker-compose.yml -f infra/compose.test.yml \
+#     --env-file infra/fixtures/env.smoke build
+#   docker compose -f infra/docker-compose.yml -f infra/compose.test.yml \
+#     --env-file infra/fixtures/env.smoke up -d
+#
+# and the site is on http://127.0.0.1:8080/.
+
+services:
+  api:
+    volumes:
+      # Compose merges a volume list by its target path, so this replaces the
+      # bind mount in docker-compose.yml rather than adding a second one at the
+      # same place. Written here as a relative path on purpose: compose
+      # resolves it against the project directory, which is infra/, so this
+      # works on a Windows developer machine where the host path in an env file
+      # would have to be spelled in a form the daemon accepts.
+      - ./fixtures/nedu-flat-2025.csv:/srv/profiles/nedu.csv:ro
+
+  web:
+    ports:
+      # 127.0.0.1 and not 0.0.0.0. Docker publishes a port by writing a
+      # forwarding rule that is evaluated before the host firewall, so
+      # "8080:80" would be reachable from the local network no matter what the
+      # firewall says, and a developer laptop is on somebody's wifi. The
+      # interface is the whole protection here.
+      #
+      # Port 80 inside, because that is what web.Dockerfile exposes and what
+      # the tunnel route names on the real host. 8080 outside, because binding
+      # 80 on a developer machine needs privileges this does not have.
+      - "127.0.0.1:8080:80"
+
+  tunnel:
+    # A profile that is never enabled, which is how compose is told to leave a
+    # service alone. `docker compose up` skips it; `docker compose config`
+    # still shows it, so the override does not hide the fourth service from
+    # anybody reading the merged file.
+    #
+    # It is not deleted, because a compose override cannot delete a service and
+    # faking it with an inert command would produce a container that is up and
+    # doing nothing, which is the exact shape of failure this whole subproject
+    # keeps finding. Absent and named is honest; present and pretending is not.
+    profiles: ["tunnel-is-never-started-from-a-test"]

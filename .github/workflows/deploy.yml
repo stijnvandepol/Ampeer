@@ -131,7 +131,45 @@ jobs:
       # can write to the LXC and a job that could would be a job that can
       # change what runs without a review.
       STACK: /srv/ampeer
+      # The sha256 of scripts/preflight_env.sh in this repository at this tag.
+      #
+      # The script is copied to the host by hand and this job has no checkout,
+      # so the copy it runs is whatever was left there last time. Until
+      # 2026-08-21 nothing anywhere noticed the difference: an out-of-date copy
+      # still exits zero, so the deploy stayed green and the check somebody had
+      # just added was not running. That is the same silent shape as the purge
+      # nobody scheduled.
+      #
+      # A version string was the alternative and it is weaker: it detects a
+      # copy somebody forgot to update only if they also remembered to update
+      # the version, which is the thing they forgot. A digest is derived from
+      # the content, so it cannot be forgotten separately from the content.
+      #
+      # tests/test_stack_smoke.py recomputes this from the script on every pull
+      # request, so this literal cannot drift from the repository. It can only
+      # disagree with the host, which is exactly the disagreement worth
+      # stopping a deploy for.
+      PREFLIGHT_SHA256: afea38d65a18963d7ad089ecbce20d80d9abb275878ed3bfdd01728994f02e8d
     steps:
+      # Before the preflight, because a preflight from an older release checks
+      # an older list of variables and passing it means nothing.
+      - name: Confirm the preflight on the host is the one from this release
+        run: |
+          set -euo pipefail
+          if [ ! -f "$STACK/preflight_env.sh" ]; then
+            echo "no preflight at $STACK/preflight_env.sh" >&2
+            echo "copy scripts/preflight_env.sh from this tag to $STACK/ and redeploy" >&2
+            exit 1
+          fi
+          actual="$(sha256sum "$STACK/preflight_env.sh" | cut -d' ' -f1)"
+          if [ "$actual" != "$PREFLIGHT_SHA256" ]; then
+            echo "the preflight on the host is not the one from this release" >&2
+            echo "  on the host: $actual" >&2
+            echo "  this release: $PREFLIGHT_SHA256" >&2
+            echo "copy scripts/preflight_env.sh from this tag to $STACK/ and redeploy" >&2
+            exit 1
+          fi
+
       # First, before anything restarts. A container in a restart loop over a
       # missing variable is an outage that looks like a code fault, on a host
       # nobody is logged in to.
@@ -173,6 +211,34 @@ jobs:
         run: >-
           docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env"
           run --rm api python backend/manage.py migrate --noinput
+
+      # The second of the two places `purge_expired_advice --check` runs, and
+      # the only one that runs on a schedule anybody can see. The other is
+      # ExecStartPost on the purge unit.
+      #
+      # It is here rather than in a healthcheck, which is what the design
+      # originally said. The api container's readiness check issues no database
+      # query on purpose: it runs every thirty seconds, and a check that counts
+      # rows that often is a load generator with a nice name. A deploy happens
+      # rarely and is already a moment when somebody is looking, which is the
+      # right frequency for a question about a daily timer.
+      #
+      # After migrate, so the schema is current and a check cannot fail on a
+      # column the previous release did not have.
+      #
+      # What it catches: retention that has stopped. If the timer died three
+      # months ago, rows are sitting past their ninety days and this exits
+      # non-zero, so the deploy goes red and says how many and how old.
+      #
+      # What it does NOT catch: a timer that was never enabled at all, for the
+      # first ninety-one days of this service's life, because there is nothing
+      # overdue yet to find. Only `systemctl list-timers ampeer-purge.timer`
+      # answers that, and nothing in this repository can run it. It is written
+      # down in infra/README.md rather than papered over here.
+      - name: Confirm expired advice is still being deleted
+        run: >-
+          docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env"
+          run --rm --entrypoint python api backend/manage.py purge_expired_advice --check
 
       # always(), because the deploys that fail are the ones that would
       # otherwise leave a registry credential in ~/.docker/config.json on a

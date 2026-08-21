@@ -175,12 +175,35 @@ Dus twee dingen, en het tweede is het punt:
   dagelijks. Geen Celery: een `DELETE` over een tabel met een index op `expires_at` heeft
   geen takenwachtrij nodig.
 - Een `--check`-modus op datzelfde commando die met een niet-nul exitcode eindigt zodra er
-  een rij bestaat die meer dan een dag over zijn vervaldatum is. Die draait als healthcheck
-  van de container, dus een opruiming die stopt maakt de stack zichtbaar ongezond in plaats
-  van stil te falen.
+  een rij bestaat die meer dan een dag over zijn vervaldatum is.
 
 Dat tweede is geen extraatje. Zonder controle is de eerste keer dat iemand merkt dat er
 niet is opgeruimd het moment dat er een databaseback-up wordt opgevraagd.
+
+**Waar `--check` draait, en waarom niet als healthcheck.** Bij het schrijven van deze
+paragraaf stond er dat `--check` de healthcheck van de container zou worden. Dat botst met
+een beslissing die deelproject 2 zelf neemt in paragraaf 10: de readiness-check van de
+api-container doet expres geen databasevraag. Hij draait elke dertig seconden, en een
+controle die zo vaak rijen telt is een belastinggenerator met een nette naam. De twee eisen
+kunnen niet allebei waar zijn in een healthcheck, dus draait `--check` op twee plaatsen die
+geen healthcheck zijn:
+
+- `ExecStartPost=` op `ampeer-purge.service`. Die regel draait alleen als de opruiming zelf
+  is geslaagd, en stelt dan precies de vraag die overblijft: staat er nog iets over datum?
+  Zo ja, dan heeft de `DELETE` niet gedaan wat zijn eigen uitvoer beweerde, en de unit gaat
+  naar `failed` in plaats van een getal in de journal te laten dat niemand leest
+- Een stap in de deploy-job, na `migrate`. Een deploy die groen wordt terwijl er niets meer
+  wordt verwijderd is een groen vinkje dat een gebroken belofte afdekt. Een deploy is zeldzaam
+  en is al een moment waarop iemand kijkt, wat de juiste frequentie is voor een vraag over
+  een dagelijkse timer
+
+**Wat geen van beide ziet: een timer die nooit is aangezet.** `ExecStartPost=` draait alleen
+als de unit draait, en die draait niet. De stap in de deploy vindt niets zolang er nog geen
+rij eenennegentig dagen oud is, dus in de eerste drie maanden van de dienst zwijgt hij ook.
+Alleen `systemctl list-timers ampeer-purge.timer` beantwoordt die vraag, en niets in deze
+repository kan dat commando draaien. Dat staat in `infra/README.md` als bekende grens.
+Monitoring staat in paragraaf 1 expliciet buiten scope, en een zin hier die suggereerde dat
+dit gat gedekt is zou dezelfde vorm van vals comfort zijn die dit project telkens tegenkomt.
 
 ## 9. Het toegangslogboek kan een belofte breken die de rest bewaakt
 
@@ -194,8 +217,15 @@ Dus:
 - Voor `location /api/advice/` een logformaat zonder het pad, of `access_log off`. De
   route is bekend; het token hoort er niet in
 - Geen `X-Forwarded-For` naar het applicatielogboek doorschrijven
-- De bewaartermijn van wat er wel gelogd wordt expliciet vastzetten in de
-  logrotatie-configuratie, zodat het een keuze is en geen standaardwaarde
+- De bewaartermijn van wat er wel gelogd wordt expliciet vastzetten, zodat het een keuze is
+  en geen standaardwaarde. Bij de uitvoering bleek dat dat niet in een
+  logrotatie-configuratie kan: nginx schrijft naar `/dev/stdout` en `/dev/stderr`, gunicorn
+  en Django naar stderr, en er staat geen logbestand in een container. Er is dus niets voor
+  `logrotate` om te roteren. De enige plek waar de termijn te kiezen valt is het
+  log-stuurprogramma van Docker, en dat staat standaard op `json-file` zonder rotatie: het
+  bewaart alles tot de container wordt verwijderd, en `restart: unless-stopped` betekent dat
+  dat nooit gebeurt. De keuze staat daarom als `logging:` bij elke service in
+  `infra/docker-compose.yml`, met de gekozen grootte en het aantal bestanden onderbouwd
 
 ## 10. Het NEDU-bestand, en waarom de deploy nog niet kan
 

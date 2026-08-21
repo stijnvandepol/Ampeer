@@ -1,0 +1,53 @@
+# What may enter a build context, written as a deny-everything list with named
+# exceptions rather than a list of things to keep out.
+#
+# There was no .dockerignore here until 2026-08-21, so the context for both
+# images was the whole working tree: `.git` with every branch and every commit,
+# `.venv`, `frontend/node_modules`, the pytest and mypy caches, and `data/`.
+#
+# `data/` is the one that decides the shape of this file. It holds the NEDU
+# standard profile on a developer machine, which is somebody else's data whose
+# redistribution terms are not confirmed, and both images are published to a
+# public registry. A deny-list would have kept it out only for as long as
+# somebody remembered to name every new place a copy could appear. An
+# allow-list keeps it out by default, and keeps out the next such file too.
+#
+# The cost of an allow-list is that a Dockerfile which starts copying something
+# new fails at build time with "file not found" until that path is named here.
+# That is the failure mode to want: loud, immediate, and in the build rather
+# than in the registry. tests/test_stack_smoke.py reads every COPY source out
+# of both Dockerfiles and fails if one of them is not named below, so the
+# breakage is a red test before it is a red build.
+*
+
+# --- infra/api.Dockerfile ---------------------------------------------------
+# The lockfile and the manifest, resolved in the build stage.
+!pyproject.toml
+!uv.lock
+# The two pure packages and the Django project.
+!ampeer_sim
+!ampeer_advice
+!backend
+!infra/entrypoint-api.sh
+
+# --- infra/web.Dockerfile ---------------------------------------------------
+!infra/nginx/nginx.conf
+# The statically exported site, exactly as `frontend-test` verified it. It is
+# git-ignored and built before the image; an empty or absent `out/` is caught
+# by the four assertions inside web.Dockerfile, not here.
+!frontend/out
+
+# --- taken back out of the directories re-included above --------------------
+# Compiled Python from the host. It is architecture and interpreter specific,
+# it is never what `uv sync` produced inside the image, and a stale .pyc that
+# shadows a source file is a bug that only exists in the image.
+**/__pycache__
+**/*.pyc
+# A local .env anywhere in the tree. `*` already excludes every one of them and
+# no exception above re-includes one, so this line adds nothing today. It is
+# here because `infra/.env` is exactly where this project tells an operator to
+# put the signing key and the database password, and the `!infra/...` lines
+# above make infra/ read as though it were included. A future `!infra` would
+# otherwise sweep that file into a public image in one character.
+**/.env
+**/.env.*

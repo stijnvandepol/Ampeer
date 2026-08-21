@@ -49,3 +49,10 @@
 *.conf text eol=lf
 *.service text eol=lf
 *.timer text eol=lf
+
+# Added 2026-08-21 by the barrier, with the file itself. .dockerignore has no
+# extension, so none of the rules above reach it, and `* text=auto` leaves the
+# working tree to core.autocrlf. A carriage return at the end of a pattern is
+# part of the pattern: `data\r` matches nothing, so the directory it was
+# written to keep out of a public image would be in it.
+.dockerignore text eol=lf

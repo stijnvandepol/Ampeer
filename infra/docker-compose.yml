@@ -16,9 +16,49 @@
 # would undo that, which is why a test reads this file for it.
 name: ampeer
 
+# How long the container logs live, chosen here rather than inherited.
+#
+# Everything in this stack writes to stdout and stderr on purpose: nginx logs to
+# /dev/stdout and /dev/stderr, gunicorn and Django log to stderr, and the purge
+# prints a count. None of it is written inside a container. That moves the whole
+# retention question to the log driver, and Docker's default json-file driver
+# keeps every byte until the container is removed, with no rotation at all.
+# `restart: unless-stopped` on all four services means these containers are not
+# removed, so "until it is removed" is "for as long as the machine lives".
+#
+# Section 9 of the design asks for that retention to be set explicitly, on the
+# grounds that a retention nobody chose is not a retention. So:
+#
+#   max-size 10m   Measured against this stack on 2026-08-21 over 280 real
+#                  access lines: one line in nginx's `privacy` format averages
+#                  66 bytes and never exceeded 72, and the json-file driver
+#                  wraps each one in a 70 byte envelope carrying a timestamp
+#                  and a stream name. So a logged request costs about 136
+#                  bytes, and 10 MB is roughly 77 thousand requests per file.
+#   max-file 5     Five files, so the ceiling is 50 MB per service and 200 MB
+#                  for the whole stack, and what can be read back is about 385
+#                  thousand requests. Rotation then discards a fifth at a time
+#                  instead of everything, which is what keeps the oldest file
+#                  useful while the newest one is being written.
+#
+# The ceiling is the decision; the number of days it buys is a consequence of
+# how busy the site is and is deliberately not claimed here. What these two
+# numbers guarantee is that no log on this host can grow without bound, and
+# that is the property that was missing.
+#
+# This is not monitoring and it does not make anything visible. Nothing reads
+# these files, nothing alerts on them, and section 1 of the design puts
+# monitoring out of scope. See infra/README.md.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   db:
     image: postgres@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+    logging: *logging
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
@@ -36,6 +76,7 @@ services:
 
   api:
     image: ghcr.io/stijnvandepol/ampeer-api:${AMPEER_VERSION}
+    logging: *logging
     build:
       context: ..
       dockerfile: infra/api.Dockerfile
@@ -75,6 +116,7 @@ services:
 
   web:
     image: ghcr.io/stijnvandepol/ampeer-web:${AMPEER_VERSION}
+    logging: *logging
     build:
       context: ..
       dockerfile: infra/web.Dockerfile
@@ -85,6 +127,7 @@ services:
 
   tunnel:
     image: cloudflare/cloudflared@sha256:0aa26e284f05e6c77ae375b8c9c11d9eb6a448fb7bcd8d40f31cb6176189eb38
+    logging: *logging
     restart: unless-stopped
     command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     depends_on:
