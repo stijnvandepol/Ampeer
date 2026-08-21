@@ -83,6 +83,29 @@ Beweging mag de aandacht naar de onzekerheid trekken en nooit naar een aankoop.
 | Vitest + Testing Library | actueel | Eenheden en componenten. |
 | Playwright | actueel | De stromen, en de vijf regels uit hoofdstuk 2. |
 
+Wat de foundation daadwerkelijk installeerde, op 2026-08-21: next 16.3.1, react en
+react-dom 19.2.8, typescript 5.9.3, eslint 9.39.5, eslint-config-next 16.3.1, tailwindcss
+en @tailwindcss/postcss 4.3.3, vitest en @vitest/coverage-v8 4.1.11, @vitejs/plugin-react
+6.1.0, jsdom 30.0.1, @testing-library/react 16.3.2, @testing-library/user-event 14.6.5,
+@testing-library/jest-dom 7.0.1, @playwright/test 1.62.1, @axe-core/playwright 4.13.0,
+serve 14.2.6. `@vitest/coverage-v8` stond niet in de tabel hierboven en is nodig: zonder
+dat pakket kan `vitest run --coverage` niet starten.
+
+`actions/setup-node` staat op v7.0.0, niet op v5. Het plan schreef v5 en dat was een gok:
+v7 is de actuele hoofdversie en de rest van deze repository pint `actions/checkout` op
+v7.0.1. Twee hoofdversies achterlopen op een actie die in een vereiste poort draait, is
+geen keuze die iemand gemaakt heeft.
+
+`sast` dekt de TypeScript-boom met semgrep, met een regelset die in deze repository staat
+(`.semgrep/frontend.yml`) en niet uit semgrep's registry komt. Een vereiste poort die
+afhangt van de bereikbaarheid van een derde partij gaat rood om redenen die niets met de
+code te maken hebben, en de regels die een poort afdwingt horen niet te kunnen veranderen
+zonder een commit hier. De set is smal en zegt dat zelf: hij dekt de manieren waarop een
+statische site die API-tekst rendert en formulierinvoer aanneemt daadwerkelijk stukgaat,
+en doet niet alsof hij een algemene TypeScript-scanner is. Alle vijf de regels zijn
+geverifieerd door ze op een expres fout bestand af te vuren; twee ervan deden dat in hun
+eerste versie niet, waaronder die op `dangerouslySetInnerHTML`.
+
 Gemeten op 2026-08-21 door `create-next-app` een keer echt te draaien in een wegwerpmap in
 plaats van de versies af te leiden uit wat het nieuwste is. Dat leverde meteen twee
 correcties op deze tabel op, allebei gevallen waarin het nieuwste niet het juiste was.

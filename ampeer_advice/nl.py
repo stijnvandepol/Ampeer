@@ -122,3 +122,41 @@ def text_for(rule_id: str) -> str:
     the reader as a blank advice instead of failing here.
     """
     return RULE_TEXTS[rule_id]
+
+
+#: What each varied or pinned model input is called in words.
+#:
+#: A scenario band sends `varied` and `pinned` so it can admit it is narrower
+#: than the headline band. Those are English identifiers from the simulation
+#: core, and a Dutch reader was being shown "supply_price" verbatim. The
+#: frontend cannot translate them: a Dutch copy of the model's vocabulary
+#: living there is a second copy that drifts the first time an input is added,
+#: and it is the same language-boundary violation this file exists to prevent.
+#: So the translation lives here, beside the advice text, keyed by the id.
+#:
+#: A test asserts that every name any variation can emit has an entry, so a new
+#: assumption without a Dutch name fails the build rather than reaching a reader
+#: as an identifier.
+INPUT_LABELS: dict[str, str] = {
+    "supply_price": "de stroomprijs",
+    "feed_in_price": "de terugleververgoeding",
+    "feed_in_cost_per_kwh": "de terugleverkosten",
+    "battery_cost_per_kwh": "de prijs van de batterij",
+    "annual_consumption_kwh": "je jaarverbruik",
+    "shiftable_block_kwh": "hoeveel verbruik je kunt verschuiven",
+    "system_loss_fraction": "het verlies in je installatie",
+}
+
+
+def label_for(input_id: str) -> str:
+    """The Dutch name of one model input.
+
+    Raises rather than falling back to the identifier. A fallback would put an
+    English name in front of a reader and nothing would say so; the test that
+    pairs this table with the variations is what should catch it, and it can
+    only catch it if this refuses.
+    """
+    try:
+        return INPUT_LABELS[input_id]
+    except KeyError:  # pragma: no cover - the pairing test makes this unreachable
+        raise KeyError(f"no Dutch name for model input {input_id!r}") from None

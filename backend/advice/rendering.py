@@ -28,7 +28,13 @@ from collections.abc import Callable
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from ampeer_advice.nl import CONFIDENCE_LABELS, ROUTE_TITLES, SIZING_BASIS_TEXTS, text_for
+from ampeer_advice.nl import (
+    CONFIDENCE_LABELS,
+    ROUTE_TITLES,
+    SIZING_BASIS_TEXTS,
+    label_for,
+    text_for,
+)
 from ampeer_advice.types import Advice, BatteryAdvice, Route, ScenarioBand
 from ampeer_sim.types import Band, Result
 
@@ -97,6 +103,14 @@ def _scenario_band(band: ScenarioBand, render: Callable[[Decimal], str]) -> dict
         "high": render(band.high),
         "varied": list(band.varied),
         "pinned": list(band.pinned),
+        # The same two lists in words. The identifiers above come from the
+        # simulation core and are English; a Dutch reader was being shown
+        # "supply_price" verbatim. Translating in the frontend would put a
+        # second copy of the model's vocabulary there, which drifts the first
+        # time an assumption is added, so the names live in nl.py beside the
+        # advice text and cross the boundary already translated.
+        "varied_text": [label_for(name) for name in band.varied],
+        "pinned_text": [label_for(name) for name in band.pinned],
         "combinations": band.combinations,
     }
 

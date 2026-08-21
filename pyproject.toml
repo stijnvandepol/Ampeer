@@ -34,6 +34,7 @@ dev = [
     # becomes Any and strict mode turns into decoration.
     "django-stubs[compatible-mypy]>=6.1.0",
     "djangorestframework-stubs>=3.18.0",
+    "semgrep>=1.174",
 ]
 
 [build-system]
