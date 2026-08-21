@@ -11,15 +11,15 @@
     "fired": [
       "SHIFT_FLEXIBLE_LOAD",
       "CONSIDER_DYNAMIC_CONTRACT",
-      "BATTERY_DEPENDS_ON_PRICE"
+      "BATTERY_DOES_NOT_PAY_BACK"
     ],
     "recommended_route": "SHIFT_BEHAVIOUR",
-    "battery_capacity_kwh": 5.0,
-    "battery_payback_p50_years": 9.69,
+    "battery_capacity_kwh": 3.0,
+    "battery_payback_p50_years": 12.05,
     "payback_tolerance_years": 0.25,
     "note": "Seven kWp on 2200 kWh of demand: the archetypal loser of the 2027 change, exporting 89 percent of what it makes. The curve flattens hard above 5 kWh because the whole house only uses about 6 kWh a day, so a larger battery has nothing to discharge into. Payback 9.2 years at the central cost, which is why the positive rule stands.",
-    "battery_break_even_cost_per_kwh": 835.73,
-    "concern": "The only household left with a maybe. Exports 89 percent of what it makes, so it is the archetypal loser of 2027 and the one case where storage is close to worth it: below 833.12 euro per installed kWh it pays back inside twelve years."
+    "battery_break_even_cost_per_kwh": 672.24,
+    "concern": "Corrected on 2026-08-21. The capacity curve was priced on the household as it arrived, not as it stands after the free routes it was just told to take, and against the contract it was told to leave. The storage gate already read the residual export, so the decision to show a battery at all was honest while every figure behind it was not: the same kilowatt hours were sold once as a free saving and again as a reason to buy storage. Every figure below moved in the same direction, away from the battery. This was the household that carried the price dependent verdict for the whole golden set, at 5.0 kWh and 9.69 years. Corrected it is 3.0 kWh and 12.05 years, three weeks past the twelve year limit, so it is now a no by a hair. No reference household reaches the middle state any more. That is a finding about the product, not about the test: after the double count is removed, storage does not pay back for any of the six."
   },
   "marloes_ev_at_night": {
     "fired": [
@@ -46,15 +46,15 @@
     "fired": [
       "SHIFT_FLEXIBLE_LOAD",
       "CONSIDER_DYNAMIC_CONTRACT",
-      "BATTERY_DEPENDS_ON_PRICE"
+      "BATTERY_DOES_NOT_PAY_BACK"
     ],
     "recommended_route": "SHIFT_BEHAVIOUR",
-    "battery_capacity_kwh": 7.0,
-    "battery_payback_p50_years": 11.62,
+    "battery_capacity_kwh": 5.0,
+    "battery_payback_p50_years": 16.8,
     "payback_tolerance_years": 0.25,
     "note": "The reference household: 3.5 kWp, 3500 kWh, nobody home during the day. Loses roughly 690 euro a year to the end of net metering, of which the two free routes recover about 280.",
-    "concern": "Back to price dependent, at 11.62 years, after the offline yield table was rebuilt from nine weather years instead of one. Rob has now moved between price dependent and a clear no three times as the model was corrected, always by a few tenths of a year. That is not instability, it is the most common household in the country sitting on the threshold, and it is exactly why the verdict has a middle state. A binary rule would have flipped his advice three times without ever telling him the number that decides it: below 696.82 euro per installed kWh it pays back inside twelve years.",
-    "battery_break_even_cost_per_kwh": 696.82
+    "concern": "Corrected on 2026-08-21. The capacity curve was priced on the household as it arrived, not as it stands after the free routes it was just told to take, and against the contract it was told to leave. The storage gate already read the residual export, so the decision to show a battery at all was honest while every figure behind it was not: the same kilowatt hours were sold once as a free saving and again as a reason to buy storage. Every figure below moved in the same direction, away from the battery. Rob was the household that moved between price dependent and a clear no three times as the model was corrected, always by a few tenths of a year. He is no longer near the line: 7.0 kWh at 11.62 years became 5.0 kWh at 16.80, and the break even price fell from 696.82 to 482.13 euro per installed kWh. The middle state was not wrong to exist, but it was being reached on figures that double counted the free advice above it.",
+    "battery_break_even_cost_per_kwh": 482.13
   },
   "sander_heat_pump": {
     "fired": [
@@ -63,10 +63,10 @@
     ],
     "recommended_route": "SMART_CONTROL",
     "battery_capacity_kwh": 7.0,
-    "battery_payback_p50_years": 15.36,
+    "battery_payback_p50_years": 20.43,
     "payback_tolerance_years": 0.25,
     "note": "Somebody home during the day plus a heat pump. Self consumption is already 47 percent so the shifting rule stays silent, correctly: there is little left to move and the presence check blocks it anyway. The heat pump load falls in winter when there is no surplus to store, so the battery saves only 321 euro a year against a 4725 euro invoice and does not pay back.",
-    "battery_break_even_cost_per_kwh": 527.38,
-    "concern": "Still a clear no, and further from the line than before. A heat pump puts the demand in the months with no sun to store, so seven kWh is where the curve flattens and even that needs 15.5 years at the central price."
+    "battery_break_even_cost_per_kwh": 396.39,
+    "concern": "Corrected on 2026-08-21. The capacity curve was priced on the household as it arrived, not as it stands after the free routes it was just told to take, and against the contract it was told to leave. The storage gate already read the residual export, so the decision to show a battery at all was honest while every figure behind it was not: the same kilowatt hours were sold once as a free saving and again as a reason to buy storage. Every figure below moved in the same direction, away from the battery. Sander's verdict did not change, only its margin: 15.36 years became 20.43 and the break even price fell from 527.38 to 396.39. He was already being told not to buy one, for reasons that were directionally right and numerically wrong."
   }
 }

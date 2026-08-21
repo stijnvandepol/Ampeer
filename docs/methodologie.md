@@ -301,6 +301,25 @@ huishouden dat zijn auto overdag op eigen stroom laadt, houdt vaak zo weinig ove
 batterij niets meer te bewaren heeft. Eerder kreeg zo iemand alsnog een batterijadvies,
 voor kilowatturen die het advies erboven net had geleerd zelf te gebruiken.
 
+Die zin stond hier vanaf 20 augustus 2026, en tot 21 augustus klopte hij maar half. Wij
+gebruikten de overgebleven teruglevering wel om te beslissen **of** wij een batterij lieten
+zien, maar niet om te berekenen **welke** en **wat die opbrengt**. Die berekening liep nog
+op je verbruik van voor de gratis adviezen, en op je huidige contract, ook als wij je net
+hadden aangeraden over te stappen. Het gevolg was precies wat deze paragraaf belooft dat
+niet gebeurt: dezelfde kilowatturen werden twee keer verkocht, een keer als gratis
+besparing en daarna nog een keer als reden om een batterij te kopen.
+
+Wat dat scheelde, op ons eigen referentiehuishouden: een batterij van 7,0 kWh met een
+terugverdientijd van 11,6 jaar werd 5,0 kWh met 16,8 jaar, en de prijs waaronder het uit
+kan zakte van 697 naar 482 euro per geinstalleerde kWh. Het oordeel klapte van "het hangt
+van de prijs af" naar "dit verdient zich niet terug". Bij alle zes de huishoudens waarmee
+wij het model vastleggen ging het dezelfde kant op: de batterij werd minder aantrekkelijk,
+en geen van de zes krijgt nu nog het advies er een te kopen.
+
+Wij zetten dit erbij omdat het de kant op ging die ons ongelegen komt. Een fout die het
+antwoord toevallig gunstiger maakt voor de partij die hem maakt, is precies de fout waarvan
+je mag verwachten dat hij blijft zitten.
+
 ## 15. Wij houden ons model tegen echte Nederlandse meetgegevens
 
 Er is één gemeten Nederlandse reeks die wij kunnen gebruiken zonder dat er ook maar

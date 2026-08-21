@@ -142,6 +142,31 @@ def _capacity_curve(
 FREE_ROUTE_ORDER = ("SHIFT_FLEXIBLE_LOAD", "CHARGE_EV_ON_SURPLUS", "CONSIDER_DYNAMIC_CONTRACT")
 
 
+@dataclasses.dataclass(frozen=True)
+class FreeRouteOutcome:
+    """The household as it stands once every free route has been taken.
+
+    This exists because returning only the residual export was not enough, and
+    the gap it left was the most expensive defect this package has had. The
+    storage gate judged the household after the free routes while the capacity
+    curve behind it was still priced on the household before them, so the same
+    kilowatt hours were sold twice in one answer: once as a free saving and
+    again as a reason to buy a battery. Carrying the whole outcome rather than
+    one number of it is what makes that impossible to repeat.
+    """
+
+    #: What each free route was measured to be worth, per rule id.
+    savings: dict[str, Decimal]
+    #: What still leaves the meter after all of them. The storage gate reads it.
+    residual_export_kwh: float
+    #: The consumption series of the household that took the advice. Anything
+    #: priced after the free routes must be priced against this one.
+    consumption: np.ndarray
+    #: The tariffs the household ends up on. If the advice says to switch
+    #: contract, a battery bought afterwards is worth what it is worth there.
+    scenario: TariffSet
+
+
 def _measure_free_routes(
     household: Household,
     grid: YearGrid,
@@ -153,7 +178,7 @@ def _measure_free_routes(
     fired_ids: frozenset[str],
     battery_spec: BatterySpec | None,
     weather_year: int,
-) -> tuple[dict[str, Decimal], float]:
+) -> FreeRouteOutcome:
     """Apply each free route on top of the last and measure what it is worth.
 
     This replaces three analytic estimators that priced the same surplus
@@ -162,9 +187,9 @@ def _measure_free_routes(
     together, and the first valued a shifted kWh at 0.27 euro where this
     measurement puts it near 0.16.
 
-    Returns the measured saving per rule and the export that is left once every
-    free route has been applied. That residual is what the storage rules judge,
-    which is what the spec and the Dutch copy have always claimed happens.
+    Returns the whole state of the household that took the advice, not just a
+    figure from it. See ``FreeRouteOutcome`` for why that distinction is the
+    point of this function.
     """
 
     def compose(for_household: Household) -> np.ndarray:
@@ -177,19 +202,20 @@ def _measure_free_routes(
             production_kwh=production,
         )
 
-    def run(for_household: Household) -> tuple[EnergyFlows, Decimal]:
-        flows = simulate(compose(for_household), production, battery_spec=battery_spec)
-        return flows, annual_cost(flows, scenario)
+    def run(for_household: Household) -> tuple[np.ndarray, EnergyFlows, Decimal]:
+        consumption = compose(for_household)
+        flows = simulate(consumption, production, battery_spec=battery_spec)
+        return consumption, flows, annual_cost(flows, scenario)
 
     savings: dict[str, Decimal] = {}
     current = household
-    flows, running_cost = run(current)
+    consumption, flows, running_cost = run(current)
 
     if "SHIFT_FLEXIBLE_LOAD" in fired_ids:
         # The advice is to run the washing machine at midday, which is exactly
         # what daytime occupancy models: the same block, moved.
         current = dataclasses.replace(current, daytime_occupancy=True)
-        flows, after = run(current)
+        consumption, flows, after = run(current)
         savings["SHIFT_FLEXIBLE_LOAD"] = running_cost - after
         running_cost = after
 
@@ -198,20 +224,32 @@ def _measure_free_routes(
             current,
             ev=dataclasses.replace(current.ev, behaviour=EVChargingBehaviour.SOLAR),
         )
-        flows, after = run(current)
+        consumption, flows, after = run(current)
         savings["CHARGE_EV_ON_SURPLUS"] = running_cost - after
         running_cost = after
 
+    ends_on = scenario
     if "CONSIDER_DYNAMIC_CONTRACT" in fired_ids:
         # Switching contract moves no energy at all, it only changes what the
         # same kilowatt hours are worth. So the flows are reused rather than
         # simulated again, which is both the honest expression of what a
         # contract switch is and two fewer passes through the timestep loop.
         savings["CONSIDER_DYNAMIC_CONTRACT"] = running_cost - annual_cost(flows, dynamic_scenario)
+        # The household is being told to switch, so this is the regime anything
+        # bought afterwards lives in. Pricing a battery against the contract the
+        # advice just recommended leaving overstates it, because the higher
+        # feed-in price of a dynamic contract is exactly what makes storing a
+        # kilowatt hour worth less than selling it.
+        ends_on = dynamic_scenario
 
-    # The last flows already describe the household with every free route
-    # applied, so the residual needs no further simulation.
-    return savings, float(flows.total_export.sum())
+    # The last consumption and flows already describe the household with every
+    # free route applied, so the residual needs no further simulation.
+    return FreeRouteOutcome(
+        savings=savings,
+        residual_export_kwh=float(flows.total_export.sum()),
+        consumption=consumption,
+        scenario=ends_on,
+    )
 
 
 def _substitute(
@@ -305,7 +343,7 @@ def advise(
     free_ids = frozenset(
         item.rule_id for item in evaluate(context) if item.route is not Route.STORAGE
     )
-    savings, residual_export = _measure_free_routes(
+    outcome = _measure_free_routes(
         household=household,
         grid=grid,
         fractions=fractions,
@@ -317,15 +355,21 @@ def advise(
         battery_spec=battery_spec,
         weather_year=weather_year,
     )
-    context = dataclasses.replace(context, export_after_free_routes_kwh=residual_export)
+    context = dataclasses.replace(context, export_after_free_routes_kwh=outcome.residual_export_kwh)
     fired = tuple(
-        dataclasses.replace(item, estimated_saving_eur=savings.get(item.rule_id))
+        dataclasses.replace(item, estimated_saving_eur=outcome.savings.get(item.rule_id))
         for item in evaluate(context)
     )
 
     battery: BatteryAdvice | None = None
     if any(item.rule_id == "CONSIDER_BATTERY" for item in fired):
-        battery = battery_advice(_capacity_curve(consumption, production, scenario))
+        # Priced on the household that took the free advice, in the contract it
+        # was told to move to. Using the original consumption here sold the same
+        # kilowatt hours twice in one answer, and using the original tariffs
+        # priced the battery in a regime the reader was simultaneously being
+        # advised to leave. Both made the battery look better, and neither
+        # produced an error.
+        battery = battery_advice(_capacity_curve(outcome.consumption, production, outcome.scenario))
         fired = _substitute(fired, "CONSIDER_BATTERY", _storage_verdict(battery))
 
     return Advice(

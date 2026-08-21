@@ -33,7 +33,7 @@ from ampeer_advice.battery import CAPACITIES, battery_advice
 from ampeer_advice.nl import RULE_TEXTS
 from ampeer_advice.rules import RULES
 from ampeer_advice.tariffs import baseline_tariffs, scenario_2027_tariffs
-from ampeer_advice.types import Advice, AdviceContext, Confidence, Route
+from ampeer_advice.types import Advice, AdviceContext, BatteryAdvice, Confidence, Route
 from ampeer_sim.economics.tariffs import annual_cost
 from ampeer_sim.engine.run import simulate
 from ampeer_sim.production.model import production_series
@@ -322,30 +322,70 @@ def test_a_household_whose_battery_takes_over_twelve_years_is_told_so() -> None:
     assert advice.battery.payback_years_p50 > MAX_ACCEPTABLE_PAYBACK_YEARS
 
 
-def test_a_payback_inside_the_cost_band_is_reported_as_depending_on_the_price() -> None:
-    """The one household left with a maybe, and why the verdict has three states.
+def _battery_with_payback(p10: str, p50: str, p90: str) -> BatteryAdvice:
+    """A battery advice that exists only to be judged by ``_storage_verdict``."""
+    return BatteryAdvice(
+        sized_capacity_kwh=7.0,
+        annual_saving_eur=Decimal("300.00"),
+        payback_years_p10=Decimal(p10),
+        payback_years_p50=Decimal(p50),
+        payback_years_p90=Decimal(p90),
+        curve=((7.0, Decimal("300.00")),),
+        break_even_cost_per_kwh=Decimal("600.00"),
+    )
 
-    This case exports 89 percent of what it makes, so storage is closer to worth
-    it here than anywhere else in the golden set. Its central payback clears
-    twelve years and its pessimistic end does not, and nothing about the
-    household decides which it turns out to be: the price of the quote does.
-    That is the one variable the reader can go and find out, so they are told
-    the price at which it flips rather than a yes they cannot check.
 
-    This used to be Rob, at 11.83 years against a limit of twelve. Correcting
-    the central net feed-in from a derived -0.010 per kWh to the published
-    +0.0025 pushed him to 12.46 and a clear no.
+def test_the_verdict_has_three_states_and_each_one_is_reachable() -> None:
+    """Why the storage verdict is not a yes or a no.
+
+    A battery costs between 450 and 900 euro per kWh installed. Flipping the
+    most consequential sentence in the product on the midpoint of a factor two
+    spread would be a single number without a band deciding an answer, which is
+    the one thing this product promises not to do. So there are three outcomes,
+    and the middle one hands the reader the price at which it flips rather than
+    a yes they cannot check.
+
+    This is asserted against the function rather than against a household on
+    purpose, and the reason is a finding rather than a convenience. Until
+    2026-08-21 ``large_array_small_use`` carried this case end to end at 9.69
+    years. Once the capacity curve stopped being priced on consumption the free
+    routes had already claimed, it moved to 12.05, and no household in the
+    golden set reaches the middle state any more. Reaching for a household that
+    happens to land there would make this test a hostage to whichever case is
+    currently nearest the line; the boundaries themselves are what has to hold.
     """
-    advice = _golden_advice("large_array_small_use")
-    ids = [fired.rule_id for fired in advice.fired]
-    assert "BATTERY_DEPENDS_ON_PRICE" in ids
-    assert "CONSIDER_BATTERY" not in ids
-    assert "BATTERY_DOES_NOT_PAY_BACK" not in ids
-    assert advice.battery is not None
-    assert advice.battery.payback_years_p50 <= MAX_ACCEPTABLE_PAYBACK_YEARS
-    assert advice.battery.payback_years_p90 > MAX_ACCEPTABLE_PAYBACK_YEARS
-    # The actionable number: below this installed price it pays back in time.
-    assert advice.battery.break_even_cost_per_kwh == Decimal("835.73")
+    assert _storage_verdict(_battery_with_payback("6.0", "9.0", "11.9")) == "CONSIDER_BATTERY"
+    assert (
+        _storage_verdict(_battery_with_payback("8.0", "11.0", "16.0")) == "BATTERY_DEPENDS_ON_PRICE"
+    )
+    assert (
+        _storage_verdict(_battery_with_payback("10.0", "13.0", "19.0"))
+        == "BATTERY_DOES_NOT_PAY_BACK"
+    )
+
+    # Exactly on the limit is still a yes: twelve years is the warranty, and a
+    # battery that pays back in exactly twelve has paid back inside it.
+    on_the_line = _battery_with_payback("8.0", "10.0", str(MAX_ACCEPTABLE_PAYBACK_YEARS))
+    assert _storage_verdict(on_the_line) == "CONSIDER_BATTERY"
+
+
+def test_no_reference_household_is_told_to_buy_a_battery() -> None:
+    """The state of the answer after the double count was removed.
+
+    This is not a rule and it must not become one. It is a record of what the
+    corrected model says today about six households: for every one of them that
+    exports enough to be shown a battery at all, storage does not earn itself
+    back inside its warranty. If a change ever makes one of them a yes, this
+    test fails and somebody has to look at why, which is the point.
+    """
+    verdicts = {}
+    for name in EXPECTED:
+        advice = _golden_advice(name)
+        storage = [f.rule_id for f in advice.fired if f.route is Route.STORAGE]
+        if storage:
+            verdicts[name] = storage[0]
+    assert verdicts, "no golden household reaches the storage route at all"
+    assert set(verdicts.values()) == {"BATTERY_DOES_NOT_PAY_BACK"}, verdicts
 
 
 def test_an_unambiguous_buy_needs_the_whole_band_inside_the_limit() -> None:
