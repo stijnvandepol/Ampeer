@@ -36,7 +36,13 @@ jobs:
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: "0.12.5"
-          python-version-file: ".python-version"
+          # No python-version input. setup-uv v10 has no
+          # `python-version-file`, so the line that used to sit here was
+          # silently ignored and only showed up as a workflow annotation,
+          # which does not fail a build. uv reads .python-version itself
+          # when it builds the environment, so that file stays the single
+          # source of truth. tests/test_pipeline_contract.py asserts the
+          # interpreter that actually runs matches it.
           enable-cache: true
       - run: uv sync --locked --group dev --group backend
       - run: uv run ruff check ampeer_sim ampeer_advice backend tests tools
@@ -101,7 +107,13 @@ jobs:
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: "0.12.5"
-          python-version-file: ".python-version"
+          # No python-version input. setup-uv v10 has no
+          # `python-version-file`, so the line that used to sit here was
+          # silently ignored and only showed up as a workflow annotation,
+          # which does not fail a build. uv reads .python-version itself
+          # when it builds the environment, so that file stays the single
+          # source of truth. tests/test_pipeline_contract.py asserts the
+          # interpreter that actually runs matches it.
           enable-cache: true
       - run: uv sync --locked --group dev --group backend
       - run: uv run pytest --cov --cov-report=term-missing

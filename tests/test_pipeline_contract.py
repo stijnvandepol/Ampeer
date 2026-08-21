@@ -507,3 +507,35 @@ def test_the_language_boundary_check_is_still_in_the_tree() -> None:
     body = spec.read_text(encoding="utf-8")
     for required in ("typescript", "ui-strings.txt", "aria-label"):
         assert required in body, f"the language check no longer mentions {required}"
+
+
+def test_the_interpreter_running_this_matches_the_pinned_version() -> None:
+    """`.python-version` has to be a fact, not a wish.
+
+    The workflows used to pass `python-version-file` to setup-uv. That input
+    does not exist in v10, so the action ignored it and said so as a workflow
+    annotation, which does not fail a build: five jobs claimed to pin an
+    interpreter and none of them did. It happened to be right anyway, because uv
+    reads the file itself, but nothing had checked.
+
+    This runs inside the interpreter under test, which is what makes it an
+    observation rather than another claim.
+    """
+    import sys
+
+    pinned = (REPO_ROOT / ".python-version").read_text(encoding="utf-8").strip()
+    running = ".".join(str(part) for part in sys.version_info[:2])
+    assert running == pinned, f"running Python {running}, .python-version says {pinned}"
+
+
+def test_no_workflow_passes_setup_uv_an_input_it_does_not_have() -> None:
+    """The specific mistake, so re-adding it fails here rather than in an
+    annotation nobody reads. setup-uv v10 accepts `version`, `version-file` and
+    `python-version`; `python-version-file` is not one of them."""
+    for name, document in _workflows().items():
+        for job, spec in document["jobs"].items():
+            for step in spec.get("steps", []):
+                if "astral-sh/setup-uv" not in str(step.get("uses", "")):
+                    continue
+                unknown = set(step.get("with", {})) & {"python-version-file"}
+                assert not unknown, f"{name}:{job} passes setup-uv {sorted(unknown)}"
