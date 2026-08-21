@@ -1,0 +1,389 @@
+name: deploy
+
+# The only workflow in this repository with a job on the self-hosted runner,
+# and the only one that can change what is running on the host.
+#
+# tests/test_pipeline_contract.py refuses every job that says `self-hosted`,
+# because ci.yml and security.yml trigger on push to feat/** where no ruleset
+# applies, so such a job would run whatever somebody pushed inside the owner's
+# own network. This workflow is the single named exception to that rule, and it
+# is only defensible because of the four properties below. Each one has a test.
+#
+#   1. It triggers on a tag and on nothing else. No branch, no pull request, no
+#      workflow_dispatch. The runner cannot be reached by pushing code.
+#   2. The `deploy` job declares `environment: production`, so a tag push is a
+#      request that waits for a review rather than a deploy.
+#   3. That job checks nothing out and builds nothing. There is no source on
+#      the host, no build chain, and no token that can read the repository.
+#   4. It logs out of the registry when it finishes. web2 is not ephemeral,
+#      measured on 2026-08-21, so anything left in the runner's home directory
+#      is there for the next job as well.
+#
+# Widening any of the four is how the original rule gets removed slowly, so
+# tests/test_deploy_workflow.py asserts all four and asserts that the exception
+# list holds exactly one job.
+on:
+  push:
+    tags: ["v*"]
+
+# Read by default. `build` raises its own to `packages: write` and `deploy`
+# lowers its own to `packages: read`, both scoped to the job.
+permissions:
+  contents: read
+
+# Two deploys running `migrate` against one database at the same time is the
+# failure this prevents; cancel-in-progress stays false because cancelling a
+# deploy halfway leaves the stack half migrated, which is worse than waiting.
+# Measured on 2026-08-21: the second run's `migrate` fails loudly and the first
+# run's schema survives, which is the behaviour asked for.
+#
+# The edge, written down because nothing in a workflow file can close it.
+# GitHub keeps at most one *pending* run per concurrency group and cancels the
+# older one. A run waiting on the `production` review is pending, so pushing v3
+# while v2 is still waiting cancels v2: the tag exists, its images are in GHCR,
+# and nothing deployed them. It is silent in the sense that matters, because
+# there is no failure to read, only a run marked cancelled in a tab nobody is
+# looking at.
+#
+# Not guarded, deliberately, and there are only two ways to guard it. Keying
+# the group per tag (`group: deploy-${{ github.ref_name }}`) stops the
+# cancellation and gives back the concurrent `migrate` this group exists to
+# prevent, which trades a stale deploy for a corrupted schema. A step that
+# reported the cancellation cannot exist either: the run that would report it
+# is the run being cancelled, so there is nothing left to run the step.
+#
+# What is left is knowing it: after approving a deploy, check that the run for
+# the tag below it actually started. The failure mode is a release that is
+# tagged, built and not running, which is visible as the old version still
+# being served.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  # Builds on a GitHub-hosted runner and publishes to GHCR. Everything that
+  # needs the source happens here, which is what leaves the host with nothing
+  # to compromise.
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    # The two digests this run pushed. A step output dies with its job, so
+    # without these the deploy job has no name for the images except the tag,
+    # and the tag is the thing that can be repointed while the review below is
+    # open. See the note on the check that reads them.
+    outputs:
+      api-digest: ${{ steps.api-image.outputs.digest }}
+      web-digest: ${{ steps.web-image.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nothing here pushes. Leaving the token in .git/config would hand it
+          # to every tool that runs afterwards, including a Docker build.
+          persist-credentials: false
+
+      # The web image copies frontend/out in rather than building it, so the
+      # site has to be exported before the image is built. It is exported here
+      # and not in the Dockerfile so the published image is the same output
+      # `frontend-test` already ran the end to end suite against.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: frontend/.nvmrc
+      # See the note in ci.yml on why there is no pnpm cache on the step above.
+      - run: corepack enable
+        working-directory: frontend
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - name: Export the static site against its own origin
+        working-directory: frontend
+        env:
+          # Empty on purpose, and this is the only place it is empty. api.ts
+          # falls back to http://127.0.0.1:8000 when the variable is absent,
+          # which is the development default; an absent variable here would
+          # bake a localhost URL into the production bundle and every visitor
+          # would get a failed request against their own machine. Empty makes
+          # the client use relative paths, which is what same-origin means.
+          NEXT_PUBLIC_API_BASE: ""
+        run: pnpm build
+
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Both images carry the tag that started this run, and infra/docker-compose.yml
+      # pulls exactly that tag through AMPEER_VERSION. A deploy is therefore one
+      # string, which is what makes a rollback a rollback and not a rebuild.
+      #
+      # `provenance: true`, stated plainly because it reads as a control and is
+      # not one here. It makes buildkit attach a provenance attestation to the
+      # pushed index, recording which workflow, which commit and which
+      # Dockerfile produced the image. Nothing in this repository or on the
+      # host reads it, and it is not signed by anything the host could check,
+      # so today it is a record for a person doing a post mortem and no part of
+      # any gate. Turning it into one would mean `actions/attest-build-provenance`
+      # in this job and `gh attestation verify` on the LXC, which needs a
+      # GitHub token and an outbound call from the host at deploy time; that is
+      # a decision about the host, not about this file. What actually closes
+      # the window between the build and the pull is the digest comparison in
+      # the deploy job below, which needs nothing on the host but docker.
+      #
+      # `id:` on both steps, because the digest each one reports is what that
+      # comparison is made against.
+      - name: Build and push the api image
+        id: api-image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: infra/api.Dockerfile
+          push: true
+          tags: ghcr.io/stijnvandepol/ampeer-api:${{ github.ref_name }}
+          provenance: true
+
+      - name: Build and push the web image
+        id: web-image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: infra/web.Dockerfile
+          push: true
+          tags: ghcr.io/stijnvandepol/ampeer-web:${{ github.ref_name }}
+          provenance: true
+
+  # Runs on the LXC. Four commands and a logout.
+  deploy:
+    needs: build
+    runs-on: self-hosted
+    timeout-minutes: 15
+    # The review gate. Reviewers and the deployment branch policy are
+    # configured on the environment in repository settings, not here; that
+    # policy is what keeps a tag cut from a feature branch from deploying, and
+    # setting it is the owner's, like the runner itself.
+    environment: production
+    # Pull two private packages, and nothing else. Naming one permission sets
+    # every unnamed one to none, so this token cannot read the repository.
+    permissions:
+      packages: read
+    env:
+      # Shell environment beats the env file in compose interpolation, so this
+      # decides which release runs even when the file on the host still names
+      # the previous one.
+      AMPEER_VERSION: ${{ github.ref_name }}
+      # The stack lives here. docker-compose.yml, .env and preflight_env.sh are
+      # placed on the host by hand from this repository, because nothing here
+      # can write to the LXC and a job that could would be a job that can
+      # change what runs without a review.
+      STACK: /srv/ampeer
+      # The sha256 of scripts/preflight_env.sh in this repository at this tag.
+      #
+      # The script is copied to the host by hand and this job has no checkout,
+      # so the copy it runs is whatever was left there last time. Until
+      # 2026-08-21 nothing anywhere noticed the difference: an out-of-date copy
+      # still exits zero, so the deploy stayed green and the check somebody had
+      # just added was not running. That is the same silent shape as the purge
+      # nobody scheduled.
+      #
+      # A version string was the alternative and it is weaker: it detects a
+      # copy somebody forgot to update only if they also remembered to update
+      # the version, which is the thing they forgot. A digest is derived from
+      # the content, so it cannot be forgotten separately from the content.
+      #
+      # tests/test_stack_smoke.py recomputes this from the script on every pull
+      # request, so this literal cannot drift from the repository. It can only
+      # disagree with the host, which is exactly the disagreement worth
+      # stopping a deploy for.
+      PREFLIGHT_SHA256: ba4e2c41d55386f20ac6b6ed8ece2d0c5aa6f59099eea18e884d32fb82c34f78
+      # The sha256 of infra/docker-compose.yml in this repository at this tag,
+      # for the same reason and with one difference: this is the file that
+      # decides what actually runs.
+      #
+      # Until 2026-08-21 the preflight was pinned and this was not, and an
+      # audit measured what that permits. Adding
+      # `- /var/run/docker.sock:/var/run/docker.sock` to the api service in the
+      # copy on the host leaves every test in this repository green, because
+      # the tests read the repository's copy and the host runs its own; the
+      # container then has the daemon and the host with it. Published ports, a
+      # deleted `logging:` block and an extra bind mount are invisible in
+      # exactly the same way, and they are permanent, because nothing ever
+      # replaces that file.
+      #
+      # tests/test_deploy_workflow.py recomputes this from
+      # infra/docker-compose.yml on every pull request, so the literal cannot
+      # drift from the repository. Changing that file therefore means changing
+      # this line in the same commit, which is the point: it can then only
+      # disagree with the host.
+      COMPOSE_SHA256: 17b9fdcd4cd84b09fe07b6f1472ad38b05452be4000f83a2142ab8e1ef3dd10f
+    steps:
+      # Before the preflight, because a preflight from an older release checks
+      # an older list of variables and passing it means nothing.
+      - name: Confirm the preflight on the host is the one from this release
+        run: |
+          set -euo pipefail
+          if [ ! -f "$STACK/preflight_env.sh" ]; then
+            echo "no preflight at $STACK/preflight_env.sh" >&2
+            echo "copy scripts/preflight_env.sh from this tag to $STACK/ and redeploy" >&2
+            exit 1
+          fi
+          actual="$(sha256sum "$STACK/preflight_env.sh" | cut -d' ' -f1)"
+          if [ "$actual" != "$PREFLIGHT_SHA256" ]; then
+            echo "the preflight on the host is not the one from this release" >&2
+            echo "  on the host: $actual" >&2
+            echo "  this release: $PREFLIGHT_SHA256" >&2
+            echo "copy scripts/preflight_env.sh from this tag to $STACK/ and redeploy" >&2
+            exit 1
+          fi
+
+      # Before the compose file is read by anything, for the same reason: every
+      # command below names it, and a mismatch found after `up` describes a
+      # file that has already started containers.
+      - name: Confirm the compose file on the host is the one from this release
+        run: |
+          set -euo pipefail
+          if [ ! -f "$STACK/docker-compose.yml" ]; then
+            echo "no compose file at $STACK/docker-compose.yml" >&2
+            echo "copy infra/docker-compose.yml from this tag to $STACK/ and redeploy" >&2
+            exit 1
+          fi
+          actual="$(sha256sum "$STACK/docker-compose.yml" | cut -d' ' -f1)"
+          if [ "$actual" != "$COMPOSE_SHA256" ]; then
+            echo "the compose file on the host is not the one from this release" >&2
+            echo "  on the host: $actual" >&2
+            echo "  this release: $COMPOSE_SHA256" >&2
+            echo "copy infra/docker-compose.yml from this tag to $STACK/ and redeploy" >&2
+            exit 1
+          fi
+
+      # First, before anything restarts. A container in a restart loop over a
+      # missing variable is an outage that looks like a code fault, on a host
+      # nobody is logged in to.
+      # Invoked through bash rather than executed, so a hand copy that arrived
+      # without its executable bit fails on a missing variable it can report
+      # rather than on "permission denied" from a step whose name says
+      # something else.
+      - name: Check the nine variables and the profile file
+        run: bash "$STACK/preflight_env.sh" "$STACK/.env"
+
+      - name: Log in to the registry
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        # Through the environment rather than interpolated into the script, so
+        # nothing from the event ends up as shell. A plain command rather than
+        # an action, because this one runs inside the owner's network and every
+        # third party step there is one more thing that gets to.
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+      # -f rather than a working directory. Without it compose looks for a
+      # compose file in the runner's own work directory and walks upwards from
+      # there, which is not where the stack lives; the project directory then
+      # follows the file, which is what makes the bind mount source in it
+      # resolve against /srv/ampeer.
+      - name: Pull what CI built
+        run: >-
+          docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env"
+          pull
+
+      # The approval window, closed after the fact rather than by removing the
+      # tag.
+      #
+      # docker-compose.yml pulls `:${AMPEER_VERSION}`, and between the build
+      # job above and the pull just now sits the `production` review, which can
+      # take hours. A tag is a name: anyone holding `packages: write` on this
+      # repository can repoint ampeer-api:v0.1.0 while the review is open, and
+      # the reviewer then approves the run they read while the host pulls what
+      # the tag says at pull time. Nothing in the run would look wrong.
+      #
+      # A digest in the compose file would close it and cost more than it
+      # buys: the tag is what lets this host bring itself back up after a
+      # reboot with no CI alive, what makes a rollback one string in a file a
+      # person can read, and what keeps .env readable. So the tag stays and the
+      # pull is checked instead. `pull` has already resolved the tag, so this
+      # reads the digest the daemon recorded for what it fetched and compares
+      # it to the digest the build job says it pushed. A repointed tag fails
+      # here, before `up`, with the old release still serving.
+      #
+      # What this does not cover, stated rather than implied: a rollback, which
+      # is an operator running `docker compose up -d` on the host with an older
+      # AMPEER_VERSION. There is no build job in that path to say what the
+      # digest should be and no CI run at all, so an old tag repointed weeks
+      # ago is pulled without anything objecting. That is the price of the tag
+      # being usable while CI is not, and it is the operation the tag exists to
+      # make easy, so it is the one to be careful with: check the digest by
+      # hand against the run that published it before rolling back to a
+      # release old enough that somebody could have repointed it.
+      - name: Confirm the images are the ones this run built
+        env:
+          API_DIGEST: ${{ needs.build.outputs.api-digest }}
+          WEB_DIGEST: ${{ needs.build.outputs.web-digest }}
+        run: |
+          set -euo pipefail
+          for name in api web; do
+            case "$name" in
+              api) expected="$API_DIGEST" ;;
+              web) expected="$WEB_DIGEST" ;;
+            esac
+            image="ghcr.io/stijnvandepol/ampeer-$name:$AMPEER_VERSION"
+            if [ -z "$expected" ]; then
+              echo "the build job published no digest for $image" >&2
+              exit 1
+            fi
+            actual="$(docker image inspect --format '{{index .RepoDigests 0}}' "$image")"
+            if [ "${actual#*@}" != "$expected" ]; then
+              echo "$image is not the image this run built" >&2
+              echo "  pulled: ${actual#*@}" >&2
+              echo "  built:  $expected" >&2
+              echo "the tag was repointed between the build and this pull" >&2
+              exit 1
+            fi
+          done
+
+      - name: Start it
+        run: >-
+          docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env"
+          up -d --remove-orphans
+
+      # After `up`, so it runs against the image that is now serving, and with
+      # --noinput because there is no terminal attached to this.
+      - name: Migrate
+        run: >-
+          docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env"
+          run --rm api python backend/manage.py migrate --noinput
+
+      # The second of the two places `purge_expired_advice --check` runs, and
+      # the only one that runs on a schedule anybody can see. The other is
+      # ExecStartPost on the purge unit.
+      #
+      # It is here rather than in a healthcheck, which is what the design
+      # originally said. The api container's readiness check issues no database
+      # query on purpose: it runs every thirty seconds, and a check that counts
+      # rows that often is a load generator with a nice name. A deploy happens
+      # rarely and is already a moment when somebody is looking, which is the
+      # right frequency for a question about a daily timer.
+      #
+      # After migrate, so the schema is current and a check cannot fail on a
+      # column the previous release did not have.
+      #
+      # What it catches: retention that has stopped. If the timer died three
+      # months ago, rows are sitting past their ninety days and this exits
+      # non-zero, so the deploy goes red and says how many and how old.
+      #
+      # What it does NOT catch: a timer that was never enabled at all, for the
+      # first ninety-one days of this service's life, because there is nothing
+      # overdue yet to find. Only `systemctl list-timers ampeer-purge.timer`
+      # answers that, and nothing in this repository can run it. It is written
+      # down in infra/README.md rather than papered over here.
+      - name: Confirm expired advice is still being deleted
+        run: >-
+          docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env"
+          run --rm --entrypoint python api backend/manage.py purge_expired_advice --check
+
+      # always(), because the deploys that fail are the ones that would
+      # otherwise leave a registry credential in ~/.docker/config.json on a
+      # runner that keeps its home directory between jobs.
+      - name: Drop the registry credential
+        if: always()
+        run: docker logout ghcr.io

@@ -1,0 +1,29 @@
+# THIS FILE IS INSTALLED BY HAND. NOTHING IN THIS REPOSITORY INSTALLS IT.
+#
+# Who:   Stijn, on the Ampeer LXC, as root.
+# Where: /etc/systemd/system/ampeer-purge.timer, next to ampeer-purge.service.
+# How:   systemctl daemon-reload && systemctl enable --now ampeer-purge.timer
+# Check: systemctl list-timers ampeer-purge.timer shows a NEXT within a day.
+#
+# Enabling the timer is the step that makes the retention promise true. Until
+# somebody runs that command, expired advice is invisible rather than deleted.
+
+[Unit]
+Description=Run the Ampeer retention purge daily
+
+[Timer]
+# A fixed time, and deliberately no RandomizedDelaySec. The check mode allows
+# exactly GRACE_DAYS = 1 of slack, so the period here and that constant are one
+# number seen from two sides: any jitter added here pushes the worst case past
+# twenty-four hours and turns a healthy stack red for the length of the jitter.
+# Change one and the other has to move with it.
+OnCalendar=*-*-* 03:30:00
+AccuracySec=1m
+# A host that was off at 03:30 must not skip a day. systemd runs the missed job
+# after the next boot instead. Without this, a weekend of downtime silently
+# extends the retention window and nothing anywhere says so.
+Persistent=true
+Unit=ampeer-purge.service
+
+[Install]
+WantedBy=timers.target

@@ -15,3 +15,59 @@
 *.md text eol=lf
 *.toml text eol=lf
 *.json text eol=lf
+
+# Added 2026-08-21. Without these a fresh clone on Windows arrives CRLF, the
+# mixed-line-ending hook rewrites the file on the first commit, and every
+# frontend commit prints a wall of warnings that trains people to ignore them.
+# This subproject is also the first where a file with the wrong line endings
+# ends up inside a Linux container.
+*.ts text eol=lf
+*.tsx text eol=lf
+*.css text eol=lf
+*.txt text eol=lf
+
+# infra/.env.example is copied to a file compose reads on a Linux host. With
+# CRLF every value arrives with a trailing carriage return, so POSTGRES_HOST
+# becomes "db\r" and the connection fails for a reason the error does not name.
+# It matches none of the rules above, because its extension is `.example`.
+*.example text eol=lf
+
+# Added 2026-08-21 by the barrier, before the lanes that create these files
+# started. Every one of them ends up inside or under a Linux system, and each
+# fails in a way that names something other than line endings: a systemd unit
+# with CRLF does not parse, a Dockerfile RUN line with a trailing carriage
+# return fails inside the container, and an env file read by compose turns
+# POSTGRES_HOST into "db
+" so the failure reads as DNS.
+#
+# The foundation lane found the .example gap in a file it was creating and
+# recommended these four rather than pre-empting three lanes mid-flight. That
+# was the right call for an agent and the wrong moment to wait: covering them
+# now means the files are covered from birth instead of after a fresh clone on
+# Windows has already broken them once.
+*.Dockerfile text eol=lf
+*.conf text eol=lf
+*.service text eol=lf
+*.timer text eol=lf
+
+# Added 2026-08-21 by the barrier, with the file itself. .dockerignore has no
+# extension, so none of the rules above reach it, and `* text=auto` leaves the
+# working tree to core.autocrlf. A carriage return at the end of a pattern is
+# part of the pattern: `data\r` matches nothing, so the directory it was
+# written to keep out of a public image would be in it.
+.dockerignore text eol=lf
+
+# The last of them. Every one of these showed as modified in `git status` with
+# a zero-line diff, because `* text=auto` leaves the working-tree ending to
+# core.autocrlf while every rule above pins one. Eighty-six files that say
+# "changed" and are not is how a person learns to stop reading git status, and
+# this repository leans on people reading output.
+#
+# .svg is text and Next ships five of them; .mjs is a config file; the three
+# dotfiles have no extension for a pattern to catch.
+*.svg text eol=lf
+*.mjs text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+.nvmrc text eol=lf
+.prettierignore text eol=lf
