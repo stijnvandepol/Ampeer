@@ -343,6 +343,9 @@ geschat, en de audit die er 9,2 van maakte had `--force-recreate` gebruikt dat d
 gebruikt. Een `migrate` draait pas nadat het nieuwe verkeer al binnenkomt. Alle drie vragen
 een tweede instantie of een andere volgorde in de deploy-job, en dat is een eigen ronde.
 
+Twee van de drie zijn inmiddels die ronde geweest; hoofdstuk 15 beschrijft wat er veranderd
+is en waarom de derde blijft staan.
+
 ### Wat bij Stijn ligt, en waarom het geen omissie is
 
 Een push naar elke `feat/**`-branch kan code uitvoeren op `web2`. De rulesets dekken `main`
@@ -353,3 +356,75 @@ gebruiker van de runner zit in de docker-groep, en `docker run -v /:/host` leest
 `/etc/shadow`. Wat wel werkt staat in `scripts/setup_rulesets.sh`: de runnergroep beperken
 tot deze ene workflow, en docker-groepslidmaatschap vervangen door een `sudoers`-regel voor
 precies die ene commandoregel. Allebei zijn het instellingen buiten deze repository.
+
+
+## 15. De volgorde en het terugvallen, 2026-08-21
+
+Deze ronde raakt precies een bestand, `.github/workflows/deploy.yml`, en dat is geen
+toeval maar de afbakening. `docker-compose.yml` en `preflight_env.sh` staan met een
+sha256 vastgepind op de host en komen daar met de hand; elke wijziging daarin is een
+handeling van Stijn op de LXC. De workflow komt uit de tag en heeft die handeling niet
+nodig. Wat hieronder staat kon dus af zonder dat er iemand hoeft in te loggen.
+
+### `migrate` draait nu voordat het verkeer omschakelt
+
+De oude volgorde was `up -d` en daarna `migrate`. Dat zet elke deploy door een venster
+waarin de nieuwe release al bedient terwijl het schema nog het vorige is, en dat venster
+is nooit veilig: de code leest een kolom die er nog niet is. Een migratie die daar
+faalde liet de site fouten serveren zonder dat er nog een stap over was om af te breken.
+
+Andersom kantelt het venster naar oude code op het nieuwe schema, en dat venster is wel
+veilig zolang een migratie alleen toevoegt. De volgorde is dus niet gratis. Ze koopt de
+veilige helft van een ruil, en de prijs is een regel:
+
+> Een migratie moet de vorige release in staat laten bedienen. Voeg een kolom toe, vul
+> hem, en laat de oude pas in een latere release vallen.
+
+Die regel is van hieruit niet af te dwingen. Wat wel afgedwongen is, is de winst: een
+migratie die faalt stopt de deploy terwijl de vorige release nog heel is en nog bedient.
+`test_the_migration_runs_before_the_traffic_switches` bewaakt de volgorde, en
+`test_the_migration_runs_after_the_images_are_verified` bewaakt de andere kant ervan:
+migreren voor de digest-controle zou een omgehangen tag naar de database laten schrijven,
+en dat is het enige in deze stack dat geen latere stap terugdraait.
+
+### Een mislukte start valt terug op de release die draaide
+
+De vorige release is afleesbaar zolang hij draait: hij staat als image-tag op de
+container die bedient. Na `up -d` is die container weg, dus de stap die hem opschrijft
+staat ervoor. Er is geen tweede instantie en geen bestand op de host dat dit bijhoudt;
+die ene tag is de hele terugvalvoorziening.
+
+Bij een eerste deploy is er niets om op terug te vallen. Dat is een lege waarde en geen
+fout, want weigeren te deployen omdat de stack nog niet bestaat helpt niemand.
+
+**De job blijft rood, ook als het terugvallen lukt.** Dat is de belangrijkste keuze in
+deze ronde en de makkelijkste om per ongeluk terug te draaien. Een terugval die het loopje
+groen maakt leert de pijplijn dat een uitval een geslaagde deploy is, en de volgende
+release wordt dan gesneden bovenop een versie waarvan niemand weet dat hij niet draait.
+`test_no_step_in_the_deploy_can_turn_a_failure_green` weigert `continue-on-error` op elke
+stap in deze job, want dat is de manier waarop dit alsnog zou gebeuren.
+
+Wat het terugvallen niet ongedaan maakt is de migratie. Die is al toegepast, dus de oude
+code bedient op het nieuwe schema. Dat is precies het venster waar de regel hierboven
+voor bestaat, en de foutmelding zegt het hardop in plaats van het te laten ontdekken.
+
+### Wat blijft staan, en waarom
+
+De uitval in het geslaagde pad blijft ongeveer 3,29 seconde. Die weghalen vraagt een
+tweede api-instantie en een nginx die van bovenstroom wisselt, en dat verandert
+`docker-compose.yml`. Daarmee vraagt het een handmatige kopie naar de host en een nieuwe
+`COMPOSE_SHA256`, en is het geen ronde meer die alleen uit deze repository bestaat. Het
+is opgeschreven zodat het een keuze blijft en geen vergetelheid.
+
+Er is nog steeds geen back-up en geen DPIA. Allebei staan ze los van de volgorde in deze
+job en allebei verdienen ze hun eigen ronde.
+
+### Hoe dit gemeten is
+
+Niet door de groene uitvoer te lezen maar door de asserties te breken. Vier mutaties, elk
+apart: de terugvalstap niet meer voorwaardelijk maken laat vier tests vallen, want dan
+zijn er twee onvoorwaardelijke `up -d`-stappen en is dat geen deploy maar een race.
+`continue-on-error: true` op de start laat er een vallen. Het `id` van de opnamestap
+weghalen laat er een vallen. En `migrate` terugzetten naar na de omschakeling laat
+`test_the_migration_runs_before_the_traffic_switches` vallen. Daarna alles hersteld en
+alle zeventig tests groen.
