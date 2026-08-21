@@ -1,0 +1,76 @@
+# THIS FILE IS INSTALLED BY HAND. NOTHING IN THIS REPOSITORY INSTALLS IT.
+#
+# Who:   Stijn, on the Ampeer LXC, as root. No workflow, no deploy job and no
+#        test may copy, enable or start this unit, and none of them does.
+# Where: /etc/systemd/system/ampeer-backup.service, together with
+#        /etc/systemd/system/ampeer-backup.timer.
+# How:   cp scripts/backup_db.sh /srv/ampeer/backup_db.sh
+#        chmod 700 /srv/ampeer/backup_db.sh
+#        cp infra/systemd/ampeer-backup.* /etc/systemd/system/
+#        systemctl daemon-reload
+#        systemctl enable --now ampeer-backup.timer
+# Check: systemctl list-timers ampeer-backup.timer
+#
+# The script is copied to the host like scripts/preflight_env.sh is, and for the
+# same reason: nothing in this repository can write to the LXC. The deploy job
+# compares the copy's sha256 against BACKUP_SHA256 in
+# .github/workflows/deploy.yml and refuses to deploy when they differ, so a copy
+# somebody forgot to update stops a release instead of quietly running an older
+# retention window.
+#
+# WHY THIS EXISTS. AuditEvent is append-only and has no retention. It is the
+# record that an advice was generated and that a consent was given or withdrawn,
+# and it is the only one of the three tables that cannot be rebuilt: stored
+# advice can be recomputed from the inputs stored beside it, and the production
+# cache can be refetched from PVGIS. Append-only defends that log against being
+# rewritten and does nothing about the disk going away, which is the failure an
+# audit log exists to survive.
+
+[Unit]
+Description=Dump the Ampeer database to /srv/ampeer/backups
+# The dump runs through the db container, so there is nothing to do before
+# Docker is up.
+Requires=docker.service
+After=docker.service
+# A missing stack should fail loudly here rather than write an empty file that
+# --check would then have to tell apart from a real one.
+ConditionPathExists=/srv/ampeer/docker-compose.yml
+ConditionPathExists=/srv/ampeer/backup_db.sh
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/ampeer
+# Invoked through bash rather than executed, for the same reason the deploy runs
+# the preflight that way: a hand copy that arrived without its executable bit
+# then fails on something it can report instead of on "permission denied" from a
+# unit whose description says something else.
+#
+# No environment is set here on purpose. backup_db.sh reads AMPEER_STACK,
+# AMPEER_COMPOSE_FILE and AMPEER_ENV_FILE and defaults all three to the host
+# layout; systemd hands the unit a clean environment, so on this host those
+# defaults are the only paths it can use.
+ExecStart=/usr/bin/bash /srv/ampeer/backup_db.sh
+# The dump names a file and a byte count and nothing else. No credential
+# reaches the journal: pg_dump runs inside the db container through `sh -c`, so
+# POSTGRES_USER and POSTGRES_DB expand there and never appear on a command line
+# on this host.
+
+# The half that notices, in the same shape as ampeer-purge.service.
+#
+# ExecStartPost runs only when ExecStart succeeded, so this is the question left
+# over: the dump just reported a byte count, and is the directory now something
+# a restore could actually use? It is a different question from the one the exit
+# status answered, and the causes it catches are real. A dump written 644
+# because somebody widened the umask. A directory left at 755 after a manual
+# restore. A file truncated by a full disk while pg_dump still exited zero.
+#
+# --check writes nothing, so it cannot repair what it measures, and a non-zero
+# exit here puts the unit in `failed` rather than leaving a line in the journal
+# that nobody reads. `systemctl --failed` then lists it.
+#
+# WHAT THIS DOES NOT CATCH: a timer that was never enabled. ExecStartPost only
+# runs when the unit runs. Only `systemctl list-timers ampeer-backup.timer`
+# answers that, and the deploy job's own `backup_db.sh --check` step is the
+# other half: it runs on the host without this unit and goes red when the
+# newest dump is stale, which is the case a never-enabled timer produces.
+ExecStartPost=/usr/bin/bash /srv/ampeer/backup_db.sh --check

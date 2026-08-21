@@ -1,0 +1,39 @@
+# THIS FILE IS INSTALLED BY HAND. NOTHING IN THIS REPOSITORY INSTALLS IT.
+#
+# Who:   Stijn, on the Ampeer LXC, as root.
+# Where: /etc/systemd/system/ampeer-backup.timer, next to ampeer-backup.service.
+# How:   systemctl daemon-reload && systemctl enable --now ampeer-backup.timer
+# Check: systemctl list-timers ampeer-backup.timer shows a NEXT within a day.
+#
+# Until somebody runs that command there is no backup, and the deploy job says
+# so at the next release rather than leaving it to be discovered by needing one.
+
+[Unit]
+Description=Dump the Ampeer database daily
+
+[Timer]
+# An hour after ampeer-purge.timer, and that ordering is the point rather than
+# a detail.
+#
+# A dump taken before the purge deliberately captures rows the purge is about to
+# delete, so the file would hold advice that is already past its ninety days at
+# the moment it is written. Taken after, a dump only ever contains what the
+# service could still serve when it was made. It does not make the copy
+# disappear, and section 8 of infra/README.md says what it does and does not
+# buy; it makes the difference between a backup that happens to hold expired
+# advice and one that is scheduled to.
+#
+# There is no RandomizedDelaySec, for the same reason ampeer-purge.timer has
+# none: backup_db.sh --check allows MAX_AGE_HOURS = 26 against a period of 24,
+# and jitter added here eats that margin. Change this period and that constant
+# has to move with it.
+OnCalendar=*-*-* 04:30:00
+AccuracySec=1m
+# A host that was off at 04:30 must not skip a day. Without this, a weekend of
+# downtime leaves the newest dump three days old and nothing says so until the
+# next deploy.
+Persistent=true
+Unit=ampeer-backup.service
+
+[Install]
+WantedBy=timers.target
