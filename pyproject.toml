@@ -6,6 +6,17 @@ requires-python = ">=3.12"
 dependencies = ["numpy>=2.0", "requests>=2.32"]
 
 [dependency-groups]
+# The web layer, kept in its own group so the pure packages can still be
+# installed and tested without Django anywhere near them.
+backend = [
+    # 5.2 is LTS with security support to April 2028. The current non-LTS line
+    # runs out around April 2027, the quarter net metering ends and this product
+    # is at its busiest, which would schedule a forced major upgrade for the
+    # worst possible month.
+    "django>=5.2.17,<6.0",
+    "djangorestframework>=3.18.0",
+    "psycopg[binary]>=3.3.4",
+]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
@@ -18,6 +29,11 @@ dev = [
     "cyclonedx-bom>=4.4",
     "pre-commit>=3.7",
     "pyyaml>=6.0",
+    "pytest-django>=4.14.0",
+    # Without the stubs mypy cannot see through the ORM: every model attribute
+    # becomes Any and strict mode turns into decoration.
+    "django-stubs[compatible-mypy]>=6.1.0",
+    "djangorestframework-stubs>=3.18.0",
 ]
 
 [build-system]
@@ -39,10 +55,18 @@ build-constraint-dependencies = ["setuptools==84.0.0"]
 
 [tool.setuptools.packages.find]
 include = ["ampeer_sim*", "ampeer_advice*", "tools*"]
+# backend/ is deliberately absent. It is a Django project run from its own
+# directory, not a library anybody installs, and adding it here would put a
+# module named `ampeer` on the installed path.
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
+plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
+mypy_path = "backend"
+
+[tool.django-stubs]
+django_settings_module = "ampeer.settings.test"
 
 [tool.ruff]
 line-length = 100
@@ -56,17 +80,42 @@ target-version = "py312"
 # that handles money. Drop this ignore once no monetary literal depends on it.
 ignore = ["FURB157"]
 
+[tool.ruff.lint.isort]
+# backend/ is on the pytest pythonpath rather than installed, so ruff cannot
+# infer that `advice` and `ampeer` are ours: it sees no distribution of that
+# name and files them as third party, which puts them in the wrong import block
+# in every test that touches the API. They genuinely are first party, so say so.
+known-first-party = ["advice", "ampeer", "ampeer_sim", "ampeer_advice", "tools"]
+
+[tool.ruff.lint.per-file-ignores]
+# django.db.migrations.Migration declares `dependencies` and `operations` as
+# instance attributes, so annotating them ClassVar in a generated migration is a
+# mypy error and RUF012 is a false positive on shape the framework owns. Every
+# migration Django will ever generate hits it, and a per-file rule is honest
+# where a noqa on each line is a ritual.
+"backend/*/migrations/*.py" = ["RUF012"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# backend/ is not installed, so this is how `ampeer.settings.*` and the Django
+# apps under it become importable from the tests.
+pythonpath = ["backend"]
+DJANGO_SETTINGS_MODULE = "ampeer.settings.test"
 filterwarnings = ["ignore::DeprecationWarning:pytest_asyncio.*"]
 
 [tool.coverage.run]
-source = ["ampeer_sim", "ampeer_advice", "tools"]
+source = ["ampeer_sim", "ampeer_advice", "tools", "backend"]
 # Statement coverage, not branch coverage. The 97 percent floor below is the
 # statement figure measured on 2026-08-20 over these two packages. Turning
 # branch coverage on measures a different, stricter thing (95.81 percent on the
 # same tree), so it may only be enabled together with a floor re-measured under
 # it, and never by lowering the floor.
+# Two entry points and nothing else. Django generates both, neither holds a
+# decision, and neither is imported by a test. Every other line under backend/
+# is measured. This list is asserted to stay exactly this short by
+# tests/test_pipeline_contract.py, because an omit list is the quietest way to
+# make a coverage floor stop meaning anything.
+omit = ["backend/manage.py", "backend/ampeer/wsgi.py"]
 
 [tool.coverage.report]
 # precision = 2 is load bearing, not cosmetic. pytest-cov decides its exit code

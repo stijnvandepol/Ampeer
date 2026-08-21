@@ -59,7 +59,10 @@ jobs:
           python-version-file: ".python-version"
           enable-cache: true
       - run: uv sync --locked --group dev
-      - run: uv run bandit -c pyproject.toml -r ampeer_sim ampeer_advice tools
+      # backend/ joined this list when the Django project landed. A static
+      # analysis gate that does not read the code holding the endpoints is a
+      # gate over the part of the tree that was already safe.
+      - run: uv run bandit -c pyproject.toml -r ampeer_sim ampeer_advice backend tools
 
   # WARNING: required status check in the main ruleset. Do not rename.
   secrets:

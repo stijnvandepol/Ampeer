@@ -186,6 +186,45 @@ def scenario_2027_tariffs(dynamic: bool = False, level: str = "mid") -> TariffSe
     )
 
 
+@dataclass(frozen=True)
+class ScenarioLevels:
+    """The same 2027 regime priced at the low, the middle and the high level.
+
+    Anything measured against all three arrives with a band instead of a single
+    figure. The three tariff sets move together rather than independently: this
+    is a sweep of three combinations, not the 243 run factorial behind the
+    headline. ``inputs`` names what differs between them so that the band can
+    say what it is a band over.
+    """
+
+    low: TariffSet
+    mid: TariffSet
+    high: TariffSet
+    inputs: tuple[str, ...]
+
+    def each(self) -> tuple[TariffSet, TariffSet, TariffSet]:
+        return (self.low, self.mid, self.high)
+
+
+def scenario_2027_levels(dynamic: bool = False) -> ScenarioLevels:
+    """The 2027 regime at all three levels of the national tariff band.
+
+    On a dynamic contract the feed-in charge is zero at every level, so it is
+    not listed as an input that moves. Naming an input that does not actually
+    differ between the three sets would make the band claim a width it does not
+    have.
+    """
+    inputs: tuple[str, ...] = ("supply_price", "feed_in_price")
+    if not dynamic:
+        inputs += ("feed_in_cost_per_kwh",)
+    return ScenarioLevels(
+        low=scenario_2027_tariffs(dynamic=dynamic, level="low"),
+        mid=scenario_2027_tariffs(dynamic=dynamic, level="mid"),
+        high=scenario_2027_tariffs(dynamic=dynamic, level="high"),
+        inputs=inputs,
+    )
+
+
 __all__ = [
     "BATTERY_COST_PER_KWH",
     "FEED_IN_COST",
@@ -196,8 +235,10 @@ __all__ = [
     "SOURCED_ON",
     "SUPPLY_PRICE",
     "VALUES_REVISION",
+    "ScenarioLevels",
     "TariffBand",
     "baseline_tariffs",
     "net_feed_in_fixed",
+    "scenario_2027_levels",
     "scenario_2027_tariffs",
 ]

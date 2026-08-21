@@ -60,7 +60,9 @@ de praktijk genoemd wordt. Bij 1,75 kWh kwam ons model op 22 procentpunt uit en 
 veel. In de bandbreedte varieren wij deze aanname tussen 0,5 en 2,0 kWh per dag.
 
 **De beperking:** dit getal is aangenomen en niet gemeten. Het is de aanname waar wij het
-minst zeker over zijn.
+minst zeker over zijn. En in de eerste versie van de rekenmachine vragen wij helemaal niet
+of er overdag iemand thuis is: dan nemen wij aan van niet. Hoofdstuk 16 zet erbij wat dat
+met je antwoord doet en welke kant het op duwt.
 
 ## 4. De elektrische auto
 
@@ -76,7 +78,9 @@ bijlading zou ons model doen alsof je in een sombere week minder kilometers maak
 zou zonneladen mooier voorstellen dan het is.
 
 **De beperking:** deze drie gedragingen zijn stereotypen die wij zelf hebben opgesteld.
-Ze komen niet uit een meting van hoe Nederlanders werkelijk laden.
+Ze komen niet uit een meting van hoe Nederlanders werkelijk laden. En in de eerste versie
+van de rekenmachine vragen wij niet naar een auto: dan rekenen wij alsof je er geen hebt.
+Zie hoofdstuk 16.
 
 ## 5. De warmtepomp
 
@@ -142,6 +146,8 @@ procent praktisch niets verdient. Ook dat laten wij gewoon zien.
 ## 9. De bandbreedte
 
 Wij tonen nooit een enkel getal. De bandbreedte die je ziet is gemeten en niet verzonnen.
+Dit hoofdstuk gaat over het bedrag bovenaan; hoofdstuk 12 legt uit dat de marge om de
+andere bedragen op een andere manier gemeten is en daarom ook anders heet.
 
 Wij draaien de hele berekening 243 keer, met elke combinatie van een lage, een middelste
 en een hoge waarde voor de vijf aannames waarvan wij weten dat wij ze niet zeker weten: je
@@ -234,18 +240,42 @@ Op een dynamisch contract ligt het anders. Daar wordt met het uurtarief afgereke
 zitten er geen aparte terugleverkosten op, dus de netto vergoeding blijft daar 5 tot 7
 cent en dus positief.
 
-## 12. Het batterijadvies heeft een grovere band dan het bedrag bovenaan
+## 12. Twee soorten band, en ze heten niet hetzelfde
 
-Het bedrag bovenaan komt uit 243 doorrekeningen, met elke combinatie van laag, midden en
-hoog voor de vijf aannames uit hoofdstuk 9. De capaciteitscurve van de batterij draaien
-wij niet 243 keer maar één keer, op de middenwaarden. Dat is een bewuste keuze om de
-berekening snel te houden.
+Er staan twee soorten marge in je advies en ze betekenen niet hetzelfde. Dat is niet
+altijd zo geweest: tot 21 augustus 2026 heetten ze allebei p10, p50 en p90, alsof het
+allebei percentielen waren. Dat was er één te veel.
 
-Gevolg: de marge die je bij de terugverdientijd ziet komt alleen uit de prijs van de
-batterij zelf, die 450 tot 900 euro per kWh loopt. De onzekerheid over je jaarverbruik,
-het systeemverlies en de terugleververgoeding zit er niet in. De echte marge rond die
-terugverdientijd is dus breder dan de marge die je ziet, en niet smaller. Wij zeggen dat
-er liever bij dan dat wij een cijfer achter de komma suggereren dat er niet is.
+**Het bedrag bovenaan** komt uit 243 doorrekeningen, met elke combinatie van laag, midden
+en hoog voor de vijf aannames uit hoofdstuk 9. De p10 en de p90 die je daar ziet zijn
+echte percentielen: van die 243 uitkomsten ligt tien procent onder de p10 en tien procent
+boven de p90. Er staat bij hoeveel doorrekeningen het waren.
+
+**Alle andere bedragen** in je advies, dus wat een gratis stap oplevert, wat een batterij
+per jaar bespaart, de terugverdientijd en de omslagprijs, zijn geen percentielen. Wij
+rekenen die door op drie tariefniveaus, laag, midden en hoog, en tonen de laagste, de
+middelste en de hoogste uitkomst. Dat zijn drie doorgerekende gevallen en geen verdeling.
+Ze heten daarom laag, midden en hoog en niet p10, p50 en p90, want een percentiel
+suggereert dat wij weten hoe waarschijnlijk de uiteinden zijn en dat weten wij niet.
+
+Dat kan zo goedkoop omdat een tarief niet verandert waar een kilowattuur heen gaat, alleen
+wat het waard is. Wij hoeven het jaar dus niet opnieuw te simuleren om het opnieuw te
+kunnen beprijzen.
+
+**Wat er niet in meebeweegt.** De capaciteitscurve van de batterij draaien wij niet 243
+keer maar één keer per tariefniveau, op de middenwaarden van de rest. Je jaarverbruik, de
+omvang van het verplaatsbare blok en het systeemverlies staan daarbij stil. Die drie staan
+met naam en toenaam in het antwoord zelf, bij elke band, onder het kopje wat er vastgezet
+is. De echte marge is dus breder dan de marge die je ziet, en nooit smaller.
+
+**Wat er wel in meebeweegt.** Bij de terugverdientijd zijn dat de prijs van de batterij,
+die 450 tot 900 euro per kWh loopt, én de tarieven, want wat een batterij bespaart hangt
+af van wat de kilowattuur die je niet meer teruglevert had opgebracht. Dat waren tot 21
+augustus 2026 alleen de batterijprijzen. De gunstige kant van die oude band betekende
+"terugverdientijd bij de goedkoopste offerte in de markt, met tarieven die precies
+uitkomen zoals wij aannemen", en dat is de kant die de batterij mooier maakt. Bij ons
+referentiehuishouden liep die band van 11,2 tot 22,4 jaar en nu van 9,7 tot 26,3. Het
+midden, 16,8 jaar, veranderde niet en er is dus ook geen advies van omgeslagen.
 
 Twaalf jaar is onze grens, omdat er doorgaans tien jaar garantie op een batterij zit:
 verdien je hem pas daarna terug, dan gok je erop dat hij langer meegaat dan de garantie
@@ -264,28 +294,43 @@ de zwaarste zin die wij uitspreken.
 
 Nu zijn er drie uitkomsten:
 
-- **De moeite waard**, als hij zichzelf zelfs bij de hoogste prijs binnen twaalf jaar
-  terugverdient
-- **Niet de moeite waard**, als hij dat bij de middelste prijs al niet doet
+- **De moeite waard**, als hij zichzelf terugverdient binnen twaalf jaar bij de hoogste
+  prijs én bij het tariefniveau waarop opslag het minst oplevert
+- **Niet de moeite waard**, als hij dat in het midden al niet doet
 - **Het hangt af van wat je betaalt**, voor alles daartussen
 
-In dat laatste geval noemen wij de prijs waarbij het omslaat. Blijf je onder dat bedrag
-per geplaatste kWh, dan verdient de batterij zichzelf binnen twaalf jaar terug; kom je
-erboven, dan niet. Dat is het enige getal in ons hele advies waar je direct iets mee kunt,
-want anders dan de terugleververgoeding van 2027 is de prijs van een batterij gewoon op te
-vragen.
+In dat laatste geval noemen wij de prijs waarbij het omslaat. Dat is geen enkel bedrag
+maar een marge, en dat is met opzet: die prijs is je jaarlijkse besparing maal twaalf,
+gedeeld door de capaciteit, en die besparing hangt af van tarieven die niemand kent. Blijf
+je onder de onderkant van die marge, dan verdient de batterij zichzelf binnen twaalf jaar
+terug bij alle tarieven die wij doorrekenen. Zit je erboven, dan hangt het ervan af welke
+kant die tarieven op gaan. Tot 21 augustus 2026 stond hier één getal, en juist bij dit
+getal is dat het ergste: het is het getal waarvan wij zeggen dat je er een offerte naast
+mag leggen, en dan mag het geen zekerheid voorwenden die het niet heeft.
 
 Wat dat oplevert, mag je weten: van de zes huishoudens die wij als voorbeeld doorrekenen,
-krijgt er niet één een onvoorwaardelijk "koop er een". Daarvoor zou de omslagprijs boven
-de 900 euro per kWh moeten liggen en het meest extreme geval haalt 833. Bij de prijzen van
-vandaag en de tarieven die leveranciers voor 2027 hebben gepubliceerd, is een batterij die
-onmiskenbaar de moeite waard is dus zeldzaam.
+krijgt er niet één een onvoorwaardelijk "koop er een". Daarvoor zou de omslagprijs ook bij
+het ongunstigste tariefniveau boven de 900 euro per kWh moeten liggen. Het huishouden dat
+er het dichtst bij komt zit daar op 572 euro, en op 672 euro in het midden. Bij de prijzen
+van vandaag en de tarieven die leveranciers voor 2027 hebben gepubliceerd, is een batterij
+die onmiskenbaar de moeite waard is dus zeldzaam.
+
+Hier stond eerder 833 euro. Dat cijfer hoorde bij een eerdere versie van het model en
+klopte al niet meer toen wij het lieten staan. Waarom het bleef staan is het vermelden
+waard: de omslagprijs stond wel in ons voorbeeldbestand, maar geen enkele test vergeleek
+hem met wat het model uitrekende, dus kon hij verouderen zonder dat er iets rood werd. Dat
+doet nu wel iets.
 
 ## 14. Wat de gratis routes opleveren, rekenen wij door in plaats van te schatten
 
 Bij elk advies dat je niets kost staat een bedrag. Dat bedrag is niet met een formule
 geschat maar doorgerekend: wij draaien je hele jaar opnieuw door dezelfde simulatie, met
 die ene verandering erin, en kijken wat je jaarrekening dan doet.
+
+Ook bij die bedragen staat een marge, en ook die is doorgerekend en niet geschat: wij
+beprijzen hetzelfde jaar op alle drie de tariefniveaus uit hoofdstuk 10. Tot 21 augustus
+2026 stond er één bedrag. Dat was de meest openlijke overtreding van onze eigen
+regel die er is, want dit is het getal waarop iemand besluit zijn week anders in te delen.
 
 Dat is niet alleen nauwkeuriger, het maakt de bedragen ook optelbaar. Wij passen de
 adviezen op elkaar toe: eerst je apparaten verschuiven, dan je auto op je eigen overschot
@@ -300,6 +345,25 @@ de teruglevering die je nog **overhoudt** nadat je de gratis dingen gedaan hebt.
 huishouden dat zijn auto overdag op eigen stroom laadt, houdt vaak zo weinig over dat een
 batterij niets meer te bewaren heeft. Eerder kreeg zo iemand alsnog een batterijadvies,
 voor kilowatturen die het advies erboven net had geleerd zelf te gebruiken.
+
+Die zin stond hier vanaf 20 augustus 2026, en tot 21 augustus klopte hij maar half. Wij
+gebruikten de overgebleven teruglevering wel om te beslissen **of** wij een batterij lieten
+zien, maar niet om te berekenen **welke** en **wat die opbrengt**. Die berekening liep nog
+op je verbruik van voor de gratis adviezen, en op je huidige contract, ook als wij je net
+hadden aangeraden over te stappen. Het gevolg was precies wat deze paragraaf belooft dat
+niet gebeurt: dezelfde kilowatturen werden twee keer verkocht, een keer als gratis
+besparing en daarna nog een keer als reden om een batterij te kopen.
+
+Wat dat scheelde, op ons eigen referentiehuishouden: een batterij van 7,0 kWh met een
+terugverdientijd van 11,6 jaar werd 5,0 kWh met 16,8 jaar, en de prijs waaronder het uit
+kan zakte van 697 naar 482 euro per geinstalleerde kWh. Het oordeel klapte van "het hangt
+van de prijs af" naar "dit verdient zich niet terug". Bij alle zes de huishoudens waarmee
+wij het model vastleggen ging het dezelfde kant op: de batterij werd minder aantrekkelijk,
+en geen van de zes krijgt nu nog het advies er een te kopen.
+
+Wij zetten dit erbij omdat het de kant op ging die ons ongelegen komt. Een fout die het
+antwoord toevallig gunstiger maakt voor de partij die hem maakt, is precies de fout waarvan
+je mag verwachten dat hij blijft zitten.
 
 ## 15. Wij houden ons model tegen echte Nederlandse meetgegevens
 
@@ -341,7 +405,66 @@ Nederland in juni piekt, en maakte november helderder dan oktober. Allebei waar 
 ene jaar en geen van beide waar voor Nederland. De tabel is nu een gemiddelde over negen
 jaar.
 
-## 16. Wat wij niet weten
+## 16. Wat wij aannemen als wij het niet vragen
+
+De eerste versie van de rekenmachine stelt vier vragen: je postcode, je jaarverbruik, je
+vermogen aan panelen en de richting en helling van je dak. Alles wat wij verder nodig
+hebben, vullen wij zelf in. Dat staat nergens anders in dit document, want de hoofdstukken
+hierboven beschrijven wat wij doen met een antwoord, niet wat wij doen zonder.
+
+Dit vullen wij in als je het niet zegt:
+
+| Wat | Wat wij aannemen |
+|---|---|
+| Overdag iemand thuis | Nee |
+| Elektrische auto | Geen |
+| Warmtepomp | Geen |
+| Thuisbatterij | Geen |
+| Contract | Vast |
+| Verplaatsbaar verbruik per dag | 1 kWh (hoofdstuk 3) |
+
+**Welke kant die aannames op duwen.** De eerste vijf duwen dezelfde kant op: klopt een
+van hen niet voor jou, dan is het bedrag bovenaan lager dan wat wij je tonen en nooit
+hoger. Dat is de kant die ons uitkomt. Op ons referentiehuishouden, 3,5 kWp en 3500 kWh in
+postcode 5401, kost het einde van saldering met deze aannames 634 euro per jaar. Verander
+je er één, dan wordt dat bedrag lager:
+
+| Als dit wel zo is | Dan wordt het bedrag bovenaan |
+|---|---|
+| Overdag iemand thuis | 492 euro, dus 142 lager |
+| Auto die overdag op eigen overschot laadt | 212 euro, dus 422 lager |
+| Warmtepomp | 510 euro, dus 123 lager |
+| Thuisbatterij van 5 kWh | 276 euro, dus 357 lager |
+| Dynamisch contract | 492 euro, dus 142 lager |
+
+Alleen een auto die 's nachts laadt verandert het bedrag niet, en dat is geen toeval: zolang
+je meer van het net haalt dan je teruglevert, valt extra nachtverbruik onder saldering
+precies weg tegen zichzelf.
+
+**Het woord dat wij hier niet gebruiken.** In onze eigen code stond bij deze keuze het
+woord "conservatief". Dat was het verkeerde woord. Aannemen dat er niemand thuis is, is
+voorzichtig ten opzichte van je zelfconsumptie, maar het maakt het bedrag dat wij bovenaan
+tonen zo groot mogelijk, en het maakt de kans zo groot mogelijk dat er een gratis advies
+verschijnt, want dat advies vraagt juist om een lage zelfconsumptie zonder iemand thuis.
+Voorzichtig in de richting die ons goed uitkomt is niet voorzichtig, het is gunstig.
+
+Waarom wij het dan toch zo doen: de andere kant op is niet neutraler. Aannemen dat er wel
+iemand thuis is bij iemand die dat niet is, verzint zelfconsumptie die er niet is, en dat
+verzwijgt een probleem dat die persoon echt heeft. Bij vier vragen bestaat er geen keuze
+die geen kant op duwt. Wat wel bestaat, is die kant hardop noemen, en dat is wat dit
+hoofdstuk doet.
+
+**Wat het niet is.** Het is geen garantie dat er altijd een gratis advies verschijnt.
+Dat advies vraagt naast "niemand thuis" ook dat je minder dan 35 procent van je opwek zelf
+gebruikt, en een huishouden met weinig panelen en veel verbruik haalt dat niet. Twee van
+onze zes voorbeeldhuishoudens hebben overdag niemand thuis en krijgen toch geen enkel
+advies, precies om die reden, en dat is voor die twee de juiste uitkomst.
+
+Beantwoord je meer vragen, dan vervalt de aanname en niet alleen de onzekerheid. Daarom
+staat er "Indicatief" boven een antwoord op vier vragen: niet omdat de band breder is,
+maar omdat dit de dingen zijn die wij hebben ingevuld in plaats van gevraagd.
+
+## 17. Wat wij niet weten
 
 Voor de volledigheid, op een rij:
 
@@ -351,6 +474,10 @@ Voor de volledigheid, op een rij:
 - Wij rekenen op een historisch jaar aan weer en verbruik, en volgend jaar is anders.
 - Ons basisprofiel is dat van huizen zonder zonnepanelen.
 - De omvang van het verplaatsbare blok is aangenomen.
+- Als je maar vier vragen beantwoordt, weten wij niet of er overdag iemand thuis is, of je
+  een elektrische auto hebt, of je een warmtepomp hebt, of je al een thuisbatterij hebt en
+  wat voor contract je hebt. Wij nemen dan aan van niet, en dat maakt het bedrag bovenaan
+  groter dan het bij veel huishoudens is. Hoofdstuk 16 zet erbij hoeveel.
 
 Koppel je je meter, dan vervallen de eerste twee en wordt de vijfde en zesde gekalibreerd
 op jouw eigen gegevens. Daarom is dat antwoord scherper, en daarom zeggen wij er eerlijk

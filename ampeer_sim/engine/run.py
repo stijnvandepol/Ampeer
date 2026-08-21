@@ -53,22 +53,39 @@ def simulate(
 
     steps = consumption.shape[0]
     battery = Battery(battery_spec)
-    charge_wanted = charge_plan if charge_plan is not None else np.zeros(steps)
-    discharge_wanted = discharge_plan if discharge_plan is not None else np.zeros(steps)
 
-    self_consumption = np.zeros(steps)
-    from_grid = np.zeros(steps)
-    to_grid = np.zeros(steps)
-    battery_charge = np.zeros(steps)
-    battery_discharge = np.zeros(steps)
-    grid_charge = np.zeros(steps)
-    grid_discharge = np.zeros(steps)
+    # Python lists, not numpy arrays, for the duration of the loop. Indexing a
+    # numpy array with a scalar builds a np.float64 object every time, and this
+    # loop does that roughly eight times per quarter for a year, five times over
+    # when a capacity curve runs. Converting once at the edge and back at the
+    # end moves the same doubles through plain float arithmetic instead.
+    #
+    # Bit for bit the same answer: tolist() is exact, and float and np.float64
+    # are both IEEE 754 binary64, so every operation below produces the double
+    # it produced before. The golden households assert to the cent and did not
+    # move. This is a speed change; if it ever becomes a number change, those
+    # tests are what says so.
+    consumption_kwh = consumption.tolist()
+    production_kwh = production.tolist()
+    charge_wanted = charge_plan.tolist() if charge_plan is not None else [0.0] * steps
+    discharge_wanted = discharge_plan.tolist() if discharge_plan is not None else [0.0] * steps
+    allow_grid_charging = battery_spec.allow_grid_charging
+
+    self_consumption = [0.0] * steps
+    from_grid = [0.0] * steps
+    to_grid = [0.0] * steps
+    battery_charge = [0.0] * steps
+    battery_discharge = [0.0] * steps
+    grid_charge = [0.0] * steps
+    grid_discharge = [0.0] * steps
 
     for step in range(steps):
-        direct = min(consumption[step], production[step])
+        produced = production_kwh[step]
+        consumed = consumption_kwh[step]
+        direct = min(consumed, produced)
         self_consumption[step] = direct
-        surplus = production[step] - direct
-        deficit = consumption[step] - direct
+        surplus = produced - direct
+        deficit = consumed - direct
 
         stored = battery.charge(surplus)
         battery_charge[step] = stored
@@ -78,7 +95,7 @@ def simulate(
         battery_discharge[step] = delivered
         deficit -= delivered
 
-        if battery_spec.allow_grid_charging and charge_wanted[step] > 0.0:
+        if allow_grid_charging and charge_wanted[step] > 0.0:
             grid_charge[step] = battery.charge(charge_wanted[step])
         if discharge_wanted[step] > 0.0:
             grid_discharge[step] = battery.discharge(discharge_wanted[step])
@@ -89,13 +106,13 @@ def simulate(
     return EnergyFlows(
         consumption=consumption,
         production=production,
-        self_consumption=self_consumption,
-        from_grid=from_grid,
-        to_grid=to_grid,
-        battery_charge=battery_charge,
-        battery_discharge=battery_discharge,
-        grid_charge=grid_charge,
-        grid_discharge=grid_discharge,
+        self_consumption=np.asarray(self_consumption),
+        from_grid=np.asarray(from_grid),
+        to_grid=np.asarray(to_grid),
+        battery_charge=np.asarray(battery_charge),
+        battery_discharge=np.asarray(battery_discharge),
+        grid_charge=np.asarray(grid_charge),
+        grid_discharge=np.asarray(grid_discharge),
     )
 
 
