@@ -34,7 +34,13 @@ jobs:
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: "0.12.5"
-          python-version-file: ".python-version"
+          # No python-version input. setup-uv v10 has no
+          # `python-version-file`, so the line that used to sit here was
+          # silently ignored and only showed up as a workflow annotation,
+          # which does not fail a build. uv reads .python-version itself
+          # when it builds the environment, so that file stays the single
+          # source of truth. tests/test_pipeline_contract.py asserts the
+          # interpreter that actually runs matches it.
           enable-cache: true
       - run: uv sync --locked --group dev
       - name: Export the locked set
@@ -44,6 +50,25 @@ jobs:
         run: uv export --format requirements-txt --no-emit-project --all-groups --output-file requirements-audit.txt
       - name: Audit the locked set
         run: uv run pip-audit --requirement requirements-audit.txt --strict
+      # frontend/ joined this job when the Next.js site landed. pip-audit reads
+      # the Python lockfile and nothing else, so without the four steps below
+      # this gate would stay green over several hundred npm packages that the
+      # browser actually executes. That is the same shape as the `sast` finding
+      # on 2026-08-21: a gate covering everything except the new part.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: frontend/.nvmrc
+      - run: corepack enable
+        working-directory: frontend
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      # --audit-level low, so any advisory at any severity fails. That is the
+      # same posture as --strict on pip-audit above, and it is deliberate: a
+      # threshold set at "high" is a gate that stays green through every
+      # moderate advisory nobody then reads.
+      - name: Audit the npm tree
+        run: pnpm audit --audit-level low
+        working-directory: frontend
 
   # WARNING: required status check in the main ruleset. Do not rename.
   sast:
@@ -56,13 +81,28 @@ jobs:
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: "0.12.5"
-          python-version-file: ".python-version"
+          # No python-version input. setup-uv v10 has no
+          # `python-version-file`, so the line that used to sit here was
+          # silently ignored and only showed up as a workflow annotation,
+          # which does not fail a build. uv reads .python-version itself
+          # when it builds the environment, so that file stays the single
+          # source of truth. tests/test_pipeline_contract.py asserts the
+          # interpreter that actually runs matches it.
           enable-cache: true
       - run: uv sync --locked --group dev
       # backend/ joined this list when the Django project landed. A static
       # analysis gate that does not read the code holding the endpoints is a
       # gate over the part of the tree that was already safe.
       - run: uv run bandit -c pyproject.toml -r ampeer_sim ampeer_advice backend tools
+      # bandit reads Python only, so when frontend/ landed this job covered
+      # everything except the code a visitor's browser actually executes.
+      # semgrep closes that with a ruleset committed in this repository
+      # rather than fetched from semgrep's registry: a required check that
+      # depends on a third party being reachable goes red for reasons that
+      # have nothing to do with the code, and rules a gate enforces should
+      # not be able to change without a commit here. The set is narrow and
+      # says so in its own header; it is not a general TypeScript scanner.
+      - run: uv run semgrep --config .semgrep/frontend.yml --error --quiet frontend/src
 
   # WARNING: required status check in the main ruleset. Do not rename.
   secrets:
@@ -91,6 +131,13 @@ jobs:
           echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c -
           tar -xzf gitleaks.tar.gz gitleaks
           chmod +x gitleaks
+      # Both scans below read every path in the commit range, so frontend/ was
+      # covered the moment it was committed and needs no argument of its own.
+      # That is not an assumption: gitleaks 8.30.1 was run over the frontend
+      # tree on 2026-08-21 and found nothing, and it skips pnpm-lock.yaml under
+      # its own default allowlist, so the lockfile's integrity hashes cannot
+      # turn this required check red. frontend/node_modules never reaches a
+      # commit, so it never reaches this scan either.
       - name: Scan the commits this pull request adds
         if: github.event_name == 'pull_request'
         env:
@@ -117,7 +164,13 @@ jobs:
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: "0.12.5"
-          python-version-file: ".python-version"
+          # No python-version input. setup-uv v10 has no
+          # `python-version-file`, so the line that used to sit here was
+          # silently ignored and only showed up as a workflow annotation,
+          # which does not fail a build. uv reads .python-version itself
+          # when it builds the environment, so that file stays the single
+          # source of truth. tests/test_pipeline_contract.py asserts the
+          # interpreter that actually runs matches it.
           enable-cache: true
       - run: uv sync --locked --group dev
       - run: uv export --format requirements-txt --no-emit-project --all-groups --output-file requirements-sbom.txt

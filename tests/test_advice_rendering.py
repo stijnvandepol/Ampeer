@@ -105,12 +105,31 @@ def _is_percentile_band(node: object) -> bool:
     return isinstance(node, dict) and set(node) == {"p10", "p50", "p90", "runs"}
 
 
+#: Exact equality, not a subset, on purpose: a band that quietly gains a key is
+#: a band whose shape changed without anybody deciding to. `varied_text` and
+#: `pinned_text` joined on 2026-08-21, when the identifiers stopped reaching a
+#: Dutch reader untranslated.
+SCENARIO_BAND_KEYS = frozenset(
+    {"low", "mid", "high", "varied", "pinned", "varied_text", "pinned_text", "combinations"}
+)
+
+
 def _is_scenario_band(node: object) -> bool:
     """A band measured at input levels, carrying what moved and what did not."""
     return (
         isinstance(node, dict)
-        and set(node) == {"low", "mid", "high", "varied", "pinned", "combinations"}
+        and set(node) == SCENARIO_BAND_KEYS
         and bool(node["varied"])
+        # The Dutch names must be there and must line up one for one. A shorter
+        # list would silently drop an assumption from what the reader is told
+        # moved, which is worse than showing an identifier.
+        and len(node["varied_text"]) == len(node["varied"])
+        and len(node["pinned_text"]) == len(node["pinned"])
+        # A translation, not a passthrough. An identifier carries an
+        # underscore and a Dutch name does not, so this catches the one
+        # failure mode that would look right in the payload: the label
+        # table falling back to the key it could not find.
+        and all("_" not in text for text in node["varied_text"] + node["pinned_text"])
     )
 
 

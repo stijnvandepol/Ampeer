@@ -39,6 +39,14 @@ SECRET_KEY = _required("DJANGO_SECRET_KEY")
 ALLOWED_HOSTS = [host for host in _required("DJANGO_ALLOWED_HOSTS").split(",") if host]
 AMPEER_NEDU_PROFILE_PATH = _required("AMPEER_NEDU_PROFILE_PATH")
 
+# No default and no wildcard. An origin list that falls back to something
+# permissive is an API any page on the internet can read a household's figures
+# out of, and the failure is silent from this side: the request succeeds and
+# somebody else's page gets the answer.
+CORS_ALLOWED_ORIGINS = [
+    origin for origin in _required("DJANGO_CORS_ALLOWED_ORIGINS").split(",") if origin
+]
+
 # Required from the environment exactly like SECRET_KEY, and for the same kind
 # of reason. Unset, DRF keys its rate limit on the entire client supplied
 # X-Forwarded-For header, so one rotating header per request makes every

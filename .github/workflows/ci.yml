@@ -36,7 +36,13 @@ jobs:
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: "0.12.5"
-          python-version-file: ".python-version"
+          # No python-version input. setup-uv v10 has no
+          # `python-version-file`, so the line that used to sit here was
+          # silently ignored and only showed up as a workflow annotation,
+          # which does not fail a build. uv reads .python-version itself
+          # when it builds the environment, so that file stays the single
+          # source of truth. tests/test_pipeline_contract.py asserts the
+          # interpreter that actually runs matches it.
           enable-cache: true
       - run: uv sync --locked --group dev --group backend
       - run: uv run ruff check ampeer_sim ampeer_advice backend tests tools
@@ -58,6 +64,7 @@ jobs:
           POSTGRES_USER: ampeer
           POSTGRES_HOST: db
           DJANGO_NUM_PROXIES: "1"
+          DJANGO_CORS_ALLOWED_ORIGINS: https://ampeer.nl
         run: |
           set -euo pipefail
           DJANGO_SECRET_KEY="$(uv run python -c 'import secrets; print(secrets.token_urlsafe(48))')"
@@ -100,7 +107,13 @@ jobs:
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: "0.12.5"
-          python-version-file: ".python-version"
+          # No python-version input. setup-uv v10 has no
+          # `python-version-file`, so the line that used to sit here was
+          # silently ignored and only showed up as a workflow annotation,
+          # which does not fail a build. uv reads .python-version itself
+          # when it builds the environment, so that file stays the single
+          # source of truth. tests/test_pipeline_contract.py asserts the
+          # interpreter that actually runs matches it.
           enable-cache: true
       - run: uv sync --locked --group dev --group backend
       - run: uv run pytest --cov --cov-report=term-missing
@@ -110,3 +123,64 @@ jobs:
           POSTGRES_DB: ampeer
           POSTGRES_USER: ampeer
           POSTGRES_PASSWORD: ampeer
+
+  # WARNING: this job name is a required status check in the main ruleset.
+  # See the note on `quality`. Separate from `quality` on purpose: that job
+  # builds a Python environment, and a mixed job makes a red build harder to
+  # read.
+  frontend-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: frontend/.nvmrc
+      # Deliberately no `cache: pnpm` on the step above. setup-node resolves the
+      # cache directory by shelling out to `pnpm store path`, and ubuntu-latest
+      # ships no pnpm, so that runs before the line below has created the shim
+      # and the step fails outright. Verified against the action's own
+      # cache-utils.ts at the pinned SHA and against the runner image manifest.
+      # Enabling corepack first from the preinstalled Node would put the shim on
+      # a Node that setup-node then replaces. A cache is a speed-up and not a
+      # gate, so it is dropped rather than made fragile.
+      - run: corepack enable
+      # --frozen-lockfile is the gate: it fails rather than resolving anything
+      # the lockfile does not already pin.
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      # The Python half has run `ruff format --check` since the first
+      # commit. This side had eslint and tsc and no formatter at all, so
+      # `quality` and `frontend-quality` were not the same gate under two
+      # names. tests/test_pipeline_contract.py now asserts both read it.
+      - run: pnpm format:check
+
+  # WARNING: required status check. See the note on `quality`.
+  frontend-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: frontend/.nvmrc
+      # See the note in frontend-quality on why there is no cache here.
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      # The end to end tests run against the built output and not against a dev
+      # server, so the build has to happen before them. That is also what ships.
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm e2e

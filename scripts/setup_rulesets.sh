@@ -69,6 +69,8 @@ apply_ruleset "protect-main" "$(cat <<'JSON'
       "required_status_checks": [
         {"context": "quality", "integration_id": 15368},
         {"context": "test", "integration_id": 15368},
+        {"context": "frontend-quality", "integration_id": 15368},
+        {"context": "frontend-test", "integration_id": 15368},
         {"context": "dependencies", "integration_id": 15368},
         {"context": "sast", "integration_id": 15368},
         {"context": "secrets", "integration_id": 15368}

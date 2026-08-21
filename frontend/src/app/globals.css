@@ -1,0 +1,393 @@
+@import "tailwindcss";
+
+/*
+ * The vocabulary the whole interface is built from.
+ *
+ * There is no third-party component library here, and that is not frugality.
+ * This product needs about eight components and the most important one does not
+ * exist off the shelf, because nobody else makes an uncertainty band the main
+ * object on a page. So this file defines names, not widgets.
+ *
+ * ---------------------------------------------------------------------------
+ * The rule that governs every colour below
+ *
+ * The light palette is defined in full on bare `:root`. The dark palette
+ * redefines EVERY `--colour-*` name, and the two explicit-choice blocks
+ * redefine all of them again. A colour whose only definition sits inside one
+ * theme is a colour that is wrong in the other, and nobody notices until
+ * somebody with the other setting reads a euro amount against a background it
+ * was never checked against. tests/design/tokens.test.ts enforces that every
+ * name appears in the dark block; tests/design/contrast.test.ts computes the
+ * WCAG 2.2 contrast ratio of every text-on-background pair in all four blocks
+ * and requires 4.5:1, plus 3:1 for the graphics that carry meaning.
+ *
+ * Because that duplication is a maintenance hazard rather than a virtue, the
+ * contrast test also asserts the explicit-choice blocks resolve to exactly the
+ * same colours as the media-query blocks they override. Duplication that is
+ * checked is a different thing from duplication that is hoped for.
+ *
+ * British spelling is deliberate: `--colour-*` is ours, `--color-*` is
+ * Tailwind's. The two never collide by accident.
+ */
+
+:root {
+  /* ---- surfaces, light ---- */
+  --colour-surface: #ffffff;
+  --colour-surface-raised: #f5f7f9;
+  --colour-surface-sunken: #e8ecf0;
+
+  /* ---- text, light ---- */
+  --colour-ink: #0e1519;
+  --colour-ink-muted: #45535f;
+  --colour-ink-subtle: #56646f;
+
+  /* ---- accent, light ---- */
+  --colour-accent: #0b6e63;
+  --colour-accent-hover: #084f47;
+  --colour-on-accent: #ffffff;
+
+  /*
+   * The three confidence tones. These are not decoration: the API sends
+   * INDICATIVE, GOOD or PRECISE and the band takes the matching tone, so the
+   * reader sees how sure the answer is before reading the answer. They double
+   * as fill colours, so each one clears 4.5:1 as text on every surface and
+   * carries --colour-on-tone when text is drawn on top of it.
+   */
+  --colour-confidence-indicative: #8a5300;
+  --colour-confidence-good: #0b6e63;
+  --colour-confidence-precise: #1f4fa8;
+  --colour-on-tone: #ffffff;
+
+  /* ---- the band's own neutral fill, light ---- */
+  --colour-band-track: #1f7c70;
+
+  /* ---- state, light ---- */
+  --colour-danger: #a11b1b;
+  --colour-on-danger: #ffffff;
+
+  /*
+   * --colour-border is a decorative hairline and is exempt from 1.4.11.
+   * --colour-border-strong bounds controls a visitor has to find, so it
+   * clears 3:1 against every surface and the contrast test checks it.
+   */
+  --colour-border: #d5dce3;
+  --colour-border-strong: #65737f;
+  --colour-focus: #0b6e63;
+
+  /* ---- type ----
+   * Fluid between a 320px and a 1280px viewport. Nothing here is a fixed pixel
+   * size, so a reader who has enlarged their default text keeps the whole
+   * scale rather than one step of it.
+   */
+  --text-xs: clamp(0.75rem, 0.72rem + 0.15vw, 0.8125rem);
+  --text-sm: clamp(0.875rem, 0.85rem + 0.12vw, 0.9375rem);
+  --text-base: clamp(1rem, 0.96rem + 0.2vw, 1.125rem);
+  --text-lg: clamp(1.125rem, 1.06rem + 0.32vw, 1.375rem);
+  --text-xl: clamp(1.375rem, 1.25rem + 0.6vw, 1.75rem);
+  --text-2xl: clamp(1.75rem, 1.5rem + 1.2vw, 2.5rem);
+  --text-3xl: clamp(2.25rem, 1.8rem + 2.2vw, 3.5rem);
+
+  /*
+   * --text-band-end and --text-band-middle used to sit here, with a comment
+   * saying a test measured their ratio and that "these tokens are why it
+   * holds". Nothing rendered them: src/components/band/scale.ts sets both
+   * sizes inline, in rem, because jsdom loads no stylesheet and a size that
+   * lives only here reads back as zero on both elements, which makes the
+   * comparison pass without having measured anything. So the tokens were two
+   * values no pixel depended on, and the test that ordered them was a test of
+   * itself. Both are gone; scale.ts is the single place the two sizes exist
+   * and e2e/rules.spec.ts measures them in a real browser.
+   */
+
+  --leading-tight: 1.15;
+  --leading-snug: 1.35;
+  --leading-normal: 1.6;
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0em;
+  --tracking-wide: 0.06em;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-bold: 700;
+
+  /* A line longer than this is a line the eye loses its place in. */
+  --measure: 68ch;
+
+  /* ---- space, on a 4px base ---- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+  --space-9: 6rem;
+
+  /* ---- shape ---- */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 1rem;
+  --radius-pill: 999px;
+  --border-hairline: 1px;
+  --border-control: 2px;
+  --focus-ring-width: 3px;
+  --focus-ring-offset: 2px;
+
+  /* ---- motion ----
+   * Milliseconds, mirrored by DURATION in src/design/tokens.ts, which the
+   * design tests check against these values. Nothing here is long enough for a
+   * reader to wait on: a transition somebody notices as a delay reads as
+   * slowness, not as polish.
+   */
+  --duration-instant: 0ms;
+  --duration-quick: 120ms;
+  --duration-considered: 320ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /*
+   * 1 while movement is allowed, 0 once the visitor has asked for less. A
+   * component reads this to choose a DIFFERENT presentation, never a faster
+   * version of the same one.
+   */
+  --motion-enabled: 1;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --colour-surface: #0c1013;
+    --colour-surface-raised: #151b20;
+    --colour-surface-sunken: #080b0d;
+    --colour-ink: #eef3f6;
+    --colour-ink-muted: #a9b7c2;
+    --colour-ink-subtle: #93a3af;
+    --colour-accent: #4fd8c4;
+    --colour-accent-hover: #7fe8d8;
+    --colour-on-accent: #06231f;
+    --colour-confidence-indicative: #f0b429;
+    --colour-confidence-good: #4fd8c4;
+    --colour-confidence-precise: #86b6ff;
+    --colour-on-tone: #06231f;
+    --colour-band-track: #3e9e90;
+    --colour-danger: #ff8d8d;
+    --colour-on-danger: #2a0606;
+    --colour-border: #252e35;
+    --colour-border-strong: #7c8a96;
+    --colour-focus: #4fd8c4;
+    color-scheme: dark;
+  }
+}
+
+/*
+ * An explicit choice beats the system preference, by specificity rather than by
+ * order. Both blocks are complete for the same reason the media block is: a
+ * visitor whose system says light and who picked dark must not end up with half
+ * of each.
+ */
+:root[data-theme="light"] {
+  --colour-surface: #ffffff;
+  --colour-surface-raised: #f5f7f9;
+  --colour-surface-sunken: #e8ecf0;
+  --colour-ink: #0e1519;
+  --colour-ink-muted: #45535f;
+  --colour-ink-subtle: #56646f;
+  --colour-accent: #0b6e63;
+  --colour-accent-hover: #084f47;
+  --colour-on-accent: #ffffff;
+  --colour-confidence-indicative: #8a5300;
+  --colour-confidence-good: #0b6e63;
+  --colour-confidence-precise: #1f4fa8;
+  --colour-on-tone: #ffffff;
+  --colour-band-track: #1f7c70;
+  --colour-danger: #a11b1b;
+  --colour-on-danger: #ffffff;
+  --colour-border: #d5dce3;
+  --colour-border-strong: #65737f;
+  --colour-focus: #0b6e63;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --colour-surface: #0c1013;
+  --colour-surface-raised: #151b20;
+  --colour-surface-sunken: #080b0d;
+  --colour-ink: #eef3f6;
+  --colour-ink-muted: #a9b7c2;
+  --colour-ink-subtle: #93a3af;
+  --colour-accent: #4fd8c4;
+  --colour-accent-hover: #7fe8d8;
+  --colour-on-accent: #06231f;
+  --colour-confidence-indicative: #f0b429;
+  --colour-confidence-good: #4fd8c4;
+  --colour-confidence-precise: #86b6ff;
+  --colour-on-tone: #06231f;
+  --colour-band-track: #3e9e90;
+  --colour-danger: #ff8d8d;
+  --colour-on-danger: #2a0606;
+  --colour-border: #252e35;
+  --colour-border-strong: #7c8a96;
+  --colour-focus: #4fd8c4;
+  color-scheme: dark;
+}
+
+/*
+ * Hand the same names to Tailwind. `inline` keeps the var() reference in the
+ * generated rule instead of resolving it at build time, which is what lets one
+ * utility class follow the theme at runtime.
+ *
+ * --font-geist-sans and --font-geist-mono are set by src/app/layout.tsx, which
+ * belongs to another lane. They are read here and never written here.
+ */
+@theme inline {
+  --color-surface: var(--colour-surface);
+  --color-surface-raised: var(--colour-surface-raised);
+  --color-surface-sunken: var(--colour-surface-sunken);
+  --color-ink: var(--colour-ink);
+  --color-ink-muted: var(--colour-ink-muted);
+  --color-ink-subtle: var(--colour-ink-subtle);
+  --color-accent: var(--colour-accent);
+  --color-accent-hover: var(--colour-accent-hover);
+  --color-on-accent: var(--colour-on-accent);
+  --color-on-tone: var(--colour-on-tone);
+  --color-band-track: var(--colour-band-track);
+  --color-danger: var(--colour-danger);
+  --color-on-danger: var(--colour-on-danger);
+  --color-hairline: var(--colour-border);
+  --color-border-strong: var(--colour-border-strong);
+  --color-focus: var(--colour-focus);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@layer base {
+  html {
+    background-color: var(--colour-surface);
+  }
+
+  body {
+    background-color: var(--colour-surface);
+    color: var(--colour-ink);
+    font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+    font-size: var(--text-base);
+    line-height: var(--leading-normal);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /*
+   * Every focusable thing gets a ring that clears 3:1 against every surface.
+   * :focus-visible rather than :focus, so a mouse click does not leave one
+   * behind and nobody is tempted to remove it.
+   */
+  :focus-visible {
+    outline: var(--focus-ring-width) solid var(--colour-focus);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  ::selection {
+    background-color: var(--colour-accent);
+    color: var(--colour-on-accent);
+  }
+
+  h1,
+  h2,
+  h3 {
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-tight);
+    text-wrap: balance;
+  }
+
+  p {
+    max-width: var(--measure);
+    text-wrap: pretty;
+  }
+}
+
+@layer components {
+  /* The keyboard-only route past the header. Visible the moment it is focused. */
+  .skip-link {
+    position: absolute;
+    left: var(--space-2);
+    top: var(--space-2);
+    z-index: 100;
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-md);
+    background-color: var(--colour-accent);
+    color: var(--colour-on-accent);
+    transform: translateY(-200%);
+  }
+
+  .skip-link:focus-visible {
+    transform: translateY(0);
+  }
+
+  /*
+   * The one call to action that is a button rather than a sentence. It exists
+   * as a class rather than as utilities so that --colour-accent-hover has a
+   * rule that renders it; a token that appears only in the @theme block is a
+   * token Tailwind can name and no page ever draws.
+   */
+  .button-accent {
+    display: inline-flex;
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-5);
+    background-color: var(--colour-accent);
+    color: var(--colour-on-accent);
+    font-weight: var(--weight-medium);
+  }
+
+  .button-accent:hover {
+    background-color: var(--colour-accent-hover);
+  }
+
+  /*
+   * A failure the visitor has to notice, drawn in the danger colour with
+   * --colour-on-danger on top rather than as red body text. Same reason: the
+   * pair is measured by the contrast test and was drawn by nothing.
+   */
+  .notice-danger {
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    background-color: var(--colour-danger);
+    color: var(--colour-on-danger);
+  }
+}
+
+/*
+ * Reduced motion DISABLES movement; it does not shorten it.
+ *
+ * A shortened transition still moves, so the meaning is still inside the
+ * movement, and that meaning is exactly what the preference exists to remove.
+ * 0.01ms is below one frame, so no intermediate state is ever painted: the end
+ * state simply is the state. --motion-enabled flips to 0 for anything reading
+ * it at runtime.
+ *
+ * There used to be a [data-motion] pair here as well, and a motionSlot() helper
+ * beside it, for components that say something by moving and have to say it in
+ * words instead. Nothing ever used either: the only animation on the site is
+ * the band growing to its width, which carries no meaning the still band does
+ * not already carry. A mechanism with no call sites and a test guarding it is
+ * a check that measures nothing, so both are gone. The day a component does
+ * carry meaning in a movement, that is the day to write it back.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  :root {
+    --duration-instant: 0ms;
+    --duration-quick: 0ms;
+    --duration-considered: 0ms;
+    --motion-enabled: 0;
+  }
+}

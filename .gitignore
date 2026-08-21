@@ -13,3 +13,12 @@ coverage.xml
 htmlcov/
 sbom.json
 requirements-*.txt
+
+# The Next.js frontend. node_modules and the build outputs are reproducible
+# from frontend/pnpm-lock.yaml; the Playwright report and its traces are run
+# artefacts that can hold screenshots of a rendered advice page.
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/playwright-report/
+frontend/test-results/

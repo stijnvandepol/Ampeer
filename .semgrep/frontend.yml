@@ -1,0 +1,75 @@
+# Static analysis rules for the frontend tree.
+#
+# Deliberately a small, repository-owned ruleset rather than semgrep's
+# `p/typescript` pack. That pack is fetched from semgrep's registry at scan
+# time, which would make a required status check depend on a third party being
+# reachable, and would let the rules a gate enforces change without a commit
+# here. Both are the wrong shape for a gate.
+#
+# The cost is honest and stated: this is narrow. It covers the ways a static
+# site that renders API text and takes form input actually gets hurt, and it
+# does not pretend to be a general TypeScript scanner. `sast` covers the Python
+# tree with bandit and this tree with these rules; anything wider is a decision
+# to take deliberately, not to inherit.
+rules:
+  - id: ampeer-no-dangerously-set-inner-html
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      dangerouslySetInnerHTML renders unescaped HTML. Advice text comes from the
+      API and the methodology from a Markdown file; both are ours today, and
+      both are strings this component does not control. Render text as text, or
+      sanitise deliberately and say so here.
+    pattern-either:
+      - pattern: <$EL dangerouslySetInnerHTML={$X} ... />
+      - pattern: <$EL dangerouslySetInnerHTML={$X} ...>...</$EL>
+
+  - id: ampeer-no-eval-like
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: Evaluating a string as code has no legitimate use in this frontend.
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
+      - pattern: $EL.innerHTML = ...
+      - pattern: $EL.outerHTML = ...
+
+  - id: ampeer-external-link-needs-noopener
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      target="_blank" without rel="noopener noreferrer" hands the opened page a
+      handle on this one. The advice page should have no external links at all;
+      if one is being added, that is the finding.
+    patterns:
+      - pattern: <$EL target="_blank" ...>...</$EL>
+      - pattern-not: <$EL target="_blank" rel="..." ...>...</$EL>
+
+  - id: ampeer-amount-must-not-become-a-number
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Amounts cross the wire as strings because JSON has floats and no decimals.
+      Parsing one for display reintroduces the rounding this project avoids
+      everywhere else. Compare parsed copies if you must; never render one.
+    pattern-either:
+      - pattern: parseFloat($X.p50)
+      - pattern: parseFloat($X.mid)
+      - pattern: Number($X.p50)
+      - pattern: Number($X.mid)
+
+  - id: ampeer-no-url-from-user-input
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      An outbound URL built from a value the visitor supplied is the SSRF shape
+      CLAUDE.md excludes categorically. The API base is a constant; paths are
+      built from validated tokens only.
+    patterns:
+      - pattern: fetch(`...${$USER}...`, ...)
+      # The `$` that used to sit before this `...` made the exclusion match
+      # nothing, so the rule flagged every fetch with a template literal,
+      # including the one shape it was written to permit. A rule that is
+      # red on correct code is as broken as one that never fires; it just
+      # fails in the direction that gets it suppressed.
+      - pattern-not: fetch(`${BASE}...`, ...)

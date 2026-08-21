@@ -18,3 +18,19 @@ updates:
       day: "monday"
     open-pull-requests-limit: 5
     target-branch: "dev"
+
+  # frontend/pnpm-lock.yaml. Without this entry the lockfile is updated by
+  # nothing, while `pnpm audit --audit-level low` in the `dependencies` job
+  # fails on the first advisory at any severity against any of the several
+  # hundred packages the browser executes. That is a required check going red
+  # with no automation anywhere producing the fix, which is the risk the header
+  # above names: pinning without dependabot trades one risk for another.
+  # tests/test_pipeline_contract.py pairs this list against the lockfiles that
+  # exist, so a third ecosystem cannot arrive unwatched either.
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    target-branch: "dev"

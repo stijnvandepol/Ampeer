@@ -37,3 +37,10 @@ DATABASES = {
         "PORT": os.environ.get("POSTGRES_PORT", "5432"),
     }
 }
+
+
+# Where `pnpm dev` and the built site under `serve` listen. Named rather than
+# left open, so a developer meets the same shape of failure locally that a
+# misconfigured production would produce, instead of discovering CORS exists on
+# the day of the deploy.
+CORS_ALLOWED_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000", "http://127.0.0.1:4173"]

@@ -16,6 +16,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.staticfiles",
+    "corsheaders",
     "rest_framework",
     "advice.apps.AdviceConfig",
 ]
@@ -24,6 +25,11 @@ INSTALLED_APPS = [
 # and an installed app is an attack surface whether or not a URL points at it.
 
 MIDDLEWARE = [
+    # First, and above SecurityMiddleware, because it has to answer a preflight
+    # OPTIONS before anything else redirects or rejects it. django-cors-headers
+    # says so in its own README and it is the ordering mistake that produces a
+    # working GET and a blocked POST, which is the hardest kind to diagnose.
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.middleware.common.CommonMiddleware",
     # Section 9 of the design says this middleware stays even though the advice
@@ -108,3 +114,32 @@ AMPEER_PROFILE_YEAR = 2025
 
 #: How long a stored advice stays retrievable.
 AMPEER_ADVICE_TTL_DAYS = 90
+
+
+#: Which origins the browser may read an answer from.
+#:
+#: This exists because the browser calls this API directly. That is deliberate:
+#: the throttle is keyed on the caller, so a frontend fetching server-side would
+#: put every visitor into one bucket, and the answers are personal data that
+#: gain nothing from passing through one more process. The cost of that choice
+#: is that the two halves are on different origins and the browser will not hand
+#: over a response without being told to.
+#:
+#: It was missing entirely until 2026-08-21. Nothing caught it: Playwright stubs
+#: every API route, DRF's APIClient sends no Origin and enforces no same-origin
+#: policy, and the contract test reads a file. A visitor would have been the
+#: first to know, and would have been told to check their own connection.
+#:
+#: Empty here, and required from the environment in production. A wildcard would
+#: let any page on the internet read a household's figures out of this API.
+CORS_ALLOWED_ORIGINS: list[str] = []
+
+#: Only what the two POST bodies and the GET actually need. The default list is
+#: wider, and every header on it is one more thing a preflight will agree to.
+CORS_ALLOW_HEADERS = ["content-type"]
+CORS_ALLOW_METHODS = ["GET", "POST", "OPTIONS"]
+
+#: No cookies cross the boundary. There is no session on this API, so there is
+#: nothing to send; saying so out loud means a later view cannot start relying
+#: on one by accident.
+CORS_ALLOW_CREDENTIALS = False

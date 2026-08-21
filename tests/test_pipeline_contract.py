@@ -288,3 +288,254 @@ def test_pre_commit_and_the_lockfile_agree_on_ruff() -> None:
 def test_every_workflow_declares_least_privilege_permissions(workflow: str) -> None:
     document = _workflows()[workflow]
     assert document.get("permissions") == {"contents": "read"}
+
+
+# --------------------------------------------------------------------------
+# The frontend half of the same gates.
+#
+# SOURCE_GATES above reads Python paths off Python command lines, so it cannot
+# express a gate whose whole argument list is "the frontend directory" and
+# whose tool is a pnpm script. Every entry below was, on 2026-08-21, a step
+# that could be deleted from a workflow with every test in this file still
+# green: the semgrep line in `sast`, the four pnpm steps in `dependencies`,
+# and the lint and typecheck in `frontend-quality`. That is the third instance
+# of the same shape in one day, and the comment above SOURCE_GATES names it:
+# the entry that goes missing quietly is the newest one.
+# --------------------------------------------------------------------------
+
+#: (workflow, job, fragments that must all appear in one `run` line). One tuple
+#: per gate, not per job, so deleting any single line turns exactly one of these
+#: red with the deleted command in the message.
+FRONTEND_GATES = (
+    ("ci.yml", "frontend-quality", ("pnpm install", "--frozen-lockfile")),
+    ("ci.yml", "frontend-quality", ("pnpm lint",)),
+    ("ci.yml", "frontend-quality", ("pnpm typecheck",)),
+    # Added 2026-08-21. The Python half has checked formatting since the
+    # first commit and this half had no formatter at all, so the two jobs
+    # were not the same gate under two names.
+    ("ci.yml", "frontend-quality", ("pnpm format:check",)),
+    ("ci.yml", "frontend-test", ("pnpm install", "--frozen-lockfile")),
+    ("ci.yml", "frontend-test", ("pnpm test",)),
+    ("ci.yml", "frontend-test", ("pnpm build",)),
+    ("ci.yml", "frontend-test", ("pnpm e2e",)),
+    ("security.yml", "dependencies", ("pnpm install", "--frozen-lockfile")),
+    ("security.yml", "dependencies", ("pnpm audit", "--audit-level low")),
+    (
+        "security.yml",
+        "sast",
+        ("semgrep", "--config .semgrep/frontend.yml", "--error", "frontend/src"),
+    ),
+)
+
+
+def _steps(workflow: str, job: str) -> list[dict[str, Any]]:
+    steps: list[dict[str, Any]] = _workflows()[workflow]["jobs"][job].get("steps", [])
+    return steps
+
+
+@pytest.mark.parametrize(("workflow", "job", "fragments"), FRONTEND_GATES)
+def test_every_frontend_gate_is_still_in_its_job(
+    workflow: str, job: str, fragments: tuple[str, ...]
+) -> None:
+    commands = [
+        run for run in _run_steps(workflow, job) if all(fragment in run for fragment in fragments)
+    ]
+    assert commands, f"{workflow}:{job} runs no step containing {list(fragments)}"
+
+
+@pytest.mark.parametrize(("workflow", "job"), [("security.yml", "dependencies")])
+def test_every_pnpm_step_outside_a_frontend_job_says_where_it_runs(workflow: str, job: str) -> None:
+    """`dependencies` has no `defaults.run.working-directory`, so a pnpm step
+    there runs at the repository root, where there is no package.json.
+
+    It would fail rather than pass quietly, but it would fail for a reason that
+    reads as a broken runner rather than as a missing `working-directory`, and
+    the fix somebody reaches for under that misreading is to delete the step.
+    """
+    default = _workflows()[workflow]["jobs"][job].get("defaults", {}).get("run", {})
+    if default.get("working-directory") == "frontend":
+        return
+    offenders = [
+        step.get("name", step["run"])
+        for step in _steps(workflow, job)
+        if "pnpm" in str(step.get("run", "")) and step.get("working-directory") != "frontend"
+    ]
+    assert not offenders, f"{workflow}:{job} pnpm steps with no working-directory: {offenders}"
+
+
+def test_every_job_that_holds_a_gate_is_a_required_check() -> None:
+    """A gate in a job no ruleset requires is a gate a merge does not wait for.
+
+    Both halves are read from the tables above rather than written down again,
+    so a gate added to a new job is covered by this the moment it is listed.
+    """
+    gated_jobs = {job for _, job, _ in SOURCE_GATES} | {job for _, job, _ in FRONTEND_GATES}
+    gated_jobs.add("test")  # the coverage floor lives there
+    main = next(p for p in _ruleset_payloads() if p["name"] == "protect-main")
+    required = {check["context"] for check in _required_checks(main)}
+    assert gated_jobs <= required, (
+        f"gates in jobs nothing requires: {sorted(gated_jobs - required)}"
+    )
+
+
+# --------------------------------------------------------------------------
+# The frontend's own configuration, read from Python because this is where the
+# repository keeps the tests that can fail a build over a configuration file.
+# --------------------------------------------------------------------------
+
+FRONTEND = REPO_ROOT / "frontend"
+VITEST_CONFIG = FRONTEND / "vitest.config.ts"
+PACKAGE_JSON = FRONTEND / "package.json"
+DEPENDABOT = REPO_ROOT / ".github" / "dependabot.yml"
+
+#: The four vitest thresholds, as measured on 2026-08-21 and written down in
+#: vitest.config.ts. Each may be raised and none may be lowered, which is the
+#: rule that file states about itself and that nothing enforced: the Python
+#: floor is defended by `test_the_coverage_floor_is_not_lowered` above, and
+#: `branches: 91` could be edited to 70 with every test in this repository
+#: still green.
+MINIMUM_FRONTEND_COVERAGE = {
+    "statements": 95,
+    "branches": 91,
+    "functions": 94,
+    "lines": 96,
+}
+
+
+def _vitest_thresholds() -> dict[str, float]:
+    source = VITEST_CONFIG.read_text(encoding="utf-8")
+    block = re.search(r"thresholds:\s*\{(.*?)\}", source, re.DOTALL)
+    assert block, "vitest.config.ts declares no coverage thresholds block"
+    return {
+        name: float(value) for name, value in re.findall(r"(\w+)\s*:\s*([\d.]+)", block.group(1))
+    }
+
+
+@pytest.mark.parametrize(("metric", "floor"), sorted(MINIMUM_FRONTEND_COVERAGE.items()))
+def test_the_frontend_coverage_floor_is_not_lowered(metric: str, floor: int) -> None:
+    """Same rule as the Python floor, now with the same enforcement.
+
+    Four metrics rather than one because they fail on different things, and one
+    parametrised case each so a single lowered number names itself.
+    """
+    thresholds = _vitest_thresholds()
+    assert metric in thresholds, f"vitest.config.ts sets no {metric} threshold"
+    assert thresholds[metric] >= floor, (
+        f"{metric} is {thresholds[metric]}, below the floor of {floor}; "
+        "the floor may rise and may never fall, so the fix is a test"
+    )
+
+
+def test_the_frontend_coverage_gate_still_measures_and_still_fails() -> None:
+    """A threshold nothing reads is a comment.
+
+    `pnpm test` has to run vitest with coverage on, and the coverage has to be
+    measured over src/. Dropping --coverage from the script leaves four
+    thresholds in a file that is still parsed and never applied.
+    """
+    scripts = json.loads(PACKAGE_JSON.read_text(encoding="utf-8"))["scripts"]
+    assert "--coverage" in scripts["test"], (
+        f"pnpm test does not measure coverage: {scripts['test']}"
+    )
+    source = VITEST_CONFIG.read_text(encoding="utf-8")
+    assert 'include: ["src/**"]' in source, "coverage no longer includes src/**"
+
+
+def test_the_package_manager_is_pinned_by_hash() -> None:
+    """corepack downloads and executes whatever the registry serves under this
+    version unless the field carries an integrity hash.
+
+    Three required jobs run `corepack enable` before anything else, so without
+    the suffix the first executable in each of them is unverified. security.yml
+    pins gitleaks by SHA256 and calls it "the only unhashed executable in the
+    pipeline"; on 2026-08-21 that sentence had stopped being true.
+    """
+    declared = json.loads(PACKAGE_JSON.read_text(encoding="utf-8"))["packageManager"]
+    assert re.fullmatch(r"pnpm@\d+\.\d+\.\d+\+sha512\.[0-9a-f]{128}", declared), (
+        f"packageManager is not pinned by a sha512 digest: {declared!r}"
+    )
+
+
+def test_every_lockfile_has_something_that_updates_it() -> None:
+    """Pinning without dependabot trades one risk for another, as the header of
+    dependabot.yml says about itself.
+
+    The lockfiles are read from the tree rather than listed here, so a second
+    ecosystem arriving later is covered by the same assertion. `pnpm audit
+    --audit-level low` in the `dependencies` job goes red on the first advisory
+    at any severity; with no entry for that lockfile, nothing anywhere produces
+    the pull request that fixes it.
+    """
+    ecosystem_for = {
+        "uv.lock": ("uv", "/"),
+        "pnpm-lock.yaml": ("npm", "/frontend"),
+    }
+    configured = {
+        (update["package-ecosystem"], update["directory"])
+        for update in yaml.safe_load(DEPENDABOT.read_text(encoding="utf-8"))["updates"]
+    }
+    missing = [
+        f"{path.relative_to(REPO_ROOT).as_posix()} needs {ecosystem_for[path.name]}"
+        for path in sorted(REPO_ROOT.glob("*/pnpm-lock.yaml")) + [UV_LOCK]
+        if path.name in ecosystem_for and ecosystem_for[path.name] not in configured
+    ]
+    assert not missing, f"lockfiles nothing updates: {missing}"
+    assert ("github-actions", "/") in configured, "nothing updates the pinned action SHAs"
+
+
+def test_the_language_boundary_check_is_still_in_the_tree() -> None:
+    """The check the spec asks for, and the file it compares against.
+
+    Spec chapter 10 point 3 asks for a test that no Dutch advice text lives in
+    frontend source. It is an end to end test, so it is a file in a directory
+    playwright globs: deleting it removes the gate and turns nothing red, which
+    is the exact shape every finding in this round has. The allowlist beside it
+    is the other half; an emptied one would make the check vacuous, so the
+    minimum here is a floor on the file and the check has its own floor on what
+    it extracted.
+    """
+    spec = FRONTEND / "e2e" / "language.spec.ts"
+    allowlist = FRONTEND / "tests" / "ui-strings.txt"
+    assert spec.is_file(), "the language boundary check is gone"
+    assert allowlist.is_file(), "the allowlist the language boundary check reads is gone"
+    entries = [
+        line
+        for line in allowlist.read_text(encoding="utf-8").splitlines()
+        if line and not line.startswith("#")
+    ]
+    assert len(entries) > 60, f"the allowlist holds {len(entries)} entries"
+    body = spec.read_text(encoding="utf-8")
+    for required in ("typescript", "ui-strings.txt", "aria-label"):
+        assert required in body, f"the language check no longer mentions {required}"
+
+
+def test_the_interpreter_running_this_matches_the_pinned_version() -> None:
+    """`.python-version` has to be a fact, not a wish.
+
+    The workflows used to pass `python-version-file` to setup-uv. That input
+    does not exist in v10, so the action ignored it and said so as a workflow
+    annotation, which does not fail a build: five jobs claimed to pin an
+    interpreter and none of them did. It happened to be right anyway, because uv
+    reads the file itself, but nothing had checked.
+
+    This runs inside the interpreter under test, which is what makes it an
+    observation rather than another claim.
+    """
+    import sys
+
+    pinned = (REPO_ROOT / ".python-version").read_text(encoding="utf-8").strip()
+    running = ".".join(str(part) for part in sys.version_info[:2])
+    assert running == pinned, f"running Python {running}, .python-version says {pinned}"
+
+
+def test_no_workflow_passes_setup_uv_an_input_it_does_not_have() -> None:
+    """The specific mistake, so re-adding it fails here rather than in an
+    annotation nobody reads. setup-uv v10 accepts `version`, `version-file` and
+    `python-version`; `python-version-file` is not one of them."""
+    for name, document in _workflows().items():
+        for job, spec in document["jobs"].items():
+            for step in spec.get("steps", []):
+                if "astral-sh/setup-uv" not in str(step.get("uses", "")):
+                    continue
+                unknown = set(step.get("with", {})) & {"python-version-file"}
+                assert not unknown, f"{name}:{job} passes setup-uv {sorted(unknown)}"
