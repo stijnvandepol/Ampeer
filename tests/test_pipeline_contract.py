@@ -650,3 +650,149 @@ def test_no_workflow_passes_setup_uv_an_input_it_does_not_have() -> None:
                     continue
                 unknown = set(step.get("with", {})) & {"python-version-file"}
                 assert not unknown, f"{name}:{job} passes setup-uv {sorted(unknown)}"
+
+
+#: The local runner. It is a convenience and not an authority: the required
+#: checks are the workflows, and this file exists so the convenience cannot
+#: quietly come to cover less than the workflows do. Until 2026-08-21 there was
+#: no runner at all, every pre-push check was improvised at the prompt, and a
+#: grep for "High" over bandit's output reported a Medium finding as clean.
+LOCAL_GATES = REPO_ROOT / "scripts" / "gates.sh"
+
+#: Commands in the workflows that set something up rather than judge it, with
+#: the reason each one is not a gate. An entry here is an exemption, so the
+#: list is short on purpose and every line has to earn itself; the test below
+#: fails on an entry that no longer matches any workflow, so it cannot become
+#: a drawer for gates that were dropped.
+SETUP_NOT_A_GATE = (
+    # Writes the file the two audit steps read. Its own failure is not a
+    # finding, and gates.sh runs it as part of those gates rather than beside
+    # them, so the export failing cannot read as an audit that passed.
+    (
+        "uv export --format requirements-txt --no-emit-project --all-groups"
+        " --output-file requirements-audit.txt"
+    ),
+    (
+        "uv export --format requirements-txt --no-emit-project --all-groups"
+        " --output-file requirements-sbom.txt"
+    ),
+    # Downloads a browser. Left to CI deliberately; gates.sh names it in the
+    # line that reports e2e as not run here.
+    "pnpm exec playwright install --with-deps chromium",
+    # The `sast` and `dependencies` jobs build a smaller environment than
+    # `test` does. gates.sh syncs the superset once, so the narrower spelling
+    # would only assert that the same thing happened twice.
+    "uv sync --locked --group dev",
+)
+
+#: What each workflow command has to look like inside scripts/gates.sh. A
+#: fragment rather than the whole command, because a few of them legitimately
+#: differ: gitleaks is invoked from PATH instead of a downloaded binary, and
+#: the pull request scan names a base branch that a working copy does not know.
+#: What may never differ is the part that decides how strict the check is.
+GATE_FRAGMENTS = {
+    "uv sync --locked --group dev --group backend": "uv sync --locked --group dev --group backend",
+    "uv run ruff check ampeer_sim ampeer_advice backend tests tools": (
+        "uv run ruff check ampeer_sim ampeer_advice backend tests tools"
+    ),
+    "uv run ruff format --check ampeer_sim ampeer_advice backend tests tools": (
+        "uv run ruff format --check ampeer_sim ampeer_advice backend tests tools"
+    ),
+    "uv run mypy ampeer_sim ampeer_advice backend tools": (
+        "uv run mypy ampeer_sim ampeer_advice backend tools"
+    ),
+    "uv run python backend/manage.py check --deploy --fail-level WARNING": (
+        "uv run python backend/manage.py check --deploy --fail-level WARNING"
+    ),
+    "uv run pre-commit run --all-files --show-diff-on-failure": (
+        "uv run pre-commit run --all-files --show-diff-on-failure"
+    ),
+    "uv run pytest --cov --cov-report=term-missing": "uv run pytest --cov --cov-report=term-missing",
+    "uv run bandit -c pyproject.toml -r ampeer_sim ampeer_advice backend tools": (
+        "uv run bandit -c pyproject.toml -r ampeer_sim ampeer_advice backend tools"
+    ),
+    "uv run semgrep --config .semgrep/frontend.yml --error --quiet frontend/src": (
+        "uv run semgrep --config .semgrep/frontend.yml --error --quiet frontend/src"
+    ),
+    "uv run pip-audit --requirement requirements-audit.txt --strict": (
+        "uv run pip-audit --requirement requirements-audit.txt --strict"
+    ),
+    (
+        "uv run cyclonedx-py requirements requirements-sbom.txt --output-format JSON"
+        " --output-file sbom.json"
+    ): ("uv run cyclonedx-py requirements requirements-sbom.txt --output-format JSON"),
+    "pnpm install --frozen-lockfile": "pnpm install --frozen-lockfile",
+    "pnpm lint": "pnpm lint",
+    "pnpm typecheck": "pnpm typecheck",
+    "pnpm format:check": "pnpm format:check",
+    "pnpm test": "pnpm test",
+    "pnpm build": "pnpm build",
+    "pnpm e2e": "pnpm e2e",
+    "pnpm audit --audit-level low": "pnpm audit --audit-level low",
+    './gitleaks detect --source . --redact --no-banner --log-opts "origin/${BASE_REF}..HEAD"': (
+        "gitleaks detect --source . --redact --no-banner"
+    ),
+    "./gitleaks detect --source . --redact --no-banner || true": (
+        "gitleaks detect --source . --redact --no-banner"
+    ),
+}
+
+#: The prefixes that make a line in a `run:` block a tool invocation rather
+#: than shell plumbing. Anything matching one of these is held to the contract
+#: below; `set -euo pipefail`, an assignment and a `curl` are not.
+_GATE_PREFIXES = ("uv run ", "uv sync ", "uv export ", "pnpm ", "./gitleaks ")
+
+
+def _workflow_commands() -> set[str]:
+    """Every tool invocation the pipeline runs, from every job in every workflow.
+
+    Line continuations are joined first, so a command split across three lines
+    for readability is compared as the one command it is.
+    """
+    found: set[str] = set()
+    for workflow in _workflows().values():
+        for job in workflow.get("jobs", {}).values():
+            for step in job.get("steps", []):
+                if "run" not in step:
+                    continue
+                joined = str(step["run"]).replace(chr(92) + chr(10), " ")
+                for line in joined.splitlines():
+                    command = " ".join(line.split())
+                    if command.startswith(_GATE_PREFIXES):
+                        found.add(command)
+    return found
+
+
+def test_the_local_runner_accounts_for_every_command_the_pipeline_runs() -> None:
+    """No gate may exist in CI and be unknown to scripts/gates.sh.
+
+    Accounting for a gate means running it or naming it in the line that
+    reports it as not runnable here. Both are honest; silence is not, and
+    silence is the failure this whole file was written against.
+    """
+    known = set(GATE_FRAGMENTS) | set(SETUP_NOT_A_GATE)
+    unaccounted = sorted(_workflow_commands() - known)
+    assert not unaccounted, (
+        "the pipeline runs commands scripts/gates.sh knows nothing about, so a "
+        "local run would report green over them:\n  " + "\n  ".join(unaccounted)
+    )
+
+
+@pytest.mark.parametrize(("command", "fragment"), sorted(GATE_FRAGMENTS.items()))
+def test_every_pipeline_gate_appears_in_the_local_runner(command: str, fragment: str) -> None:
+    text = LOCAL_GATES.read_text(encoding="utf-8")
+    assert fragment in text, f"scripts/gates.sh does not run or name `{command}`"
+
+
+@pytest.mark.parametrize("command", sorted(set(GATE_FRAGMENTS) | set(SETUP_NOT_A_GATE)))
+def test_the_local_runner_lists_no_command_the_pipeline_stopped_running(command: str) -> None:
+    """A stale entry is how this contract would rot into always passing.
+
+    Without this, a gate removed from CI keeps its line here, and the day it
+    comes back under a different spelling the new spelling is unaccounted for
+    while the list still looks complete.
+    """
+    assert command in _workflow_commands(), (
+        f"`{command}` is listed here but no workflow runs it any more; remove the "
+        "entry rather than leaving it to vouch for a gate that is gone"
+    )
