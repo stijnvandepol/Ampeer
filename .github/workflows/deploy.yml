@@ -154,7 +154,10 @@ jobs:
           tags: ghcr.io/stijnvandepol/ampeer-web:${{ github.ref_name }}
           provenance: true
 
-  # Runs on the LXC. Four commands and a logout.
+  # Runs on the LXC. It checks what is on the host against this release, pulls
+  # what CI built, migrates, switches, and logs out. The count that used to
+  # stand here stopped being true some releases ago; the order is the property
+  # worth stating, and tests/test_deploy_workflow.py holds every step of it.
   deploy:
     needs: build
     runs-on: self-hosted
@@ -341,17 +344,104 @@ jobs:
             fi
           done
 
+      # Before `up`, because after it the container that carries the answer is
+      # gone. This is the whole of the fallback machinery: a release is one
+      # string, and the string the host is serving right now is written on the
+      # container that is serving it.
+      #
+      # Empty output on a first deploy rather than a failure. There is nothing
+      # to fall back to then, and saying so at the moment it matters beats
+      # refusing to deploy a stack that does not exist yet.
+      - name: Record the release that is running now
+        id: current
+        run: |
+          set -euo pipefail
+          container="$(docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env" ps -q api | head -n 1)"
+          if [ -z "$container" ]; then
+            echo "no api container is running, so this deploy has nothing to fall back to"
+            echo "version=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          image="$(docker inspect --format '{{.Config.Image}}' "$container")"
+          echo "currently serving ${image##*:}"
+          echo "version=${image##*:}" >> "$GITHUB_OUTPUT"
+
+      # Before `up`, and that ordering is the point of this step rather than a
+      # detail of it.
+      #
+      # It used to run after. That put every deploy through a window in which
+      # the new code was already serving against the previous schema, and there
+      # is no version of that window that is safe: the release is live and the
+      # column it reads does not exist yet. A migration that then failed left
+      # the site serving errors with no step left to abort.
+      #
+      # Running it first inverts the window to old code against the new schema,
+      # and that one is safe as long as a migration only adds. So this ordering
+      # is not free, it buys the safe half of a trade in exchange for a rule:
+      #
+      #   A migration must leave the previous release able to serve. Add a
+      #   column, backfill it, and only drop the old one in a later release.
+      #
+      # The rule is not enforceable from here. What is enforceable, and what
+      # this ordering gives, is that a migration which fails stops the deploy
+      # while the previous release is still whole and still serving.
+      #
+      # `run --rm` builds a one-off container from the image this run pulled
+      # and leaves the running api container alone, so nothing switches here.
+      # --noinput because no terminal is attached to this.
+      - name: Migrate, while the previous release is still serving
+        run: >-
+          docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env"
+          run --rm api python backend/manage.py migrate --noinput
+
+      # `id:` so the fallback below can name this step rather than asking
+      # whether anything at all failed. Two steps in this job run `up -d` and
+      # tests/test_deploy_workflow.py asserts that exactly one of them is
+      # unconditional, because the day that stops being true this job starts
+      # the stack twice and calls it a deploy.
       - name: Start it
+        id: start
         run: >-
           docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env"
           up -d --remove-orphans
 
-      # After `up`, so it runs against the image that is now serving, and with
-      # --noinput because there is no terminal attached to this.
-      - name: Migrate
-        run: >-
-          docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env"
-          run --rm api python backend/manage.py migrate --noinput
+      # `up -d` recreates the api container before compose waits on its health,
+      # so a release that never becomes healthy is an outage, not a refusal.
+      # Until this step existed, ending that outage was a person noticing,
+      # logging into the LXC and editing AMPEER_VERSION by hand. The tag it
+      # would be edited to is the one recorded above.
+      #
+      # This step exits zero when the fallback works, and the job stays red
+      # anyway because `Start it` failed. That is deliberate. A fallback that
+      # turned the run green would teach this pipeline that an outage is a
+      # successful deploy, and the next release would be cut on top of a
+      # version nobody knows is not running.
+      #
+      # What it cannot undo is the migration, which ran before the switch and
+      # has already been applied. The old code is serving against the new
+      # schema, which is the window the rule above exists to keep safe, and the
+      # message says so rather than leaving it to be discovered.
+      - name: Fall back to the release that was running
+        if: failure() && steps.start.outcome == 'failure'
+        env:
+          PREVIOUS: ${{ steps.current.outputs.version }}
+        run: |
+          set -euo pipefail
+          echo "::error::$AMPEER_VERSION did not come up"
+          if [ -z "$PREVIOUS" ]; then
+            echo "::error::nothing was running before this deploy, so there is no release to fall back to"
+            echo "::error::the stack is down; check the step above for what refused to start"
+            exit 1
+          fi
+          if [ "$PREVIOUS" = "$AMPEER_VERSION" ]; then
+            echo "::error::$PREVIOUS was already the running release, so falling back would redeploy what just failed"
+            echo "::error::the stack is down; check the step above for what refused to start"
+            exit 1
+          fi
+          echo "falling back to $PREVIOUS"
+          AMPEER_VERSION="$PREVIOUS" docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env" up -d --remove-orphans
+          echo "::error::$PREVIOUS is serving again. The database is on the schema $AMPEER_VERSION migrated it to, which the previous release is expected to tolerate; if it does not, that migration was not additive."
+          echo "::error::$STACK/.env still names the old release, so a reboot brings back $PREVIOUS. Nothing needs editing on the host to stay where you are."
 
       # The second of the two places `purge_expired_advice --check` runs, and
       # the only one that runs on a schedule anybody can see. The other is
