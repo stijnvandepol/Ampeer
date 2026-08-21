@@ -438,6 +438,47 @@ That is a second reason for it, and a better one than the window between
 `migrate` and `up -d`: the window lasts seconds, and this state lasts until
 somebody deploys again.
 
+### The digest check, and the window it closes
+
+`docker-compose.yml` pulls `:${AMPEER_VERSION}`, and between the build job and
+the pull sits the `production` review, which can take hours. A tag is a name:
+anyone holding `packages: write` on the repository can repoint
+`ampeer-api:v0.1.0` while that review is open, and the reviewer then approves
+the run they read while the host pulls whatever the tag says at pull time.
+Nothing in the run would look wrong.
+
+So the pull is checked rather than pinned. `pull` has already resolved the tag,
+and the step reads the digest the daemon recorded for what it fetched and
+compares it with the digest the build job says it pushed.
+
+**Rehearsed on 2026-08-21**, because a control that has never been run is a
+control nobody has seen work. The step was lifted out of the workflow unchanged
+and driven with two locally built images standing in for a good release and a
+repointed one:
+
+| The tag points at | The step |
+|---|---|
+| what the build published | exits 0 |
+| a different image | exits 1, printing both digests and naming what happened |
+| nothing, because the build published no digest | exits 1, saying so |
+| an image the host does not have | exits 1, on the daemon's own error |
+
+All three failures are closed rather than open, which is the property that
+matters for a control whose whole job is to refuse.
+
+One thing that surprises a person rehearsing this locally: an image built here
+and never pushed still reports a `RepoDigests` entry, so the check runs against
+it happily. On the host nothing is built, so the digest there is always the one
+the registry handed over with the pull, and this only matters when reading the
+output of a local rehearsal and wondering why it looks like a real pull.
+
+**What this does not cover**, stated rather than implied: a rollback. That is an
+operator running `docker compose up -d` with an older `AMPEER_VERSION`, with no
+build job in that path to say what the digest should be and no CI run at all, so
+a tag repointed weeks ago is pulled without anything objecting. It is the price
+of the tag being usable while CI is not, and it is the operation the tag exists
+to make easy, so it is the one to be careful with.
+
 ### `web` cannot start while `api` does not resolve
 
 nginx resolves every upstream name while it parses its configuration, so a
