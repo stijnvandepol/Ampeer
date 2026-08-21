@@ -1,0 +1,184 @@
+# Every image that comes from a registry is pinned by digest. A tag is a name
+# somebody else can repoint, and this file is the last place a change is read
+# before it runs on the host. The four digests below were resolved from the
+# registry on 2026-08-21; re-resolve when bumping and write down what you got.
+#
+# The two images built from this repository carry both `image:` and `build:`.
+# The deploy pulls the published one; a developer can bring the same stack up
+# locally without a registry. They are the same file, which is the point. Those
+# two are the only images here without a digest, because the release tag is not
+# known until the deploy that creates it, and tests/test_infra.py asserts that
+# the exemption is exactly those two names.
+#
+# Nothing in this file makes anything reachable. cloudflared opens an outbound
+# connection, so there is no published port, no host network, and no inbound
+# firewall rule anywhere on the path. Adding one here is the single change that
+# would undo that, which is why a test reads this file for it.
+name: ampeer
+
+# How long the container logs live, chosen here rather than inherited.
+#
+# Everything in this stack writes to stdout and stderr on purpose: nginx logs to
+# /dev/stdout and /dev/stderr, gunicorn and Django log to stderr, and the purge
+# prints a count. None of it is written inside a container. That moves the whole
+# retention question to the log driver, and Docker's default json-file driver
+# keeps every byte until the container is removed, with no rotation at all.
+# `restart: unless-stopped` on all four services means these containers are not
+# removed, so "until it is removed" is "for as long as the machine lives".
+#
+# Section 9 of the design asks for that retention to be set explicitly, on the
+# grounds that a retention nobody chose is not a retention. So:
+#
+#   max-size 10m   Measured against this stack on 2026-08-21 over 280 real
+#                  access lines: one line in nginx's `privacy` format averages
+#                  66 bytes and never exceeded 72, and the json-file driver
+#                  wraps each one in a 70 byte envelope carrying a timestamp
+#                  and a stream name. So a logged request costs about 136
+#                  bytes, and 10 MB is roughly 77 thousand requests per file.
+#   max-file 5     Five files, so the ceiling is 50 MB per service and 200 MB
+#                  for the whole stack, and what can be read back is about 385
+#                  thousand requests. Rotation then discards a fifth at a time
+#                  instead of everything, which is what keeps the oldest file
+#                  useful while the newest one is being written.
+#
+# The ceiling is the decision; the number of days it buys is a consequence of
+# how busy the site is and is deliberately not claimed here. What these two
+# numbers guarantee is that no log on this host can grow without bound, and
+# that is the property that was missing.
+#
+# This is not monitoring and it does not make anything visible. Nothing reads
+# these files, nothing alerts on them, and section 1 of the design puts
+# monitoring out of scope. See infra/README.md.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  db:
+    image: postgres@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+    logging: *logging
+    restart: unless-stopped
+    # log_error_verbosity=terse drops the DETAIL and HINT lines from an error.
+    #
+    # prod.py now sets server_side_binding, so a failing statement is logged as
+    # `INSERT ... VALUES ($1, $2)` rather than with the values inlined. That
+    # closes STATEMENT and not DETAIL: the server builds that line from the row
+    # itself, so a unique violation still prints `Key (token)=(<the token>)`.
+    # Measured on 2026-08-21 with both bindings against this image.
+    #
+    # The db container is the one service a deploy never recreates, so its log
+    # is the longest lived in the stack: measured at roughly a year at this
+    # write rate. A token there outlasts by a wide margin the ninety day purge
+    # of the row it opens.
+    #
+    # The cost is real and is the reason this is a decision rather than an
+    # obvious win: DETAIL is where a constraint violation says which value
+    # broke it, so debugging a genuine data fault gets harder. That is the
+    # right trade for a table whose keys are credentials.
+    command:
+      - postgres
+      - -c
+      - log_error_verbosity=terse
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ampeer-db:/var/lib/postgresql/data
+    healthcheck:
+      # $$ so compose leaves the expansion to the shell inside the container;
+      # a single $ would interpolate here and bake the value into the file.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    image: ghcr.io/stijnvandepol/ampeer-api:${AMPEER_VERSION}
+    logging: *logging
+    build:
+      context: ..
+      dockerfile: infra/api.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DJANGO_SETTINGS_MODULE: ampeer.settings.prod
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS}
+      DJANGO_CORS_ALLOWED_ORIGINS: ${DJANGO_CORS_ALLOWED_ORIGINS}
+      DJANGO_NUM_PROXIES: ${DJANGO_NUM_PROXIES}
+      # The path inside the container, which is fixed by the mount below. The
+      # variable of the same name in the env file is the path on the host: one
+      # name, two sides of the same bind mount, and the preflight checks the
+      # host side because that is the one that can be wrong.
+      AMPEER_NEDU_PROFILE_PATH: /srv/profiles/nedu.csv
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+    volumes:
+      # Read only: this is somebody else's data under redistribution terms that
+      # are not confirmed, and nothing here has a reason to write to it.
+      - ${AMPEER_NEDU_PROFILE_PATH}:/srv/profiles/nedu.csv:ro
+    # No healthcheck here on purpose. api.Dockerfile declares its own, and it
+    # is the only place that knows two things this file got wrong within hours
+    # of being written: the route is /api/advice/health/, because advice.urls
+    # is mounted under api/advice/, and the request needs an
+    # X-Forwarded-Proto: https header, because SECURE_SSL_REDIRECT turns a
+    # plain loopback request into a 301 that urlopen follows into a TLS
+    # handshake against a plain socket. A compose healthcheck overrides the
+    # image's, so this block was a second copy that could only ever be stale,
+    # and while it was here the api container could never become healthy and
+    # `depends_on: service_healthy` would never have released.
+
+  web:
+    image: ghcr.io/stijnvandepol/ampeer-web:${AMPEER_VERSION}
+    logging: *logging
+    build:
+      context: ..
+      dockerfile: infra/web.Dockerfile
+    restart: unless-stopped
+    # service_healthy, not service_started. `up -d` returns as soon as every
+    # container it started is running, and "running" says nothing about whether
+    # the thing inside it works. Measured on 2026-08-21 with a deliberately
+    # broken api image and `condition: service_started`: `up -d` printed
+    # `Container ampeer-api-1  Started` and exited 0, the api container was
+    # `Restarting (1)` from then on, and the first red was two steps later at
+    # `migrate`. A deploy that goes green on a broken image is the worst of the
+    # two failures, because by then the previous container has been destroyed.
+    #
+    # With this condition compose waits for the api image's own HEALTHCHECK and
+    # fails the `up` itself, which is the step a person is watching. It costs
+    # availability on a good deploy: measured the same day over a probe every
+    # 0.23 seconds, the window in which nothing served went from 0.74 to 3.29
+    # seconds, because web now starts after the api's first successful probe.
+    #
+    # It also happens to be the ordering `web` genuinely needs, and that part is
+    # not a fix. nginx resolves every upstream while it parses its
+    # configuration, so `web` cannot start at all while the name `api` does not
+    # resolve; measured the same day, a broken api image left web itself in a
+    # restart loop on `nginx: [emerg] host not found in upstream "api"` and the
+    # statically exported site, which needs no api and no database, served
+    # nothing. That coupling is not fixable from this file: it needs a
+    # `resolver` and a variable `proxy_pass` in infra/nginx/nginx.conf, so
+    # nginx defers the lookup to request time and answers 502 for /api/ while
+    # still serving every page. See infra/README.md.
+    depends_on:
+      api:
+        condition: service_healthy
+
+  tunnel:
+    image: cloudflare/cloudflared@sha256:0aa26e284f05e6c77ae375b8c9c11d9eb6a448fb7bcd8d40f31cb6176189eb38
+    logging: *logging
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      web:
+        condition: service_started
+
+volumes:
+  ampeer-db:

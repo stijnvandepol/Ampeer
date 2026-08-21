@@ -56,6 +56,11 @@ te testen en te valideren zijn.
 - De jobnamen `quality`, `test`, `dependencies`, `sast` en `secrets` zijn een
   interface met de rulesets. Hernoem er nooit een zonder
   `scripts/setup_rulesets.sh` in dezelfde commit mee te wijzigen
+- Draai `scripts/gates.sh` voordat je pusht. Het draait wat CI draait en het
+  zegt erbij welke poorten het hier niet kon draaien. Beoordeel een poort op
+  de exitcode, nooit op een grep over de uitvoer van een tool: op 21 augustus
+  2026 filterde zo'n grep op "High" terwijl de bevinding Medium was, en een
+  rode `sast` zag er lokaal groen uit
 - De dekkingsdrempel mag omhoog en nooit omlaag, en `precision = 2` blijft staan:
   zonder die instelling rondt pytest-cov af voordat het vergelijkt en kan de
   poort niet rood worden. Controleer een wijziging op de exitcode, niet op het

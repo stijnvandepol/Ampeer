@@ -7,14 +7,17 @@ nothing that belongs to anyone.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any, ClassVar
 
 from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.throttling import BaseThrottle
 from rest_framework.views import APIView
 
 from advice.models import StoredAdvice
+from advice.profiles import profile_provider
 from advice.serializers import EstimateInputSerializer, RefineInputSerializer
 from advice.service import compute_and_store
 
@@ -72,3 +75,32 @@ class StoredAdviceView(_NoStoreAPIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         advice: dict[str, Any] = stored.advice
         return Response(advice)
+
+
+class HealthView(APIView):
+    """Is this container able to answer, not merely alive.
+
+    It opens the consumption profile, because that is the one thing a wrong
+    mount breaks and the one thing nothing else notices: the settings require
+    the path to be set, not the file to exist, and the provider is only called
+    when an advice is computed. Without this a misconfigured deploy reports
+    healthy and fails every visitor.
+
+    It does no arithmetic and issues no query. A check that runs every thirty
+    seconds and does real work is a load generator with a nice name, and the
+    throttle is switched off here for the same reason: in production its
+    counter lives in Postgres, so leaving it on would turn this check into the
+    database query it exists to avoid.
+    """
+
+    throttle_classes: Sequence[type[BaseThrottle]] = ()
+
+    def get(self, request: Request) -> Response:
+        try:
+            profile_provider()
+        except RuntimeError:
+            # Deliberately without the reason. This endpoint is unauthenticated
+            # and reachable wherever the service is; a path on disk is not
+            # something to hand out.
+            return Response({"status": "unavailable"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return Response({"status": "ok"})

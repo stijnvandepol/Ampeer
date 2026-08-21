@@ -16,6 +16,12 @@ backend = [
     "django>=5.2.17,<6.0",
     "django-cors-headers>=4.9",
     "djangorestframework>=3.18.0",
+    # The WSGI server the production image runs. It sits in the backend group
+    # rather than in [project] dependencies because the pure simulation core
+    # must stay installable without a web server anywhere near it, and it is
+    # here rather than only in the Dockerfile so `uv sync --locked` in the
+    # image resolves the same lockfile the pipeline tested.
+    "gunicorn>=26.1",
     "psycopg[binary]>=3.3.4",
 ]
 dev = [

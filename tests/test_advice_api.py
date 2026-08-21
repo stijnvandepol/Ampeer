@@ -14,10 +14,12 @@ import re
 import time
 from collections.abc import Iterator
 from datetime import timedelta
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pytest
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.settings import api_settings
@@ -523,3 +525,310 @@ class TestTheBrowserIsAllowedToReadTheAnswer:
             reverse("advice-estimate"), ESTIMATE, format="json", HTTP_ORIGIN=self.ALLOWED
         )
         assert response.get("access-control-allow-credentials") != "true"
+
+
+@pytest.mark.django_db
+class TestTheReadinessCheck:
+    """A container with a bad profile mount used to start, report healthy, and
+    fail every request.
+
+    prod.py requires AMPEER_NEDU_PROFILE_PATH to be set, not for the file
+    behind it to exist, and profile_provider() is only called when an advice is
+    computed. So the process came up, the orchestrator was satisfied, and the
+    product was a hundred percent broken while looking like it ran. The
+    healthcheck has to open the thing a bad mount breaks.
+    """
+
+    def test_readiness_is_ok_when_the_profile_can_be_opened(self, tmp_path: Path) -> None:
+        profile = tmp_path / "nedu.csv"
+        profile.write_text("stub", encoding="utf-8")
+        with override_settings(AMPEER_NEDU_PROFILE_PATH=str(profile)):
+            response = APIClient().get(reverse("advice-health"))
+        assert response.status_code == 200
+        assert response.json()["status"] == "ok"
+
+    def test_readiness_fails_when_the_profile_is_not_there(self) -> None:
+        with override_settings(AMPEER_NEDU_PROFILE_PATH="/does/not/exist.csv"):
+            response = APIClient().get(reverse("advice-health"))
+        assert response.status_code == 503
+
+    def test_readiness_fails_when_the_path_was_never_set(self) -> None:
+        with override_settings(AMPEER_NEDU_PROFILE_PATH=None):
+            response = APIClient().get(reverse("advice-health"))
+        assert response.status_code == 503
+
+    def test_readiness_says_nothing_about_why(self) -> None:
+        """A health endpoint is unauthenticated and reachable from anywhere the
+        service is. The path on disk is not something it should hand out.
+
+        The status code is asserted first and not as decoration. Without it
+        this test passes against a view that answers 200 to everything, since
+        an ok body holds no path either, and a test that cannot fail for the
+        reason it exists is worse than no test.
+        """
+        with override_settings(AMPEER_NEDU_PROFILE_PATH="/srv/secret/place.csv"):
+            response = APIClient().get(reverse("advice-health"))
+        assert response.status_code == 503
+        body = response.content.decode()
+        assert "secret" not in body and "srv" not in body
+
+    def test_readiness_computes_nothing_and_touches_no_database(
+        self, django_assert_num_queries: Any
+    ) -> None:
+        """A healthcheck that runs every thirty seconds and does real work is a
+        load generator with a nice name."""
+        with django_assert_num_queries(0):
+            APIClient().get(reverse("advice-health"))
+
+
+#: A documentation address, used as the visitor's. It is the one that was read
+#: out of a live throttle row on 2026-08-21:
+#: `:1:throttle_advice-read_203.0.113.7` -> `[1787314695.73]`, which is "this
+#: address was here at these times".
+VISITOR_ADDRESS = "203.0.113.7"
+
+
+def _throttle_for(scope: str) -> Any:
+    """The throttle class that actually runs, from the settings.
+
+    Instantiated through DEFAULT_THROTTLE_CLASSES rather than imported by name,
+    so this fails if the setting is pointed back at a class that keys on the
+    address.
+    """
+    # api_settings resolves the dotted paths in the setting into classes; the
+    # stubs still describe the setting as it is written.
+    throttle_classes: list[Any] = list(api_settings.DEFAULT_THROTTLE_CLASSES)
+    (throttle_class,) = throttle_classes
+    throttle = throttle_class()
+    throttle.scope = scope
+    return throttle
+
+
+def _cache_key_for(address: str, scope: str = "advice-read") -> str:
+    from rest_framework.request import Request
+    from rest_framework.test import APIRequestFactory
+
+    request = Request(APIRequestFactory().get("/", REMOTE_ADDR=address))
+    key: str = _throttle_for(scope).get_cache_key(request, object())
+    return key
+
+
+def test_the_throttle_key_is_not_the_visitors_address() -> None:
+    """The finding, at the one line that produces it.
+
+    DRF's SimpleRateThrottle builds `throttle_<scope>_<ident>` and stores the
+    timestamps of that ident's requests against it. With the ident left as the
+    address, the counter is a visitor log: "this address was here at these
+    times", which is the pairing AuditEvent documents itself as refusing to
+    make, two tables away in the same database.
+    """
+    key = _cache_key_for(VISITOR_ADDRESS)
+    assert VISITOR_ADDRESS not in key, key
+    assert "203.0.113" not in key, key
+
+
+def test_two_visitors_still_get_two_counters() -> None:
+    """The half that makes the hash a fix rather than a way to switch the limit
+    off. One bucket for everybody is not a rate limit, it is an outage."""
+    assert _cache_key_for("203.0.113.7") != _cache_key_for("203.0.113.8")
+
+
+def test_the_same_visitor_gets_the_same_counter_in_every_worker() -> None:
+    """Three gunicorn workers must agree on who this is.
+
+    A salt generated when the module is imported would satisfy every assertion
+    above and give each worker its own counter, which is the LocMemCache defect
+    the store was moved into Postgres to remove, wearing a different hat. There
+    is one process here, so reimporting the module is what stands in for a
+    second worker starting.
+    """
+    import importlib
+
+    from rest_framework.request import Request
+    from rest_framework.test import APIRequestFactory
+
+    first = _cache_key_for(VISITOR_ADDRESS)
+    module = importlib.reload(importlib.import_module("advice.throttling"))
+    other_worker = module.HashedIdentScopedRateThrottle()
+    other_worker.scope = "advice-read"
+    request = Request(APIRequestFactory().get("/", REMOTE_ADDR=VISITOR_ADDRESS))
+    assert other_worker.get_cache_key(request, object()) == first
+
+
+def test_the_identity_is_keyed_and_not_merely_hashed() -> None:
+    """An IPv4 address is 32 bits.
+
+    A bare digest of one is reversible by trying all four billion of them,
+    which is seconds of work, so an unkeyed hash in a database somebody can
+    read is the address written down in a costume. The key is SECRET_KEY, which
+    prod.py requires from the environment and never defaults.
+    """
+    with override_settings(SECRET_KEY="a-different-deployments-key"):
+        other = _cache_key_for(VISITOR_ADDRESS)
+    assert other != _cache_key_for(VISITOR_ADDRESS)
+
+
+def test_nothing_in_the_throttle_store_holds_the_address() -> None:
+    """Read back out of the store rather than reasoned about.
+
+    The test settings use LocMemCache and production uses Postgres, but the
+    keys and the values written are the same in both, which is the whole reason
+    a live row could be quoted at all. `_cache` is the entire store, keyed as
+    the backend keys it.
+    """
+    import pickle
+
+    from django.core.cache import cache
+
+    client = APIClient()
+    client.post(reverse("advice-estimate"), ESTIMATE, format="json", REMOTE_ADDR=VISITOR_ADDRESS)
+    client.get(reverse("advice-detail", args=["A" * 22]), REMOTE_ADDR=VISITOR_ADDRESS)
+
+    store = dict(cache._cache)  # type: ignore[attr-defined]
+    assert store, "no throttle entry was written at all, so this proves nothing"
+    for key, pickled in store.items():
+        assert VISITOR_ADDRESS not in key, key
+        assert VISITOR_ADDRESS not in str(pickle.loads(pickled)), key
+
+
+def test_the_counter_still_lives_in_the_shared_cache() -> None:
+    """Where it is, not merely that it works.
+
+    A throttle that kept its history on the instance would pass the per-visitor
+    test above inside one process and count nothing across three workers or
+    across a deploy. This reads the count back out of the cache the settings
+    configure, by the key the throttle itself produces, which is exactly what a
+    second worker does.
+    """
+    from django.core.cache import cache
+
+    client = APIClient()
+    for _ in range(3):
+        client.get(reverse("advice-detail", args=["A" * 22]), REMOTE_ADDR=VISITOR_ADDRESS)
+    history = cache.get(_cache_key_for(VISITOR_ADDRESS))
+    assert history is not None, "the throttle wrote nothing into the shared cache"
+    assert len(history) == 3, history
+    assert all(isinstance(stamp, float) for stamp in history), history
+
+
+def test_the_rate_limit_is_still_counted_per_visitor() -> None:
+    """End to end, through the endpoint, with two addresses.
+
+    Hashing the identity must not merge visitors and must not stop counting.
+    """
+    client = APIClient()
+    codes = [
+        client.post(
+            reverse("advice-estimate"), ESTIMATE, format="json", REMOTE_ADDR=VISITOR_ADDRESS
+        ).status_code
+        for _ in range(21)
+    ]
+    assert codes[:20] == [201] * 20, codes
+    assert codes[20] == 429
+    neighbour = client.post(
+        reverse("advice-estimate"), ESTIMATE, format="json", REMOTE_ADDR="203.0.113.8"
+    )
+    assert neighbour.status_code == 201, "one visitor's traffic exhausted another's budget"
+
+
+class TestWhatAFiveHundredIsAllowedToWriteDown:
+    """There was no LOGGING setting at all, so an unhandled exception in
+    production produced no output anywhere.
+
+    Django's default routes `django.request` errors to `mail_admins`, and its
+    console handler carries `require_debug_true`. With DEBUG off that is a
+    500 with no line in any log: measured on 2026-08-21, two 500s, zero lines.
+    During an outage the whole evidence base is a status code in an access log.
+
+    The obvious fix is the trap. Django's own message is
+    `"Internal Server Error: %s" % request.path`, so a plain console handler
+    writes `/api/advice/<token>/` into the container log on the first day, and
+    the container log is the file nginx.conf and entrypoint-api.sh both go out
+    of their way to keep the token out of.
+    """
+
+    @pytest.fixture
+    def written(self) -> Iterator[Any]:
+        """Whatever the configured handlers actually put on their stream."""
+        import io
+        import logging
+
+        logger = logging.getLogger("django")
+        # pytest attaches handlers of its own to every non-propagating logger,
+        # so that caplog and the "Captured log" report keep working. They are
+        # the test harness, not this service's log, and one of them formats
+        # with pytest's own formatter: leaving them in would put the request
+        # path into this stream and make the assertions below pass or fail on
+        # pytest's behaviour rather than on the setting under test.
+        handlers: list[logging.StreamHandler[Any]] = [
+            handler
+            for handler in logger.handlers
+            if not type(handler).__module__.startswith("_pytest")
+            and isinstance(handler, logging.StreamHandler)
+        ]
+        assert handlers, "the django logger has no handler: a 500 writes nothing"
+        for handler in handlers:
+            assert isinstance(handler, logging.StreamHandler), (
+                f"{type(handler).__name__} is attached to the django logger, and this "
+                "test can only read a stream. Django's own default puts AdminEmailHandler "
+                "here, which sends the request path to whoever is in ADMINS."
+            )
+        stream = io.StringIO()
+        originals = [(handler, handler.stream) for handler in handlers]
+        for handler in handlers:
+            handler.stream = stream
+        try:
+            yield stream
+        finally:
+            for handler, original in originals:
+                handler.stream = original
+
+    def _explode(self, monkeypatch: pytest.MonkeyPatch, message: str) -> None:
+        def boom(token: str) -> None:
+            raise RuntimeError(message)
+
+        monkeypatch.setattr(StoredAdvice, "get_live", staticmethod(boom))
+
+    def test_an_unhandled_error_is_recorded_at_all(
+        self, monkeypatch: pytest.MonkeyPatch, written: Any
+    ) -> None:
+        self._explode(monkeypatch, "the database went away")
+        response = APIClient(raise_request_exception=False).get(
+            reverse("advice-detail", args=["A" * 22])
+        )
+        assert response.status_code == 500
+        text = written.getvalue()
+        assert text.strip(), "a 500 wrote nothing, anywhere"
+        assert "RuntimeError" in text, text
+        assert "test_advice_api.py" in text, text
+        assert "line " in text, text
+
+    def test_the_recorded_error_cannot_carry_the_token_or_the_address(
+        self, monkeypatch: pytest.MonkeyPatch, written: Any
+    ) -> None:
+        """Three routes into the log line, all closed.
+
+        Django's own message is the request path. The exception's message is
+        whatever raised it, and a psycopg IntegrityError's message quotes the
+        offending key verbatim. `record.args` carries the path a second time.
+        """
+        token = "TESTtokenTESTtoken0000"
+        self._explode(monkeypatch, f"duplicate key (token)=({token}) from {VISITOR_ADDRESS}")
+        response = APIClient(raise_request_exception=False).get(
+            reverse("advice-detail", args=[token]), REMOTE_ADDR=VISITOR_ADDRESS
+        )
+        assert response.status_code == 500
+        text = written.getvalue()
+        assert text.strip(), "a 500 wrote nothing, anywhere"
+        assert token not in text, text
+        assert VISITOR_ADDRESS not in text, text
+        assert "/api/advice/" not in text, text
+
+    def test_a_refused_request_cannot_write_the_token_either(
+        self, monkeypatch: pytest.MonkeyPatch, written: Any
+    ) -> None:
+        """`django.request` logs 4xx as well, with the same path in the message,
+        and a 404 on a shared link is the most ordinary event on this service."""
+        token = "TESTtokenTESTtoken0000"
+        APIClient().get(reverse("advice-detail", args=[token]))
+        assert token not in written.getvalue(), written.getvalue()

@@ -4,6 +4,51 @@
 # The required checks below must match the job names in .github/workflows/ci.yml
 # and .github/workflows/security.yml exactly. A renamed job produces a check that
 # never arrives and a pull request that waits forever.
+
+# ---------------------------------------------------------------------------
+# What this script cannot protect, and what would.
+#
+# Read this before deciding the repository is configured. Written here rather
+# than in a doc because this file is what somebody runs when they set the
+# protections up, which is the only moment the two settings below are on
+# anybody's mind.
+#
+# The rulesets created here cover refs/heads/main and refs/heads/dev. Nothing
+# covers feat/**, and .github/workflows/ci.yml triggers on `push` to feat/**.
+# So a commit on any feature branch that adds a workflow job with
+# `runs-on: self-hosted` runs that job on web2, inside the owner's own network,
+# at push time. No review, no pull request, no ruleset.
+#
+# tests/test_pipeline_contract.py has test_no_job_runs_on_the_self_hosted_runner
+# and it does not prevent this. It detects it: the test runs in the `test` job
+# of the same push, so it goes red minutes after the job it objects to has
+# already finished. No required status check can help either, because a
+# required check gates a merge and the workflow starts before any check does.
+#
+# What that job can do was measured on 2026-08-21. The runner's user is in the
+# docker group, `docker run -v /:/host` then reads /etc/shadow, and membership
+# of that group is root on the host by design. One push is root on the LXC.
+#
+# The two controls that would actually work:
+#
+#   1. Restrict which workflows may use the runner. GitHub can scope a
+#      self-hosted runner group to selected repositories and selected
+#      workflows; pointing the runner group at .github/workflows/deploy.yml
+#      alone means a workflow added on a feature branch has nothing to run on.
+#      This is the one that closes it, because it removes the runner from the
+#      reach of a push rather than reporting afterwards that a push reached it.
+#   2. Take the runner's user out of the docker group and give it a sudoers
+#      rule for the fixed compose command line the deploy needs instead. Docker
+#      group membership is unrestricted root; a sudoers entry naming the exact
+#      command with no wildcard is not. This one does not stop a job running,
+#      it bounds what the job can do when one does.
+#
+# Both are Stijn's to apply and neither is in this repository: the first is a
+# setting in GitHub's runner group configuration, the second is a file on the
+# LXC. Nothing here can create either one, and no test can assert that they are
+# in place, so this comment is the whole of the control until they are.
+# ---------------------------------------------------------------------------
+
 set -euo pipefail
 
 REPO="${1:-stijnvandepol/Ampeer}"
@@ -45,6 +90,31 @@ apply_ruleset() {
 # main: nothing lands here except through a green pull request. bypass_actors is
 # empty on purpose, including for the repository owner. A rule with an exception
 # for the only person who works on the project is not a rule.
+#
+# Deliberately NOT required here: `build` and `deploy` from
+# .github/workflows/deploy.yml. Added 2026-08-21 with those two jobs, so that
+# their absence reads as a decision rather than as an oversight.
+#
+# They cannot be required, in the strict sense. deploy.yml triggers on a tag and
+# on nothing else, so neither job ever reports on a pull request, and a required
+# check that never arrives is a pull request that waits forever. That is the
+# same failure the first test in tests/test_pipeline_contract.py exists to
+# catch, and it would be self-inflicted here.
+#
+# They should not be required even if they could. The tag is cut from a `main`
+# that has already passed the seven checks below; the deploy runs afterwards and
+# against a host. Requiring it would mean a failed deploy, for a reason as
+# unrelated as the LXC being down or a variable missing from the env file on it,
+# blocks every future merge to main until somebody re-runs it. That inverts the
+# direction the gate is supposed to work in: these checks exist to keep bad code
+# out of main, not to let a sick host stop good code from getting in.
+#
+# What does gate the deploy is elsewhere and is stronger: the `production`
+# environment, whose review has to be given before the `deploy` job starts, and
+# whose deployment branch policy is what decides which tags may reach it. Both
+# are configured on the environment in repository settings, not in this script,
+# because this script does not create environments and pretending otherwise
+# would produce a file that looks like it configured something it did not.
 apply_ruleset "protect-main" "$(cat <<'JSON'
 {
   "name": "protect-main",

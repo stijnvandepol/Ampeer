@@ -7,7 +7,10 @@ falling back to something permissive.
 
 from __future__ import annotations
 
+import logging
 import os
+import time
+import traceback
 from pathlib import Path
 from typing import Any
 
@@ -76,7 +79,10 @@ REST_FRAMEWORK: dict[str, Any] = {
     # input, and FormParser and MultiPartParser are parsing surface that no
     # caller needs. See advice/parsers.py.
     "DEFAULT_PARSER_CLASSES": ["advice.parsers.BoundedJSONParser"],
-    "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
+    # Not DRF's ScopedRateThrottle directly. That one keys its counter on the
+    # caller's address, so the counter table becomes "this address was here at
+    # these times" and rows outlive the visitor. See advice/throttling.py.
+    "DEFAULT_THROTTLE_CLASSES": ["advice.throttling.HashedIdentScopedRateThrottle"],
     "DEFAULT_THROTTLE_RATES": {
         # A computation costs about half a second of CPU. Twenty an hour is
         # generous for a real visit and far too little to occupy the machine.
@@ -143,3 +149,137 @@ CORS_ALLOW_METHODS = ["GET", "POST", "OPTIONS"]
 #: nothing to send; saying so out loud means a later view cannot start relying
 #: on one by accident.
 CORS_ALLOW_CREDENTIALS = False
+
+
+# ---------------------------------------------------------------------------
+# What a running process is allowed to write down.
+#
+# There was no LOGGING setting here at all until 2026-08-21, and the effect was
+# not "the defaults". Django's own default routes django.request errors to
+# mail_admins and gates its console handler on require_debug_true, so with
+# DEBUG off an unhandled exception produced no output anywhere: measured, two
+# 500s, zero lines. During an outage the entire evidence base was a status code
+# in an access log.
+#
+# The obvious repair is the trap. Django's message for a 500 is
+# `"Internal Server Error: %s" % request.path`, so adding a console handler
+# writes /api/advice/<token>/ into the container log on the same day, into the
+# same json-file driver that infra/nginx/nginx.conf and infra/entrypoint-api.sh
+# both go out of their way to keep the token out of. The exception's own
+# message is no safer: a psycopg IntegrityError quotes the offending key
+# verbatim, which is how a throttle key and a stored token end up in a log
+# without anybody formatting them.
+#
+# So the line is assembled from a whitelist rather than redacted afterwards. A
+# scrubber has to guess what a secret looks like; a whitelist cannot be
+# surprised by a shape nobody anticipated.
+# ---------------------------------------------------------------------------
+
+
+class RedactedFormatter(logging.Formatter):
+    """A log line built only from things the code decided, never the request.
+
+    What comes out: the time, the level, the logger, the response status when
+    there is one, and for an exception its type and the frames it passed
+    through. Every one of those is fixed by this repository.
+
+    What never comes out: `record.getMessage()` is not called, so neither the
+    format string nor `record.args` is rendered; the exception's own message is
+    dropped; and the frames are file, line and function without their source
+    text. A traceback's source lines hold no runtime value, but they are also
+    the one part of this that a future edit could make carry one, and the
+    frames alone already answer "where".
+    """
+
+    #: UTC, like every other timestamp this project stores. A container's local
+    #: time is whatever the image decided and is not a thing to correlate on.
+    #: staticmethod, because a bare function in a class body is a method: bound,
+    #: it would be handed `self` as the timestamp.
+    converter = staticmethod(time.gmtime)
+
+    def format(self, record: logging.LogRecord) -> str:
+        parts = [
+            self.formatTime(record, "%Y-%m-%dT%H:%M:%S") + "Z",
+            record.levelname,
+            record.name,
+        ]
+        # Set by django.request on every request it logs, and it is the whole
+        # reason a 4xx line is worth keeping at all once the path is gone.
+        status = getattr(record, "status_code", None)
+        if isinstance(status, int):
+            parts.append(f"status={status}")
+        line = " ".join(parts)
+        error = record.exc_info[1] if record.exc_info else None
+        if error is not None:
+            line = "\n".join([line, *_exception_lines(error)])
+        return line
+
+
+def _exception_lines(error: BaseException) -> list[str]:
+    """An exception as its type and its frames, following the cause chain.
+
+    The chain matters more here than usual: the interesting type is often the
+    innermost one, and with the messages gone the type is most of what is left.
+    """
+    lines: list[str] = []
+    seen: set[int] = set()
+    current: BaseException | None = error
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        lines.append(f"{type(current).__module__}.{type(current).__qualname__}")
+        lines.extend(
+            f'  File "{frame.filename}", line {frame.lineno}, in {frame.name}'
+            for frame in traceback.extract_tb(current.__traceback__)
+        )
+        current = current.__cause__ or current.__context__
+    return lines
+
+
+def logging_config() -> dict[str, Any]:
+    """A fresh copy of the logging configuration.
+
+    A factory and not a literal, because `logging.config.dictConfig` mutates
+    the dictionary it is handed: it replaces each formatter and handler entry
+    with the object it built and pops keys out of them as it goes. Django hands
+    it `settings.LOGGING` directly, so after startup that setting no longer
+    describes anything, and a second `dictConfig` over it fails. This way the
+    setting is a snapshot and the configuration itself stays readable.
+    """
+    return {
+        "version": 1,
+        # The Django default has already been applied by the time this runs, so
+        # the loggers below replace its handlers rather than adding to them.
+        # Disabling existing loggers would silence every third-party logger
+        # created before this point instead.
+        "disable_existing_loggers": False,
+        "formatters": {"redacted": {"()": RedactedFormatter}},
+        "handlers": {
+            # stderr, so nothing is written inside the container and the
+            # retention is the log driver's, which infra/docker-compose.yml
+            # bounds. One handler, because a second one with any other
+            # formatter would write the unredacted line beside this one and
+            # both would look like logs.
+            "stderr": {
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stderr",
+                "formatter": "redacted",
+                "level": "INFO",
+            }
+        },
+        "root": {"handlers": ["stderr"], "level": "INFO"},
+        "loggers": {
+            # Replaces the default pair. `mail_admins` sends the request path
+            # to whoever is in ADMINS, and the console handler it sits beside
+            # is the one that does nothing when DEBUG is off.
+            "django": {"handlers": ["stderr"], "level": "INFO", "propagate": False},
+            # runserver's request log, whose message *is* the request line. It
+            # is unused in production, where gunicorn serves and writes no
+            # access log for the same reason, but a developer opening a stored
+            # advice locally would otherwise put the token on their terminal
+            # and in their scrollback.
+            "django.server": {"handlers": ["stderr"], "level": "INFO", "propagate": False},
+        },
+    }
+
+
+LOGGING = logging_config()

@@ -22,6 +22,16 @@ RULESET_SCRIPT = REPO_ROOT / "scripts" / "setup_rulesets.sh"
 PYPROJECT = REPO_ROOT / "pyproject.toml"
 PRE_COMMIT = REPO_ROOT / ".pre-commit-config.yaml"
 UV_LOCK = REPO_ROOT / "uv.lock"
+#: The second place an image enters this project. Workflow service containers
+#: were the first, and until 2026-08-21 they were the only place anything read.
+INFRA_COMPOSE = REPO_ROOT / "infra" / "docker-compose.yml"
+
+#: The two services in infra/docker-compose.yml built from Dockerfiles in this
+#: repository. They carry the release tag the deploy rewrites, so no digest can
+#: be written down for them; every other image there is pulled from a registry.
+#: Named rather than derived from the `build:` key, so adding a build stanza to
+#: a fifth service does not quietly buy it an exemption here as well.
+INFRA_IMAGES_BUILT_HERE = ("api", "web")
 
 #: The GitHub Actions app. Binding a required check to it means a check can only
 #: be satisfied by a workflow run, not by any commit status with the right name.
@@ -107,20 +117,95 @@ def test_every_action_is_pinned_to_a_commit_sha() -> None:
     assert not unpinned, f"unpinned actions: {unpinned}"
 
 
+#: The one job allowed on the self-hosted runner, as (workflow file, job name).
+#:
+#: Added 2026-08-21 with the deploy. The rule below is why no unreviewed code
+#: has ever run inside the owner's own network, and an exception that is not
+#: bounded is that gate being removed slowly, so the bound is written into the
+#: shape of this constant: a workflow and a job, not a runner label and not a
+#: workflow. `tests/test_deploy_workflow.py` asserts this list is exactly one
+#: entry long, and asserts of every entry in it that the workflow triggers on a
+#: tag alone and the job carries `environment: production`. A second entry
+#: therefore has to pass both, and still fails the count, which is a deletion a
+#: reviewer sees rather than a list that grew.
+#:
+#: Keyed by workflow as well as job because `_jobs()` merges every workflow into
+#: one mapping: a bare name would hand the same exemption to a job called
+#: `deploy` added to ci.yml, which triggers on push to feat/**.
+SELF_HOSTED_EXCEPTIONS = frozenset({("deploy.yml", "deploy")})
+
+
 def test_no_job_runs_on_the_self_hosted_runner() -> None:
     """A self-hosted runner is registered on this repository.
 
     These workflows trigger on push to feat/**, which no ruleset protects. A job
     that selected self-hosted would run unreviewed code inside the owner's own
-    network. Until a sub-project designs that runner properly, with ephemeral
-    instances and an isolated container, nothing here may target it.
+    network. Nothing here may target it except the one job named in
+    SELF_HOSTED_EXCEPTIONS above, which is reachable only by pushing a tag and
+    only through a review.
+
+    The runner being non-ephemeral, measured on 2026-08-21, is a separate and
+    still open decision that belongs to the owner; it is why the exempt job is
+    also held to checking nothing out, building nothing, and logging out of the
+    registry when it finishes.
     """
     offenders = {
-        name: job.get("runs-on")
-        for name, job in _jobs().items()
+        f"{workflow}:{name}": job.get("runs-on")
+        for workflow, document in _workflows().items()
+        for name, job in document.get("jobs", {}).items()
         if "self-hosted" in str(job.get("runs-on", ""))
+        and (workflow, name) not in SELF_HOSTED_EXCEPTIONS
     }
     assert not offenders, f"jobs targeting the self-hosted runner: {offenders}"
+
+
+#: What the comment in scripts/setup_rulesets.sh has to keep saying, and why
+#: each fragment is in the list.
+#:
+#: The gap it describes cannot be closed from this repository, and the test
+#: directly above cannot close it either: ci.yml triggers on `push` to feat/**,
+#: setup_rulesets.sh protects only main and dev, so a commit adding a workflow
+#: with `runs-on: self-hosted` executes on web2 at push time and
+#: test_no_job_runs_on_the_self_hosted_runner goes red minutes later, on a job
+#: that has already run. No required status check can help, because the
+#: workflow starts before any check does. Measured on 2026-08-21: the runner's
+#: user is in the docker group, so `docker run -v /:/host` in such a job reads
+#: /etc/shadow, and one push is root on the LXC.
+#:
+#: The two controls that would work are settings and host configuration rather
+#: than files here, which is exactly why they need writing down somewhere a
+#: person configuring this repository will read: a control nobody is told about
+#: is a control nobody applies.
+RUNNER_GAP_NOTES = (
+    "feat/**",
+    "self-hosted",
+    "runner group",
+    "docker group",
+    "sudoers",
+    "detect",
+    "neither is in this repository",
+    "test_no_job_runs_on_the_self_hosted_runner",
+)
+
+
+@pytest.mark.parametrize("fragment", RUNNER_GAP_NOTES)
+def test_the_ruleset_script_writes_down_the_gap_no_ruleset_can_cover(fragment: str) -> None:
+    """The one finding in this round that is not fixable in code.
+
+    It is written into setup_rulesets.sh rather than into a doc, because that
+    script is what somebody runs when they are configuring the protections for
+    this repository, which is the moment the two missing controls are relevant
+    and the only moment anyone is thinking about them.
+
+    One case per fragment, so deleting a sentence names the sentence rather
+    than failing on a paragraph that is still mostly there.
+    """
+    body = RULESET_SCRIPT.read_text(encoding="utf-8")
+    comments = "\n".join(line for line in body.splitlines() if line.lstrip().startswith("#"))
+    assert fragment in comments.lower(), (
+        f"scripts/setup_rulesets.sh no longer says {fragment!r}; the self-hosted runner gap "
+        "is documented nowhere else and no test can prevent it"
+    )
 
 
 def test_every_job_has_a_timeout() -> None:
@@ -251,6 +336,24 @@ def test_every_service_container_is_pinned_by_digest() -> None:
     assert not offenders, f"service containers not pinned by digest: {offenders}"
 
 
+def test_every_image_in_the_deploy_stack_is_pinned_by_digest() -> None:
+    """The same rule, read in the second place an image enters this project.
+
+    Workflow service containers were the only place anything looked, and
+    `infra/docker-compose.yml` is the file that decides what actually runs on
+    the host. A digest dropped there would have reached production with every
+    check in this repository still green, so it fails here, in the job that
+    already runs on every pull request, rather than on the host.
+    """
+    services = yaml.safe_load(INFRA_COMPOSE.read_text(encoding="utf-8"))["services"]
+    offenders = [
+        f"{name}: {spec.get('image')!r}"
+        for name, spec in services.items()
+        if name not in INFRA_IMAGES_BUILT_HERE and "@sha256:" not in str(spec.get("image", ""))
+    ]
+    assert not offenders, f"deploy stack images not pinned by digest: {offenders}"
+
+
 def test_the_build_backend_is_pinned_exactly() -> None:
     """uv does not lock build backend requirements.
 
@@ -284,8 +387,16 @@ def test_pre_commit_and_the_lockfile_agree_on_ruff() -> None:
     )
 
 
-@pytest.mark.parametrize("workflow", ["ci.yml", "security.yml"])
+@pytest.mark.parametrize("workflow", sorted(path.name for path in WORKFLOW_DIR.glob("*.yml")))
 def test_every_workflow_declares_least_privilege_permissions(workflow: str) -> None:
+    """Read from the directory rather than from a list of two names.
+
+    The list was ci.yml and security.yml until 2026-08-21, when deploy.yml
+    arrived; a third workflow added later would have been outside this
+    assertion, which is the shape of every finding in that round. A job that
+    needs more says so on the job, where it is scoped to the job: `build` in
+    deploy.yml adds `packages: write` that way.
+    """
     document = _workflows()[workflow]
     assert document.get("permissions") == {"contents": "read"}
 
@@ -539,3 +650,149 @@ def test_no_workflow_passes_setup_uv_an_input_it_does_not_have() -> None:
                     continue
                 unknown = set(step.get("with", {})) & {"python-version-file"}
                 assert not unknown, f"{name}:{job} passes setup-uv {sorted(unknown)}"
+
+
+#: The local runner. It is a convenience and not an authority: the required
+#: checks are the workflows, and this file exists so the convenience cannot
+#: quietly come to cover less than the workflows do. Until 2026-08-21 there was
+#: no runner at all, every pre-push check was improvised at the prompt, and a
+#: grep for "High" over bandit's output reported a Medium finding as clean.
+LOCAL_GATES = REPO_ROOT / "scripts" / "gates.sh"
+
+#: Commands in the workflows that set something up rather than judge it, with
+#: the reason each one is not a gate. An entry here is an exemption, so the
+#: list is short on purpose and every line has to earn itself; the test below
+#: fails on an entry that no longer matches any workflow, so it cannot become
+#: a drawer for gates that were dropped.
+SETUP_NOT_A_GATE = (
+    # Writes the file the two audit steps read. Its own failure is not a
+    # finding, and gates.sh runs it as part of those gates rather than beside
+    # them, so the export failing cannot read as an audit that passed.
+    (
+        "uv export --format requirements-txt --no-emit-project --all-groups"
+        " --output-file requirements-audit.txt"
+    ),
+    (
+        "uv export --format requirements-txt --no-emit-project --all-groups"
+        " --output-file requirements-sbom.txt"
+    ),
+    # Downloads a browser. Left to CI deliberately; gates.sh names it in the
+    # line that reports e2e as not run here.
+    "pnpm exec playwright install --with-deps chromium",
+    # The `sast` and `dependencies` jobs build a smaller environment than
+    # `test` does. gates.sh syncs the superset once, so the narrower spelling
+    # would only assert that the same thing happened twice.
+    "uv sync --locked --group dev",
+)
+
+#: What each workflow command has to look like inside scripts/gates.sh. A
+#: fragment rather than the whole command, because a few of them legitimately
+#: differ: gitleaks is invoked from PATH instead of a downloaded binary, and
+#: the pull request scan names a base branch that a working copy does not know.
+#: What may never differ is the part that decides how strict the check is.
+GATE_FRAGMENTS = {
+    "uv sync --locked --group dev --group backend": "uv sync --locked --group dev --group backend",
+    "uv run ruff check ampeer_sim ampeer_advice backend tests tools": (
+        "uv run ruff check ampeer_sim ampeer_advice backend tests tools"
+    ),
+    "uv run ruff format --check ampeer_sim ampeer_advice backend tests tools": (
+        "uv run ruff format --check ampeer_sim ampeer_advice backend tests tools"
+    ),
+    "uv run mypy ampeer_sim ampeer_advice backend tools": (
+        "uv run mypy ampeer_sim ampeer_advice backend tools"
+    ),
+    "uv run python backend/manage.py check --deploy --fail-level WARNING": (
+        "uv run python backend/manage.py check --deploy --fail-level WARNING"
+    ),
+    "uv run pre-commit run --all-files --show-diff-on-failure": (
+        "uv run pre-commit run --all-files --show-diff-on-failure"
+    ),
+    "uv run pytest --cov --cov-report=term-missing": "uv run pytest --cov --cov-report=term-missing",
+    "uv run bandit -c pyproject.toml -r ampeer_sim ampeer_advice backend tools": (
+        "uv run bandit -c pyproject.toml -r ampeer_sim ampeer_advice backend tools"
+    ),
+    "uv run semgrep --config .semgrep/frontend.yml --error --quiet frontend/src": (
+        "uv run semgrep --config .semgrep/frontend.yml --error --quiet frontend/src"
+    ),
+    "uv run pip-audit --requirement requirements-audit.txt --strict": (
+        "uv run pip-audit --requirement requirements-audit.txt --strict"
+    ),
+    (
+        "uv run cyclonedx-py requirements requirements-sbom.txt --output-format JSON"
+        " --output-file sbom.json"
+    ): ("uv run cyclonedx-py requirements requirements-sbom.txt --output-format JSON"),
+    "pnpm install --frozen-lockfile": "pnpm install --frozen-lockfile",
+    "pnpm lint": "pnpm lint",
+    "pnpm typecheck": "pnpm typecheck",
+    "pnpm format:check": "pnpm format:check",
+    "pnpm test": "pnpm test",
+    "pnpm build": "pnpm build",
+    "pnpm e2e": "pnpm e2e",
+    "pnpm audit --audit-level low": "pnpm audit --audit-level low",
+    './gitleaks detect --source . --redact --no-banner --log-opts "origin/${BASE_REF}..HEAD"': (
+        "gitleaks detect --source . --redact --no-banner"
+    ),
+    "./gitleaks detect --source . --redact --no-banner || true": (
+        "gitleaks detect --source . --redact --no-banner"
+    ),
+}
+
+#: The prefixes that make a line in a `run:` block a tool invocation rather
+#: than shell plumbing. Anything matching one of these is held to the contract
+#: below; `set -euo pipefail`, an assignment and a `curl` are not.
+_GATE_PREFIXES = ("uv run ", "uv sync ", "uv export ", "pnpm ", "./gitleaks ")
+
+
+def _workflow_commands() -> set[str]:
+    """Every tool invocation the pipeline runs, from every job in every workflow.
+
+    Line continuations are joined first, so a command split across three lines
+    for readability is compared as the one command it is.
+    """
+    found: set[str] = set()
+    for workflow in _workflows().values():
+        for job in workflow.get("jobs", {}).values():
+            for step in job.get("steps", []):
+                if "run" not in step:
+                    continue
+                joined = str(step["run"]).replace(chr(92) + chr(10), " ")
+                for line in joined.splitlines():
+                    command = " ".join(line.split())
+                    if command.startswith(_GATE_PREFIXES):
+                        found.add(command)
+    return found
+
+
+def test_the_local_runner_accounts_for_every_command_the_pipeline_runs() -> None:
+    """No gate may exist in CI and be unknown to scripts/gates.sh.
+
+    Accounting for a gate means running it or naming it in the line that
+    reports it as not runnable here. Both are honest; silence is not, and
+    silence is the failure this whole file was written against.
+    """
+    known = set(GATE_FRAGMENTS) | set(SETUP_NOT_A_GATE)
+    unaccounted = sorted(_workflow_commands() - known)
+    assert not unaccounted, (
+        "the pipeline runs commands scripts/gates.sh knows nothing about, so a "
+        "local run would report green over them:\n  " + "\n  ".join(unaccounted)
+    )
+
+
+@pytest.mark.parametrize(("command", "fragment"), sorted(GATE_FRAGMENTS.items()))
+def test_every_pipeline_gate_appears_in_the_local_runner(command: str, fragment: str) -> None:
+    text = LOCAL_GATES.read_text(encoding="utf-8")
+    assert fragment in text, f"scripts/gates.sh does not run or name `{command}`"
+
+
+@pytest.mark.parametrize("command", sorted(set(GATE_FRAGMENTS) | set(SETUP_NOT_A_GATE)))
+def test_the_local_runner_lists_no_command_the_pipeline_stopped_running(command: str) -> None:
+    """A stale entry is how this contract would rot into always passing.
+
+    Without this, a gate removed from CI keeps its line here, and the day it
+    comes back under a different spelling the new spelling is unaccounted for
+    while the list still looks complete.
+    """
+    assert command in _workflow_commands(), (
+        f"`{command}` is listed here but no workflow runs it any more; remove the "
+        "entry rather than leaving it to vouch for a gate that is gone"
+    )

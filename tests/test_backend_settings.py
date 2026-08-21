@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib
 import sys
 from types import ModuleType
+from typing import Any
 
 import pytest
 
@@ -254,3 +255,185 @@ def test_the_deploy_check_in_ci_knows_every_setting_production_requires() -> Non
     assert not missing, (
         f"prod.py requires {missing} and the deploy check in ci.yml does not set them"
     )
+
+
+#: A value that must never appear in a statement the server logs. Any string
+#: with no other reason to be in a query plan.
+PROBE_SECRET = "TESTtokenTESTtoken0000"
+
+
+@pytest.mark.django_db
+def test_the_database_never_receives_a_value_inside_the_statement_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Postgres writes the failing statement into its own container log.
+
+    Django 5 with psycopg 3 binds parameters client-side by default, so every
+    value is interpolated into the SQL text before it is sent, and
+    `log_min_error_statement=error` is on by default in the pinned image. Any
+    statement that fails therefore lands in the db container's log with the
+    token, the household's answers and the throttle key in it, and the db
+    container is never recreated by a deploy, so that log lives about a year.
+
+    This asks the server what it received rather than asking the settings what
+    they say: `pg_stat_activity.query` for this backend is the statement text
+    as it arrived. Client-side binding shows the value; server-side binding
+    shows `$1`.
+    """
+    from django.conf import settings
+    from django.db.utils import ConnectionHandler
+
+    prod = _load_prod(monkeypatch)
+    config: dict[str, Any] = dict(settings.DATABASES["default"])
+    config["OPTIONS"] = dict(prod.DATABASES["default"].get("OPTIONS", {}))
+    # A second handler and therefore a second physical connection, so this
+    # measures a connection built the way production builds one instead of the
+    # one pytest-django has already opened under the test settings.
+    handler = ConnectionHandler({"default": config})
+    connection = handler["default"]
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT query FROM pg_stat_activity "
+                "WHERE pid = pg_backend_pid() AND %s::text <> ''",
+                [PROBE_SECRET],
+            )
+            row = cursor.fetchone()
+    finally:
+        connection.close()
+
+    assert row is not None
+    received: str = row[0]
+    assert PROBE_SECRET not in received, (
+        "the value reached the server inside the statement text, which is what "
+        f"log_min_error_statement writes out on any failure: {received}"
+    )
+    assert "$1" in received, received
+
+
+def test_production_binds_its_parameters_on_the_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The setting the test above measures the effect of, named here so a
+    removal is a failure with the reason attached rather than a puzzle."""
+    prod = _load_prod(monkeypatch)
+    assert prod.DATABASES["default"]["OPTIONS"]["server_side_binding"] is True
+
+
+class TestWhatTheProcessIsAllowedToWriteDown:
+    """There was no LOGGING setting, so `DEBUG=False` meant a 500 produced no
+    output at all, and the obvious repair writes the token instead."""
+
+    def config(self) -> dict[str, Any]:
+        """The configuration as written, not as `dictConfig` left it.
+
+        `logging.config.dictConfig` mutates the dictionary it is given: it
+        replaces every formatter and handler entry with the object it built,
+        and Django hands it `settings.LOGGING` itself. Reading the setting back
+        after startup therefore reads the leftovers, which is why base.py keeps
+        a factory and the setting is a snapshot of it.
+        """
+        from ampeer.settings.base import logging_config
+
+        return logging_config()
+
+    def test_there_is_a_logging_configuration_at_all(self) -> None:
+        from django.conf import settings
+
+        assert settings.LOGGING, "no LOGGING setting: an unhandled exception writes nothing"
+        assert set(settings.LOGGING) == set(self.config())
+
+    def test_the_configuration_is_the_one_that_actually_took_effect(self) -> None:
+        """The dictionary above is a claim until something reads it.
+
+        Django calls dictConfig once at startup, so this asserts against the
+        live logger: the handler is there, its formatter is the redacting one,
+        and the record stops at that handler rather than travelling on to
+        whatever else has attached itself to the root logger.
+        """
+        import logging
+
+        from ampeer.settings.base import RedactedFormatter
+
+        for name in ("django", "django.server"):
+            logger = logging.getLogger(name)
+            assert logger.propagate is False, name
+            # pytest attaches handlers of its own to every non-propagating
+            # logger so that caplog and its report keep working. They belong to
+            # the test harness and are not present in the running service.
+            writing = [
+                handler
+                for handler in logger.handlers
+                if not type(handler).__module__.startswith("_pytest")
+            ]
+            assert writing, f"{name} has no handler: an error there writes nothing"
+            for handler in writing:
+                assert isinstance(handler.formatter, RedactedFormatter), (name, handler)
+
+    def test_every_handler_formats_through_the_redacting_formatter(self) -> None:
+        """One formatter, named by every handler.
+
+        A second handler with the default formatter would write
+        `Internal Server Error: /api/advice/<token>/` beside the redacted line
+        and undo the whole thing, silently, because both lines look like logs.
+        """
+        config = self.config()
+        formatters = set(config["formatters"])
+        assert len(formatters) == 1, formatters
+        (only,) = formatters
+        for name, handler in config["handlers"].items():
+            assert handler.get("formatter") == only, (name, handler)
+            assert handler["class"] == "logging.StreamHandler", (name, handler)
+
+    def test_no_logger_reaches_a_handler_this_file_did_not_configure(self) -> None:
+        """Django's own default attaches `mail_admins` to the `django` logger
+        and a `django.server` handler that writes the request line. Both have
+        to be replaced rather than added to, and `propagate` has to be off, or
+        a record travels to the root handler through a chain nothing here
+        chose."""
+        config = self.config()
+        ours = set(config["handlers"])
+        assert config["root"]["handlers"] and set(config["root"]["handlers"]) <= ours
+        for name in ("django", "django.server"):
+            logger = config["loggers"][name]
+            assert set(logger["handlers"]) <= ours, (name, logger)
+            assert logger["propagate"] is False, (name, logger)
+
+    def test_the_formatter_drops_the_message_and_keeps_the_exception(self) -> None:
+        """A record shaped exactly like the one Django writes for a 500.
+
+        `django.request` logs `"Internal Server Error: %s" % request.path`,
+        with the path in `record.args`, and the exception carried alongside it
+        is whatever raised: a psycopg IntegrityError quotes the offending key
+        in its own message. All three are values from the request, and none of
+        them may reach the line.
+        """
+        import logging
+
+        from ampeer.settings.base import RedactedFormatter
+
+        formatter = RedactedFormatter()
+
+        token = "TESTtokenTESTtoken0000"
+        try:
+            raise ValueError(f"duplicate key (token)=({token}) from 203.0.113.7")
+        except ValueError as error:
+            record = logging.LogRecord(
+                name="django.request",
+                level=logging.ERROR,
+                pathname=__file__,
+                lineno=1,
+                msg="Internal Server Error: %s",
+                args=(f"/api/advice/{token}/",),
+                exc_info=(type(error), error, error.__traceback__),
+            )
+            record.status_code = 500
+            line = formatter.format(record)
+
+        assert token not in line, line
+        assert "203.0.113.7" not in line, line
+        assert "/api/advice/" not in line, line
+        assert "ValueError" in line, line
+        assert "django.request" in line, line
+        assert "500" in line, line
+        assert "test_backend_settings.py" in line, line

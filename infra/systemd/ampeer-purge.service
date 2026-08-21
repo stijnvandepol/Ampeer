@@ -1,0 +1,77 @@
+# THIS FILE IS INSTALLED BY HAND. NOTHING IN THIS REPOSITORY INSTALLS IT.
+#
+# Who:   Stijn, on the Ampeer LXC, as root. No workflow, no deploy job and no
+#        test may copy, enable or start this unit, and none of them does.
+# Where: /etc/systemd/system/ampeer-purge.service, together with
+#        /etc/systemd/system/ampeer-purge.timer.
+# How:   cp infra/systemd/ampeer-purge.* /etc/systemd/system/
+#        systemctl daemon-reload
+#        systemctl enable --now ampeer-purge.timer
+# Check: systemctl list-timers ampeer-purge.timer
+#
+# This is spelled out because a file that looks automatic and is not is worse
+# than one that says so. If nobody runs the three commands above, nothing
+# deletes expired advice, and the only observable behaviour is a link returning
+# 404 after ninety days, which is exactly what correct looks like. That is why
+# `purge_expired_advice --check` exists: it is the half of this that notices.
+
+[Unit]
+Description=Delete Ampeer advices past their ninety day retention date
+# The purge is a container, so there is nothing to run before Docker is up.
+Requires=docker.service
+After=docker.service
+# A missing stack should fail loudly here rather than start a partial one.
+ConditionPathExists=/srv/ampeer/docker-compose.yml
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/ampeer
+# One-off container from the same image the api service runs, so the purge is
+# the code that was deployed rather than a copy of it kept on the host.
+#
+# --env-file: docker-compose.yml interpolates nine variables and gives none of
+# them a default, on purpose. Without this the unit fails while resolving the
+# file instead of connecting somewhere unintended, which is the right way round.
+#
+# --entrypoint python: the image's entrypoint execs gunicorn and ignores its
+# arguments, so `run --rm api python ...` would start a web server and delete
+# nothing. Overriding the entrypoint is what makes this a management command.
+#
+# `backend/manage.py`, not `manage.py`: manage.py lives under backend/ and the
+# image's working directory is /app, which is the layout every other call site
+# in this repository uses. tests/test_infra.py checks the two agree, because
+# they did not: the image ended on WORKDIR /app/backend for a few hours and
+# this line resolved to /app/backend/backend/manage.py.
+ExecStart=/usr/bin/docker compose --env-file /srv/ampeer/.env -f /srv/ampeer/docker-compose.yml run --rm --entrypoint python api backend/manage.py purge_expired_advice
+# The command prints a count and nothing else. No token and no input reaches
+# the journal, which matters because the journal outlives the rows it describes.
+
+# The half that notices, added 2026-08-21 by the integration gate.
+#
+# `purge_expired_advice --check` was written, tested, and called from nowhere.
+# The design said it would run "as the healthcheck of the container", and that
+# cannot be: the readiness check the api image declares issues no database
+# query on purpose, because a check that runs every thirty seconds and counts
+# rows is the load generator that decision exists to avoid. So it runs here,
+# and in the deploy job after migrate.
+#
+# ExecStartPost runs only when ExecStart succeeded, which makes this the exact
+# question that is left over: the purge just reported a count, so is anything
+# still past its date? If it is, the delete did not do what its own output
+# claimed, and the causes are all real ones. Wrong database in the env file,
+# because compose read a different .env than the operator edited. An image from
+# an older release whose retention window was a different number. A `run --rm`
+# that failed to reach the database and exited zero anyway.
+#
+# `--check` deletes nothing, so this cannot repair what it measures, and a
+# non-zero exit here puts the unit in `failed` instead of leaving a count in
+# the journal that nobody reads. `systemctl status ampeer-purge` then says so,
+# and `systemctl --failed` lists it.
+#
+# WHAT THIS DOES NOT CATCH: a timer that was never enabled. ExecStartPost only
+# runs when the unit runs, so if `systemctl enable --now ampeer-purge.timer`
+# was never typed, this line is never reached and says nothing at all. Only
+# `systemctl list-timers ampeer-purge.timer` answers that question. See
+# infra/README.md; monitoring is out of scope for this subproject and a line
+# here that implied otherwise would be the false comfort, not the fix.
+ExecStartPost=/usr/bin/docker compose --env-file /srv/ampeer/.env -f /srv/ampeer/docker-compose.yml run --rm --entrypoint python api backend/manage.py purge_expired_advice --check

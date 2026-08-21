@@ -99,6 +99,29 @@ DATABASES = {
         "HOST": _required("POSTGRES_HOST"),
         "PORT": os.environ.get("POSTGRES_PORT", "5432"),
         "CONN_MAX_AGE": 60,
+        # The values travel beside the statement instead of inside it.
+        #
+        # Django 5 with psycopg 3 binds client-side by default: every parameter
+        # is interpolated into the SQL text before it is sent. The pinned
+        # Postgres image runs with log_min_error_statement=error, so any
+        # statement that fails is written into the db container's own log
+        # complete with whatever was in it. Measured on 2026-08-21 against a
+        # running stack:
+        #
+        #   STATEMENT: INSERT INTO "advice_storedadvice" ("token",...) VALUES
+        #   ('sybfMDbR0zmr-qFBTX1YaA', ..., '{"postcode4": "5401", ...}'::jsonb, ...)
+        #
+        # which is a working link to a household's advice and that household's
+        # answers, in a file with a year of retention: the db container is the
+        # one service a deploy does not recreate. Four ways in were measured,
+        # including a deploy landing during a read and two workers racing on
+        # the same throttle row.
+        #
+        # This is not a substitute for not writing the value down in the first
+        # place; advice/throttling.py does that for the identity. It is the
+        # half that covers every other column, including the token, which has
+        # to be stored to be looked up.
+        "OPTIONS": {"server_side_binding": True},
     }
 }
 

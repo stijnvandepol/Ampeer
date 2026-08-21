@@ -7,7 +7,7 @@ import math
 from django.urls import URLPattern, path, re_path
 
 from advice.models import TOKEN_BYTES
-from advice.views import EstimateView, RefineView, StoredAdviceView
+from advice.views import EstimateView, HealthView, RefineView, StoredAdviceView
 
 #: secrets.token_urlsafe(n) emits base64url with the padding stripped, so
 #: ceil(n * 8 / 6) characters: 22 for 16 bytes. Derived from the constant the
@@ -17,6 +17,12 @@ from advice.views import EstimateView, RefineView, StoredAdviceView
 TOKEN_LENGTH = math.ceil(TOKEN_BYTES * 8 / 6)
 
 urlpatterns: list[URLPattern] = [
+    # Above the token route on purpose. `re_path` matches 22 url-safe
+    # characters and `health` is eight, so this is not actually shadowed today,
+    # but the ordering is the property being kept: a token pattern that ever
+    # widens would otherwise swallow the readiness endpoint and the deploy
+    # would go unhealthy for a reason nobody would look for here.
+    path("health/", HealthView.as_view(), name="advice-health"),
     path("estimate/", EstimateView.as_view(), name="advice-estimate"),
     path("refine/", RefineView.as_view(), name="advice-refine"),
     # Matched narrowly rather than with <str:token>, so a malformed token is a

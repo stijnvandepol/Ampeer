@@ -17,6 +17,7 @@ from datetime import timedelta
 import pytest
 from django.conf import settings
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.db import transaction
 from django.db.utils import IntegrityError
 from django.utils import timezone
@@ -92,6 +93,42 @@ def test_the_purge_command_deletes_only_what_has_expired() -> None:
     StoredAdvice.objects.filter(pk=dead.pk).update(expires_at=timezone.now() - timedelta(days=1))
     call_command("purge_expired_advice")
     assert list(StoredAdvice.objects.values_list("pk", flat=True)) == [live.pk]
+
+
+def test_the_check_mode_is_quiet_when_nothing_is_overdue() -> None:
+    StoredAdvice.create(inputs=INPUTS, advice=ADVICE)
+    call_command("purge_expired_advice", "--check")
+
+
+def test_the_check_mode_reports_a_row_that_should_have_been_deleted() -> None:
+    """The reason this exists at all.
+
+    With no scheduler, the only observable behaviour is that a link 404s after
+    ninety days, which is exactly what correct looks like: get_live filters on
+    expires_at, so an unpurged row is invisible rather than absent. Those are
+    two different promises and CLAUDE.md makes the stronger one. Without this
+    check, the first person to find out is whoever reads a database backup.
+    """
+    stale = StoredAdvice.create(inputs=INPUTS, advice=ADVICE)
+    StoredAdvice.objects.filter(pk=stale.pk).update(expires_at=timezone.now() - timedelta(days=3))
+    with pytest.raises(CommandError, match="not been purged"):
+        call_command("purge_expired_advice", "--check")
+
+
+def test_the_check_mode_allows_a_day_of_grace() -> None:
+    """A timer that runs daily has to be allowed to not have run yet."""
+    recent = StoredAdvice.create(inputs=INPUTS, advice=ADVICE)
+    StoredAdvice.objects.filter(pk=recent.pk).update(expires_at=timezone.now() - timedelta(hours=2))
+    call_command("purge_expired_advice", "--check")
+
+
+def test_the_check_mode_deletes_nothing() -> None:
+    """A check that repairs what it measures can never report a problem."""
+    stale = StoredAdvice.create(inputs=INPUTS, advice=ADVICE)
+    StoredAdvice.objects.filter(pk=stale.pk).update(expires_at=timezone.now() - timedelta(days=3))
+    with pytest.raises(CommandError):
+        call_command("purge_expired_advice", "--check")
+    assert StoredAdvice.objects.filter(pk=stale.pk).exists()
 
 
 def test_an_audit_event_records_what_happened() -> None:
@@ -199,3 +236,38 @@ def test_the_cache_table_migration_makes_a_table_django_can_actually_cache_in() 
         assert table not in connection.introspection.table_names()
         module.create_cache_table(None, editor)
     assert table in connection.introspection.table_names()
+
+
+def test_the_purge_also_clears_the_rate_limiter_it_left_behind() -> None:
+    """The retention promise has to cover every table, not the one somebody
+    remembered.
+
+    The throttle counter lives in the database so it survives a restart and is
+    shared across workers. Django's DatabaseCache only removes an expired row
+    when that same key is read again, and culls only above a hundred thousand
+    entries, so a visitor who never returns leaves a row forever. Measured on
+    2026-08-21: rows backdated four hundred days survived fresh traffic and a
+    full run of this command, because it filtered StoredAdvice and nothing
+    else. That table is in every volume snapshot and every backup.
+
+    The key is a keyed digest rather than an address now, so what survives is
+    no longer a visitor log. It is still a row nobody chose to keep.
+    """
+    from django.conf import settings
+    from django.db import connection
+
+    table = connection.ops.quote_name(settings.AMPEER_CACHE_TABLE)
+    stale = timezone.now() - timedelta(days=400)
+    fresh = timezone.now() + timedelta(hours=1)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"INSERT INTO {table} (cache_key, value, expires) VALUES (%s, %s, %s), (%s, %s, %s)",
+            [":1:throttle_x_deadbeef", "e30=", stale, ":1:throttle_x_livebeef", "e30=", fresh],
+        )
+
+    call_command("purge_expired_advice")
+
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT cache_key FROM {table} ORDER BY cache_key")
+        remaining = [row[0] for row in cursor.fetchall()]
+    assert remaining == [":1:throttle_x_livebeef"], remaining
