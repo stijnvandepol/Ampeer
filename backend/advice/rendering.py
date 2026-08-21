@@ -3,7 +3,19 @@
 Money leaves as a string. JSON has floats and no decimals, so an amount that
 passes through a JSON number is rounded by whichever parser touches it last,
 which is precisely the error the Decimal rule elsewhere in this project exists
-to prevent. Rounding therefore happens once, here, in `money`.
+to prevent. Rounding to cents therefore happens here, in `money`.
+
+Here, with one exception, and the exception is written down rather than glossed
+over. `headline` arrives from `ampeer_sim.economics.sensitivity` already rounded
+to two decimals by Python's `round`, which breaks a tie to the nearest even
+digit where `money` breaks it away from zero. `round(700.125, 2)` is 700.12 and
+`money(Decimal("700.125"))` is "700.13", so two amounts of equal value can leave
+this file a cent apart. `money` is a no-op on the headline and cannot undo that
+rounding; the simulation core is where it happens and this package does not
+reach into it. `tests/test_advice_rendering.py` pins both conventions so the
+difference cannot widen unnoticed, and every other amount in the response
+arrives at the three decimals `ampeer_sim.economics.tariffs` works in and is
+rounded to cents here for the first time.
 
 Nothing in this file writes a sentence. Every word a reader sees comes out of
 ampeer_advice.nl, keyed by a rule id or an enum, so a change of wording and a
@@ -12,17 +24,26 @@ change of behaviour still cannot break the same test.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from ampeer_advice.battery import PAYBACK_PRECISION
-from ampeer_advice.nl import CONFIDENCE_LABELS, ROUTE_TITLES, text_for
-from ampeer_advice.types import Advice, BatteryAdvice, Route
+from ampeer_advice.nl import CONFIDENCE_LABELS, ROUTE_TITLES, SIZING_BASIS_TEXTS, text_for
+from ampeer_advice.types import Advice, BatteryAdvice, Route, ScenarioBand
 from ampeer_sim.types import Band, Result
 
-#: Every amount in a response is quantized here and nowhere else. Two rounding
-#: conventions in one document is how a total stops matching its own parts.
+#: Every amount that still carries its full precision is quantized here and
+#: nowhere else. Two rounding conventions in one document is how a total stops
+#: matching its own parts, which is why the one exception is named in the module
+#: docstring instead of being left for a reader to find.
 CENTS = Decimal("0.01")
+
+#: Payback in years, to the hundredth. It lives here because it is a display
+#: precision and nothing else: it used to sit in ampeer_advice.battery, where
+#: it also quantized the break even price, so editing "payback to the tenth of
+#: a year" would have silently rounded a euro amount to the dime. A time and an
+#: amount are two quantities and they get two constants.
+YEARS = Decimal("0.01")
 
 #: The order a reader sees. The two free routes come first whatever they are
 #: worth, and an empty one is still sent, so the frontend never has to know
@@ -38,20 +59,45 @@ def money(value: Decimal) -> str:
 def _years(value: Decimal) -> str:
     """A payback time as text. Years, not euro, so `money` must not touch it.
 
-    The precision is imported from the module that computes these figures
-    rather than chosen again here: this is the same quantity rendered, not a
-    second convention for it. `money` stays the only place an amount is
-    formatted, and a payback time is not an amount.
+    Same rounding rule as `money`, on purpose, so that two figures in one
+    response never disagree about which way a half goes. A different precision,
+    also on purpose: a payback time is not an amount.
     """
-    return str(value.quantize(PAYBACK_PRECISION, rounding=ROUND_HALF_UP))
+    return str(value.quantize(YEARS, rounding=ROUND_HALF_UP))
 
 
 def _band(band: Band) -> dict[str, Any]:
+    """The headline band: genuine percentiles, so it is named for them.
+
+    p10 and p90 here are the tenth and ninetieth percentile of `runs` factorial
+    simulations. Nothing else in this response may borrow these key names. A
+    band measured at three chosen input levels is rendered by
+    `_scenario_band` under low, mid and high instead, because two different
+    kinds of statement that look identical are worse than one that is missing.
+    """
     return {
         "p10": money(band.p10_eur),
         "p50": money(band.p50_eur),
         "p90": money(band.p90_eur),
         "runs": band.runs,
+    }
+
+
+def _scenario_band(band: ScenarioBand, render: Callable[[Decimal], str]) -> dict[str, Any]:
+    """A band measured at named input levels, and the list of what those were.
+
+    `varied` and `pinned` are part of the payload rather than a footnote in a
+    document nobody opens. Without them the reader cannot tell a band over the
+    battery price alone from a band over everything, and this product publishes
+    both in the same response.
+    """
+    return {
+        "low": render(band.low),
+        "mid": render(band.mid),
+        "high": render(band.high),
+        "varied": list(band.varied),
+        "pinned": list(band.pinned),
+        "combinations": band.combinations,
     }
 
 
@@ -64,11 +110,16 @@ def _routes(advice: Advice) -> list[dict[str, Any]]:
                 {
                     "rule_id": fired.rule_id,
                     "text": text_for(fired.rule_id),
+                    # A band, never one amount. This is the figure that decides
+                    # whether somebody rearranges their week, and it used to
+                    # leave here as a single number while the document beside
+                    # it promised there would never be one.
+                    #
                     # None rather than 0.00. Three rules estimate nothing at
                     # all on purpose, and a zero would read as a measurement
                     # that was never taken.
                     "saving_eur": (
-                        money(fired.estimated_saving_eur)
+                        _scenario_band(fired.estimated_saving_eur, money)
                         if fired.estimated_saving_eur is not None
                         else None
                     ),
@@ -109,21 +160,40 @@ def _battery(advice: Advice) -> dict[str, Any] | None:
     if advice.battery is None:
         return None
     battery: BatteryAdvice = advice.battery
+    basis = (
+        "LIMITED_BY_LARGEST_SIMULATED_CAPACITY"
+        if battery.sized_at_largest_simulated_capacity
+        else "CHOSEN_FROM_SIMULATED_CAPACITIES"
+    )
     return {
         "verdict": _verdict(advice),
-        "sized_capacity_kwh": battery.sized_capacity_kwh,
-        "annual_saving_eur": money(battery.annual_saving_eur),
-        # A band, never one figure. The installed price this is derived from
-        # spans a factor two, and collapsing it to a midpoint would decide
-        # "worth it" or "not worth it" on a number that carries no such
-        # certainty.
-        "payback_years": {
-            "p10": _years(battery.payback_years_p10),
-            "p50": _years(battery.payback_years_p50),
-            "p90": _years(battery.payback_years_p90),
+        # The one figure in this block without a band, and it says so in its own
+        # shape. A capacity is a choice out of the five sizes that were
+        # simulated, not an estimate of something unknown, so a band around it
+        # would be decoration. `basis` also distinguishes a knee that was found
+        # from a search that ran out of curve at the largest size on offer,
+        # where the honest reading is "at least this large".
+        "sized_capacity_kwh": {
+            "value": battery.sized_capacity_kwh,
+            "band": None,
+            "basis": basis,
+            "basis_text": SIZING_BASIS_TEXTS[basis],
         },
-        "break_even_cost_per_kwh": money(battery.break_even_cost_per_kwh),
-        "curve": [[capacity, money(saving)] for capacity, saving in battery.curve],
+        "annual_saving_eur": _scenario_band(battery.annual_saving_eur, money),
+        # A band, never one figure. The installed price spans a factor two and
+        # the tariffs it is priced against carry a band of their own, and
+        # collapsing either would decide "worth it" or "not worth it" on a
+        # number that carries no such certainty. `varied` and `pinned` travel
+        # with it: these ends are the extremes of nine priced combinations and
+        # not the tenth and ninetieth percentile of anything, which is what the
+        # p10 and p90 names on this block used to claim.
+        "payback_years": _scenario_band(battery.payback_years, _years),
+        "break_even_cost_per_kwh": _scenario_band(battery.break_even_cost_per_kwh, money),
+        # (capacity, saving) pairs. The capacity is the horizontal axis and one
+        # of the five sizes that were simulated, so it is a coordinate rather
+        # than a figure about this household; the saving at each of them is a
+        # band like every other amount here.
+        "curve": [[capacity, _scenario_band(saving, money)] for capacity, saving in battery.curve],
     }
 
 

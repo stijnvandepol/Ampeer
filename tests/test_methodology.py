@@ -11,9 +11,11 @@ cannot fail a build. These tests are how it fails one.
 
 from __future__ import annotations
 
+import json
 import re
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -23,6 +25,12 @@ from ampeer_sim.economics.sensitivity import VARIATIONS
 
 METHODOLOGY = Path(__file__).resolve().parent.parent / "docs" / "methodologie.md"
 TEXT = METHODOLOGY.read_text(encoding="utf-8")
+
+GOLDEN: dict[str, dict[str, Any]] = json.loads(
+    (Path(__file__).resolve().parent / "golden" / "advice_households.json").read_text(
+        encoding="utf-8"
+    )
+)
 
 
 def _dutch(value: Decimal) -> str:
@@ -100,10 +108,109 @@ def test_the_document_still_names_its_own_limitations() -> None:
 
     Losing it would be the single most damaging edit anyone could make to this
     file, and the easiest to make by accident while tidying.
+
+    The heading is matched without its number on purpose. Inserting a chapter
+    ahead of it renumbers it, and pinning the number would turn a correct edit
+    into a failure while a deletion and a renumber would look the same. What
+    has to hold is that the chapter is there and that it still names what it
+    is for.
     """
-    assert "## 16. Wat wij niet weten" in TEXT
+    assert re.search(r"^## \d+\. Wat wij niet weten$", TEXT, re.MULTILINE)
     for limitation in ("schaduw", "gemiddelde", "aangenomen"):
         assert limitation in TEXT, f"the limitations section no longer mentions {limitation}"
+
+
+def test_the_document_states_what_is_assumed_when_it_does_not_ask() -> None:
+    """Round one asks four questions and fills in five answers.
+
+    Nothing in this document said so. It described what happens to an answer
+    the reader gives, which reads as though the reader gives all of them, and
+    the confidence label says INDICATIVE without naming a single thing that
+    made it indicative. A reader cannot check an assumption that is not
+    written down.
+    """
+    assert re.search(r"^## \d+\. Wat wij aannemen als wij het niet vragen$", TEXT, re.MULTILINE)
+    chapter = TEXT.split("Wat wij aannemen als wij het niet vragen", 1)[1]
+    for assumption in (
+        "Overdag iemand thuis",
+        "Elektrische auto",
+        "Warmtepomp",
+        "Thuisbatterij",
+        "Contract",
+    ):
+        assert assumption in chapter, f"the assumptions chapter does not name {assumption}"
+
+
+def test_the_document_says_which_way_those_assumptions_push() -> None:
+    """A default that maximises the shock is not a conservative default.
+
+    It is the direction that makes the product's case, and the word for it is
+    not "voorzichtig" without a sentence saying so. The chapter has to state
+    the direction, not only the list, because a list of assumptions with no
+    direction reads as neutral.
+    """
+    chapter = TEXT.split("Wat wij aannemen als wij het niet vragen", 1)[1]
+    assert "Voorzichtig in de richting die ons goed uitkomt is niet voorzichtig" in chapter
+    assert "conservatief" in chapter, "the chapter no longer says what word was wrong"
+    assert "634 euro" in chapter, "the chapter no longer quotes what it measured"
+
+
+def test_the_document_does_not_claim_the_payback_band_moves_the_price_alone() -> None:
+    """The claim that went stale the moment the band was widened.
+
+    The old sentence said the margin on the payback comes from the price of the
+    battery only. That was true of the old code and is not true of this one, and
+    a document that describes the previous model is the failure this file exists
+    to prevent.
+    """
+    assert "alleen uit de prijs van de batterij" not in TEXT
+    chapter = TEXT.split("## 12.", 1)[1].split("## 13.", 1)[0]
+    assert "p10" in chapter, "chapter 12 no longer explains which band is a percentile"
+    assert "laag, midden en hoog" in chapter
+
+
+def test_the_document_quotes_the_payback_band_the_model_produces() -> None:
+    """Chapter 12 names three figures for the reference household.
+
+    They are there to show a reader what widening the band did, which is only
+    worth anything if they are still the figures the model produces. Same
+    reason as the break even price below: a number in prose that nothing
+    compares against is a number that goes stale silently.
+    """
+    rob = GOLDEN["rob_fixed_contract"]
+    chapter = TEXT.split("## 12.", 1)[1].split("## 13.", 1)[0]
+    for key in (
+        "battery_payback_low_years",
+        "battery_payback_mid_years",
+        "battery_payback_high_years",
+    ):
+        printed = f"{round(float(rob[key]), 1)}".replace(".", ",")
+        assert printed in chapter, f"chapter 12 does not quote {printed} for {key}"
+
+
+def test_the_document_quotes_break_even_prices_the_model_still_produces() -> None:
+    """The check that would have caught the 833 euro that sat here for a day.
+
+    That figure was a real output of an earlier model and stayed in the text
+    after the model moved, because the only place it was written down besides
+    the document was a golden file that no test read. A document is judged on
+    figures like this one: it is the number a reader is invited to hold a quote
+    against.
+    """
+    mids = [
+        float(case["battery_break_even_mid_cost_per_kwh"])
+        for case in GOLDEN.values()
+        if case.get("battery_break_even_mid_cost_per_kwh") is not None
+    ]
+    lows = [
+        float(case["battery_break_even_low_cost_per_kwh"])
+        for case in GOLDEN.values()
+        if case.get("battery_break_even_low_cost_per_kwh") is not None
+    ]
+    assert mids and lows
+    assert f"{round(max(mids))} euro" in TEXT, f"the document does not quote {round(max(mids))}"
+    assert f"{round(max(lows))} euro" in TEXT, f"the document does not quote {round(max(lows))}"
+    assert "833" not in TEXT.split("Hier stond eerder", 1)[0]
 
 
 def test_every_section_is_numbered_consecutively() -> None:
