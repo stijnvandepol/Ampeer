@@ -106,6 +106,16 @@ opbrengst per kWp op en passen daarna alleen nog drie eenvoudige factoren toe: h
 wattpiek je hebt, het systeemverlies (standaard 14 procent, voor omvormer, kabels en
 vuil) en veroudering van de panelen (een half procent per jaar, maximaal twintig procent).
 
+**Die derde factor gebruiken wij nu nooit, en dat hoor je te weten.** Veroudering kunnen
+wij alleen toepassen als wij weten uit welk jaar je panelen komen, en de rekenmachine
+vraagt dat niet. Dus rekenen wij op panelen die nieuw zijn, hoe oud die van jou ook zijn.
+Dat duwt dezelfde kant op als de andere dingen die wij invullen: nieuwe panelen leveren
+meer op, meer opwek betekent meer teruglevering, en meer teruglevering betekent een groter
+bedrag bovenaan. Hoeveel dat op je rekening scheelt hangt van je huis af, maar de opwek
+zelf is exact: panelen van tien jaar oud zouden wij op vijf procent minder opwek rekenen
+en panelen van twintig jaar oud op tien procent minder. Hoofdstuk 16 zet dit bij de
+andere aannames.
+
 **De beperking:** wij weten niets van jouw schaduw. Een boom, een dakkapel of het huis
 van de buren kan zomaar tien procent schelen en daar vragen wij niet naar.
 
@@ -422,10 +432,15 @@ Dit vullen wij in als je het niet zegt:
 | Thuisbatterij | Geen |
 | Contract | Vast |
 | Verplaatsbaar verbruik per dag | 1 kWh (hoofdstuk 3) |
+| Hoe oud je panelen zijn | Nieuw (hoofdstuk 6) |
 
 **Welke kant die aannames op duwen.** De eerste vijf duwen dezelfde kant op: klopt een
 van hen niet voor jou, dan is het bedrag bovenaan lager dan wat wij je tonen en nooit
-hoger. Dat is de kant die ons uitkomt. Op ons referentiehuishouden, 3,5 kWp en 3500 kWh in
+hoger. De leeftijd van je panelen duwt dezelfde kant op en staat los van de tabel
+hieronder, omdat hij niet aan of uit is maar geleidelijk: elk jaar ouder is een half
+procent minder opwek, tot maximaal twintig procent. Wij zetten hier met opzet geen bedrag
+bij. De tabel hieronder is op een huishouden gemeten, en een tweede getal dat wij er niet
+op dezelfde manier naast kunnen leggen zou meer zekerheid suggereren dan wij hebben. Dat is de kant die ons uitkomt. Op ons referentiehuishouden, 3,5 kWp en 3500 kWh in
 postcode 5401, kost het einde van saldering met deze aannames 634 euro per jaar. Verander
 je er één, dan wordt dat bedrag lager:
 
@@ -474,6 +489,8 @@ Voor de volledigheid, op een rij:
 - Wij rekenen op een historisch jaar aan weer en verbruik, en volgend jaar is anders.
 - Ons basisprofiel is dat van huizen zonder zonnepanelen.
 - De omvang van het verplaatsbare blok is aangenomen.
+- Wij weten niet hoe oud je panelen zijn en vragen er niet naar, dus rekenen wij ze als
+  nieuw. Bij oudere panelen is het bedrag bovenaan hoger dan het bij jou is.
 - Als je maar vier vragen beantwoordt, weten wij niet of er overdag iemand thuis is, of je
   een elektrische auto hebt, of je een warmtepomp hebt, of je al een thuisbatterij hebt en
   wat voor contract je hebt. Wij nemen dan aan van niet, en dat maakt het bedrag bovenaan
