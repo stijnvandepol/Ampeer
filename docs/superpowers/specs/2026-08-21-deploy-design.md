@@ -203,6 +203,19 @@ Dus:
 bestand komt als read-only bind-mount de container in; het gaat niet in een image, want dan
 staat het in een registry.
 
+**En hier zit een gat dat pas bij het schrijven van het plan zichtbaar werd.** `prod.py`
+eist dat `AMPEER_NEDU_PROFILE_PATH` *gezet* is, niet dat het bestand *bestaat*, en
+`profile_provider()` wordt pas aangeroepen wanneer er een advies berekend wordt. Een
+container met een verkeerd gemonteerd pad start dus vrolijk op, meldt zich gezond, en laat
+elk verzoek stuklopen. Honderd procent kapot, en het ziet er van buiten uit alsof het
+draait.
+
+Dat is dezelfde vorm als de andere stille faalvormen in dit project, en de reparatie hoort
+hier: **de healthcheck van de API-container moet het profiel daadwerkelijk openen**, niet
+alleen controleren of het proces leeft. Een verkeerde mount maakt de container dan ongezond
+in plaats van stil kapot. Een readiness-endpoint dat `profile_provider()` aanroept en verder
+niets doet is genoeg; het rekent niets uit en raakt de database niet.
+
 **En dit blokkeert de publieke deploy.** De herdistributievoorwaarden van de
 NEDU-profielen zijn niet bevestigd. Zolang dat zo is kan de stack draaien op Stijns eigen
 machine met zijn eigen kopie, en kan hij niet publiek. Dat is een bewuste ontwerpkeuze en
