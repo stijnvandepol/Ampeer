@@ -62,6 +62,37 @@ def test_the_fixture_matches_what_the_renderer_produces() -> None:
     assert live == committed, "the API response shape changed; regenerate the fixture"
 
 
+def test_the_committed_fixture_is_byte_for_byte_what_the_generator_writes() -> None:
+    """The fixture claims to be generated. This is what makes that true.
+
+    The shape comparison above catches a response whose keys changed. It does
+    not catch an edit to a value, because a hand-changed euro amount is still
+    the same shape, and the frontend builds every one of its own tests against
+    this file. A fixture somebody adjusted by hand to make a test pass is a
+    description of a response that never existed, which is the whole reason
+    tests/helpers/advice_fixture.py calls the real renderer.
+
+    Bytes rather than parsed content, because the file is also in
+    frontend/.prettierignore on the grounds that the generator is its author.
+    That claim and this assertion are the same statement seen from two sides:
+    if a formatter or an editor rewrites it, the generator is no longer its
+    author and this fails.
+    """
+    import sys
+
+    sys.path.insert(0, str(REPO_ROOT / "tests"))
+    from helpers.advice_fixture import build_reference_payload
+
+    written = json.dumps(build_reference_payload(), indent=2, ensure_ascii=False) + "\n"
+    committed = FIXTURE.read_text(encoding="utf-8")
+    assert committed == written, (
+        "frontend/tests/fixtures/advice-response.json is not what "
+        "tests/helpers/advice_fixture.py produces. Regenerate it with\n"
+        "    uv run python tests/helpers/advice_fixture.py\n"
+        "rather than editing it, and do not run a formatter over it."
+    )
+
+
 def test_every_amount_crosses_the_wire_as_a_string() -> None:
     """JSON has floats and no decimals, so an amount that goes through a JSON
     number is rounded by whichever parser touches it last."""
