@@ -158,6 +158,14 @@ beide kanten ongeveer 5 procent. De bruikbare diepte stellen wij op 90 procent: 
 batterij van 10 kWh rekenen wij dus met 9 kWh, want een batterij die helemaal leeg en
 helemaal vol gaat slijt sneller en de meeste systemen staan dat niet toe.
 
+Het laad- en ontlaadvermogen leiden wij af uit de capaciteit: de helft ervan in kilowatt,
+dus 5 kW bij een batterij van 10 kWh. Dat is ongeveer wat thuisbatterijen halen. Wij
+hebben nagerekend wat er gebeurt als je dat verandert, en het antwoord is: niets. Tussen
+0,3 en 1,0 keer de capaciteit beweegt onze uitkomst op de voorbeeldhuishoudens niet, omdat
+een overschot dat een trage batterij om twaalf uur niet kan opnemen er om een uur nog
+steeds is. Wij zetten het er toch bij, zodat het zichtbaar is op de dag dat het wel gaat
+uitmaken.
+
 **Wat onze batterij niet doet.** In een antwoord van Ampeer slaat een batterij alleen je
 eigen overschot op. Hij laadt nooit stroom van het net in om die later duurder te
 verkopen, en hij handelt niet op de stroombeurs. Onze rekenmotor kan dat wel, en de regels
@@ -504,7 +512,42 @@ Beantwoord je meer vragen, dan vervalt de aanname en niet alleen de onzekerheid.
 staat er "Indicatief" boven een antwoord op vier vragen: niet omdat de band breder is,
 maar omdat dit de dingen zijn die wij hebben ingevuld in plaats van gevraagd.
 
-## 17. Wat wij niet weten
+## 17. Wat "indicatief", "goed" en "precies" betekenen
+
+Boven elk antwoord staat een van deze drie woorden. Ze zeggen iets anders dan de
+bandbreedte eronder, en dat verschil is met opzet.
+
+**De band zegt hoe zeker het model is. Het woord zegt hoeveel jij ons verteld
+hebt.** Een smalle band onder het woord "indicatief" is dus geen tegenspraak: het
+model is zeker over het antwoord op de vraag die daadwerkelijk gesteld is. Als
+volledigheid van invoer de band mocht versmallen, of een smalle band het woord
+mocht opwaarderen, dan zouden die twee elkaar versterken en zag een zeker
+verkeerd getal eruit als een precies goed getal.
+
+Dit krijg je wanneer:
+
+| Woord | Wanneer |
+|---|---|
+| Indicatief | Je hebt de vier vragen van ronde 1 beantwoord |
+| Goed | Je hebt ook de vijf vragen van ronde 2 beantwoord, dus negen in totaal |
+| Precies | Alleen met je eigen kwartierdata uit de meter |
+
+Het is geen glijdende schaal. In deze versie tellen wij vier of negen, want dat
+zijn de twee formulieren die bestaan, en de grens ligt bij vijf.
+
+**"Precies" kun je vandaag niet krijgen, en dat hoor je te weten.** Die stand is
+er voor het moment dat je je meter koppelt, en deze versie neemt geen meterdata
+aan. Zolang dat zo is, komt er nooit "precies" boven een antwoord te staan. Wij
+laten het woord in de schaal staan omdat het beschrijft waar deze schaal heen
+gaat, en niet omdat het bereikbaar is.
+
+Waarom meterdata een eigen woord verdient en niet gewoon een tiende antwoord is:
+de vragen vervangen elk een parameter van ons standaardprofiel, en kwartierdata
+vervangt dat profiel zelf. Dat is het onderdeel dat het antwoord het meest
+bepaalt, dus een huishouden met meterdata en verder niets ingevuld weet meer over
+zijn antwoord dan een huishouden dat negen vragen beantwoordde.
+
+## 18. Wat wij niet weten
 
 Voor de volledigheid, op een rij:
 

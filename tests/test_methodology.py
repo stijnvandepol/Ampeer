@@ -32,6 +32,8 @@ from ampeer_sim.production.model import (
 from ampeer_sim.types import Household, PVSystem
 
 METHODOLOGY = Path(__file__).resolve().parent.parent / "docs" / "methodologie.md"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SERIALIZERS = REPO_ROOT / "backend" / "advice" / "serializers.py"
 TEXT = METHODOLOGY.read_text(encoding="utf-8")
 
 GOLDEN: dict[str, dict[str, Any]] = json.loads(
@@ -473,3 +475,97 @@ def test_the_document_says_the_battery_never_charges_from_the_grid() -> None:
     chapter = TEXT.split("## 8.", 1)[1].split("## 9.", 1)[0]
     assert "laadt nooit stroom van het net" in chapter
     assert "handelt niet op de stroombeurs" in chapter
+
+
+def _class_attribute(source: Path, class_name: str, attribute: str) -> object:
+    """A ClassVar assigned a literal, read without importing Django."""
+    tree = ast.parse(source.read_text(encoding="utf-8"))
+    node = next(
+        item
+        for item in ast.walk(tree)
+        if isinstance(item, ast.ClassDef) and item.name == class_name
+    )
+    for statement in node.body:
+        target = None
+        if isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name):
+            target = statement.target.id
+        elif isinstance(statement, ast.Assign) and isinstance(statement.targets[0], ast.Name):
+            target = statement.targets[0].id
+        if target == attribute:
+            value = statement.value
+            assert isinstance(value, ast.Constant), f"{class_name}.{attribute} is not a literal"
+            return value.value
+    raise AssertionError(f"{class_name} no longer sets {attribute}")
+
+
+def test_the_document_says_where_a_battery_gets_its_power() -> None:
+    """The fourth of the four things chapter 8 says it models.
+
+    Depth and efficiency had values, power did not, and power is derived rather
+    than asked: every battery on the capacity curve is modelled at half its
+    capacity in kilowatts. The constant carries a measurement saying the answer
+    does not move between 0.3 and 1.0, and that measurement is more useful to a
+    reader than the number, so the chapter carries both.
+    """
+    from ampeer_advice.advise import BATTERY_C_RATE
+
+    assert BATTERY_C_RATE == 0.5, (
+        f"a battery is now modelled at {BATTERY_C_RATE} C and chapter 8 says half"
+    )
+    chapter = TEXT.split("## 8.", 1)[1].split("## 9.", 1)[0]
+    assert "de helft ervan in kilowatt" in chapter
+    assert "5 kW bij een batterij van 10 kWh" in chapter
+    assert "0,3 en 1,0" in chapter, "the chapter no longer quotes the range that was measured"
+
+
+def test_the_document_explains_all_three_confidence_levels() -> None:
+    """A label on every answer, explained in one word until 2026-08-21.
+
+    The document named INDICATIVE in passing and said nothing about the other
+    two, so a household reading "indicatief" had no way to learn what the scale
+    was or how to move up it. The answer is short and worth printing: round one
+    or round two.
+    """
+    from ampeer_advice.confidence import GOOD_FIELD_COUNT
+
+    chapter = TEXT.split("## 17.", 1)[1].split("## 18.", 1)[0]
+    for word in ("Indicatief", "Goed", "Precies"):
+        assert word in chapter, f"chapter 17 no longer names {word}"
+    assert GOOD_FIELD_COUNT == 5, (
+        f"the threshold is now {GOOD_FIELD_COUNT} and the chapter says five"
+    )
+    assert "de grens ligt bij vijf" in chapter
+
+    estimate = _class_attribute(SERIALIZERS, "EstimateInputSerializer", "QUESTION_COUNT")
+    refine = _class_attribute(SERIALIZERS, "RefineInputSerializer", "QUESTION_COUNT")
+    assert (estimate, refine) == (4, 9), (
+        f"the two forms now count {estimate} and {refine}; chapter 17 says four and nine"
+    )
+    assert "vier vragen van ronde 1" in chapter
+    assert "negen in totaal" in chapter
+
+
+def test_the_document_says_precise_cannot_be_reached_yet() -> None:
+    """The third level, and the third dead path found in this document.
+
+    `confidence_for` returns PRECISE only for has_meter_data, and nothing
+    outside ampeer_advice ever passes it, so no answer this version produces can
+    carry that word. Leaving the level in the scale is fine; leaving a reader to
+    discover it is unreachable is not.
+
+    Conditional, like the one about the ageing correction: the day the API
+    supplies meter data this stops applying and the sentence has to go.
+    """
+    supplied = any(
+        isinstance(node, ast.Call)
+        and any(keyword.arg == "has_meter_data" for keyword in node.keywords)
+        for path in (REPO_ROOT / "backend").rglob("*.py")
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+    )
+    if supplied:
+        pytest.skip("the API now supplies meter data, so PRECISE is reachable")
+    chapter = TEXT.split("## 17.", 1)[1].split("## 18.", 1)[0]
+    assert "kun je vandaag niet krijgen" in chapter, (
+        "nothing supplies meter data, so no answer can say PRECISE, and chapter 17 "
+        "has to keep saying so"
+    )
