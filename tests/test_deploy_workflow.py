@@ -18,9 +18,12 @@ it by triggering only on a tag and waiting for a review.
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import shutil
+import stat
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -471,11 +474,13 @@ DEPLOY_README = REPO_ROOT / "infra" / "README.md"
 README_STEP_WORDS = (
     ("Confirm the preflight", "the preflight's digest"),
     ("Confirm the compose file", "the compose file's digest"),
+    ("Confirm the backup script", "the backup script's digest"),
     ("Check the nine variables", "runs the preflight"),
     ("Log in to the registry", "logs in to GHCR"),
     ("Pull what CI built", "`pull`"),
     ("Confirm the images", "confirms the pulled digests"),
     ("Record the release", "records the running release"),
+    ("Confirm something is backing", "confirms a recent backup"),
     ("Migrate", "`migrate`"),
     ("Start it", "`up -d`"),
     ("Fall back", "falls back"),
@@ -501,6 +506,34 @@ def _readme_deploy_summary() -> str:
     # that happens to straddle a line break is still the phrase a reader
     # reads.
     return " ".join(paragraph.split())
+
+
+def test_the_pairing_covers_every_step_the_deploy_has() -> None:
+    """The hole this pairing had for exactly one round.
+
+    README_STEP_WORDS is written by hand, so on its own it guards the steps
+    somebody already thought about and says nothing about a new one. Two steps
+    were added to the deploy job on 2026-08-21, neither was in this list,
+    neither was in the README, and all seventy four tests passed. That is the
+    same defect as the one this file's own commit message described in the
+    methodology test a round earlier, built into the fix for it.
+
+    Requiring the pairing to be total is what closes it: a step with no entry
+    fails here, and an entry with no step fails as well, so neither list can
+    grow past the other.
+    """
+    names = [str(step.get("name", "")) for step in _steps("deploy")]
+    unpaired = [
+        name for name in names if not any(fragment in name for fragment, _ in README_STEP_WORDS)
+    ]
+    assert not unpaired, (
+        "the deploy job has steps this pairing knows nothing about, so the README "
+        f"is not required to mention them: {unpaired}"
+    )
+    assert len(README_STEP_WORDS) == len(names), (
+        f"{len(README_STEP_WORDS)} pairings against {len(names)} steps; one entry "
+        "matches more than one step or the job gained one nothing describes"
+    )
 
 
 def test_the_readme_summary_names_every_step_the_deploy_runs() -> None:
@@ -892,3 +925,235 @@ def test_the_preflight_says_it_is_installed_by_hand() -> None:
     header = PREFLIGHT.read_text(encoding="utf-8")[:2000]
     assert "/srv/ampeer" in header
     assert "by hand" in header
+
+
+# ---------------------------------------------------------------------------
+# The backup
+# ---------------------------------------------------------------------------
+
+BACKUP = REPO_ROOT / "scripts" / "backup_db.sh"
+
+#: The tail of a dump pg_dump finished writing. Copied from a real one taken on
+#: 2026-08-21 against PostgreSQL 16.15 in this stack, including the unrestrict
+#: line 16.15 writes after the marker, because that line is why the script
+#: searches the tail rather than comparing the last line.
+FINISHED_DUMP_TAIL = chr(10).join(
+    (
+        "SET row_security = off;",
+        "",
+        "--",
+        "-- PostgreSQL database dump complete",
+        "--",
+        "",
+        chr(92) + "unrestrict HACdGL7B29Eo9IeL5tPGCr4cm3AcvLK9laqrRj8r34kl",
+        "",
+    )
+)
+
+
+def _posix_modes_work(path: Path) -> bool:
+    """Whether this filesystem carries the permission bits the check reads.
+
+    On Windows it does not: `chmod 700` leaves a directory at 755, so the last
+    two checks in the script can never pass there. Skipping on that is honest;
+    asserting it anyway would teach a developer that a red suite is normal, and
+    the host and CI are both Linux where it is the property that matters.
+    """
+    probe = path / "probe"
+    probe.mkdir()
+    probe.chmod(0o700)
+    return stat.S_IMODE(probe.stat().st_mode) == 0o700
+
+
+def _backup_check(directory: Path) -> subprocess.CompletedProcess[str]:
+    bash = shutil.which("bash")
+    assert bash, "these tests drive a shell script and need bash on PATH"
+    return subprocess.run(
+        [bash, BACKUP.as_posix(), "--check", directory.as_posix()],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _dump(directory: Path, name: str = "ampeer-20260821T043000Z.sql") -> Path:
+    directory.mkdir(parents=True, exist_ok=True)
+    directory.chmod(0o700)
+    path = directory / name
+    path.write_text("-- PostgreSQL database dump\n" + FINISHED_DUMP_TAIL, encoding="utf-8")
+    path.chmod(0o600)
+    return path
+
+
+def test_the_deploy_pins_the_checksum_of_the_backup_script() -> None:
+    """The third file on the host that nothing else can see.
+
+    scripts/backup_db.sh is copied to /srv/ampeer by hand like the preflight,
+    and an out-of-date copy is silent in a specific way: it keeps a different
+    number of dumps and allows a different staleness, so the deploy stays green
+    while the retention window is not the one this repository describes.
+    """
+    digest = hashlib.sha256(BACKUP.read_bytes()).hexdigest()
+    text = (REPO_ROOT / ".github" / "workflows" / DEPLOY_WORKFLOW).read_text(encoding="utf-8")
+    assert digest in text, (
+        f"scripts/backup_db.sh hashes to {digest}, which .github/workflows/deploy.yml "
+        "does not name. Update BACKUP_SHA256 in the workflow and re-copy the script to "
+        "/srv/ampeer/ on the host."
+    )
+
+
+def test_the_backup_script_is_checked_before_it_is_run() -> None:
+    """Order, for the reason the digest check on the preflight has the same one."""
+    pin = _only_deploy_step(lambda run: "BACKUP_SHA256" in run, "checks the backup script digest")
+    use = _only_deploy_step(
+        lambda run: "backup_db.sh" in run and "--check" in run, "runs the backup check"
+    )
+    assert pin < use, f"digest check at {pin}, use at {use}"
+
+
+def test_the_backup_check_runs_before_the_migration() -> None:
+    """The placement is the point.
+
+    This deploy applies migrations and nothing rolls a schema back, so the
+    moment a recent dump matters is the moment before the first statement runs.
+    A check at the end of the job reports there is no backup immediately after
+    the release that needed one.
+    """
+    check = _only_deploy_step(
+        lambda run: "backup_db.sh" in run and "--check" in run, "runs the backup check"
+    )
+    migrate = _only_deploy_step(lambda run: "manage.py migrate" in run, "runs migrations")
+    assert check < migrate, f"backup check at {check}, migrate at {migrate}"
+
+
+class TestTheBackupCheck:
+    def test_it_reports_a_directory_that_was_never_created(self, tmp_path: Path) -> None:
+        result = _backup_check(tmp_path / "absent")
+        assert result.returncode == 1, result.stdout
+        assert "no backup directory" in result.stderr
+
+    def test_it_reports_a_directory_with_nothing_in_it(self, tmp_path: Path) -> None:
+        """Different from the one above, and the difference is what to do next.
+
+        An absent directory means nobody installed this. An empty one means the
+        unit ran and produced nothing, or somebody deleted the dumps.
+        """
+        empty = tmp_path / "backups"
+        empty.mkdir()
+        empty.chmod(0o700)
+        result = _backup_check(empty)
+        assert result.returncode == 1, result.stdout
+        assert "no dump in" in result.stderr
+
+    def test_it_refuses_a_dump_that_stops_halfway(self, tmp_path: Path) -> None:
+        """The check a size threshold cannot make.
+
+        pg_dump exiting zero says nothing about a redirect that ran out of
+        disk. A truncated file is worse than no file, because it is the one
+        somebody would restore from.
+        """
+        directory = tmp_path / "backups"
+        path = _dump(directory)
+        path.write_text("-- PostgreSQL database dump" + chr(10) + "CREATE TABLE half_")
+        result = _backup_check(directory)
+        assert result.returncode == 1, result.stdout
+        assert "does not end the way a finished dump ends" in result.stderr
+
+    def test_it_refuses_an_empty_file(self, tmp_path: Path) -> None:
+        directory = tmp_path / "backups"
+        _dump(directory).write_text("", encoding="utf-8")
+        result = _backup_check(directory)
+        assert result.returncode == 1, result.stdout
+
+    def test_it_reports_a_dump_older_than_the_timer_period(self, tmp_path: Path) -> None:
+        """Two days, which is one entirely missed run rather than a late one."""
+        directory = tmp_path / "backups"
+        path = _dump(directory)
+        two_days = time.time() - 48 * 3600
+        os.utime(path, (two_days, two_days))
+        result = _backup_check(directory)
+        assert result.returncode == 1, result.stdout
+        assert "hours old" in result.stderr
+
+    def test_it_accepts_a_dump_from_this_morning(self, tmp_path: Path) -> None:
+        directory = tmp_path / "backups"
+        if not _posix_modes_work(tmp_path):
+            pytest.skip("this filesystem does not carry POSIX modes; the host and CI do")
+        _dump(directory)
+        result = _backup_check(directory)
+        assert result.returncode == 0, result.stdout + result.stderr
+
+    def test_it_refuses_a_directory_other_people_can_read(self, tmp_path: Path) -> None:
+        """These files hold advice the service has already stopped serving."""
+        directory = tmp_path / "backups"
+        if not _posix_modes_work(tmp_path):
+            pytest.skip("this filesystem does not carry POSIX modes; the host and CI do")
+        _dump(directory)
+        directory.chmod(0o755)
+        result = _backup_check(directory)
+        assert result.returncode == 1, result.stdout
+        assert "somebody other than its owner" in result.stderr
+
+    def test_it_refuses_a_readable_dump_inside_a_closed_directory(self, tmp_path: Path) -> None:
+        directory = tmp_path / "backups"
+        if not _posix_modes_work(tmp_path):
+            pytest.skip("this filesystem does not carry POSIX modes; the host and CI do")
+        _dump(directory).chmod(0o644)
+        result = _backup_check(directory)
+        assert result.returncode == 1, result.stdout
+        assert "expected 600" in result.stderr
+
+    def test_the_permission_checks_come_after_the_ones_about_existence(
+        self, tmp_path: Path
+    ) -> None:
+        """Ordering inside the script, asserted from the outside.
+
+        A directory somebody left at 755 must not be the answer that comes back
+        when there is no dump in it at all. Both are wrong; only one of them
+        means there is no backup.
+        """
+        directory = tmp_path / "backups"
+        directory.mkdir()
+        directory.chmod(0o755)
+        result = _backup_check(directory)
+        assert result.returncode == 1
+        assert "no dump in" in result.stderr, result.stderr
+        assert "somebody other than its owner" not in result.stderr
+
+
+def test_the_backup_unit_fails_when_the_dump_it_just_took_is_not_usable() -> None:
+    """The same shape as ampeer-purge.service, and for the same reason.
+
+    ExecStartPost runs only if ExecStart succeeded, so it asks the question the
+    exit status did not: the dump reported a byte count, and is the directory
+    now something a restore could use?
+    """
+    unit = (REPO_ROOT / "infra" / "systemd" / "ampeer-backup.service").read_text(encoding="utf-8")
+    post = [line for line in unit.splitlines() if line.startswith("ExecStartPost=")]
+    assert post, "the backup unit cannot fail on a dump that is not usable"
+    assert "backup_db.sh --check" in post[0], post
+
+
+def test_the_backup_timer_runs_after_the_purge() -> None:
+    """A dump taken before the purge is a snapshot of rows about to be deleted.
+
+    Taken after, it only ever holds what the service could still serve when it
+    was written. That does not make the copy disappear, and infra/README.md
+    section 8 says what it does and does not buy, but the ordering is the
+    difference between a backup that happens to hold expired advice and one
+    that is scheduled to.
+    """
+    units = REPO_ROOT / "infra" / "systemd"
+    digit = chr(92) + "d"
+    pattern = "^OnCalendar=.*?(" + digit + digit + "):(" + digit + digit + "):"
+    minutes = {}
+    for name in ("ampeer-purge.timer", "ampeer-backup.timer"):
+        text = (units / name).read_text(encoding="utf-8")
+        found = re.findall(pattern, text, re.MULTILINE)
+        assert found, f"{name} has no OnCalendar with a time of day"
+        hour, minute = found[0]
+        minutes[name] = int(hour) * 60 + int(minute)
+    assert minutes["ampeer-backup.timer"] > minutes["ampeer-purge.timer"], (
+        "the backup runs before the purge, so every dump is a snapshot of rows "
+        f"the purge is about to delete: {minutes}"
+    )

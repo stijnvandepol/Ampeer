@@ -222,9 +222,10 @@ either way.
 
 Anything stronger than that is a different mechanism, not a shorter timer: it
 means `VACUUM FULL` or a rewrite of the table, a bounded WAL retention, and a
-statement about the backup that the previous paragraph in section 7 says nobody
-is taking. None of it is here, and claiming the weaker thing accurately is worth
-more than implying the stronger one.
+statement about the backup. The first two are still not here, and claiming the
+weaker thing accurately is worth more than implying the stronger one. The third
+one now exists and section 8 makes it: a dump taken before an advice expired
+still holds it, for at most as long as that dump is kept.
 
 ---
 
@@ -277,9 +278,10 @@ A tag matching `v*` on `main` triggers `.github/workflows/deploy.yml`:
   `NEXT_PUBLIC_API_BASE=` (empty, so the client uses relative paths), builds
   both images and pushes them to GHCR
 - `deploy` on the self-hosted runner, behind `environment: production`: checks
-  the preflight's digest, checks the compose file's digest, runs the preflight,
-  logs in to GHCR, `pull`, confirms the pulled digests, records the running
-  release, `migrate`, `up -d`, falls back if that failed,
+  the preflight's digest, checks the compose file's digest, checks the backup
+  script's digest, runs the preflight, logs in to GHCR, `pull`, confirms the
+  pulled digests, records the running release, confirms a recent backup exists,
+  `migrate`, `up -d`, falls back if that failed,
   `purge_expired_advice --check`, `docker logout`
 
 No checkout, no `docker build`, no token that can read the repository, and
@@ -480,7 +482,8 @@ project name `ampeer`, which is the name the host uses, because
 `docker-compose.yml` sets it and compose takes the project name from the last
 file that names one. Typed in a checkout on a machine whose docker context points
 at the LXC, the teardown below would have destroyed the production database.
-Nothing in this repository backs that database up or mentions a backup.
+At the time nothing in this repository backed that database up. Section 8 is
+what changed that, and it is a daily dump rather than an undo.
 
 `infra/compose.test.yml` now sets `name: ampeer-local`, so every command that
 includes it names the local project and the production one cannot be reached by
@@ -500,9 +503,10 @@ docker compose -f /srv/ampeer/docker-compose.yml --env-file /srv/ampeer/.env \
 ls -l ~/ampeer-*.sql
 ```
 
-Nothing schedules that, nothing checks it, and no workflow in this repository
-takes a backup. It is a line to type, which is worth exactly as much as a line
-to type; saying so is better than implying a safety net that is not there.
+`ampeer-backup.timer` schedules that same dump daily and the deploy job refuses
+to migrate without a recent one, so this is no longer the only copy anybody
+takes. Type it anyway before a `-v`: the newest scheduled dump can be a day old,
+and the rows you are about to destroy may have arrived since.
 
 Tear down the local stack with:
 
@@ -530,6 +534,120 @@ and it does not list `tunnel`, because a service behind a disabled profile is no
 in that list.
 
 ---
+
+---
+
+## 8. The backup, and what it costs
+
+`ampeer-backup.timer` runs `scripts/backup_db.sh` daily at 04:30 and leaves a
+`pg_dump` in `/srv/ampeer/backups`. The script is copied to the host by hand
+like the preflight, and the deploy job compares its sha256 against
+`BACKUP_SHA256` in the workflow, so a stale copy stops a release instead of
+quietly keeping a different number of dumps.
+
+### Why the audit log is the reason
+
+Three tables. `StoredAdvice` can be recomputed, because the inputs are stored
+next to the answer. `ProductionCache` can be refetched from PVGIS. `AuditEvent`
+cannot be either. It is append-only, it has no retention, and it is the record
+that an advice was generated and that a consent was given or withdrawn.
+
+Append-only defends that log against a later developer running
+`update_or_create` over it. It does nothing about the disk going away, and the
+disk going away is the failure an audit log exists to survive. That is the whole
+argument for this section existing.
+
+### What it costs, stated rather than implied
+
+Ninety days after an advice is made the purge deletes it and the service stops
+being able to find it. A dump taken the day before still holds it. Three things
+bound what that means, and each is a property of the script or the timer rather
+than a promise:
+
+- **The timer runs an hour after the purge, not before it.** A dump therefore
+  never contains an advice that was already past its date when the dump was
+  taken. It does not make the copy disappear; it means the copy is what the
+  service could still serve at that moment, rather than a deliberate snapshot of
+  rows about to be deleted.
+- **Dumps older than seven days are deleted on every run.** One week of restore
+  points: short enough that a copy of a purged advice does not outlive it by
+  much, long enough that a failure nobody looked at over a weekend is still
+  recoverable on the Monday.
+- **Restoring one does not extend anything permanently.** The purge runs daily
+  and deletes whatever came back past its date within one cycle.
+
+So the question a backup actually raises here is not how long a household's
+figures live in the service. It is who can read these files. They are written
+`0600` into a directory the script creates `0700`, and `--check` refuses to call
+a backup healthy when either is looser than that.
+
+**This is a privacy trade and it is reversible.** Before this section there was
+no copy of a purged advice anywhere. There is one now, for at most a week. The
+alternative that avoids the trade is dumping only `AuditEvent`, and it was not
+taken: a backup that cannot bring the service back is the kind of false comfort
+this file exists to avoid.
+
+### What `--check` checks, and where
+
+`backup_db.sh --check` reads the directory and nothing else. No database, no
+container, because the question is whether anything is backing this host up, and
+a check that needed the service it checks could not answer it on a host where
+that service is what broke. In order:
+
+1. the directory exists,
+2. it holds at least one `*.sql`,
+3. the newest one ends the way a finished `pg_dump` ends,
+4. it is no more than 26 hours old,
+5. the directory is `700` and the file is `600`.
+
+Permissions are last on purpose. A directory somebody left at `755` must not be
+the answer that comes back when there is no dump in it at all.
+
+It runs in two places. `ExecStartPost` on the unit, which asks the question the
+exit status did not: the dump reported a byte count, and is the directory now
+something a restore could use? And in the deploy job **before `migrate`**,
+because this deploy applies migrations, nothing rolls a schema back, and the
+moment a recent dump matters is the moment before the first statement runs.
+
+Neither catches a timer that was never enabled, in the sense that
+`ExecStartPost` only runs when the unit runs. The deploy step does: it reads the
+directory on a host where the timer has never fired and goes red.
+
+### The bootstrap, and the first deploy
+
+A first deploy fails at that step, because there is no backup directory until
+the timer has run once. That is deliberate and it is the same shape as the
+preflight refusing to start without an env file. Before the first release:
+
+```sh
+cp scripts/backup_db.sh /srv/ampeer/backup_db.sh
+chmod 700 /srv/ampeer/backup_db.sh
+cp infra/systemd/ampeer-backup.* /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now ampeer-backup.timer
+systemctl start ampeer-backup.service     # once, so a dump exists
+systemctl list-timers ampeer-backup.timer
+```
+
+### Restoring, measured rather than assumed
+
+A dump nobody has restored is a hypothesis. Measured on 2026-08-21 against
+PostgreSQL 16.15 in this stack: a table with two rows was dumped, the database
+was dropped with `WITH (FORCE)` and recreated empty, the dump was fed back
+through `psql`, and both rows returned with their contents intact.
+
+Two sizes from the same measurement, so a file that looks wrong can be
+recognised: an empty database dumps to 643 bytes, and one with a single two-row
+table to 2074. A dump is plain SQL and compresses well; nothing here compresses
+it, because a corrupted archive is harder to salvage by hand than a truncated
+text file.
+
+**What is not covered.** The api container is stopped for none of this, so a dump
+is taken while writes are in flight. `pg_dump` takes a consistent snapshot, so
+the file is coherent, but it is not a point-in-time recovery: anything written
+after the dump is gone. There is no WAL archiving and no off-host copy, so a
+failure that takes the LXC with it takes these files as well. Both are their own
+round.
 
 ## The two decisions that are not in this repository
 
