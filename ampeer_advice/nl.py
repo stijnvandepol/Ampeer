@@ -142,9 +142,9 @@ INPUT_LABELS: dict[str, str] = {
     "feed_in_price": "de terugleververgoeding",
     "feed_in_cost_per_kwh": "de terugleverkosten",
     "battery_cost_per_kwh": "de prijs van de batterij",
-    "annual_consumption_kwh": "je jaarverbruik",
-    "shiftable_block_kwh": "hoeveel verbruik je kunt verschuiven",
-    "system_loss_fraction": "het verlies in je installatie",
+    "annual_consumption_kwh": "uw jaarverbruik",
+    "shiftable_block_kwh": "hoeveel verbruik u kunt verschuiven",
+    "system_loss_fraction": "het verlies in uw installatie",
 }
 
 
@@ -174,13 +174,13 @@ def label_for(input_id: str) -> str:
 #: promise of importing nothing from the simulation core. A test pairs the two.
 PRODUCTION_SOURCE_TEXTS: dict[str, str] = {
     "PVGIS": (
-        "De opbrengst van je dak is opgevraagd bij PVGIS, de rekentool van de Europese "
-        "Commissie, op basis van echte instralingsmetingen voor jouw postcodegebied."
+        "De opbrengst van uw dak is opgevraagd bij PVGIS, de rekentool van de Europese "
+        "Commissie, op basis van echte instralingsmetingen voor uw postcodegebied."
     ),
     "FALLBACK": (
         "PVGIS was niet bereikbaar, dus wij hebben gerekend met onze eigen tabel: het "
-        "gemiddelde van negen weerjaren voor Nederland. Dat is nauwkeurig genoeg om je "
-        "een antwoord te geven en minder nauwkeurig dan een berekening voor jouw eigen "
+        "gemiddelde van negen weerjaren voor Nederland. Dat is nauwkeurig genoeg om u "
+        "een antwoord te geven en minder nauwkeurig dan een berekening voor uw eigen "
         "postcodegebied. Vraag het advies later nog eens op voor een scherper getal."
     ),
 }

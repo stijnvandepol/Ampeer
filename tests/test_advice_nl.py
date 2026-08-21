@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import ast
+import re
+from pathlib import Path
+
 import pytest
 
 from ampeer_advice.nl import CONFIDENCE_LABELS, ROUTE_TITLES, RULE_TEXTS, text_for
 from ampeer_advice.rules import RULE_IDS
 from ampeer_advice.types import Confidence, Route
+
+NL = Path(__file__).resolve().parent.parent / "ampeer_advice" / "nl.py"
 
 
 def test_every_rule_has_dutch_text() -> None:
@@ -92,3 +98,78 @@ def test_an_unknown_production_source_refuses_rather_than_falling_back() -> None
 
     with pytest.raises(KeyError, match="no Dutch text"):
         production_source_text("SOME_SOURCE_NOBODY_NAMED")
+
+
+# ---------------------------------------------------------------------------
+# The second person
+# ---------------------------------------------------------------------------
+
+#: Which form of address the advice layer uses. Dutch has two and this package
+#: has to pick one, because a household reads every string in this file inside a
+#: single answer.
+#:
+#: It is written here rather than assumed anywhere, so switching the product to
+#: "je" is a change to this line plus the strings, and the test below then names
+#: every string still on the old form instead of leaving them to be found by a
+#: reader. `docs/methodologie.md` is on "je" today and the app on "u"; that gap
+#: is a decision for the owner and is not what this test is about.
+ADVICE_REGISTER = "u"
+
+_SECOND_PERSON = {
+    "u": re.compile(r"(?<![A-Za-zÀ-ÿ])(u|uw|uzelf)(?![A-Za-zÀ-ÿ])"),
+    "je": re.compile(r"(?<![A-Za-zÀ-ÿ])(je|jij|jouw|jezelf)(?![A-Za-zÀ-ÿ])"),
+}
+
+
+def _dutch_strings() -> list[str]:
+    """Every string literal in nl.py, which is the whole of its output.
+
+    Read with ast rather than by importing and walking the dictionaries,
+    because a string added to a new dictionary tomorrow is still a string a
+    household will read.
+    """
+    tree = ast.parse(NL.read_text(encoding="utf-8"))
+    return [
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    ]
+
+
+def test_the_advice_layer_uses_one_form_of_address() -> None:
+    """Both forms reached the same answer until 2026-08-21.
+
+    Measured on the committed fixture that the frontend renders: sixteen "u" or
+    "uw" beside thirty-two "je" or "jouw". A visitor read "U levert een groot
+    deel van uw opwek terug" and "het verlies in je installatie" on one page.
+    Five strings were out of line with the other thirty-odd: three input labels
+    and the two sentences about where the production figures came from.
+
+    Nothing enforced it because nothing could: the language rule in this project
+    is about which language, and both of these are Dutch.
+    """
+    other = "je" if ADVICE_REGISTER == "u" else "u"
+    offenders = [
+        text
+        for text in _dutch_strings()
+        if _SECOND_PERSON[other].search(text) and not text.startswith("#")
+    ]
+    assert not offenders, (
+        f"ampeer_advice/nl.py addresses the household as {ADVICE_REGISTER!r} everywhere "
+        f"except here, and one answer carries all of it:\n  "
+        + "\n  ".join(repr(text[:80]) for text in offenders)
+    )
+
+
+def test_the_declared_form_of_address_is_the_one_actually_used() -> None:
+    """The constant above must describe the file rather than an intention.
+
+    Without this, flipping ADVICE_REGISTER to "je" and changing nothing else
+    would pass: every string would be free of "je", which is exactly what the
+    test above asks for and exactly the wrong reading.
+    """
+    used = sum(1 for text in _dutch_strings() if _SECOND_PERSON[ADVICE_REGISTER].search(text))
+    assert used > 0, (
+        f"nothing in nl.py addresses the household as {ADVICE_REGISTER!r}, so that "
+        "constant describes an intention rather than the file"
+    )
