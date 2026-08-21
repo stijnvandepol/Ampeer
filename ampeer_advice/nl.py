@@ -53,9 +53,12 @@ RULE_TEXTS: dict[str, str] = {
         "betaalt. Wij rekenen met een prijs tussen 450 en 900 euro per kWh, en dat is "
         "het verschil tussen wel en niet binnen twaalf jaar terugverdiend. Vraag "
         "offertes op en reken de prijs per kWh uit door het totaalbedrag te delen door "
-        "de capaciteit. Blijft u onder het bedrag dat wij hierboven noemen, dan verdient "
-        "de batterij zichzelf op tijd terug. Zit u erboven, dan niet. Doe eerst wat "
-        "hierboven staat, want dat kost niets en verlaagt meteen wat u nodig heeft."
+        "de capaciteit. Hierboven staat geen enkel bedrag maar een marge, omdat wij de "
+        "tarieven van 2027 niet kennen. Blijft u onder de onderkant van die marge, dan "
+        "verdient de batterij zichzelf op tijd terug bij alle tarieven die wij "
+        "doorrekenen. Zit u erboven, dan hangt het ervan af welke kant die tarieven op "
+        "gaan. Doe eerst wat hierboven staat, want dat kost niets en verlaagt meteen "
+        "wat u nodig heeft."
     ),
     "BATTERY_DOES_NOT_PAY_BACK": (
         "Een thuisbatterij is in uw situatie niet de moeite waard. De batterij verdient "
@@ -78,6 +81,28 @@ ROUTE_TITLES: dict[Route, str] = {
     Route.SHIFT_BEHAVIOUR: "Gratis: uw eigen ritme verschuiven",
     Route.SMART_CONTROL: "Gratis of bijna gratis: slimmer sturen met wat u al heeft",
     Route.STORAGE: "Investeren: stroom opslaan in een thuisbatterij",
+}
+
+#: Why the recommended capacity carries no band, keyed by the id the response
+#: sends. Every other amount in a battery advice is a band; this one is a choice
+#: out of the sizes that were simulated, and the reader is told that in words
+#: rather than left to wonder whether the band went missing.
+#:
+#: The second entry is not a variant of the first. It says the search reached
+#: the largest size we simulate without the curve ever flattening, so the number
+#: is a floor and not an answer.
+SIZING_BASIS_TEXTS: dict[str, str] = {
+    "CHOSEN_FROM_SIMULATED_CAPACITIES": (
+        "Deze maat is een keuze uit vijf doorgerekende maten en geen schatting, dus er "
+        "staat geen marge omheen. Het is de maat waarboven elke extra kWh opslag minder "
+        "dan de helft oplevert van wat de eerste kWh oplevert."
+    ),
+    "LIMITED_BY_LARGEST_SIMULATED_CAPACITY": (
+        "Deze maat is de grootste die wij doorrekenen. Bij u vlakt de opbrengst tot en "
+        "met die maat nog niet af, dus lees hem als een ondergrens: een grotere batterij "
+        "zou bij u mogelijk nog meer opleveren. Wij rekenen niet verder door, omdat wij "
+        "geen maat willen aanraden die wij niet gemeten hebben."
+    ),
 }
 
 #: How complete the input was. This label says nothing about the width of the

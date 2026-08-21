@@ -8,6 +8,7 @@ are put together, and that the two battery rules can never both come out.
 
 from __future__ import annotations
 
+import ast
 import dataclasses
 import inspect
 import json
@@ -23,17 +24,19 @@ import pytest
 
 import ampeer_advice as ADVICE_PACKAGE
 from ampeer_advice import ADVICE_VERSION
-from ampeer_advice.advise import (
-    MAX_ACCEPTABLE_PAYBACK_YEARS,
-    _storage_verdict,
-    advise,
-    recommended_route,
-)
-from ampeer_advice.battery import CAPACITIES, battery_advice
+from ampeer_advice.advise import _storage_verdict, advise, recommended_route
+from ampeer_advice.battery import CAPACITIES, MAX_ACCEPTABLE_PAYBACK_YEARS, battery_advice
 from ampeer_advice.nl import RULE_TEXTS
 from ampeer_advice.rules import RULES
 from ampeer_advice.tariffs import baseline_tariffs, scenario_2027_tariffs
-from ampeer_advice.types import Advice, AdviceContext, Confidence, Route
+from ampeer_advice.types import (
+    Advice,
+    AdviceContext,
+    BatteryAdvice,
+    Confidence,
+    Route,
+    ScenarioBand,
+)
 from ampeer_sim.economics.tariffs import annual_cost
 from ampeer_sim.engine.run import simulate
 from ampeer_sim.production.model import production_series
@@ -64,6 +67,13 @@ EXPECTED: dict[str, dict[str, Any]] = json.loads(
 
 GRID = YearGrid.for_year(2025)
 WEATHER_YEAR = 2025
+
+#: The break even price is recorded to the cent and asserted to the cent. It is
+#: a deterministic figure and the reader is told to hold a quote against it, so
+#: a tolerance wide enough to hide a rounding change would be a tolerance wide
+#: enough to hide the defect that put a rounding rule for euro amounts inside a
+#: constant named after a payback time.
+BREAK_EVEN_TOLERANCE_EUR = 0.01
 
 #: The advice must complete inside this, excluding the capacity curve. The curve
 #: costs five more year simulations through the Python timestep loop and is only
@@ -284,8 +294,35 @@ def test_the_golden_battery_sizing_is_stable(name: str) -> None:
         return
     assert battery is not None
     assert battery.sized_capacity_kwh == expected["battery_capacity_kwh"]
-    assert float(battery.payback_years_p50) == pytest.approx(
-        expected["battery_payback_p50_years"], abs=expected["payback_tolerance_years"]
+    tolerance = expected["payback_tolerance_years"]
+    assert float(battery.payback_years.mid) == pytest.approx(
+        expected["battery_payback_mid_years"], abs=tolerance
+    )
+    # Both ends too. The band decides whether a household is told "worth it
+    # even at the worst combination we price", so leaving its ends unrecorded
+    # would let the most consequential sentence in the product move without a
+    # diff. They are named low and high because they are the extremes of nine
+    # priced combinations and not percentiles of anything.
+    assert float(battery.payback_years.low) == pytest.approx(
+        expected["battery_payback_low_years"], abs=tolerance
+    )
+    assert float(battery.payback_years.high) == pytest.approx(
+        expected["battery_payback_high_years"], abs=tolerance
+    )
+    # Recorded and asserted. It sat in the golden file unread until 2026-08-21,
+    # which made it a number nothing could contradict: the figure the Dutch text
+    # tells the reader to compare a quote against was pinned by no test at all.
+    assert float(battery.break_even_cost_per_kwh.mid) == pytest.approx(
+        expected["battery_break_even_mid_cost_per_kwh"], abs=BREAK_EVEN_TOLERANCE_EUR
+    )
+    # The low end decides the unconditional yes: a battery is worth it at every
+    # combination we price only when the break even price clears the top of the
+    # cost band at the tariff level where storage earns least.
+    assert float(battery.break_even_cost_per_kwh.low) == pytest.approx(
+        expected["battery_break_even_low_cost_per_kwh"], abs=BREAK_EVEN_TOLERANCE_EUR
+    )
+    assert float(battery.break_even_cost_per_kwh.high) == pytest.approx(
+        expected["battery_break_even_high_cost_per_kwh"], abs=BREAK_EVEN_TOLERANCE_EUR
     )
 
 
@@ -295,7 +332,9 @@ def test_a_battery_recommendation_never_arrives_as_a_single_number(name: str) ->
     battery = _golden_advice(name).battery
     if battery is None:
         return
-    assert battery.payback_years_p10 < battery.payback_years_p50 < battery.payback_years_p90
+    assert battery.payback_years.low < battery.payback_years.mid < battery.payback_years.high
+    assert battery.annual_saving_eur.low < battery.annual_saving_eur.high
+    assert battery.break_even_cost_per_kwh.low < battery.break_even_cost_per_kwh.high
 
 
 def test_a_household_whose_battery_takes_over_twelve_years_is_told_so() -> None:
@@ -319,33 +358,95 @@ def test_a_household_whose_battery_takes_over_twelve_years_is_told_so() -> None:
     assert "CONSIDER_BATTERY" not in ids
     assert "BATTERY_DEPENDS_ON_PRICE" not in ids
     assert advice.battery is not None
-    assert advice.battery.payback_years_p50 > MAX_ACCEPTABLE_PAYBACK_YEARS
+    assert advice.battery.payback_years.mid > MAX_ACCEPTABLE_PAYBACK_YEARS
 
 
-def test_a_payback_inside_the_cost_band_is_reported_as_depending_on_the_price() -> None:
-    """The one household left with a maybe, and why the verdict has three states.
+#: What a band built in this file says it moved and held. The real ones get
+#: these from ampeer_advice.tariffs; here they only have to be present, because
+#: what is under test is that they travel with the figure.
+VARIED = ("supply_price", "feed_in_price", "feed_in_cost_per_kwh")
+PINNED = ("annual_consumption_kwh",)
 
-    This case exports 89 percent of what it makes, so storage is closer to worth
-    it here than anywhere else in the golden set. Its central payback clears
-    twelve years and its pessimistic end does not, and nothing about the
-    household decides which it turns out to be: the price of the quote does.
-    That is the one variable the reader can go and find out, so they are told
-    the price at which it flips rather than a yes they cannot check.
 
-    This used to be Rob, at 11.83 years against a limit of twelve. Correcting
-    the central net feed-in from a derived -0.010 per kWh to the published
-    +0.0025 pushed him to 12.46 and a clear no.
+def _band_of(low: str, mid: str, high: str) -> ScenarioBand:
+    return ScenarioBand.over(
+        values=[Decimal(low), Decimal(mid), Decimal(high)],
+        mid=Decimal(mid),
+        varied=VARIED,
+        pinned=PINNED,
+    )
+
+
+def _battery_with_payback(low: str, mid: str, high: str) -> BatteryAdvice:
+    """A battery advice that exists only to be judged by ``_storage_verdict``.
+
+    The payback band is named low, mid and high rather than p10, p50 and p90.
+    Those are not percentiles: they are the extremes of nine priced
+    combinations of the installed price and the tariff level, and the response
+    used to publish them under the percentile names the headline uses for a
+    genuine 243 run distribution.
     """
-    advice = _golden_advice("large_array_small_use")
-    ids = [fired.rule_id for fired in advice.fired]
-    assert "BATTERY_DEPENDS_ON_PRICE" in ids
-    assert "CONSIDER_BATTERY" not in ids
-    assert "BATTERY_DOES_NOT_PAY_BACK" not in ids
-    assert advice.battery is not None
-    assert advice.battery.payback_years_p50 <= MAX_ACCEPTABLE_PAYBACK_YEARS
-    assert advice.battery.payback_years_p90 > MAX_ACCEPTABLE_PAYBACK_YEARS
-    # The actionable number: below this installed price it pays back in time.
-    assert advice.battery.break_even_cost_per_kwh == Decimal("835.73")
+    return BatteryAdvice(
+        sized_capacity_kwh=7.0,
+        sized_at_largest_simulated_capacity=False,
+        annual_saving_eur=_band_of("240.00", "300.00", "360.00"),
+        payback_years=_band_of(low, mid, high),
+        curve=((7.0, _band_of("240.00", "300.00", "360.00")),),
+        break_even_cost_per_kwh=_band_of("480.00", "600.00", "720.00"),
+    )
+
+
+def test_the_verdict_has_three_states_and_each_one_is_reachable() -> None:
+    """Why the storage verdict is not a yes or a no.
+
+    A battery costs between 450 and 900 euro per kWh installed. Flipping the
+    most consequential sentence in the product on the midpoint of a factor two
+    spread would be a single number without a band deciding an answer, which is
+    the one thing this product promises not to do. So there are three outcomes,
+    and the middle one hands the reader the price at which it flips rather than
+    a yes they cannot check.
+
+    This is asserted against the function rather than against a household on
+    purpose, and the reason is a finding rather than a convenience. Until
+    2026-08-21 ``large_array_small_use`` carried this case end to end at 9.69
+    years. Once the capacity curve stopped being priced on consumption the free
+    routes had already claimed, it moved to 12.05, and no household in the
+    golden set reaches the middle state any more. Reaching for a household that
+    happens to land there would make this test a hostage to whichever case is
+    currently nearest the line; the boundaries themselves are what has to hold.
+    """
+    assert _storage_verdict(_battery_with_payback("6.0", "9.0", "11.9")) == "CONSIDER_BATTERY"
+    assert (
+        _storage_verdict(_battery_with_payback("8.0", "11.0", "16.0")) == "BATTERY_DEPENDS_ON_PRICE"
+    )
+    assert (
+        _storage_verdict(_battery_with_payback("10.0", "13.0", "19.0"))
+        == "BATTERY_DOES_NOT_PAY_BACK"
+    )
+
+    # Exactly on the limit is still a yes: twelve years is the warranty, and a
+    # battery that pays back in exactly twelve has paid back inside it.
+    on_the_line = _battery_with_payback("8.0", "10.0", str(MAX_ACCEPTABLE_PAYBACK_YEARS))
+    assert _storage_verdict(on_the_line) == "CONSIDER_BATTERY"
+
+
+def test_no_reference_household_is_told_to_buy_a_battery() -> None:
+    """The state of the answer after the double count was removed.
+
+    This is not a rule and it must not become one. It is a record of what the
+    corrected model says today about six households: for every one of them that
+    exports enough to be shown a battery at all, storage does not earn itself
+    back inside its warranty. If a change ever makes one of them a yes, this
+    test fails and somebody has to look at why, which is the point.
+    """
+    verdicts = {}
+    for name in EXPECTED:
+        advice = _golden_advice(name)
+        storage = [f.rule_id for f in advice.fired if f.route is Route.STORAGE]
+        if storage:
+            verdicts[name] = storage[0]
+    assert verdicts, "no golden household reaches the storage route at all"
+    assert set(verdicts.values()) == {"BATTERY_DOES_NOT_PAY_BACK"}, verdicts
 
 
 def test_an_unambiguous_buy_needs_the_whole_band_inside_the_limit() -> None:
@@ -359,9 +460,15 @@ def test_an_unambiguous_buy_needs_the_whole_band_inside_the_limit() -> None:
     rather than pretending a household produces it, so the branch stays covered
     and the threshold stays honest.
     """
-    generous = [(capacity, Decimal(str(capacity * 200))) for capacity in CAPACITIES]
+    generous = [
+        (
+            capacity,
+            _band_of(str(capacity * 190), str(capacity * 200), str(capacity * 210)),
+        )
+        for capacity in CAPACITIES
+    ]
     battery = battery_advice(generous)
-    assert battery.payback_years_p90 <= MAX_ACCEPTABLE_PAYBACK_YEARS
+    assert battery.payback_years.high <= MAX_ACCEPTABLE_PAYBACK_YEARS
     assert _storage_verdict(battery) == "CONSIDER_BATTERY"
 
 
@@ -383,7 +490,11 @@ def test_the_free_routes_never_save_more_than_the_problem_is_worth(name: str) ->
     """
     advice = _golden_advice(name)
     measured = sum(
-        (fired.estimated_saving_eur for fired in advice.fired if fired.estimated_saving_eur),
+        (
+            fired.estimated_saving_eur.mid
+            for fired in advice.fired
+            if fired.estimated_saving_eur is not None
+        ),
         start=Decimal("0"),
     )
     assert measured > Decimal("0"), "a household with free routes should have measured savings"
@@ -397,7 +508,7 @@ def test_every_free_route_that_fires_carries_a_measured_figure() -> None:
         if fired.route is Route.STORAGE:
             assert fired.estimated_saving_eur is None, fired
         else:
-            assert isinstance(fired.estimated_saving_eur, Decimal), fired
+            assert isinstance(fired.estimated_saving_eur, ScenarioBand), fired
 
 
 def test_a_household_with_nothing_to_gain_gets_no_advice_and_no_curve() -> None:
@@ -527,6 +638,165 @@ def test_no_rule_reads_anything_outside_the_advice_context() -> None:
         closure = inspect.getclosurevars(rule.condition)
         touched |= set(closure.nonlocals) | set(closure.globals)
         assert touched <= allowed, f"{rule.rule_id} reads {sorted(touched - allowed)}"
+
+
+def test_every_assumption_round_one_makes_pushes_the_answer_up() -> None:
+    """The claim chapter 16 of the methodology makes, held against the model.
+
+    Round one asks four questions and fills in the rest: nobody home during the
+    day, no electric car, no heat pump, no battery, a fixed contract. Every one
+    of those defaults makes the figure at the top of the answer larger than it
+    would be if the household said otherwise. That is the direction that makes
+    this product's case, not the direction that protects the reader, and the
+    published methodology says so in words. This is what keeps those words
+    true: if a default is ever changed to one that shrinks the shock, or the
+    model moves so that one of these stops holding, the document has to be
+    rewritten rather than quietly become wrong.
+
+    Directions only, not the figures. The figures are in the document, measured
+    on this same household, and they move with every tariff revision; the sign
+    of each difference is the claim.
+    """
+    case = HOUSEHOLDS["rob_fixed_contract"]
+    assumed = _central_shock("rob_fixed_contract")
+
+    def shock(
+        household: Household, dynamic: bool = False, battery: BatterySpec | None = None
+    ) -> Decimal:
+        system = PVSystem(peak_power_wp=case["peak_power_wp"], azimuth_deg=0.0, tilt_deg=35.0)
+        hourly, temperature, _ = FallbackProvider(WEATHER_YEAR).hourly_series(
+            household.postcode4, system.azimuth_deg, system.tilt_deg
+        )
+        production = production_series(hourly, system, GRID, weather_year=WEATHER_YEAR)
+        consumption = compose_consumption(
+            household,
+            GRID,
+            FlatProfiles().fractions(GRID.year, household.profile_category),
+            temperature,
+            weather_year=WEATHER_YEAR,
+            production_kwh=production,
+        )
+        flows = simulate(consumption, production, battery_spec=battery)
+        return annual_cost(flows, scenario_2027_tariffs(dynamic=dynamic)) - annual_cost(
+            flows, baseline_tariffs()
+        )
+
+    household = _household(case)
+    assert household.daytime_occupancy is False, "this case must carry the round one defaults"
+    assert household.ev is None and household.heat_pump is None
+
+    at_home = shock(dataclasses.replace(household, daytime_occupancy=True))
+    solar_car = shock(dataclasses.replace(household, ev=EV(behaviour=EVChargingBehaviour.SOLAR)))
+    heat_pump = shock(dataclasses.replace(household, heat_pump=HeatPump(heat_demand_kwh=8000.0)))
+    stored = shock(
+        household, battery=BatterySpec(capacity_kwh=5.0, max_charge_kw=2.5, max_discharge_kw=2.5)
+    )
+    dynamic = shock(household, dynamic=True)
+    #: The row each variant has in the table in chapter 16 of the methodology.
+    rows = {
+        "Overdag iemand thuis": at_home,
+        "Auto die overdag op eigen overschot laadt": solar_car,
+        "Warmtepomp": heat_pump,
+        "Thuisbatterij van 5 kWh": stored,
+        "Dynamisch contract": dynamic,
+    }
+    document = (Path(__file__).resolve().parent.parent / "docs" / "methodologie.md").read_text(
+        encoding="utf-8"
+    )
+    assert f"met deze aannames {round(assumed)} euro per jaar" in document
+    for label, measured in rows.items():
+        assert measured < assumed, f"{label} no longer lowers the shock: {measured} vs {assumed}"
+        # And the figure the document prints for it is the one measured here.
+        # This is the check the document did not have when it kept quoting a
+        # break even price the model had stopped producing.
+        row = f"| {label} | {round(measured)} euro, dus {round(assumed - measured)} lager |"
+        assert row in document, f"chapter 16 does not say {row!r}"
+
+    # The one that changes nothing, and it is not a rounding accident. While a
+    # household takes more from the grid than it exports, extra night time
+    # consumption is netted against itself under the rules that end in 2027, so
+    # what their end costs is unchanged by it.
+    night_car = shock(dataclasses.replace(household, ev=EV(behaviour=EVChargingBehaviour.NIGHT)))
+    assert night_car == assumed
+
+
+def test_no_constant_is_defined_twice_in_the_package() -> None:
+    """One name, one definition, or the two copies decide different things.
+
+    MAX_ACCEPTABLE_PAYBACK_YEARS was written out in both battery.py and
+    advise.py. The verdict a household reads was taken on advise.py's copy while
+    the break even price printed beside it, the Dutch text and this suite all
+    came from battery.py's, so moving one of them to fifteen would have shown a
+    household "worth considering" at fourteen years next to a price computed for
+    twelve, with every test still green and the published methodology still
+    saying twelve. Nothing pointed at the duplication, so this does.
+
+    Uppercase module level names only, which is what a constant looks like here.
+    """
+    definitions: dict[str, list[str]] = {}
+    package = Path(ADVICE_PACKAGE.__file__ or "").parent
+    for path in sorted(package.rglob("*.py")):
+        for node in ast.parse(path.read_text(encoding="utf-8")).body:
+            targets: list[str] = []
+            if isinstance(node, ast.Assign):
+                targets = [t.id for t in node.targets if isinstance(t, ast.Name)]
+            elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                targets = [node.target.id]
+            for name in targets:
+                if name.isupper():
+                    definitions.setdefault(name, []).append(path.name)
+    duplicated = {name: files for name, files in definitions.items() if len(files) > 1}
+    assert duplicated == {}, f"defined in more than one module: {duplicated}"
+
+
+def test_every_measured_saving_arrives_as_a_band_that_names_its_own_limits() -> None:
+    """No amount leaves this package alone, and none of them claims too much.
+
+    Each free route is measured at all three levels of the tariff band, which
+    costs no extra simulation because a tariff changes what a kilowatt hour is
+    worth and not where it goes. Three of the five assumptions the headline
+    varies are held still here, and the band carries their names so the response
+    can say the real spread is wider rather than implying it is this.
+    """
+    advice = _golden_advice("rob_fixed_contract")
+    measured = [
+        fired.estimated_saving_eur for fired in advice.fired if fired.route is not Route.STORAGE
+    ]
+    assert measured, "this household takes free routes, so it must have measured savings"
+    for band in measured:
+        assert band is not None
+        assert band.low < band.mid < band.high, band
+        assert set(band.varied) == {"supply_price", "feed_in_price", "feed_in_cost_per_kwh"}
+        assert set(band.pinned) == {
+            "annual_consumption_kwh",
+            "shiftable_block_kwh",
+            "system_loss_fraction",
+        }
+        assert band.combinations == 3
+
+
+def test_the_battery_band_moves_the_tariffs_and_not_only_the_battery_price() -> None:
+    """The band on a payback used to pin the tariffs and move the price alone.
+
+    That made its optimistic end the payback at the cheapest quote in the market
+    under tariffs assumed to be exactly right, which is the end that favours
+    buying. The saving itself now moves with the tariff band as well, and the
+    figures that stay pinned are named in the band rather than left out of it.
+    """
+    battery = _golden_advice("rob_fixed_contract").battery
+    assert battery is not None
+    # Rob is advised to move to a dynamic contract, so his battery is priced in
+    # the regime he is being told to move to. There is no separate feed-in
+    # charge there at any level, so that input is honestly absent rather than
+    # listed as something that moved.
+    assert set(battery.payback_years.varied) == {
+        "supply_price",
+        "feed_in_price",
+        "battery_cost_per_kwh",
+    }
+    assert battery.payback_years.combinations == 9
+    price_only_low = battery.payback_years.mid * Decimal("450") / Decimal("675")
+    assert battery.payback_years.low < price_only_low
 
 
 def test_the_rule_table_is_pinned_to_the_advice_version() -> None:

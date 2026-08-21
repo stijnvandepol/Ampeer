@@ -161,15 +161,94 @@ def test_the_coverage_comparison_is_not_rounded_away() -> None:
     assert _pyproject()["tool"]["coverage"]["report"]["precision"] >= 2
 
 
-def test_every_top_level_package_is_measured_for_coverage() -> None:
-    """A new package must not be exempt from the gates while they stay green."""
-    packages = {
+def test_every_package_is_measured_for_coverage() -> None:
+    """A new package must not be exempt from the gates while they stay green.
+
+    Both levels are checked. The first version of this globbed only the
+    repository root, which would have let every Django app under backend/ in
+    without being measured.
+    """
+    roots = {
         path.parent.name
         for path in REPO_ROOT.glob("*/__init__.py")
         if not path.parent.name.startswith(".")
     }
     measured = set(_pyproject()["tool"]["coverage"]["run"]["source"])
-    assert packages <= measured, f"packages outside coverage: {sorted(packages - measured)}"
+    assert roots <= measured, f"packages outside coverage: {sorted(roots - measured)}"
+
+    backend = REPO_ROOT / "backend"
+    if backend.is_dir():
+        assert "backend" in measured, "backend/ exists but is not measured for coverage"
+        apps = {path.parent.name for path in backend.glob("*/__init__.py")}
+        assert apps, "backend/ holds no python package; check this test still applies"
+
+
+#: Every gate that reads source, and the job that publishes it. The entry that
+#: would go missing quietly is `backend`: drop it from the bandit line and the
+#: `sast` check stays green over the part of the tree that was already safe,
+#: while the three anonymous public endpoints stop being scanned and nothing
+#: anywhere reports it. Coverage is asserted separately above, because it is
+#: configured in pyproject.toml rather than on a command line.
+SOURCE_GATES = (
+    ("ci.yml", "quality", "ruff check"),
+    ("ci.yml", "quality", "ruff format --check"),
+    ("ci.yml", "quality", "mypy"),
+    ("security.yml", "sast", "bandit"),
+)
+
+#: Every directory those gates have to name. Read from the tree rather than
+#: written down, so a package added later is covered by the same assertion.
+GATED_ROOTS = ("ampeer_sim", "ampeer_advice", "backend", "tools")
+
+
+def _run_steps(workflow: str, job: str) -> list[str]:
+    steps = _workflows()[workflow]["jobs"][job].get("steps", [])
+    return [str(step["run"]) for step in steps if "run" in step]
+
+
+@pytest.mark.parametrize(("workflow", "job", "tool"), SOURCE_GATES)
+def test_every_source_gate_reads_every_package(workflow: str, job: str, tool: str) -> None:
+    commands = [run for run in _run_steps(workflow, job) if tool in run]
+    assert commands, f"{workflow}:{job} runs no {tool} step at all"
+    for command in commands:
+        arguments = command.split(tool, 1)[1]
+        missing = [root for root in GATED_ROOTS if not re.search(rf"\b{root}\b", arguments)]
+        assert not missing, f"{tool} in {workflow}:{job} does not read {missing}"
+
+
+def test_the_deployment_checklist_runs_against_production_settings() -> None:
+    """wsgi.py is not imported by any test and is on the coverage omit list, so
+    a mistake in prod.py has no other way of being found before a deploy. The
+    fail level matters as much as the command: at the default, a warning about
+    a missing security header prints and exits zero."""
+    steps = _workflows()["ci.yml"]["jobs"]["quality"].get("steps", [])
+    checks = [step for step in steps if "check --deploy" in str(step.get("run", ""))]
+    assert len(checks) == 1, "the quality job does not run Django's deployment checklist"
+    step = checks[0]
+    assert "--fail-level WARNING" in step["run"], "a warning that exits zero is not a gate"
+    assert step["env"]["DJANGO_SETTINGS_MODULE"] == "ampeer.settings.prod"
+
+
+def test_the_coverage_omit_list_stays_short_and_justified() -> None:
+    """An omit entry is the quietest way to make a coverage floor stop meaning
+    anything: the percentage stays high because the untested code is no longer
+    counted. Only the two generated entry points may be listed."""
+    allowed = {"backend/manage.py", "backend/ampeer/wsgi.py"}
+    omitted = set(_pyproject()["tool"]["coverage"]["run"].get("omit", []))
+    assert omitted <= allowed, f"unjustified coverage omissions: {sorted(omitted - allowed)}"
+
+
+def test_every_service_container_is_pinned_by_digest() -> None:
+    """A tag is mutable. `postgres:16-alpine` on Tuesday and on Thursday are two
+    different images, and the pipeline already refuses an action pinned by tag
+    for exactly that reason."""
+    offenders = [
+        f"{name}.{service}: {config['image']}"
+        for name, job in _jobs().items()
+        for service, config in (job.get("services") or {}).items()
+        if "@sha256:" not in str(config.get("image", ""))
+    ]
+    assert not offenders, f"service containers not pinned by digest: {offenders}"
 
 
 def test_the_build_backend_is_pinned_exactly() -> None:
