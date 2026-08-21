@@ -709,8 +709,10 @@ compromised job into a permanent foothold, and it is why the deploy job ends
 with `docker logout` under `if: always()`.
 
 `tests/test_pipeline_contract.py` refuses every job that says `self-hosted`,
-because `ci.yml` and `security.yml` trigger on push to `feat/**` where no
-ruleset applies. The deploy job is the single named exception, and it is only
+because `ci.yml` triggers on push to `feat/**`, where no ruleset applies.
+`security.yml` is narrower and its earliest trigger is a pull request; the
+refusal covers both anyway, because a rule about the whole repository is easier
+to keep true than one that has to be rechecked per workflow. The deploy job is the single named exception, and it is only
 defensible because it triggers on a tag, declares `environment: production`,
 checks nothing out and builds nothing. The exception list is asserted to hold
 exactly one job.

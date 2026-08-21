@@ -92,9 +92,10 @@ een job achterlaat is er de volgende keer nog, en dat is precies de eigenschap d
 gecompromitteerde job permanent maakt.
 
 Daar komt bij wat al eerder is vastgesteld en waarom `tests/test_pipeline_contract.py`
-faalt op elke job die `self-hosted` zegt: de workflows draaien op `push` naar `feat/**`,
-waar geen ruleset geldt, dus een job die de self-hosted runner koos zou ongereviewde code
-binnen Stijns eigen netwerk draaien. Die test blijft staan, met één uitzondering die
+faalt op elke job die `self-hosted` zegt: `ci.yml` draait op `push` naar `feat/**`,
+waar geen ruleset geldt, dus een job daar die de self-hosted runner koos zou ongereviewde
+code binnen Stijns eigen netwerk draaien. `security.yml` is smaller en begint pas bij een
+pull request; de weigering geldt toch voor allebei. Die test blijft staan, met één uitzondering die
 expliciet benoemd moet worden: de deploy-job draait op `push` van een **tag** op `main`,
 niet op een branch, en heeft `environment: production` met een verplichte review.
 

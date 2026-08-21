@@ -138,9 +138,11 @@ SELF_HOSTED_EXCEPTIONS = frozenset({("deploy.yml", "deploy")})
 def test_no_job_runs_on_the_self_hosted_runner() -> None:
     """A self-hosted runner is registered on this repository.
 
-    These workflows trigger on push to feat/**, which no ruleset protects. A job
-    that selected self-hosted would run unreviewed code inside the owner's own
-    network. Nothing here may target it except the one job named in
+    ci.yml triggers on push to feat/**, which no ruleset protects, so a job
+    there that selected self-hosted would run unreviewed code inside the owner's
+    own network. security.yml is narrower and its earliest trigger is a pull
+    request; this refusal covers every workflow anyway, and
+    test_only_ci_triggers_on_a_feature_branch_push keeps that sentence true. Nothing here may target it except the one job named in
     SELF_HOSTED_EXCEPTIONS above, which is reachable only by pushing a tag and
     only through a review.
 
@@ -796,3 +798,88 @@ def test_the_local_runner_lists_no_command_the_pipeline_stopped_running(command:
         f"`{command}` is listed here but no workflow runs it any more; remove the "
         "entry rather than leaving it to vouch for a gate that is gone"
     )
+
+
+#: Every file that explains the self-hosted refusal by naming what a push to an
+#: unprotected branch can start. Each one has to name the workflows that
+#: actually do it and no others.
+#:
+#: All five said "ci.yml and security.yml", or "the workflows", until
+#: 2026-08-21. security.yml has never triggered on a feature push: its push
+#: trigger names dev alone and its earliest reach is a pull request. The rule
+#: those sentences justify is right and stays; the reason given for it
+#: overstated the exposure of one of the two workflows, in five places at once,
+#: because each was copied from the last.
+CLAIMS_ABOUT_FEATURE_PUSHES = (
+    ".github/workflows/deploy.yml",
+    "infra/README.md",
+    "tests/test_pipeline_contract.py",
+    "tests/test_deploy_workflow.py",
+    "docs/superpowers/specs/2026-08-21-deploy-design.md",
+)
+
+
+def _push_branches(workflow: dict[str, Any]) -> list[str]:
+    """The branches a workflow triggers on for a push, past the YAML trap.
+
+    PyYAML resolves an unquoted `on` key to the boolean True, so reading
+    `document["on"]` finds nothing and every assertion of the form "this does
+    not trigger on X" passes on a workflow that triggers on everything.
+    """
+    block = workflow.get("on", workflow.get(True))
+    assert block, "the workflow declares no triggers at all"
+    push = block.get("push") or {}
+    branches = push.get("branches") or []
+    return [str(branch) for branch in branches]
+
+
+def _workflows_started_by_a_feature_push() -> set[str]:
+    return {
+        name
+        for name, workflow in _workflows().items()
+        if any(branch.startswith("feat/") for branch in _push_branches(workflow))
+    }
+
+
+def test_only_ci_triggers_on_a_feature_branch_push() -> None:
+    """The fact five comments rest on, measured instead of repeated.
+
+    It is the reason `test_no_job_runs_on_the_self_hosted_runner` exists, and it
+    is the kind of sentence that gets copied from file to file and then quietly
+    stops being true when a trigger moves. Asserting the set rather than the
+    presence of ci.yml, so a second workflow gaining that trigger fails here and
+    has to be written into the five files below rather than widening what they
+    already claim.
+    """
+    assert _workflows_started_by_a_feature_push() == {"ci.yml"}, (
+        f"a feature push now starts {sorted(_workflows_started_by_a_feature_push())}; "
+        "the comments listed in CLAIMS_ABOUT_FEATURE_PUSHES describe the old set"
+    )
+
+
+#: The wordings that were wrong, each split in two so this file does not
+#: contain the phrases it refuses. The first attempt spelled them out and failed
+#: on itself, which is the same shape as a `# nosec` comment that explains what
+#: follows a `# nosec` comment: a check that reads text cannot quote the text it
+#: rejects. Neither half is a forbidden phrase on its own.
+WRONG_WORDINGS = (
+    ("ci.yml and secu", "rity.yml trigger on push"),
+    ("`ci.yml` and `secu", "rity.yml` trigger on push"),
+    ("These workflows trig", "ger on push to feat"),
+    ("the workflows trig", "ger on push"),
+    ("de workflows draai", "en op `push` naar `feat/**`"),
+)
+
+
+@pytest.mark.parametrize("path", CLAIMS_ABOUT_FEATURE_PUSHES)
+def test_no_file_still_says_the_security_workflow_runs_on_a_feature_push(path: str) -> None:
+    """The exact wordings that were wrong, refused by name.
+
+    A looser check would be a check on prose, which this repository has learned
+    not to trust: an earlier version of the methodology test searched a whole
+    document for a figure and passed on the paragraph that explained it rather
+    than the table that carried it.
+    """
+    text = (REPO_ROOT / path).read_text(encoding="utf-8")
+    for head, tail in WRONG_WORDINGS:
+        assert head + tail not in text, f"{path} still says {head + tail!r}"

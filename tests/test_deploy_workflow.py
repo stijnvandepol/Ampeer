@@ -8,8 +8,8 @@ preflight is the only thing standing between a missing variable and a container
 in a restart loop.
 
 The exception itself is the point. `tests/test_pipeline_contract.py` refuses any
-job that selects the self-hosted runner, because the workflows trigger on push
-to `feat/**` where no ruleset applies. That rule now has an exception, and an
+job that selects the self-hosted runner, because `ci.yml` triggers on push to
+`feat/**` where no ruleset applies. That rule now has an exception, and an
 exception that is not bounded is the gate being removed slowly, so the bound is
 asserted here: exactly one workflow, exactly one job, and that job has to earn
 it by triggering only on a tag and waiting for a review.
