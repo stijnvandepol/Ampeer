@@ -251,3 +251,206 @@ ontwikkelaar, en dan bewaakt de poort ze niet.
 - Het eenentwintigste verzoek in een uur krijgt 429, aangetoond
 - Dekking blijft 98 of hoger, `precision = 2` blijft staan
 - `mypy --strict` blijft schoon over de twee pure pakketten en over `backend`
+
+## 13. Blootstelling en privacy, ronde 2026-08-21
+
+Elf punten uit een audit op de geïmplementeerde API. Alle elf zijn gemeten en
+niet vermoed, en van elke nieuwe controle is aangetoond dat hij rood kan worden.
+Wat hieronder staat is de reden, niet de wijziging: de wijziging staat in de
+code en in de tests.
+
+### 13.1 Het aantal proxies is verplicht, en ontbreken is fataal
+
+`NUM_PROXIES` stond nergens. Zonder die instelling bouwt DRF de sleutel van zijn
+snelheidslimiet uit de volledige `X-Forwarded-For` die de client zelf meestuurt,
+dus elk verzoek met een andere header telde als een andere bezoeker. Gemeten op
+2026-08-21: veertig verzoeken met een roterende header, nul keer een 429.
+
+`prod.py` leest de waarde nu uit de omgeving zonder standaardwaarde, precies
+zoals `SECRET_KEY`. Ontbreekt hij, dan start het proces niet. Dat is een
+bewuste keuze tussen twee soorten falen: een proces dat weigert te starten
+merkt iemand bij de eerste deploy, een snelheidslimiet die stilletjes uit staat
+merkt niemand. `dev.py` zet de waarde op nul, want er staat geen proxy voor
+`runserver` of voor de testclient, en `test.py` erft die nul. Nul is niet
+hetzelfde als niet ingesteld: nul betekent negeer de header, niet ingesteld
+betekent vertrouw de header.
+
+De keuze om de waarde niet in `base.py` te zetten is dezelfde keuze: er bestaat
+geen gedeelde standaard die klopt, want het getal is een eigenschap van de
+proxyketen van één installatie.
+
+### 13.2 Alleen JSON, en dus geen 500 voor een browser
+
+De standaardlijst van DRF bevat `BrowsableAPIRenderer`, die een Django-template
+rendert, en `TEMPLATES` is leeg. Elke browser die een gedeelde link opende
+stuurde `Accept: text/html` en kreeg een `TemplateDoesNotExist`, dus een 500.
+Dat is de kernstroom van dit product: iemand deelt een link.
+
+`DEFAULT_RENDERER_CLASSES` staat nu vast op `JSONRenderer`. Dat lost het niet
+alleen op, het voorkomt ook dat het ooit terugkomt als iets ergers: zodra
+`TEMPLATES` wel ingevuld wordt, zou de standaardlijst een interactieve
+API-console publiceren op drie anonieme publieke endpoints.
+
+`DEFAULT_PARSER_CLASSES` is om dezelfde reden ingeperkt tot één parser. De
+frontend stuurt JSON; een formulier-body is nooit een ondersteunde invoer
+geweest, en `FormParser` en `MultiPartParser` zijn leesoppervlak dat geen enkele
+aanroeper nodig heeft.
+
+### 13.3 De teller van de snelheidslimiet staat in Postgres
+
+`prod.py` had geen `CACHES`, dus gold Django's `LocMemCache`. Een teller in een
+dictionary per proces is drie fouten tegelijk: de limiet geldt per worker in
+plaats van per dienst, hij begint opnieuw bij elke deploy, en het geheugen is
+begrensd op 300 ingangen, dus vanaf 400 verschillende sleutels wordt een derde
+weggegooid op volgorde van sleutel, inclusief de geschiedenis van degene die ze
+veroorzaakte.
+
+Het wordt `DatabaseCache`. Postgres is er al, de teller moet gedeeld zijn en
+moet een herstart overleven, en het besluit uit sectie 4 om Redis buiten het
+verzoekpad te houden blijft staan. De prijs is eerlijk te noemen: een verzoek
+kost nu een extra schrijfactie in de database.
+
+Twee dingen zijn hierbij niet vanzelf goed gegaan en staan daarom expliciet in
+de code. `MAX_ENTRIES` is bij Django op elke backend standaard 300, ook op
+`DatabaseCache`, dus het verplaatsen van de teller naar Postgres zou het
+weggooiprobleem gewoon hebben meegenomen. De waarde is opgehoogd tot een plafond
+waarbij verval, en niet opruiming, de manier is waarop een ingang verdwijnt. En
+de tabel wordt aangemaakt door een migratie in de `advice`-app en niet door een
+handmatige `createcachetable`, want een stap in een draaiboek is een stap die
+een deploy een keer overslaat.
+
+### 13.4 Te diep geneste JSON is een 400 en geen 500
+
+`json.load` werpt `RecursionError` bij invoer die welgevormd en te diep is, en
+de `JSONParser` van DRF vangt alleen de fouten die het bij ongeldige invoer
+werpt. `[` tweehonderdduizend keer is 200 kB en gaf onmiddellijk een 500, plus
+een regel in het foutenlogboek voor wat een gewoon verkeerd verzoek is.
+
+`advice/parsers.py` vangt het en antwoordt met een 400. De diepte zelf is niet
+instelbaar gemaakt: de grens bestond al, in de vorm van de recursielimiet van de
+interpreter. Wat ontbrak was het antwoord.
+
+### 13.5 Een deploy met ontwikkelinstellingen kan niet meer onopgemerkt blijven
+
+`wsgi.py` gebruikte `setdefault`, en daarmee wint een geëxporteerde
+`DJANGO_SETTINGS_MODULE`. Eén regel in een unit-bestand of een compose-bestand
+en het publieke verkeer wordt bediend met `DEBUG` aan, `ALLOWED_HOSTS` op
+localhost en een `SECRET_KEY` die in deze repository staat uitgeschreven.
+
+Twee wijzigingen, want ze dekken twee verschillende fouten. `wsgi.py` wijst de
+module nu hard toe in plaats van met `setdefault`, wat de verkeerde module
+categorisch uitsluit. En de `quality`-job draait `manage.py check --deploy
+--fail-level WARNING` tegen diezelfde module, wat een fout in `prod.py` zelf
+afvangt. Het faalniveau doet er evenveel toe als het commando: op het
+standaardniveau drukt een waarschuwing over een ontbrekende beveiligingsheader
+zichzelf af en eindigt de stap alsnog met nul.
+
+Die controle vond er meteen een. `CsrfViewMiddleware` stond niet in `MIDDLEWARE`,
+terwijl sectie 9 van dit document schrijft dat die middleware blijft staan. Het
+document had gelijk en de code niet, dus de middleware staat er nu. Hij
+beschermt vandaag niets, want DRF verpakt elke `APIView` in `csrf_exempt` en er
+is geen sessie om op mee te liften, maar hij staat er voor de eerste view die
+geen van beide is.
+
+### 13.6 De bandit-onderdrukking is weer één onderdrukking
+
+De uitleg stond achter de onderdrukkingsmarkering op dezelfde regel. Bandit
+leest alles daarachter als een lijst met test-ids, dus de zin werd gelezen als
+een reeks extra ids en de `sast`-job drukte voor elk woord een waarschuwing af.
+Nagemeten op 2026-08-21 door de proza-versie terug te zetten: zeventien keer
+"Test in comment: ... is not a test name or id". De audit meldde er zeven voor
+de oorspronkelijke formulering; het aantal hangt af van de zin, de fout niet.
+Dat de foutieve regel ook een onderdrukking met een lege id registreert is niet
+zichtbaar in de uitvoer van bandit en is hier dus niet bevestigd. De uitleg
+staat nu op eigen regels en achter de markering staat alleen nog `B105`. Bandit
+draait schoon, met nul waarschuwingen en precies één onderdrukking.
+
+Dat geldt ook voor het uitleggen van deze fout: geen enkele regel in dat bestand
+schrijft de markering nog voluit in een zin, want dan begint het opnieuw. Dat is
+tijdens deze ronde één keer gebeurd en door de controle zelf gevonden.
+
+### 13.7 De poorten bewaken nu ook dat ze `backend/` lezen
+
+`tests/test_pipeline_contract.py` controleerde dat `backend` in de bron van de
+dekkingsmeting staat, maar niets controleerde de argumentlijsten van ruff, mypy
+en bandit. `backend` van de bandit-regel halen zou de `sast`-check groen laten
+over precies het deel van de boom dat al veilig was, terwijl de drie anonieme
+publieke endpoints niet meer gescand worden, en niets zou dat melden.
+
+De assertie staat nu naast die over de dekking, en leest de lijst met te dekken
+mappen uit de boom in plaats van hem over te schrijven.
+
+### 13.8 Het auditlogboek bewaart een hash en niet het token
+
+`service.py` schreef `token=stored.token` in `AuditEvent.context`. Het token is
+geen verwijzing naar het advies, het is de enige sleutel die het advies opent,
+en `AuditEvent` is met opzet niet te verwijderen. Na de opschoning op negentig
+dagen bleef er dus een permanente regel staan met een werkende link naar een
+record dat weg had moeten zijn.
+
+Er staat nu een SHA-256 in hex onder de naam `token_sha256`. Het doel van het
+logboek overleeft dat volledig: er staat nog steeds wat de dienst gedaan heeft,
+en wie de link legitiem heeft kan hem hashen en de regel terugvinden. De hash is
+niet gezouten en niet gerekt, en dat is hier veilig om een reden die bij een
+wachtwoord niet zou gelden: de invoer is 128 bits uit `secrets.token_urlsafe`,
+dus er is geen woordenlijst om langs te lopen. Zouten zou juist de enige
+eigenschap kapotmaken waar het om gaat.
+
+### 13.9 De privacytest kijkt naar de waarden en niet naar de veldenlijst
+
+De twee bestaande tests met "geen persoonsgegevens" in de naam lezen
+`Model._meta.get_fields()`. Die lijst staat vast bij het importeren en kan dus
+nooit `email` bevatten, wat er ook binnenkomt. Ze konden niet falen.
+
+Sectie 11.3 vroeg om een test die het opgeslagen record dóórloopt. Die is er nu:
+hij loopt recursief door `StoredAdvice.inputs`, `StoredAdvice.advice` en
+`AuditEvent.context`, sleutels zowel als waarden, en faalt op iets dat op een
+e-mailadres of op een volledige postcode lijkt.
+
+De regels over lengte en witruimte gelden alleen voor `inputs` en voor de
+auditcontext, en niet voor `advice`. Adviesteksten zijn met opzet proza, ze
+staan in `ampeer_advice.nl` en komen niet van een aanroeper. In `inputs` en in
+de auditcontext is niets proza: de langste legitieme waarde is de digest van 64
+tekens en geen enkele waarde bevat een spatie. Dat is de grens, en hij is
+uitgeschreven in plaats van geraden.
+
+Aangetoond door een `email`-veld helemaal door de serializer heen toe te voegen.
+De nieuwe test viel om; de twee oude bleven groen. Dat is precies de reden dat
+ze vervangen moesten worden.
+
+### 13.10 De PVGIS-cache heeft de sleutel die bij zijn data past
+
+`postcode4_to_latlon` zoekt op `postcode4[:2]`, dus elke postcode binnen één
+honderdtal krijgt een byte-identieke reeks. De cache stond op alle vier de
+cijfers, en bewaarde die ene reeks van 60 kB dus opnieuw per buurt, voor altijd,
+met een trefkans die twee ordes te laag lag.
+
+De sleutel is nu het honderdtal. De kolom heet `postcode_area` en is twee tekens
+breed, zodat niemand hem als een hele postcode4 kan lezen en niemand er een hele
+postcode4 in kan zetten. De koppeling met `ampeer_sim` wordt niet aangenomen
+maar getest: een test controleert dat drie postcodes uit één honderdtal
+dezelfde coördinaten en dezelfde reeks opleveren, en wordt rood op het moment
+dat `postcode4_to_latlon` ooit fijner gaat resolveren.
+
+De migratie laat de tabel vallen en maakt hem opnieuw aan in plaats van de kolom
+te hernoemen. De bestaande rijen zijn gesleuteld op iets dat niet meer betekent
+wat het betekende en zouden onder de nieuwe sleutel met elkaar botsen. Het
+verlies is één externe aanroep per honderdtal en oriëntatie die opnieuw gevraagd
+wordt, en daar is een cache voor.
+
+### 13.11 Twee kleinere
+
+De foutmelding over onbekende velden gaf elke verkeerde sleutel terug. Een body
+van een megabyte aan verschillende sleutels kwam terug als ruwweg twee en een
+halve megabyte JSON, dus het endpoint versterkte wat een aanroeper er in stopte.
+Er worden er nu tien genoemd, met daarachter een telling van de rest onder de
+sleutel die DRF gebruikt voor een fout die niet bij één veld hoort. Tien, omdat
+een formulier met negen velden er niet meer dan dat tegelijk fout kan hebben, en
+omdat het noemen van het veld de hele reden is dat een onbekend veld geweigerd
+wordt in plaats van genegeerd.
+
+En elk antwoord van de drie endpoints draagt nu `Cache-Control: private,
+no-store`. Elk van die antwoorden beschrijft één huishouden: het verbruik, het
+dak en wat de energie kost. Een gedeelde proxy die er een kopie van bewaart geeft
+de volgende bezoeker op dat adres de cijfers van iemand anders. Ook op de 400,
+want die geeft de geweigerde antwoorden terug.

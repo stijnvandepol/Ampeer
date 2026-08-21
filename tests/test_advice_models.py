@@ -7,6 +7,7 @@ enforced here.
 
 from __future__ import annotations
 
+import importlib
 import re
 from datetime import timedelta
 
@@ -20,7 +21,7 @@ from django.db import transaction
 from django.db.utils import IntegrityError
 from django.utils import timezone
 
-from advice.models import AuditEvent, ProductionCache, StoredAdvice
+from advice.models import AuditEvent, ProductionCache, StoredAdvice, token_digest
 
 pytestmark = pytest.mark.django_db
 
@@ -131,9 +132,9 @@ def test_the_audit_log_holds_no_ip_address() -> None:
     assert "ip" not in field_names and "ip_address" not in field_names
 
 
-def test_a_production_cache_row_is_unique_per_roof_and_year() -> None:
+def test_a_production_cache_row_is_unique_per_area_roof_and_year() -> None:
     ProductionCache.objects.create(
-        postcode4="5401",
+        postcode_area="54",
         azimuth_deg=0,
         tilt_deg=35,
         weather_year=2023,
@@ -143,7 +144,7 @@ def test_a_production_cache_row_is_unique_per_roof_and_year() -> None:
     )
     with pytest.raises(IntegrityError):
         ProductionCache.objects.create(
-            postcode4="5401",
+            postcode_area="54",
             azimuth_deg=0,
             tilt_deg=35,
             weather_year=2023,
@@ -151,3 +152,50 @@ def test_a_production_cache_row_is_unique_per_roof_and_year() -> None:
             temperature_c=b"d",
             source="PVGIS",
         )
+
+
+def test_the_production_cache_cannot_hold_a_four_digit_postcode() -> None:
+    """The column is two characters wide, so it cannot be filled with something
+    a later reader would mistake for a whole postcode4. The name says what it
+    holds and the width makes the name true."""
+    field = ProductionCache._meta.get_field("postcode_area")
+    assert field.max_length == 2
+    assert {f.name for f in ProductionCache._meta.get_fields()} & {"postcode4", "postcode"} == set()
+
+
+def test_a_token_digest_is_stable_and_does_not_carry_the_token() -> None:
+    """The audit log stores this instead of the token. It has to be the same
+    every time, or a line holding it stops being findable, and it has to be a
+    digest, or the log is a permanent copy of a working credential."""
+    token = "abcdefghijklmnopqrstuv"
+    digest = token_digest(token)
+    assert digest == token_digest(token)
+    assert re.fullmatch(r"[0-9a-f]{64}", digest)
+    assert token not in digest
+    assert digest != token_digest("abcdefghijklmnopqrstuw")
+
+
+def test_the_cache_table_migration_makes_a_table_django_can_actually_cache_in() -> None:
+    """The throttle counter lives in this table in production, and a migration
+    that ran without ever being used is a deploy step nobody has tested.
+
+    Both directions are exercised here rather than only the forward one,
+    because a reverse that does not reverse is discovered during the rollback
+    it was written for.
+    """
+    from django.core.cache.backends.db import DatabaseCache
+    from django.db import connection
+
+    module = importlib.import_module("advice.migrations.0002_cache_table")
+    table = settings.AMPEER_CACHE_TABLE
+
+    assert table in connection.introspection.table_names()
+    backend = DatabaseCache(table, {})
+    backend.set("throttle_advice-compute_198.51.100.7", [1.0, 2.0])
+    assert backend.get("throttle_advice-compute_198.51.100.7") == [1.0, 2.0]
+
+    with connection.schema_editor() as editor:
+        module.drop_cache_table(None, editor)
+        assert table not in connection.introspection.table_names()
+        module.create_cache_table(None, editor)
+    assert table in connection.introspection.table_names()

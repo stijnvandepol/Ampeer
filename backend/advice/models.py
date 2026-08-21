@@ -7,6 +7,7 @@ and nothing longer, so there is no address in here and no way to put one in.
 
 from __future__ import annotations
 
+import hashlib
 import secrets
 from datetime import timedelta
 from typing import Any, ClassVar, Self
@@ -19,6 +20,19 @@ from django.utils import timezone
 #: is not something to write a retry loop for, and the unique constraint below
 #: turns the impossible case into an error rather than an overwrite.
 TOKEN_BYTES = 16
+
+
+def token_digest(token: str) -> str:
+    """The form of a token that may be written down somewhere permanent.
+
+    Unsalted and unstretched on purpose, and that is safe here for a reason
+    that would not hold for a password: the input is 128 bits from
+    secrets.token_urlsafe, so there is no dictionary to run and no rainbow
+    table to build. A salt would only break the one property this is for, which
+    is that the same token always produces the same digest and a line stays
+    findable by whoever legitimately holds the link.
+    """
+    return hashlib.sha256(token.encode("ascii")).hexdigest()
 
 
 class StoredAdvice(models.Model):
@@ -123,7 +137,16 @@ class ProductionCache(models.Model):
     `fetched_at` exists so a later cleanup remains possible.
     """
 
-    postcode4 = models.CharField(max_length=4)
+    #: Two digits, not four, and named so nobody reads it as a postcode4. The
+    #: location this row describes is a postcode century, because that is the
+    #: resolution the data has: ampeer_sim's postcode4_to_latlon looks up
+    #: postcode4[:2] and every postcode in one century therefore produces a
+    #: byte-identical series. Keyed on four digits, the cache stored that same
+    #: 60 kB series once per neighbourhood, forever, and the hit rate was two
+    #: orders of magnitude below what it should be. The coupling is not
+    #: assumed: tests/test_advice_providers.py fails if a finer resolution ever
+    #: reaches postcode4_to_latlon.
+    postcode_area = models.CharField(max_length=2)
     azimuth_deg = models.SmallIntegerField()
     tilt_deg = models.SmallIntegerField()
     weather_year = models.SmallIntegerField()
@@ -135,7 +158,7 @@ class ProductionCache(models.Model):
     class Meta:
         constraints: ClassVar[list[models.BaseConstraint]] = [
             models.UniqueConstraint(
-                fields=["postcode4", "azimuth_deg", "tilt_deg", "weather_year"],
+                fields=["postcode_area", "azimuth_deg", "tilt_deg", "weather_year"],
                 name="unique_production_cache_key",
             )
         ]

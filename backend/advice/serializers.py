@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Any, ClassVar
 
 from rest_framework import serializers
+from rest_framework.settings import api_settings
 
 from ampeer_sim.types import EVChargingBehaviour
 
@@ -71,16 +72,34 @@ MAX_POSTCODE4 = 9999
 _ROUNDED_TO_WHOLE_DEGREES = ("azimuth_deg", "tilt_deg")
 
 
+#: How many unknown field names one error response repeats back. Naming the
+#: offending field is the whole point of refusing rather than dropping it, and
+#: ten is more than a form with nine fields can plausibly get wrong at once. The
+#: cap exists because the list came from the request: a body of one megabyte of
+#: distinct keys was echoed back in full as roughly two and a half megabytes of
+#: JSON, so the endpoint amplified whatever a caller sent it.
+MAX_REPORTED_UNKNOWN_FIELDS = 10
+
+
 class StrictSerializer(serializers.Serializer[dict[str, Any]]):
     """A serializer that refuses what it does not recognise."""
 
     def to_internal_value(self, data: Any) -> dict[str, Any]:
         if isinstance(data, dict):
-            unknown = set(data) - set(self.fields)
+            unknown = sorted(set(data) - set(self.fields))
             if unknown:
-                raise serializers.ValidationError(
-                    {name: "onbekend veld" for name in sorted(unknown)}
-                )
+                errors: dict[str, Any] = {
+                    name: "onbekend veld" for name in unknown[:MAX_REPORTED_UNKNOWN_FIELDS]
+                }
+                remaining = len(unknown) - MAX_REPORTED_UNKNOWN_FIELDS
+                if remaining > 0:
+                    # Under DRF's own key for an error that belongs to the body
+                    # rather than to one field, so a client that walks the
+                    # response per field never mistakes the count for one.
+                    errors[api_settings.NON_FIELD_ERRORS_KEY] = [
+                        f"en nog {remaining} onbekende velden"
+                    ]
+                raise serializers.ValidationError(errors)
         validated: dict[str, Any] = super().to_internal_value(data)
         return validated
 

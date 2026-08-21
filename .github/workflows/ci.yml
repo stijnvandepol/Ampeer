@@ -42,6 +42,28 @@ jobs:
       - run: uv run ruff check ampeer_sim ampeer_advice backend tests tools
       - run: uv run ruff format --check ampeer_sim ampeer_advice backend tests tools
       - run: uv run mypy ampeer_sim ampeer_advice backend tools
+      # Django's own deployment checklist, against the settings module wsgi.py
+      # names, with warnings fatal. At the default fail level a warning about a
+      # missing HSTS header or an absent CSRF middleware prints and exits zero,
+      # which is a check that cannot go red. Nothing here connects to a
+      # database, so the credentials below only have to exist; they are
+      # generated rather than written down so this file holds no value that
+      # looks like a secret.
+      - name: Django deployment checklist, under production settings
+        env:
+          DJANGO_SETTINGS_MODULE: ampeer.settings.prod
+          DJANGO_ALLOWED_HOSTS: ampeer.nl
+          AMPEER_NEDU_PROFILE_PATH: /srv/ampeer/nedu-profiles-2025.csv
+          POSTGRES_DB: ampeer
+          POSTGRES_USER: ampeer
+          POSTGRES_HOST: db
+          DJANGO_NUM_PROXIES: "1"
+        run: |
+          set -euo pipefail
+          DJANGO_SECRET_KEY="$(uv run python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+          POSTGRES_PASSWORD="$(uv run python -c 'import secrets; print(secrets.token_urlsafe(16))')"
+          export DJANGO_SECRET_KEY POSTGRES_PASSWORD
+          uv run python backend/manage.py check --deploy --fail-level WARNING
       # The pre-commit hooks are opt-in per clone and skippable with
       # --no-verify. Running them here makes that a local convenience rather
       # than a permanent exit.

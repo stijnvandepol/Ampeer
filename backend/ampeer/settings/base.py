@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -25,6 +26,14 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.middleware.common.CommonMiddleware",
+    # Section 9 of the design says this middleware stays even though the advice
+    # endpoints do not need it, and until 2026-08-21 it said so about a list it
+    # was not in. It protects nothing today: DRF wraps every APIView in
+    # csrf_exempt, and there is no session to ride on anyway. It is here for the
+    # first view that is neither of those, which is a view somebody will add
+    # without thinking about this file. `manage.py check --deploy` in the
+    # quality job refuses a deployment without it.
+    "django.middleware.csrf.CsrfViewMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -41,10 +50,26 @@ LANGUAGE_CODE = "nl-nl"
 
 STATIC_URL = "static/"
 
-REST_FRAMEWORK = {
+#: Annotated rather than inferred. Without it mypy reads the value types of
+#: this literal as the whole domain, and dev.py and prod.py, which each add an
+#: integer NUM_PROXIES, become assignment errors about a dict shape nobody
+#: intended to declare.
+REST_FRAMEWORK: dict[str, Any] = {
     # Anonymous by design. There is no account to authenticate.
     "DEFAULT_AUTHENTICATION_CLASSES": [],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
+    # JSON only. DRF's default list also holds BrowsableAPIRenderer, which
+    # renders a Django template, and TEMPLATES here is empty: every browser
+    # that opened a shared advice link sent Accept: text/html and got a
+    # TemplateDoesNotExist, so the product's core flow answered 500. Pinning
+    # this also means that configuring TEMPLATES later cannot silently publish
+    # an interactive API console on three anonymous public endpoints.
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+    # JSON only again, and through a parser that turns a RecursionError into a
+    # 400. The frontend posts JSON; a form encoded body was never a supported
+    # input, and FormParser and MultiPartParser are parsing surface that no
+    # caller needs. See advice/parsers.py.
+    "DEFAULT_PARSER_CLASSES": ["advice.parsers.BoundedJSONParser"],
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
     "DEFAULT_THROTTLE_RATES": {
         # A computation costs about half a second of CPU. Twenty an hour is
@@ -55,6 +80,20 @@ REST_FRAMEWORK = {
     },
     "UNAUTHENTICATED_USER": None,
 }
+
+# NUM_PROXIES is deliberately absent from this file. It decides what the rate
+# limit counts, and its only correct value is a property of one deployment's
+# proxy chain, so there is no shared default that is right. Left unset, DRF's
+# ScopedRateThrottle keys on the whole client supplied X-Forwarded-For header:
+# measured on 2026-08-21, forty requests with a rotating header produced zero
+# 429s. Every settings module below therefore states a value: dev.py and
+# test.py explicitly, prod.py from the environment with no fallback.
+
+#: The table django.core.cache.backends.db.DatabaseCache reads and writes in
+#: production. It is named here rather than in prod.py because the migration
+#: that creates the table has to name the same string, and two literals that
+#: must agree are one literal that eventually will not.
+AMPEER_CACHE_TABLE = "ampeer_cache"
 
 #: The NEDU standard profile file. There is no default and there is no
 #: fallback shape: a consumption profile that nobody measured would be an

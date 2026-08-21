@@ -9,7 +9,10 @@ visitor gets when PVGIS is down.
 
 from __future__ import annotations
 
+import json
+import re
 import time
+from collections.abc import Iterator
 from datetime import timedelta
 from typing import Any
 
@@ -17,10 +20,12 @@ import numpy as np
 import pytest
 from django.urls import reverse
 from django.utils import timezone
+from rest_framework.settings import api_settings
 from rest_framework.test import APIClient
 
-from advice.models import AuditEvent, ProductionCache, StoredAdvice
+from advice.models import AuditEvent, ProductionCache, StoredAdvice, token_digest
 from advice.production import CachedProductionProvider
+from advice.serializers import MAX_REPORTED_UNKNOWN_FIELDS
 from ampeer_sim.production.pvgis import FallbackProvider
 from ampeer_sim.providers import ProductionProvider, ProfileProvider
 from ampeer_sim.timebase import YearGrid
@@ -193,12 +198,27 @@ def test_the_audit_line_holds_no_personal_detail() -> None:
     context = AuditEvent.objects.get().context
     assert context["postcode4"] == "5401"
     assert set(context) == {
-        "token",
+        "token_sha256",
         "postcode4",
         "confidence",
         "engine_version",
         "advice_version",
     }
+
+
+def test_the_audit_line_holds_a_digest_and_never_the_token_itself() -> None:
+    """The token is not a reference to the advice, it is the only credential
+    that opens it, and this table is deliberately undeletable. A plaintext
+    token here would therefore outlive the ninety day purge as a permanent row
+    holding a working link to a record that was supposed to be gone.
+
+    The digest keeps what the log is for. Whoever legitimately holds the link
+    can hash it and find the line.
+    """
+    created = APIClient().post(reverse("advice-estimate"), ESTIMATE, format="json").json()
+    context = AuditEvent.objects.get().context
+    assert created["token"] not in json.dumps(context)
+    assert context["token_sha256"] == token_digest(created["token"])
 
 
 def test_the_stored_input_holds_only_what_was_asked() -> None:
@@ -242,3 +262,192 @@ def test_an_advice_arrives_within_a_second_once_production_is_cached() -> None:
     elapsed = time.perf_counter() - started
     assert response.status_code == 201
     assert elapsed < CACHED_REQUEST_BUDGET_S, f"a cached advice took {elapsed:.3f}s"
+
+
+def test_a_rotating_forwarded_for_header_does_not_buy_a_new_rate_limit() -> None:
+    """The bypass this endpoint had, as a test.
+
+    DRF's ScopedRateThrottle builds its key from `get_ident`, and with
+    NUM_PROXIES unset that method returns the entire client supplied
+    X-Forwarded-For header. Every request with a different header was therefore
+    a different client: measured on 2026-08-21, forty requests this way
+    produced zero 429s. This test fails if NUM_PROXIES is removed from the
+    settings again, which is the only reason it is worth having.
+    """
+    client = APIClient()
+    codes = [
+        client.post(
+            reverse("advice-estimate"),
+            ESTIMATE,
+            format="json",
+            HTTP_X_FORWARDED_FOR=f"203.0.113.{index}",
+        ).status_code
+        for index in range(21)
+    ]
+    assert codes[:20] == [201] * 20, codes
+    assert codes[20] == 429, "a spoofed header bought a fresh rate limit"
+
+
+#: What Firefox and Chrome send on a plain navigation. It asks for HTML first
+#: and accepts anything at q=0.8, which is what makes a JSON only API answer it
+#: rather than refuse it.
+BROWSER_ACCEPT = (
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+)
+
+
+def test_a_browser_opening_a_shared_link_gets_json_and_not_a_500() -> None:
+    """The core flow of this product is a link that somebody shares, and a link
+    is opened in a browser. DRF's default renderer list holds
+    BrowsableAPIRenderer, which renders a Django template, and TEMPLATES is
+    empty, so Accept: text/html raised TemplateDoesNotExist and every such
+    visit answered 500."""
+    token = APIClient().post(reverse("advice-estimate"), ESTIMATE, format="json").json()["token"]
+    response = APIClient().get(reverse("advice-detail", args=[token]), HTTP_ACCEPT=BROWSER_ACCEPT)
+    assert response.status_code == 200
+    assert response["Content-Type"].startswith("application/json")
+    assert response.json()["token"] == token
+
+
+def test_a_browser_accept_header_on_a_computation_is_json_too() -> None:
+    response = APIClient().post(
+        reverse("advice-estimate"), ESTIMATE, format="json", HTTP_ACCEPT=BROWSER_ACCEPT
+    )
+    assert response.status_code == 201
+    assert response["Content-Type"].startswith("application/json")
+
+
+#: 200 kB of opening brackets. Well formed as far as the tokenizer is
+#: concerned, and deep enough that json.load exhausts the interpreter's
+#: recursion limit rather than reaching the end of the input.
+DEEPLY_NESTED_BODY = b"[" * 200_000
+
+
+def test_a_body_too_deeply_nested_to_parse_is_a_bad_request() -> None:
+    """json.load raises RecursionError, and DRF's JSONParser catches only the
+    errors it raises for malformed input, so this answered 500 instantly and
+    from a 200 kB body. It is an ordinary bad request and it says so."""
+    response = APIClient().post(
+        reverse("advice-estimate"), DEEPLY_NESTED_BODY, content_type="application/json"
+    )
+    assert response.status_code == 400
+    assert "genest" in json.dumps(response.json())
+
+
+def test_a_body_that_is_merely_malformed_is_still_a_bad_request() -> None:
+    """The parser above wraps DRF's, so the ordinary case has to keep working."""
+    response = APIClient().post(
+        reverse("advice-estimate"), b"{not json", content_type="application/json"
+    )
+    assert response.status_code == 400
+
+
+def test_no_advice_response_may_be_written_down_by_anything_in_between() -> None:
+    """Each of these describes one household's consumption and its bill. A
+    shared proxy that kept a copy would hand the next caller on that address
+    somebody else's figures, and the 400 is included because it echoes the
+    rejected answers back."""
+    client = APIClient()
+    created = client.post(reverse("advice-estimate"), ESTIMATE, format="json")
+    responses = [
+        created,
+        client.get(reverse("advice-detail", args=[created.json()["token"]])),
+        client.get(reverse("advice-detail", args=["A" * 22])),
+        client.post(reverse("advice-estimate"), ESTIMATE | {"postcode4": "0999"}, format="json"),
+    ]
+    assert [r.status_code for r in responses] == [201, 200, 404, 400]
+    for response in responses:
+        assert response["Cache-Control"] == "private, no-store", response.status_code
+
+
+def test_an_error_about_unknown_fields_does_not_repeat_the_whole_request_back() -> None:
+    """Naming the offending field is why unknown fields are refused rather than
+    dropped, but the list came from the caller: a megabyte of distinct keys was
+    echoed back as roughly two and a half megabytes of JSON, so the endpoint
+    amplified whatever it was sent. Ten names and a count."""
+    unknown = {f"veld{index:03d}": 1 for index in range(50)}
+    response = APIClient().post(reverse("advice-estimate"), ESTIMATE | unknown, format="json")
+    assert response.status_code == 400
+    body = response.json()
+    named = [key for key in body if key.startswith("veld")]
+    assert len(named) == MAX_REPORTED_UNKNOWN_FIELDS
+    assert named == sorted(unknown)[:MAX_REPORTED_UNKNOWN_FIELDS]
+    assert body[api_settings.NON_FIELD_ERRORS_KEY] == ["en nog 40 onbekende velden"]
+    assert len(response.content) < len(json.dumps(unknown))
+
+
+def test_a_short_list_of_unknown_fields_is_still_reported_in_full() -> None:
+    """The cap must not cost the message it exists to protect. One typo has to
+    come back as that one field name and nothing about a remainder."""
+    response = APIClient().post(
+        reverse("advice-estimate"), ESTIMATE | {"postcode": "5401"}, format="json"
+    )
+    assert response.json() == {"postcode": "onbekend veld"}
+
+
+#: Anything with an @ between two runs of non-space that ends in a domain-like
+#: suffix. Deliberately loose: this is a tripwire, not a validator, and a false
+#: positive here is a question worth answering.
+EMAIL_PATTERN = re.compile(r"[^@\s]+@[^@\s]+\.[A-Za-z]{2,}")
+
+#: A whole Dutch postcode: four digits and two letters, with or without the
+#: space. Four digits alone is the deliberate limit; the two letters are what
+#: turn a neighbourhood into a street.
+FULL_POSTCODE_PATTERN = re.compile(r"\b[1-9][0-9]{3}\s?[A-Za-z]{2}\b")
+
+#: No answer a visitor gives and no audit context value is prose. The longest
+#: legitimate string in either is the 64 character token digest, and none of
+#: them contains a space. A value that breaks either rule is free text, and
+#: free text is how a name or an address would arrive in a JSON column that no
+#: schema constrains.
+MAX_ANSWER_LENGTH = 64
+
+
+def _strings(value: object, path: str = "") -> Iterator[tuple[str, str]]:
+    """Every string in a decoded JSON structure, with the path that reached it.
+
+    Keys are walked as well as values: a smuggled field arrives as a key first,
+    and an "email" key inside a JSONField is exactly the case a test over
+    Model._meta.get_fields() cannot see.
+    """
+    if isinstance(value, str):
+        yield path, value
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            yield f"{path}.{key}", str(key)
+            yield from _strings(item, f"{path}.{key}")
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            yield from _strings(item, f"{path}[{index}]")
+
+
+def test_nothing_stored_anywhere_looks_like_a_person() -> None:
+    """Section 11.3 of the design, over the values rather than the field list.
+
+    The two older tests here walk `Model._meta.get_fields()`, which is fixed at
+    import time and can therefore never contain `email` no matter what a
+    request carries. This one walks what a request actually put in the row.
+
+    The length and whitespace rules apply to `inputs` and to the audit context
+    and not to `advice`, because advice sentences are prose by design and are
+    written in ampeer_advice.nl rather than by a caller.
+    """
+    APIClient().post(reverse("advice-refine"), REFINE, format="json")
+    stored = StoredAdvice.objects.get()
+    context = AuditEvent.objects.get().context
+
+    for label, blob in (("inputs", stored.inputs), ("advice", stored.advice), ("audit", context)):
+        for path, text in _strings(blob):
+            assert not EMAIL_PATTERN.search(text), f"{label}{path} looks like an email: {text!r}"
+            assert not FULL_POSTCODE_PATTERN.search(text), (
+                f"{label}{path} looks like a full postcode: {text!r}"
+            )
+
+    for label, blob in (("inputs", stored.inputs), ("audit", context)):
+        for path, text in _strings(blob):
+            assert not any(character.isspace() for character in text), (
+                f"{label}{path} holds whitespace, so it is prose: {text!r}"
+            )
+            assert len(text) <= MAX_ANSWER_LENGTH, (
+                f"{label}{path} is {len(text)} characters, so it is free text: {text!r}"
+            )

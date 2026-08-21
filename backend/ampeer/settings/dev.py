@@ -7,12 +7,25 @@ import os
 from ampeer.settings.base import *
 
 DEBUG = True
-# nosec B105: this is a developer key and not a secret. prod.py has no default
-# for SECRET_KEY at all and refuses to start without one from the environment,
-# so nothing that serves the public can ever reach this value. Written in full
-# rather than read from the environment so a developer machine needs no setup.
+# A developer key and not a secret. prod.py has no default for SECRET_KEY at
+# all and refuses to start without one from the environment, so nothing that
+# serves the public can ever reach this value. Written in full rather than read
+# from the environment so a developer machine needs no setup.
+#
+# The explanation is on its own line and the suppression below carries nothing
+# but the test id. Bandit reads every word after that marker as a further test
+# id, so a prose sentence written beside it was parsed as a list of them: the
+# sast job printed "Test in comment: ... is not a test name or id" once per
+# word. Which is also why no line in this file writes that marker out inside a
+# sentence; doing so during the fix started it again.
 SECRET_KEY = "dev-only-not-a-secret"  # nosec B105
 ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+
+# No proxy sits in front of runserver or the test client, so REMOTE_ADDR is the
+# client and X-Forwarded-For must be ignored entirely. Stated rather than left
+# unset: unset is not "no proxies", it is "trust the header", which is how the
+# rate limit stopped counting. See the note in base.py.
+REST_FRAMEWORK = REST_FRAMEWORK | {"NUM_PROXIES": 0}
 
 DATABASES = {
     "default": {

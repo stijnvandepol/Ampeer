@@ -1,8 +1,9 @@
 """The PVGIS cache.
 
-One entry is two hourly series for one roof in one weather year. Those
-combinations repeat enormously: a four digit postcode area holds thousands of
-houses and most roofs sit on a handful of orientations.
+One entry is two hourly series for one roof in one postcode century in one
+weather year. Those combinations repeat enormously: a postcode century holds
+hundreds of thousands of houses and most roofs sit on a handful of
+orientations.
 
 It lives in Postgres rather than Redis for two reasons. It has to survive a
 restart, or the first visitor after every deploy pays for an external call. And
@@ -48,6 +49,17 @@ def decode_series(blob: bytes) -> np.ndarray:
     return restored.astype(np.float64)
 
 
+#: How much of a postcode decides the answer. ampeer_sim's postcode4_to_latlon
+#: resolves on postcode4[:2] and nothing downstream of it sees more, so two
+#: postcodes in one century produce identical series and belong in one row. A
+#: four digit key stored the same series once per neighbourhood forever, which
+#: is a permanent record per neighbourhood for no gain and a cache hit rate two
+#: orders of magnitude below what the data supports. Written here rather than
+#: imported because the slice lives in a private table in ampeer_sim; the
+#: coupling is checked by a test rather than trusted.
+POSTCODE_AREA_LENGTH = 2
+
+
 class CachedProductionProvider:
     """A production provider that asks the one behind it at most once per roof."""
 
@@ -63,8 +75,9 @@ class CachedProductionProvider:
         # is called from somewhere that did not.
         azimuth = round(azimuth_deg)
         tilt = round(tilt_deg)
+        area = postcode4[:POSTCODE_AREA_LENGTH]
         cached = ProductionCache.objects.filter(
-            postcode4=postcode4,
+            postcode_area=area,
             azimuth_deg=azimuth,
             tilt_deg=tilt,
             weather_year=self._weather_year,
@@ -88,7 +101,7 @@ class CachedProductionProvider:
         # can arrive together, and losing that race must cost a wasted call,
         # never a 500.
         ProductionCache.objects.get_or_create(
-            postcode4=postcode4,
+            postcode_area=area,
             azimuth_deg=azimuth,
             tilt_deg=tilt,
             weather_year=self._weather_year,

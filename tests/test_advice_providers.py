@@ -15,12 +15,14 @@ from django.test import override_settings
 
 from advice.models import ProductionCache
 from advice.production import (
+    POSTCODE_AREA_LENGTH,
     CachedProductionProvider,
     decode_series,
     encode_series,
     production_provider,
 )
 from advice.profiles import profile_provider
+from ampeer_sim.production.pvgis import FallbackProvider, postcode4_to_latlon
 from ampeer_sim.profiles.nedu import NeduFileProvider
 from ampeer_sim.types import ProductionSource
 
@@ -77,13 +79,50 @@ def test_a_second_identical_request_does_not_ask_again() -> None:
 
 
 def test_a_different_roof_is_a_different_entry() -> None:
+    """Three genuinely different keys: one orientation apart and one postcode
+    century apart. 5401 and 5402 would not do it any more, and that is the
+    point of the test below."""
     inner = CountingProvider()
     provider = CachedProductionProvider(inner, weather_year=WEATHER_YEAR)
     provider.hourly_series("5401", 0.0, 35.0)
     provider.hourly_series("5401", 90.0, 35.0)
-    provider.hourly_series("5402", 0.0, 35.0)
+    provider.hourly_series("6501", 0.0, 35.0)
     assert len(inner.calls) == 3
     assert ProductionCache.objects.count() == 3
+
+
+def test_two_postcodes_in_one_century_share_a_single_entry() -> None:
+    """5401 and 5402 resolve to one centroid, so PVGIS answers them with the
+    same series. Keyed on four digits the cache stored that series twice, once
+    per neighbourhood and forever, and paid for a second external call to learn
+    what it already had."""
+    inner = CountingProvider()
+    provider = CachedProductionProvider(inner, weather_year=WEATHER_YEAR)
+    provider.hourly_series("5401", 0.0, 35.0)
+    provider.hourly_series("5402", 0.0, 35.0)
+    provider.hourly_series("5499", 0.0, 35.0)
+    assert len(inner.calls) == 1, f"the inner provider was asked {len(inner.calls)} times"
+    assert ProductionCache.objects.count() == 1
+    assert ProductionCache.objects.get().postcode_area == "54"
+
+
+def test_the_cache_key_is_exactly_as_coarse_as_the_data_behind_it() -> None:
+    """The reason the key is two digits, checked rather than assumed.
+
+    `postcode4_to_latlon` slices `postcode4[:2]` today. If a later version ever
+    resolves finer, a cache still keyed on two digits would hand a household a
+    series computed for a different place, silently and with no error anywhere,
+    which is the failure mode this project exists to not have. This test goes
+    red at that moment instead.
+    """
+    area = "54"
+    postcodes = [f"{area}01", f"{area}02", f"{area}99"]
+    assert len({postcode4_to_latlon(postcode) for postcode in postcodes}) == 1
+    series = [FallbackProvider(WEATHER_YEAR).hourly_series(p, 0.0, 35.0) for p in postcodes]
+    for other in series[1:]:
+        assert np.array_equal(series[0][0], other[0])
+        assert np.array_equal(series[0][1], other[1])
+    assert len({p[:POSTCODE_AREA_LENGTH] for p in postcodes}) == 1
 
 
 def test_two_spellings_of_the_same_roof_hit_the_same_entry() -> None:

@@ -19,7 +19,7 @@ from advice.assembly import (
     build_pv_system,
     build_tariffs,
 )
-from advice.models import AuditEvent, StoredAdvice
+from advice.models import AuditEvent, StoredAdvice, token_digest
 from advice.production import production_provider
 from advice.profiles import profile_provider
 from advice.rendering import render
@@ -81,12 +81,20 @@ def compute_and_store(data: dict[str, Any], question_count: int) -> dict[str, An
     stored.advice = payload
     stored.save(update_fields=["advice"])
 
-    # Context without a personal detail: the token so the record is findable
-    # and the postcode area so a later question about coverage can be answered.
-    # No IP address: this log records what the service did, not who visited.
+    # Context without a personal detail: a digest of the token so the record
+    # stays correlatable, and the postcode area so a later question about
+    # coverage can be answered. No IP address: this log records what the service
+    # did, not who visited.
+    #
+    # The digest and not the token. The token is not a reference to the advice,
+    # it is the only credential that opens it, and this table is deliberately
+    # undeletable, so a plaintext token here outlives the ninety day purge as a
+    # permanent row holding a working link to a record that was supposed to be
+    # gone. Hashing keeps everything the log is for: anyone holding a token can
+    # hash it and find the line, and the line still says what the service did.
     AuditEvent.record(
         AuditEvent.ADVICE_GENERATED,
-        token=stored.token,
+        token_sha256=token_digest(stored.token),
         postcode4=data["postcode4"],
         confidence=payload["confidence"],
         engine_version=payload["engine_version"],

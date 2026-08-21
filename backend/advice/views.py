@@ -18,8 +18,27 @@ from advice.models import StoredAdvice
 from advice.serializers import EstimateInputSerializer, RefineInputSerializer
 from advice.service import compute_and_store
 
+#: Every response here describes one household: its consumption, its roof and
+#: what its energy costs. A shared proxy that kept a copy would hand the next
+#: caller on that address somebody else's figures, and `private` alone still
+#: permits a browser cache on a shared machine. `no-store` is the only value
+#: that says keep nothing. Set on error responses too, because a 400 echoes the
+#: rejected answers back.
+CACHE_CONTROL = "private, no-store"
 
-class _ComputeView(APIView):
+
+class _NoStoreAPIView(APIView):
+    """An APIView whose responses are never written down anywhere in between."""
+
+    def finalize_response(
+        self, request: Request, response: Response, *args: Any, **kwargs: Any
+    ) -> Response:
+        finalized: Response = super().finalize_response(request, response, *args, **kwargs)
+        finalized["Cache-Control"] = CACHE_CONTROL
+        return finalized
+
+
+class _ComputeView(_NoStoreAPIView):
     """Shared body of the two POST endpoints."""
 
     throttle_scope = "advice-compute"
@@ -42,7 +61,7 @@ class RefineView(_ComputeView):
     serializer_class: ClassVar[type[EstimateInputSerializer]] = RefineInputSerializer
 
 
-class StoredAdviceView(APIView):
+class StoredAdviceView(_NoStoreAPIView):
     throttle_scope = "advice-read"
 
     def get(self, request: Request, token: str) -> Response:
