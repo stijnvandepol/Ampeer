@@ -301,9 +301,26 @@ that starts and immediately exits:
 | api container | `Restarting (1)` | `Restarting (1)` |
 | first red step | `migrate`, two steps later | `up -d` itself |
 
-It costs about ninety seconds to go red on a broken image, which is the api
-healthcheck's twenty second start period plus three failed probes, and it costs
-availability on a good one. Measured over a probe every 0.23 seconds across a
+How long it costs to go red depends on how the image is broken, and the two
+cases are far enough apart to be worth telling apart. Both measured on
+2026-08-21 against the local stack, from the moment `up -d` was invoked:
+
+| The release | `up -d` fails after | The api container |
+|---|---|---|
+| starts and exits immediately | **4.7 s** | `Restarting (1)` |
+| stays up and never becomes healthy | **84.3 s** | `Up (unhealthy)` |
+
+The second number is the healthcheck's twenty second start period plus its
+retries, and it is the one this paragraph used to quote for both. It does not
+apply to the first: a container that has exited is not unhealthy, it is gone,
+and compose stops waiting for it rather than running the probe three more
+times. The table above this one describes a container in `Restarting (1)`, so
+it was the fast case being described with the slow case's arithmetic.
+
+Operationally the slow one is the one to know about. A release that crashes is
+caught in seconds; a release that runs and does not work holds the deploy for a
+minute and a half before anything says so. It also costs availability on a good
+release. Measured over a probe every 0.23 seconds across a
 release that changes both image tags: the window in which nothing served went
 from **0.74 s** to **3.29 s**, because `web` now starts after the api's first
 successful probe instead of immediately.
@@ -332,6 +349,29 @@ Three things about that fallback are worth knowing before you need it:
 
 On a first deploy there is no running container to read a tag from, so there is
 nothing to fall back to. The job says so and stops.
+
+**Rehearsed rather than reasoned about**, on 2026-08-21 against the local stack,
+because this is machinery that only ever runs during an outage and had never
+been executed. A release was built that keeps the real image's healthcheck and
+exits on start, and then deployed:
+
+- `up -d` exited **1**, which is what the fallback's condition reads. A failure
+  that exited zero would leave the step conditioned on nothing.
+- The tag of the running release was read off the container before it was
+  replaced, which is the whole of the fallback: `ghcr.io/...ampeer-api:smoke`
+  gives `smoke`.
+- The failed deploy left **no web container at all**, so the site was down
+  rather than degraded. That is worth expecting: there is nothing to serve a
+  page from while the api will not start.
+- The fallback command brought the site back **5.3 s** after it was invoked, and
+  all three services returned.
+- `.env` was untouched, so a reboot would have brought back the same release.
+
+So the automatic fallback turns "down until somebody notices" into roughly ten
+seconds of outage, if the job runs the failed start and the fallback back to
+back. Measured on a developer machine where both images were already present;
+on the host the previous image is also already there, so nothing is pulled in
+that path either, but the host is not this machine.
 
 ### Every deploy is a short outage, and `migrate` runs before it
 
