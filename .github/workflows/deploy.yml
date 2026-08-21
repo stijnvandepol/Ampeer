@@ -220,6 +220,13 @@ jobs:
       # this line in the same commit, which is the point: it can then only
       # disagree with the host.
       COMPOSE_SHA256: 17b9fdcd4cd84b09fe07b6f1472ad38b05452be4000f83a2142ab8e1ef3dd10f
+      # The sha256 of scripts/backup_db.sh in this repository at this tag, for
+      # the same reason as the two above. This one guards a retention window:
+      # an older copy on the host keeps a different number of dumps and allows
+      # a different staleness, and both are silent.
+      #
+      # tests/test_deploy_workflow.py recomputes it on every pull request.
+      BACKUP_SHA256: 1ba24c432d6361f0b41ffe9f98323e7fcd70d8a633e759168afa3df6361e0b44
     steps:
       # Before the preflight, because a preflight from an older release checks
       # an older list of variables and passing it means nothing.
@@ -257,6 +264,26 @@ jobs:
             echo "  on the host: $actual" >&2
             echo "  this release: $COMPOSE_SHA256" >&2
             echo "copy infra/docker-compose.yml from this tag to $STACK/ and redeploy" >&2
+            exit 1
+          fi
+
+      # Before it is run, for the reason the two checks above are before what
+      # they guard: a mismatch found afterwards describes a script that has
+      # already reported on a directory using the previous release's rules.
+      - name: Confirm the backup script on the host is the one from this release
+        run: |
+          set -euo pipefail
+          if [ ! -f "$STACK/backup_db.sh" ]; then
+            echo "no backup script at $STACK/backup_db.sh" >&2
+            echo "copy scripts/backup_db.sh from this tag to $STACK/ and redeploy" >&2
+            exit 1
+          fi
+          actual="$(sha256sum "$STACK/backup_db.sh" | cut -d' ' -f1)"
+          if [ "$actual" != "$BACKUP_SHA256" ]; then
+            echo "the backup script on the host is not the one from this release" >&2
+            echo "  on the host: $actual" >&2
+            echo "  this release: $BACKUP_SHA256" >&2
+            echo "copy scripts/backup_db.sh from this tag to $STACK/ and redeploy" >&2
             exit 1
           fi
 
@@ -365,6 +392,26 @@ jobs:
           image="$(docker inspect --format '{{.Config.Image}}' "$container")"
           echo "currently serving ${image##*:}"
           echo "version=${image##*:}" >> "$GITHUB_OUTPUT"
+
+      # Before `migrate`, and that placement is the point of the step rather
+      # than a detail of it. This deploy applies migrations and nothing rolls a
+      # schema back, so the moment a recent dump matters is the moment before
+      # the first statement runs. A check that sat at the end of the job would
+      # tell an operator there is no backup immediately after the release that
+      # needed one.
+      #
+      # It reads the directory and nothing else. No database, no container: the
+      # question is whether anything is backing this host up, and a check that
+      # needed the service it checks could not answer it on a host where that
+      # service is the thing that broke.
+      #
+      # A first deploy fails here, because there is no backup directory until
+      # somebody has installed the timer and let it run once. That is the same
+      # shape as the preflight refusing to run without an env file, and it is
+      # written down in section 8 of infra/README.md rather than smoothed over
+      # with a default that would make an absent backup look like a present one.
+      - name: Confirm something is backing this database up
+        run: bash "$STACK/backup_db.sh" --check
 
       # Before `up`, and that ordering is the point of this step rather than a
       # detail of it.
