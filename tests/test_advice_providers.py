@@ -211,7 +211,29 @@ def test_without_a_profile_file_the_service_refuses_to_answer() -> None:
 
 @override_settings(AMPEER_NEDU_PROFILE_PATH="/does/not/exist.csv")
 def test_a_profile_path_that_points_at_nothing_is_reported_as_such() -> None:
-    with pytest.raises(RuntimeError, match="does not exist"):
+    with pytest.raises(RuntimeError, match="not a readable file"):
+        profile_provider()
+
+
+def test_a_profile_path_pointing_at_a_directory_is_refused(tmp_path: Path) -> None:
+    """The way this actually goes wrong in production, and it used to pass.
+
+    Docker creates an empty directory at the source of a bind mount whose host
+    path does not exist, and `Path.exists()` is true for a directory. So the
+    single most likely misconfiguration was the one shape the check waved
+    through: the readiness endpoint answered 200, the container reported
+    healthy, and the first real advice raised IsADirectoryError. Measured
+    against a running container on 2026-08-21 by the lane that built the image.
+
+    A check that passes on the failure it was written to catch is worse than no
+    check, because it is also a reason not to look.
+    """
+    directory = tmp_path / "nedu-profiles-2025.csv"
+    directory.mkdir()
+    with (
+        override_settings(AMPEER_NEDU_PROFILE_PATH=str(directory)),
+        pytest.raises(RuntimeError, match="not a readable file"),
+    ):
         profile_provider()
 
 

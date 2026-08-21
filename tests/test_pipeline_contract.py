@@ -22,6 +22,16 @@ RULESET_SCRIPT = REPO_ROOT / "scripts" / "setup_rulesets.sh"
 PYPROJECT = REPO_ROOT / "pyproject.toml"
 PRE_COMMIT = REPO_ROOT / ".pre-commit-config.yaml"
 UV_LOCK = REPO_ROOT / "uv.lock"
+#: The second place an image enters this project. Workflow service containers
+#: were the first, and until 2026-08-21 they were the only place anything read.
+INFRA_COMPOSE = REPO_ROOT / "infra" / "docker-compose.yml"
+
+#: The two services in infra/docker-compose.yml built from Dockerfiles in this
+#: repository. They carry the release tag the deploy rewrites, so no digest can
+#: be written down for them; every other image there is pulled from a registry.
+#: Named rather than derived from the `build:` key, so adding a build stanza to
+#: a fifth service does not quietly buy it an exemption here as well.
+INFRA_IMAGES_BUILT_HERE = ("api", "web")
 
 #: The GitHub Actions app. Binding a required check to it means a check can only
 #: be satisfied by a workflow run, not by any commit status with the right name.
@@ -107,18 +117,44 @@ def test_every_action_is_pinned_to_a_commit_sha() -> None:
     assert not unpinned, f"unpinned actions: {unpinned}"
 
 
+#: The one job allowed on the self-hosted runner, as (workflow file, job name).
+#:
+#: Added 2026-08-21 with the deploy. The rule below is why no unreviewed code
+#: has ever run inside the owner's own network, and an exception that is not
+#: bounded is that gate being removed slowly, so the bound is written into the
+#: shape of this constant: a workflow and a job, not a runner label and not a
+#: workflow. `tests/test_deploy_workflow.py` asserts this list is exactly one
+#: entry long, and asserts of every entry in it that the workflow triggers on a
+#: tag alone and the job carries `environment: production`. A second entry
+#: therefore has to pass both, and still fails the count, which is a deletion a
+#: reviewer sees rather than a list that grew.
+#:
+#: Keyed by workflow as well as job because `_jobs()` merges every workflow into
+#: one mapping: a bare name would hand the same exemption to a job called
+#: `deploy` added to ci.yml, which triggers on push to feat/**.
+SELF_HOSTED_EXCEPTIONS = frozenset({("deploy.yml", "deploy")})
+
+
 def test_no_job_runs_on_the_self_hosted_runner() -> None:
     """A self-hosted runner is registered on this repository.
 
     These workflows trigger on push to feat/**, which no ruleset protects. A job
     that selected self-hosted would run unreviewed code inside the owner's own
-    network. Until a sub-project designs that runner properly, with ephemeral
-    instances and an isolated container, nothing here may target it.
+    network. Nothing here may target it except the one job named in
+    SELF_HOSTED_EXCEPTIONS above, which is reachable only by pushing a tag and
+    only through a review.
+
+    The runner being non-ephemeral, measured on 2026-08-21, is a separate and
+    still open decision that belongs to the owner; it is why the exempt job is
+    also held to checking nothing out, building nothing, and logging out of the
+    registry when it finishes.
     """
     offenders = {
-        name: job.get("runs-on")
-        for name, job in _jobs().items()
+        f"{workflow}:{name}": job.get("runs-on")
+        for workflow, document in _workflows().items()
+        for name, job in document.get("jobs", {}).items()
         if "self-hosted" in str(job.get("runs-on", ""))
+        and (workflow, name) not in SELF_HOSTED_EXCEPTIONS
     }
     assert not offenders, f"jobs targeting the self-hosted runner: {offenders}"
 
@@ -251,6 +287,24 @@ def test_every_service_container_is_pinned_by_digest() -> None:
     assert not offenders, f"service containers not pinned by digest: {offenders}"
 
 
+def test_every_image_in_the_deploy_stack_is_pinned_by_digest() -> None:
+    """The same rule, read in the second place an image enters this project.
+
+    Workflow service containers were the only place anything looked, and
+    `infra/docker-compose.yml` is the file that decides what actually runs on
+    the host. A digest dropped there would have reached production with every
+    check in this repository still green, so it fails here, in the job that
+    already runs on every pull request, rather than on the host.
+    """
+    services = yaml.safe_load(INFRA_COMPOSE.read_text(encoding="utf-8"))["services"]
+    offenders = [
+        f"{name}: {spec.get('image')!r}"
+        for name, spec in services.items()
+        if name not in INFRA_IMAGES_BUILT_HERE and "@sha256:" not in str(spec.get("image", ""))
+    ]
+    assert not offenders, f"deploy stack images not pinned by digest: {offenders}"
+
+
 def test_the_build_backend_is_pinned_exactly() -> None:
     """uv does not lock build backend requirements.
 
@@ -284,8 +338,16 @@ def test_pre_commit_and_the_lockfile_agree_on_ruff() -> None:
     )
 
 
-@pytest.mark.parametrize("workflow", ["ci.yml", "security.yml"])
+@pytest.mark.parametrize("workflow", sorted(path.name for path in WORKFLOW_DIR.glob("*.yml")))
 def test_every_workflow_declares_least_privilege_permissions(workflow: str) -> None:
+    """Read from the directory rather than from a list of two names.
+
+    The list was ci.yml and security.yml until 2026-08-21, when deploy.yml
+    arrived; a third workflow added later would have been outside this
+    assertion, which is the shape of every finding in that round. A job that
+    needs more says so on the job, where it is scoped to the job: `build` in
+    deploy.yml adds `packages: write` that way.
+    """
     document = _workflows()[workflow]
     assert document.get("permissions") == {"contents": "read"}
 

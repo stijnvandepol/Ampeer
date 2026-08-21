@@ -30,6 +30,12 @@ def profile_provider() -> ProfileProvider:
             "invented consumption profile"
         )
     path = Path(configured)
-    if not path.exists():
-        raise RuntimeError(f"AMPEER_NEDU_PROFILE_PATH does not exist: {path}")
+    # is_file, not exists. Docker creates an empty *directory* at the source of
+    # a bind mount whose path does not exist on the host, and exists() is true
+    # for a directory. So the most likely way this is misconfigured in
+    # production was the one case this check waved through: readiness answered
+    # 200, the container reported healthy, and the first real advice raised
+    # IsADirectoryError. Measured on 2026-08-21 against a running container.
+    if not path.is_file():
+        raise RuntimeError(f"AMPEER_NEDU_PROFILE_PATH is not a readable file: {path}")
     return NeduFileProvider(path)

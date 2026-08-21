@@ -17,6 +17,7 @@ from datetime import timedelta
 import pytest
 from django.conf import settings
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.db import transaction
 from django.db.utils import IntegrityError
 from django.utils import timezone
@@ -92,6 +93,42 @@ def test_the_purge_command_deletes_only_what_has_expired() -> None:
     StoredAdvice.objects.filter(pk=dead.pk).update(expires_at=timezone.now() - timedelta(days=1))
     call_command("purge_expired_advice")
     assert list(StoredAdvice.objects.values_list("pk", flat=True)) == [live.pk]
+
+
+def test_the_check_mode_is_quiet_when_nothing_is_overdue() -> None:
+    StoredAdvice.create(inputs=INPUTS, advice=ADVICE)
+    call_command("purge_expired_advice", "--check")
+
+
+def test_the_check_mode_reports_a_row_that_should_have_been_deleted() -> None:
+    """The reason this exists at all.
+
+    With no scheduler, the only observable behaviour is that a link 404s after
+    ninety days, which is exactly what correct looks like: get_live filters on
+    expires_at, so an unpurged row is invisible rather than absent. Those are
+    two different promises and CLAUDE.md makes the stronger one. Without this
+    check, the first person to find out is whoever reads a database backup.
+    """
+    stale = StoredAdvice.create(inputs=INPUTS, advice=ADVICE)
+    StoredAdvice.objects.filter(pk=stale.pk).update(expires_at=timezone.now() - timedelta(days=3))
+    with pytest.raises(CommandError, match="not been purged"):
+        call_command("purge_expired_advice", "--check")
+
+
+def test_the_check_mode_allows_a_day_of_grace() -> None:
+    """A timer that runs daily has to be allowed to not have run yet."""
+    recent = StoredAdvice.create(inputs=INPUTS, advice=ADVICE)
+    StoredAdvice.objects.filter(pk=recent.pk).update(expires_at=timezone.now() - timedelta(hours=2))
+    call_command("purge_expired_advice", "--check")
+
+
+def test_the_check_mode_deletes_nothing() -> None:
+    """A check that repairs what it measures can never report a problem."""
+    stale = StoredAdvice.create(inputs=INPUTS, advice=ADVICE)
+    StoredAdvice.objects.filter(pk=stale.pk).update(expires_at=timezone.now() - timedelta(days=3))
+    with pytest.raises(CommandError):
+        call_command("purge_expired_advice", "--check")
+    assert StoredAdvice.objects.filter(pk=stale.pk).exists()
 
 
 def test_an_audit_event_records_what_happened() -> None:

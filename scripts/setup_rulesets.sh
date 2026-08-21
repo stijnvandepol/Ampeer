@@ -45,6 +45,31 @@ apply_ruleset() {
 # main: nothing lands here except through a green pull request. bypass_actors is
 # empty on purpose, including for the repository owner. A rule with an exception
 # for the only person who works on the project is not a rule.
+#
+# Deliberately NOT required here: `build` and `deploy` from
+# .github/workflows/deploy.yml. Added 2026-08-21 with those two jobs, so that
+# their absence reads as a decision rather than as an oversight.
+#
+# They cannot be required, in the strict sense. deploy.yml triggers on a tag and
+# on nothing else, so neither job ever reports on a pull request, and a required
+# check that never arrives is a pull request that waits forever. That is the
+# same failure the first test in tests/test_pipeline_contract.py exists to
+# catch, and it would be self-inflicted here.
+#
+# They should not be required even if they could. The tag is cut from a `main`
+# that has already passed the seven checks below; the deploy runs afterwards and
+# against a host. Requiring it would mean a failed deploy, for a reason as
+# unrelated as the LXC being down or a variable missing from the env file on it,
+# blocks every future merge to main until somebody re-runs it. That inverts the
+# direction the gate is supposed to work in: these checks exist to keep bad code
+# out of main, not to let a sick host stop good code from getting in.
+#
+# What does gate the deploy is elsewhere and is stronger: the `production`
+# environment, whose review has to be given before the `deploy` job starts, and
+# whose deployment branch policy is what decides which tags may reach it. Both
+# are configured on the environment in repository settings, not in this script,
+# because this script does not create environments and pretending otherwise
+# would produce a file that looks like it configured something it did not.
 apply_ruleset "protect-main" "$(cat <<'JSON'
 {
   "name": "protect-main",

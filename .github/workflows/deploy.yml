@@ -1,0 +1,182 @@
+name: deploy
+
+# The only workflow in this repository with a job on the self-hosted runner,
+# and the only one that can change what is running on the host.
+#
+# tests/test_pipeline_contract.py refuses every job that says `self-hosted`,
+# because ci.yml and security.yml trigger on push to feat/** where no ruleset
+# applies, so such a job would run whatever somebody pushed inside the owner's
+# own network. This workflow is the single named exception to that rule, and it
+# is only defensible because of the four properties below. Each one has a test.
+#
+#   1. It triggers on a tag and on nothing else. No branch, no pull request, no
+#      workflow_dispatch. The runner cannot be reached by pushing code.
+#   2. The `deploy` job declares `environment: production`, so a tag push is a
+#      request that waits for a review rather than a deploy.
+#   3. That job checks nothing out and builds nothing. There is no source on
+#      the host, no build chain, and no token that can read the repository.
+#   4. It logs out of the registry when it finishes. web2 is not ephemeral,
+#      measured on 2026-08-21, so anything left in the runner's home directory
+#      is there for the next job as well.
+#
+# Widening any of the four is how the original rule gets removed slowly, so
+# tests/test_deploy_workflow.py asserts all four and asserts that the exception
+# list holds exactly one job.
+on:
+  push:
+    tags: ["v*"]
+
+# Read by default. `build` raises its own to `packages: write` and `deploy`
+# lowers its own to `packages: read`, both scoped to the job.
+permissions:
+  contents: read
+
+# Two deploys running `migrate` against one database at the same time is the
+# failure this prevents; cancel-in-progress stays false because cancelling a
+# deploy halfway leaves the stack half migrated, which is worse than waiting.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  # Builds on a GitHub-hosted runner and publishes to GHCR. Everything that
+  # needs the source happens here, which is what leaves the host with nothing
+  # to compromise.
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nothing here pushes. Leaving the token in .git/config would hand it
+          # to every tool that runs afterwards, including a Docker build.
+          persist-credentials: false
+
+      # The web image copies frontend/out in rather than building it, so the
+      # site has to be exported before the image is built. It is exported here
+      # and not in the Dockerfile so the published image is the same output
+      # `frontend-test` already ran the end to end suite against.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: frontend/.nvmrc
+      # See the note in ci.yml on why there is no pnpm cache on the step above.
+      - run: corepack enable
+        working-directory: frontend
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - name: Export the static site against its own origin
+        working-directory: frontend
+        env:
+          # Empty on purpose, and this is the only place it is empty. api.ts
+          # falls back to http://127.0.0.1:8000 when the variable is absent,
+          # which is the development default; an absent variable here would
+          # bake a localhost URL into the production bundle and every visitor
+          # would get a failed request against their own machine. Empty makes
+          # the client use relative paths, which is what same-origin means.
+          NEXT_PUBLIC_API_BASE: ""
+        run: pnpm build
+
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Both images carry the tag that started this run, and infra/docker-compose.yml
+      # pulls exactly that tag through AMPEER_VERSION. A deploy is therefore one
+      # string, which is what makes a rollback a rollback and not a rebuild.
+      - name: Build and push the api image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: infra/api.Dockerfile
+          push: true
+          tags: ghcr.io/stijnvandepol/ampeer-api:${{ github.ref_name }}
+          provenance: true
+
+      - name: Build and push the web image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: infra/web.Dockerfile
+          push: true
+          tags: ghcr.io/stijnvandepol/ampeer-web:${{ github.ref_name }}
+          provenance: true
+
+  # Runs on the LXC. Four commands and a logout.
+  deploy:
+    needs: build
+    runs-on: self-hosted
+    timeout-minutes: 15
+    # The review gate. Reviewers and the deployment branch policy are
+    # configured on the environment in repository settings, not here; that
+    # policy is what keeps a tag cut from a feature branch from deploying, and
+    # setting it is the owner's, like the runner itself.
+    environment: production
+    # Pull two private packages, and nothing else. Naming one permission sets
+    # every unnamed one to none, so this token cannot read the repository.
+    permissions:
+      packages: read
+    env:
+      # Shell environment beats the env file in compose interpolation, so this
+      # decides which release runs even when the file on the host still names
+      # the previous one.
+      AMPEER_VERSION: ${{ github.ref_name }}
+      # The stack lives here. docker-compose.yml, .env and preflight_env.sh are
+      # placed on the host by hand from this repository, because nothing here
+      # can write to the LXC and a job that could would be a job that can
+      # change what runs without a review.
+      STACK: /srv/ampeer
+    steps:
+      # First, before anything restarts. A container in a restart loop over a
+      # missing variable is an outage that looks like a code fault, on a host
+      # nobody is logged in to.
+      # Invoked through bash rather than executed, so a hand copy that arrived
+      # without its executable bit fails on a missing variable it can report
+      # rather than on "permission denied" from a step whose name says
+      # something else.
+      - name: Check the nine variables and the profile file
+        run: bash "$STACK/preflight_env.sh" "$STACK/.env"
+
+      - name: Log in to the registry
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        # Through the environment rather than interpolated into the script, so
+        # nothing from the event ends up as shell. A plain command rather than
+        # an action, because this one runs inside the owner's network and every
+        # third party step there is one more thing that gets to.
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+      # -f rather than a working directory. Without it compose looks for a
+      # compose file in the runner's own work directory and walks upwards from
+      # there, which is not where the stack lives; the project directory then
+      # follows the file, which is what makes the bind mount source in it
+      # resolve against /srv/ampeer.
+      - name: Pull what CI built
+        run: >-
+          docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env"
+          pull
+
+      - name: Start it
+        run: >-
+          docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env"
+          up -d --remove-orphans
+
+      # After `up`, so it runs against the image that is now serving, and with
+      # --noinput because there is no terminal attached to this.
+      - name: Migrate
+        run: >-
+          docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env"
+          run --rm api python backend/manage.py migrate --noinput
+
+      # always(), because the deploys that fail are the ones that would
+      # otherwise leave a registry credential in ~/.docker/config.json on a
+      # runner that keeps its home directory between jobs.
+      - name: Drop the registry credential
+        if: always()
+        run: docker logout ghcr.io

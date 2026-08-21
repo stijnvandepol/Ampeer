@@ -1,0 +1,95 @@
+# Every image that comes from a registry is pinned by digest. A tag is a name
+# somebody else can repoint, and this file is the last place a change is read
+# before it runs on the host. The four digests below were resolved from the
+# registry on 2026-08-21; re-resolve when bumping and write down what you got.
+#
+# The two images built from this repository carry both `image:` and `build:`.
+# The deploy pulls the published one; a developer can bring the same stack up
+# locally without a registry. They are the same file, which is the point. Those
+# two are the only images here without a digest, because the release tag is not
+# known until the deploy that creates it, and tests/test_infra.py asserts that
+# the exemption is exactly those two names.
+#
+# Nothing in this file makes anything reachable. cloudflared opens an outbound
+# connection, so there is no published port, no host network, and no inbound
+# firewall rule anywhere on the path. Adding one here is the single change that
+# would undo that, which is why a test reads this file for it.
+name: ampeer
+
+services:
+  db:
+    image: postgres@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ampeer-db:/var/lib/postgresql/data
+    healthcheck:
+      # $$ so compose leaves the expansion to the shell inside the container;
+      # a single $ would interpolate here and bake the value into the file.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    image: ghcr.io/stijnvandepol/ampeer-api:${AMPEER_VERSION}
+    build:
+      context: ..
+      dockerfile: infra/api.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DJANGO_SETTINGS_MODULE: ampeer.settings.prod
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS}
+      DJANGO_CORS_ALLOWED_ORIGINS: ${DJANGO_CORS_ALLOWED_ORIGINS}
+      DJANGO_NUM_PROXIES: ${DJANGO_NUM_PROXIES}
+      # The path inside the container, which is fixed by the mount below. The
+      # variable of the same name in the env file is the path on the host: one
+      # name, two sides of the same bind mount, and the preflight checks the
+      # host side because that is the one that can be wrong.
+      AMPEER_NEDU_PROFILE_PATH: /srv/profiles/nedu.csv
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+    volumes:
+      # Read only: this is somebody else's data under redistribution terms that
+      # are not confirmed, and nothing here has a reason to write to it.
+      - ${AMPEER_NEDU_PROFILE_PATH}:/srv/profiles/nedu.csv:ro
+    # No healthcheck here on purpose. api.Dockerfile declares its own, and it
+    # is the only place that knows two things this file got wrong within hours
+    # of being written: the route is /api/advice/health/, because advice.urls
+    # is mounted under api/advice/, and the request needs an
+    # X-Forwarded-Proto: https header, because SECURE_SSL_REDIRECT turns a
+    # plain loopback request into a 301 that urlopen follows into a TLS
+    # handshake against a plain socket. A compose healthcheck overrides the
+    # image's, so this block was a second copy that could only ever be stale,
+    # and while it was here the api container could never become healthy and
+    # `depends_on: service_healthy` would never have released.
+
+  web:
+    image: ghcr.io/stijnvandepol/ampeer-web:${AMPEER_VERSION}
+    build:
+      context: ..
+      dockerfile: infra/web.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+
+  tunnel:
+    image: cloudflare/cloudflared@sha256:0aa26e284f05e6c77ae375b8c9c11d9eb6a448fb7bcd8d40f31cb6176189eb38
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      web:
+        condition: service_started
+
+volumes:
+  ampeer-db:

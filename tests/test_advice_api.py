@@ -14,10 +14,12 @@ import re
 import time
 from collections.abc import Iterator
 from datetime import timedelta
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pytest
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.settings import api_settings
@@ -523,3 +525,57 @@ class TestTheBrowserIsAllowedToReadTheAnswer:
             reverse("advice-estimate"), ESTIMATE, format="json", HTTP_ORIGIN=self.ALLOWED
         )
         assert response.get("access-control-allow-credentials") != "true"
+
+
+@pytest.mark.django_db
+class TestTheReadinessCheck:
+    """A container with a bad profile mount used to start, report healthy, and
+    fail every request.
+
+    prod.py requires AMPEER_NEDU_PROFILE_PATH to be set, not for the file
+    behind it to exist, and profile_provider() is only called when an advice is
+    computed. So the process came up, the orchestrator was satisfied, and the
+    product was a hundred percent broken while looking like it ran. The
+    healthcheck has to open the thing a bad mount breaks.
+    """
+
+    def test_readiness_is_ok_when_the_profile_can_be_opened(self, tmp_path: Path) -> None:
+        profile = tmp_path / "nedu.csv"
+        profile.write_text("stub", encoding="utf-8")
+        with override_settings(AMPEER_NEDU_PROFILE_PATH=str(profile)):
+            response = APIClient().get(reverse("advice-health"))
+        assert response.status_code == 200
+        assert response.json()["status"] == "ok"
+
+    def test_readiness_fails_when_the_profile_is_not_there(self) -> None:
+        with override_settings(AMPEER_NEDU_PROFILE_PATH="/does/not/exist.csv"):
+            response = APIClient().get(reverse("advice-health"))
+        assert response.status_code == 503
+
+    def test_readiness_fails_when_the_path_was_never_set(self) -> None:
+        with override_settings(AMPEER_NEDU_PROFILE_PATH=None):
+            response = APIClient().get(reverse("advice-health"))
+        assert response.status_code == 503
+
+    def test_readiness_says_nothing_about_why(self) -> None:
+        """A health endpoint is unauthenticated and reachable from anywhere the
+        service is. The path on disk is not something it should hand out.
+
+        The status code is asserted first and not as decoration. Without it
+        this test passes against a view that answers 200 to everything, since
+        an ok body holds no path either, and a test that cannot fail for the
+        reason it exists is worse than no test.
+        """
+        with override_settings(AMPEER_NEDU_PROFILE_PATH="/srv/secret/place.csv"):
+            response = APIClient().get(reverse("advice-health"))
+        assert response.status_code == 503
+        body = response.content.decode()
+        assert "secret" not in body and "srv" not in body
+
+    def test_readiness_computes_nothing_and_touches_no_database(
+        self, django_assert_num_queries: Any
+    ) -> None:
+        """A healthcheck that runs every thirty seconds and does real work is a
+        load generator with a nice name."""
+        with django_assert_num_queries(0):
+            APIClient().get(reverse("advice-health"))
