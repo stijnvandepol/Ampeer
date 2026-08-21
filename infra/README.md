@@ -474,6 +474,52 @@ The containers are called `ampeer-local-api-1`, `ampeer-local-web-1` and
 it is the next paragraph's whole subject; where a verify step elsewhere in this
 file names `ampeer-web-1`, locally it is `ampeer-local-web-1`.
 
+### A database for the test suite, without building the stack
+
+About a tenth of the suite talks to Postgres. Without one those tests do not
+fail, they **error**, and pytest reports them separately from failures at the
+bottom of a long run. A local run that looks fine at a glance can be missing
+them entirely: measured on 2026-08-21, the same suite reported `749 passed` with
+89 errors against no database and `838 passed` against one.
+
+That matters more than usual while GitHub Actions minutes are exhausted, because
+a local run is then the only run there is.
+
+None of the images have to be built for this. The suite needs a server, not the
+stack:
+
+```sh
+IMAGE=$(grep -A1 '^  db:' infra/docker-compose.yml | grep image: | sed 's/.*image: //')
+docker run -d --name ampeer-devtest -p 5433:5432 \
+  -e POSTGRES_USER=ampeer -e POSTGRES_PASSWORD=devtest -e POSTGRES_DB=ampeer "$IMAGE"
+```
+
+The image is read out of `docker-compose.yml` rather than written here, so this
+is the same server version the host runs and stays that way when the pin moves.
+If the grep ever stops matching, `IMAGE` is empty and docker says so on the next
+line rather than quietly starting something else.
+
+Port **5433**, not 5432. A development machine often already has a Postgres on
+the default port belonging to another project, and that one answers a connection
+probe and then refuses the login, which turns the whole suite red for a reason
+that has nothing to do with the code.
+
+Then:
+
+```sh
+POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5433 POSTGRES_DB=ampeer \
+POSTGRES_USER=ampeer POSTGRES_PASSWORD=devtest \
+  uv run pytest -q
+```
+
+`scripts/gates.sh` reads the same five variables and runs the same command as
+part of a full local run. It refuses to guess a password, so without them it
+reports `pytest` as NOT RUN rather than passing over a tenth of the suite.
+
+The container holds nothing worth keeping. `docker rm -f ampeer-devtest` when
+you are done, and start it again next time; the suite creates and drops its own
+test database on every run.
+
 ### `down -v` deletes a database, and the project name decides which one
 
 `-v` removes named volumes, and the only named volume in this stack is the one

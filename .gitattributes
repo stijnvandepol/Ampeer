@@ -37,8 +37,7 @@
 # fails in a way that names something other than line endings: a systemd unit
 # with CRLF does not parse, a Dockerfile RUN line with a trailing carriage
 # return fails inside the container, and an env file read by compose turns
-# POSTGRES_HOST into "db
-" so the failure reads as DNS.
+# POSTGRES_HOST into "db" plus a carriage return, so the failure reads as DNS.
 #
 # The foundation lane found the .example gap in a file it was creating and
 # recommended these four rather than pre-empting three lanes mid-flight. That
@@ -71,3 +70,24 @@
 .gitattributes text eol=lf
 .nvmrc text eol=lf
 .prettierignore text eol=lf
+
+
+# Added 2026-08-21. These four matched none of the rules above and fell through
+# to `* text=auto`, which does not decide anything: with core.autocrlf=true it
+# lets git guess per file whether the working tree gets LF or CRLF. Every rule
+# above this one was added after that guess went wrong somewhere, and two of
+# these are read by uv on a Linux runner, which is the same shape.
+#
+# Measured on 2026-08-21 with `git ls-files --eol`: every tracked file is `i/lf`
+# today, so none of this repairs an existing defect. It removes the guessing.
+# Stated plainly because an earlier draft of this comment claimed uv.lock was
+# committed with carriage returns; that came from counting them in `git show`
+# output, which git converts on Windows before printing it, and it was wrong.
+#
+# The icon is binary. `* text=auto` classifies it correctly today because it
+# holds NUL bytes, so this line changes nothing now and stops a future `text`
+# rule from catching it and corrupting it.
+uv.lock text eol=lf
+.python-version text eol=lf
+*.csv text eol=lf
+*.ico binary

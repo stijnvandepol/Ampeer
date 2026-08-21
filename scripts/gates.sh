@@ -151,7 +151,7 @@ gate pre-commit uv run pre-commit run --all-files --show-diff-on-failure
 # The other four have defaults because a host, a port, a database name and a
 # user name are not secrets and getting one of them wrong fails loudly.
 if [ -z "${POSTGRES_PASSWORD:-}" ]; then
-  skip pytest "POSTGRES_PASSWORD is not set, so there is no way to tell a scratch database from someone else's; set it and POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB and POSTGRES_USER if they are not the defaults"
+  skip pytest "POSTGRES_PASSWORD is not set, so there is no way to tell a scratch database from someone else's. infra/README.md section 7 has the two commands that start one and run against it"
 elif something_listening_on_postgres; then
   gate pytest env POSTGRES_HOST="${POSTGRES_HOST:-127.0.0.1}" POSTGRES_PORT="${POSTGRES_PORT:-5432}" \
     POSTGRES_DB="${POSTGRES_DB:-ampeer}" POSTGRES_USER="${POSTGRES_USER:-ampeer}" \
