@@ -38,10 +38,10 @@ jobs:
           version: "0.12.5"
           python-version-file: ".python-version"
           enable-cache: true
-      - run: uv sync --locked --group dev
-      - run: uv run ruff check ampeer_sim ampeer_advice tests tools
-      - run: uv run ruff format --check ampeer_sim ampeer_advice tests tools
-      - run: uv run mypy ampeer_sim ampeer_advice tools
+      - run: uv sync --locked --group dev --group backend
+      - run: uv run ruff check ampeer_sim ampeer_advice backend tests tools
+      - run: uv run ruff format --check ampeer_sim ampeer_advice backend tests tools
+      - run: uv run mypy ampeer_sim ampeer_advice backend tools
       # The pre-commit hooks are opt-in per clone and skippable with
       # --no-verify. Running them here makes that a local convenience rather
       # than a permanent exit.
@@ -51,6 +51,26 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Postgres and not SQLite, because the schema under test must be the schema
+    # that ships. An in-memory database in the tests and a real one in
+    # production hides a whole class of fault.
+    services:
+      postgres:
+        # Digest resolved from Docker Hub on 2026-08-21 for postgres:16-alpine.
+        # Pinned rather than tagged for the same reason every action here is
+        # pinned: a tag is a name someone else can repoint.
+        image: postgres@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_DB: ampeer
+          POSTGRES_USER: ampeer
+          POSTGRES_PASSWORD: ampeer
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ampeer"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -60,5 +80,11 @@ jobs:
           version: "0.12.5"
           python-version-file: ".python-version"
           enable-cache: true
-      - run: uv sync --locked --group dev
+      - run: uv sync --locked --group dev --group backend
       - run: uv run pytest --cov --cov-report=term-missing
+        env:
+          POSTGRES_HOST: 127.0.0.1
+          POSTGRES_PORT: "5432"
+          POSTGRES_DB: ampeer
+          POSTGRES_USER: ampeer
+          POSTGRES_PASSWORD: ampeer

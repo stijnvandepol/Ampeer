@@ -1,0 +1,203 @@
+"""Where a stranger's JSON becomes something the model may see.
+
+Two rules run through everything below. Unknown fields are refused rather than
+dropped, because a silently ignored field means a caller can send an email
+address forever and believe it was stored, and a typo in a real field name reads
+as an omission. And every number is bounded on both sides, because an unbounded
+number is not a wrong answer but a way to make the server compute.
+
+The Dutch strings here are validation messages, not advice. Advice sentences
+live only in ``ampeer_advice.nl``, keyed by rule id, because that package must
+not know an HTTP form exists.
+"""
+
+from __future__ import annotations
+
+from typing import Any, ClassVar
+
+from rest_framework import serializers
+
+from ampeer_sim.types import EVChargingBehaviour
+
+# The four maxima below are safety bounds and nothing else: wide enough that no
+# real household is refused, narrow enough that one request cannot occupy the
+# machine. A single advice runs a 243-cell sensitivity grid, so the cost of a
+# request scales with the array and the demand it describes. None of these
+# numbers is a claim about what Dutch households own and none should be read as
+# one; the honest statement is only that no plausible dwelling comes near them.
+
+#: ampeer_sim.types.PVSystem refuses anything above 50_000 Wp outright, so this
+#: sits under the domain limit rather than restating it.
+MAX_PEAK_POWER_WP = 30_000
+MAX_ANNUAL_CONSUMPTION_KWH = 50_000.0
+MAX_HEAT_DEMAND_KWH = 40_000.0
+MAX_BATTERY_CAPACITY_KWH = 100.0
+
+# The minima come from the domain types, which raise rather than return a wrong
+# number. PVSystem requires peak_power_wp > 0, Household requires
+# annual_consumption_kwh > 0 and BatterySpec requires capacity_kwh > 0. DRF's
+# min_value is inclusive, so each floor sits just above zero.
+MIN_PEAK_POWER_WP = 1
+MIN_ANNUAL_CONSUMPTION_KWH = 1.0
+MIN_HEAT_DEMAND_KWH = 1.0
+MIN_BATTERY_CAPACITY_KWH = 0.5
+
+# Copied from PVSystem.__post_init__, which raises outside these ranges. Zero is
+# south, negative is east, positive is west, matching PVGIS and ampeer_sim.
+MIN_AZIMUTH_DEG = -180
+MAX_AZIMUTH_DEG = 180
+MIN_TILT_DEG = 0
+MAX_TILT_DEG = 90
+
+#: Four ASCII digits, anchored with ``\Z`` rather than ``$``. ``$`` also matches
+#: just before a trailing newline, and ``\d`` matches every Unicode decimal
+#: digit, which ``str.isdigit()`` in Household would accept as well. Neither
+#: belongs in a column that is grouped by neighbourhood.
+POSTCODE4_PATTERN = r"^[0-9]{4}\Z"
+
+#: Dutch postcodes start at 1000. Four digits is a shape, not a place, and the
+#: pattern above cannot tell the two apart: "0123" has the shape and is not a
+#: postcode. Left unchecked it reaches ampeer_sim.production.pvgis, whose
+#: postcode4_to_latlon falls back to a default centroid for an unrecognised two
+#: digit prefix, so the household would be advised on the weather of somewhere
+#: it does not live, with nothing anywhere reporting a problem.
+MIN_POSTCODE4 = 1000
+MAX_POSTCODE4 = 9999
+
+#: Rounded to whole degrees, here and nowhere else, so one value reaches the
+#: cache key, the PVGIS call and the PVSystem. A float in a cache key means a
+#: hit computed for a slightly different roof than the simulation then assumes,
+#: and nobody knows their roof angle to better than a degree anyway.
+_ROUNDED_TO_WHOLE_DEGREES = ("azimuth_deg", "tilt_deg")
+
+
+class StrictSerializer(serializers.Serializer[dict[str, Any]]):
+    """A serializer that refuses what it does not recognise."""
+
+    def to_internal_value(self, data: Any) -> dict[str, Any]:
+        if isinstance(data, dict):
+            unknown = set(data) - set(self.fields)
+            if unknown:
+                raise serializers.ValidationError(
+                    {name: "onbekend veld" for name in sorted(unknown)}
+                )
+        validated: dict[str, Any] = super().to_internal_value(data)
+        return validated
+
+
+class EstimateInputSerializer(StrictSerializer):
+    """Round one: four questions, five values.
+
+    Orientation and tilt are one question about one roof, which is why the
+    question count below is four and not five. That count decides the
+    confidence label, so it is a property of the form and not of this class's
+    field list.
+    """
+
+    QUESTION_COUNT: ClassVar[int] = 4
+
+    # trim_whitespace defaults to True on every DRF CharField, and it runs
+    # before the validators, so " 5401" and "5401\n" would reach the regex as
+    # "5401" and be accepted. What lands in the column should be what the caller
+    # sent, so the trimming is off and the pattern decides alone.
+    postcode4 = serializers.RegexField(POSTCODE4_PATTERN, trim_whitespace=False)
+    peak_power_wp = serializers.IntegerField(
+        min_value=MIN_PEAK_POWER_WP, max_value=MAX_PEAK_POWER_WP
+    )
+    azimuth_deg = serializers.IntegerField(min_value=MIN_AZIMUTH_DEG, max_value=MAX_AZIMUTH_DEG)
+    tilt_deg = serializers.IntegerField(min_value=MIN_TILT_DEG, max_value=MAX_TILT_DEG)
+    annual_consumption_kwh = serializers.FloatField(
+        min_value=MIN_ANNUAL_CONSUMPTION_KWH, max_value=MAX_ANNUAL_CONSUMPTION_KWH
+    )
+
+    def validate_postcode4(self, value: str) -> str:
+        """Refuse a four digit string that is not a Dutch postcode."""
+        if not MIN_POSTCODE4 <= int(value) <= MAX_POSTCODE4:
+            raise serializers.ValidationError("geen Nederlandse postcode")
+        return value
+
+    def to_internal_value(self, data: Any) -> dict[str, Any]:
+        # IntegerField refuses 34.6 outright. Rounding before validation keeps a
+        # slider that emits fractions working, without letting a float reach the
+        # cache key. It happens before the range check and not instead of it:
+        # 90.6 rounds to 91 and is still refused.
+        if isinstance(data, dict):
+            data = dict(data)
+            for name in _ROUNDED_TO_WHOLE_DEGREES:
+                value = data.get(name)
+                if isinstance(value, float):
+                    data[name] = round(value)
+        return super().to_internal_value(data)
+
+
+class RefineInputSerializer(EstimateInputSerializer):
+    """Round two: five more questions, nine in total."""
+
+    QUESTION_COUNT: ClassVar[int] = 9
+
+    daytime_occupancy = serializers.BooleanField()
+    has_ev = serializers.BooleanField()
+    # Derived from the enum rather than copied, so a new member cannot be
+    # accepted by the engine and refused by the form.
+    ev_behaviour = serializers.ChoiceField(
+        choices=[behaviour.name for behaviour in EVChargingBehaviour],
+        allow_null=True,
+        default=None,
+    )
+    has_heat_pump = serializers.BooleanField()
+    heat_demand_kwh = serializers.FloatField(
+        min_value=MIN_HEAT_DEMAND_KWH,
+        max_value=MAX_HEAT_DEMAND_KWH,
+        allow_null=True,
+        default=None,
+    )
+    dynamic_contract = serializers.BooleanField()
+    has_battery = serializers.BooleanField()
+    battery_capacity_kwh = serializers.FloatField(
+        min_value=MIN_BATTERY_CAPACITY_KWH,
+        max_value=MAX_BATTERY_CAPACITY_KWH,
+        allow_null=True,
+        default=None,
+    )
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        """Every yes must bring the detail that makes it usable.
+
+        A default here would be an invented number in the place it matters
+        most: when an EV charges decides most of the answer for a household
+        that has one. And a capacity without a battery is two fields that
+        disagree, where whichever one the assembly reads first decides the
+        result.
+
+        All three pairs report together. A form that reveals one problem per
+        round trip teaches people to guess.
+        """
+        errors: dict[str, str] = {}
+        for flag, detail, required_message, forbidden_message in (
+            (
+                "has_ev",
+                "ev_behaviour",
+                "verplicht wanneer er een elektrische auto is",
+                "alleen toegestaan met een elektrische auto",
+            ),
+            (
+                "has_heat_pump",
+                "heat_demand_kwh",
+                "verplicht wanneer er een warmtepomp is",
+                "alleen toegestaan met een warmtepomp",
+            ),
+            (
+                "has_battery",
+                "battery_capacity_kwh",
+                "verplicht wanneer er een thuisbatterij is",
+                "alleen toegestaan met een thuisbatterij",
+            ),
+        ):
+            present = attrs.get(detail) is not None
+            if attrs[flag] and not present:
+                errors[detail] = required_message
+            elif not attrs[flag] and present:
+                errors[detail] = forbidden_message
+        if errors:
+            raise serializers.ValidationError(errors)
+        return attrs

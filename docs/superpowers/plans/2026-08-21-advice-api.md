@@ -726,6 +726,50 @@ Report the output of all three. A gate that has never been seen red is not a gat
 
 - [ ] **Step 9: Stop. Do not commit.** Report to the barrier.
 
+**Correction, recorded 2026-08-21 after this task ran.** Step 5's
+`test_the_backend_may_import_the_pure_packages` **cannot pass at the end of Task 1, and
+that is a defect in this plan rather than in the work.** Everything Task 1 creates is a
+settings module or an entry point, and none of them has any business importing the
+engine. The first backend file that legitimately imports it is `serializers.py` in Lane B.
+
+The test is correct and stays exactly as written: a one-directional rule tested only in
+the forbidding direction stays green when the arrow disappears altogether, so asserting
+the arrow exists is the point. What was wrong is where the plan put it. It is expected
+red from the end of Task 1 until the first lane lands, and it going green is the
+confirmation that the seam exists. The foundation lane reported this rather than
+manufacturing an import to green it, which is rule 6 working.
+
+**Environment note.** Tasks 2, 4 and 6 need a running PostgreSQL; Tasks 1, 3 and 5 do
+not, and their tests must not be marked `django_db`. On a machine without one:
+
+```bash
+docker run -d --name ampeer-test-db -p 127.0.0.1:55432:5432 \
+  -e POSTGRES_DB=ampeer -e POSTGRES_USER=ampeer -e POSTGRES_PASSWORD=ampeer \
+  postgres@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+```
+
+Then prefix every database-touching command with `POSTGRES_PORT=55432`, which
+`settings/dev.py` already reads from the environment.
+
+Three deliberate choices in that one command. Bound to `127.0.0.1`, so a development
+database with a throwaway password is not reachable from the network. The same digest as
+CI, so the schema under test locally is the schema under test in the pipeline. And host
+port **55432** rather than 5432, because another project on this machine starts a Postgres
+on the default port with Docker Desktop; taking 5432 would have meant either failing to
+start or, far worse, silently running the test suite against somebody else's database.
+Nothing belonging to another project is stopped or reconfigured.
+
+The port lives in an environment variable rather than in a settings file on purpose. CI
+runs a service container on 5432 and a settings file that hardcoded 55432 would work
+everywhere except the place the gate runs.
+
+**Formatting a generated file.** After `makemigrations`, run `ruff format` on the new
+migration: Django writes it in its own style and the `ruff format --check` gate does not
+care who wrote it. More generally, a lane may run `ruff format` in write mode against the
+paths in its ownership row. That writes nothing outside those paths, so rule 5's blanket
+ban on formatters in a lane was too broad; what rule 5 is actually about is
+`pre-commit run --all-files` and any other tool that rewrites the whole tree.
+
 ---
 
 ## Phase 1: four concurrent lanes

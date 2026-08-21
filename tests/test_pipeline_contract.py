@@ -161,15 +161,48 @@ def test_the_coverage_comparison_is_not_rounded_away() -> None:
     assert _pyproject()["tool"]["coverage"]["report"]["precision"] >= 2
 
 
-def test_every_top_level_package_is_measured_for_coverage() -> None:
-    """A new package must not be exempt from the gates while they stay green."""
-    packages = {
+def test_every_package_is_measured_for_coverage() -> None:
+    """A new package must not be exempt from the gates while they stay green.
+
+    Both levels are checked. The first version of this globbed only the
+    repository root, which would have let every Django app under backend/ in
+    without being measured.
+    """
+    roots = {
         path.parent.name
         for path in REPO_ROOT.glob("*/__init__.py")
         if not path.parent.name.startswith(".")
     }
     measured = set(_pyproject()["tool"]["coverage"]["run"]["source"])
-    assert packages <= measured, f"packages outside coverage: {sorted(packages - measured)}"
+    assert roots <= measured, f"packages outside coverage: {sorted(roots - measured)}"
+
+    backend = REPO_ROOT / "backend"
+    if backend.is_dir():
+        assert "backend" in measured, "backend/ exists but is not measured for coverage"
+        apps = {path.parent.name for path in backend.glob("*/__init__.py")}
+        assert apps, "backend/ holds no python package; check this test still applies"
+
+
+def test_the_coverage_omit_list_stays_short_and_justified() -> None:
+    """An omit entry is the quietest way to make a coverage floor stop meaning
+    anything: the percentage stays high because the untested code is no longer
+    counted. Only the two generated entry points may be listed."""
+    allowed = {"backend/manage.py", "backend/ampeer/wsgi.py"}
+    omitted = set(_pyproject()["tool"]["coverage"]["run"].get("omit", []))
+    assert omitted <= allowed, f"unjustified coverage omissions: {sorted(omitted - allowed)}"
+
+
+def test_every_service_container_is_pinned_by_digest() -> None:
+    """A tag is mutable. `postgres:16-alpine` on Tuesday and on Thursday are two
+    different images, and the pipeline already refuses an action pinned by tag
+    for exactly that reason."""
+    offenders = [
+        f"{name}.{service}: {config['image']}"
+        for name, job in _jobs().items()
+        for service, config in (job.get("services") or {}).items()
+        if "@sha256:" not in str(config.get("image", ""))
+    ]
+    assert not offenders, f"service containers not pinned by digest: {offenders}"
 
 
 def test_the_build_backend_is_pinned_exactly() -> None:
