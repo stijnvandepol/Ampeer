@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/advies/:token", "destination": "/advies/index.html" },
+    { "source": "/advies/:token/", "destination": "/advies/index.html" }
+  ]
+}

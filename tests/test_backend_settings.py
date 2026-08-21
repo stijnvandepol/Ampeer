@@ -25,6 +25,11 @@ REQUIRED_ENV = {
     # appends the client address to X-Forwarded-For. The value is a property of
     # a deployment, which is exactly why prod.py has no default for it.
     "DJANGO_NUM_PROXIES": "1",
+    # The origins the browser may read an answer from. A property of a
+    # deployment, like the two above, and with the same treatment: no default,
+    # because a permissive fallback here is an API any page on the internet can
+    # read a household's figures out of, and it fails silently from this side.
+    "DJANGO_CORS_ALLOWED_ORIGINS": "https://ampeer.nl,https://www.ampeer.nl",
 }
 
 
@@ -190,3 +195,62 @@ def test_the_wsgi_entry_point_names_production_and_cannot_be_talked_out_of_it() 
     )
     assert 'os.environ["DJANGO_SETTINGS_MODULE"] = "ampeer.settings.prod"' in source
     assert "os.environ.setdefault" not in source, "setdefault lets an exported dev module win"
+
+
+def test_production_never_opens_the_api_to_every_origin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The setting that would undo the whole list.
+
+    django-cors-headers reads CORS_ALLOW_ALL_ORIGINS before the list, so one
+    True anywhere in the settings chain makes every allowed-origin assertion in
+    the API tests pass while the answer goes to anybody who asks.
+    """
+    prod = _load_prod(monkeypatch)
+    assert prod.CORS_ALLOWED_ORIGINS == ["https://ampeer.nl", "https://www.ampeer.nl"]
+    assert getattr(prod, "CORS_ALLOW_ALL_ORIGINS", False) is False
+    assert getattr(prod, "CORS_ALLOW_CREDENTIALS", False) is False
+    assert "*" not in prod.CORS_ALLOWED_ORIGINS
+
+
+def test_the_cors_middleware_runs_before_anything_that_could_redirect() -> None:
+    """Ordering, not presence.
+
+    A preflight is an OPTIONS with no credentials. If SecurityMiddleware's
+    SSL redirect or CommonMiddleware's slash append answers it first, the
+    browser gets a 301 with no CORS header and blocks the request. The symptom
+    is a working GET and a blocked POST, which is the hardest shape to
+    diagnose because half the site keeps working.
+    """
+    from django.conf import settings
+
+    middleware = list(settings.MIDDLEWARE)
+    assert middleware[0] == "corsheaders.middleware.CorsMiddleware", middleware
+
+
+def test_the_deploy_check_in_ci_knows_every_setting_production_requires() -> None:
+    """The second copy of REQUIRED_ENV, and what happens when it goes stale.
+
+    `manage.py check --deploy` runs in the quality job under production
+    settings, so that job carries its own list of the environment variables
+    prod.py insists on. Adding a required setting without adding it there turns
+    a green pipeline red on a RuntimeError that reads like a bug in the settings
+    rather than an omission in a workflow. That is what happened on 2026-08-21
+    when CORS arrived: the setting refused to start, correctly, and the job had
+    never been told about it.
+
+    Two secrets are generated inside the step rather than written into the file,
+    so this looks for every name anywhere in the step body.
+    """
+    import re
+    from pathlib import Path
+
+    workflow = (
+        Path(__file__).resolve().parent.parent / ".github" / "workflows" / "ci.yml"
+    ).read_text(encoding="utf-8")
+    step = re.search(r"- name: Django deployment checklist.*?(?=\n      - )", workflow, re.DOTALL)
+    assert step, "the deploy check step is gone from ci.yml"
+    missing = [name for name in REQUIRED_ENV if name not in step.group(0)]
+    assert not missing, (
+        f"prod.py requires {missing} and the deploy check in ci.yml does not set them"
+    )
