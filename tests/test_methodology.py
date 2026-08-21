@@ -11,6 +11,8 @@ cannot fail a build. These tests are how it fails one.
 
 from __future__ import annotations
 
+import ast
+import dataclasses
 import json
 import re
 from decimal import Decimal
@@ -22,6 +24,12 @@ import pytest
 from ampeer_advice import tariffs
 from ampeer_advice.battery import MAX_ACCEPTABLE_PAYBACK_YEARS
 from ampeer_sim.economics.sensitivity import VARIATIONS
+from ampeer_sim.production.model import (
+    DEGRADATION_PER_YEAR,
+    MAX_DEGRADATION,
+    degradation_factor,
+)
+from ampeer_sim.types import Household, PVSystem
 
 METHODOLOGY = Path(__file__).resolve().parent.parent / "docs" / "methodologie.md"
 TEXT = METHODOLOGY.read_text(encoding="utf-8")
@@ -121,13 +129,19 @@ def test_the_document_still_names_its_own_limitations() -> None:
 
 
 def test_the_document_states_what_is_assumed_when_it_does_not_ask() -> None:
-    """Round one asks four questions and fills in five answers.
+    """Round one asks four questions and fills in the rest.
 
     Nothing in this document said so. It described what happens to an answer
     the reader gives, which reads as though the reader gives all of them, and
     the confidence label says INDICATIVE without naming a single thing that
     made it indicative. A reader cannot check an assumption that is not
     written down.
+
+    The five names below are the ones a household would recognise as questions
+    it was not asked. They are not the whole set and this test is not the one
+    that guards the whole set: it cannot notice a sixth, which is how the panel
+    age stayed missing. `test_the_list_of_filled_in_inputs_is_the_one_the_code_produces`
+    derives that set from assembly.py instead.
     """
     assert re.search(r"^## \d+\. Wat wij aannemen als wij het niet vragen$", TEXT, re.MULTILINE)
     chapter = TEXT.split("Wat wij aannemen als wij het niet vragen", 1)[1]
@@ -217,3 +231,127 @@ def test_every_section_is_numbered_consecutively() -> None:
     """A renumbering that skips or repeats is a merge accident, not a choice."""
     numbers = [int(match) for match in re.findall(r"^## (\d+)\.", TEXT, re.MULTILINE)]
     assert numbers == list(range(1, len(numbers) + 1)), numbers
+
+
+#: The module that turns a validated request into the dataclasses the engine
+#: reads. Everything it does not pass is a default, and a default is an
+#: assumption whether or not anybody wrote it down.
+ASSEMBLY = METHODOLOGY.parent.parent / "backend" / "advice" / "assembly.py"
+
+#: Every model input the API fills in rather than asks for, and the words this
+#: document has to use about it.
+#:
+#: The list is written out, and the test below recomputes the same set from
+#: assembly.py and fails when the two disagree. That pairing is the point.
+#: Until 2026-08-21 the only check here compared a hand written list of five
+#: names against a hand written table of six rows, and two lists that are both
+#: written by hand do not check each other: `install_year` was missing from the
+#: document, from the table and from the test at the same time, and chapter 6
+#: described the ageing correction as something the model applies while nothing
+#: ever supplied the year it needs.
+FILLED_IN_BY_US = {
+    "profile_category": "huizen zonder zonnepanelen",
+    "shiftable_block_kwh": "Verplaatsbaar verbruik per dag",
+    "install_year": "Hoe oud je panelen zijn",
+    "system_loss_fraction": "systeemverlies",
+}
+
+#: The Dutch for each figure the document spells out in words rather than
+#: digits, which is why a search for the digits finds nothing. Written as a map
+#: from the value so that changing a constant fails here instead of silently
+#: leaving the document describing the previous model.
+NUMBER_WORDS = {
+    0.005: "een half procent per jaar",
+    0.05: "vijf procent minder opwek",
+    0.10: "tien procent minder",
+    0.20: "maximaal twintig procent",
+}
+
+
+def _fields_the_api_supplies(model: str, builder: str) -> set[str]:
+    """The keyword arguments assembly.py actually passes to a model.
+
+    Read from the source rather than by calling the function, because calling
+    it needs a validated payload and the question is about the call site.
+    """
+    tree = ast.parse(ASSEMBLY.read_text(encoding="utf-8"))
+    function = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == builder
+    )
+    call = next(
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == model
+    )
+    return {keyword.arg for keyword in call.keywords if keyword.arg}
+
+
+def _filled_in_by_us() -> set[str]:
+    filled: set[str] = set()
+    for model, builder in ((Household, "build_household"), (PVSystem, "build_pv_system")):
+        supplied = _fields_the_api_supplies(model.__name__, builder)
+        filled |= {field.name for field in dataclasses.fields(model)} - supplied
+    return filled
+
+
+def test_the_list_of_filled_in_inputs_is_the_one_the_code_produces() -> None:
+    """The check that would have caught the panel age.
+
+    A field the API never passes takes its dataclass default, and that default
+    is an answer the household never gave. Deriving the set here means a new
+    default cannot arrive without either appearing in the document or failing
+    this.
+    """
+    assert _filled_in_by_us() == set(FILLED_IN_BY_US), (
+        "the inputs the API fills in itself are not the ones listed here:\n"
+        f"  code:     {sorted(_filled_in_by_us())}\n"
+        f"  this list: {sorted(FILLED_IN_BY_US)}"
+    )
+
+
+@pytest.mark.parametrize(("field", "phrase"), sorted(FILLED_IN_BY_US.items()))
+def test_the_document_names_every_input_the_api_fills_in_itself(field: str, phrase: str) -> None:
+    """A reader cannot check an assumption that is not written down."""
+    assert phrase in TEXT, f"the document never names {field}, which the API fills in as a default"
+
+
+def test_the_document_says_the_ageing_correction_is_not_applied() -> None:
+    """Chapter 6 used to describe a correction the product never performs.
+
+    The panels' year is the only input the ageing factor needs, nothing
+    supplies it, so `degradation_factor` returns 1.0 for every household that
+    has ever used this. The chapter said the model applies the factor, which
+    made it a description of a model that does not ship.
+
+    This test is conditional on purpose. The day the API starts asking for the
+    year, `install_year` leaves the set above and this stops applying; until
+    then the sentence has to stay.
+    """
+    if "install_year" not in _filled_in_by_us():
+        pytest.skip("the API now supplies the install year, so the caveat no longer applies")
+    assert degradation_factor(None, 2025) == 1.0, "an unknown install year no longer means new"
+    chapter = TEXT.split("## 6.", 1)[1].split("## 7.", 1)[0]
+    assert "gebruiken wij nu nooit" in chapter, (
+        "chapter 6 no longer says the ageing correction is never applied"
+    )
+
+
+@pytest.mark.parametrize(("value", "words"), sorted(NUMBER_WORDS.items()))
+def test_the_document_spells_out_the_degradation_the_code_applies(value: float, words: str) -> None:
+    """These four figures appear as words, not digits, which is how they hid.
+
+    A grep for "0,5" or "20" finds nothing in this document, so the only thing
+    that ties the sentence to the constant is this map. Changing a constant
+    without changing the words fails here rather than leaving the document
+    describing the previous model.
+    """
+    known = {
+        DEGRADATION_PER_YEAR,
+        MAX_DEGRADATION,
+        round(10 * DEGRADATION_PER_YEAR, 10),
+        round(20 * DEGRADATION_PER_YEAR, 10),
+    }
+    assert value in known, f"{value} is no longer a figure the ageing model produces: {known}"
+    assert words in TEXT, f"the document no longer spells out {value} as {words!r}"
