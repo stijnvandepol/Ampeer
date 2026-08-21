@@ -9,6 +9,12 @@ interface Props {
   readonly step: number;
   readonly of: number;
   readonly title: string;
+  /**
+   * What the forward button says. "Volgende" on every question but the last
+   * one, where the button no longer leads to a question and saying so is the
+   * difference between a form and a trap.
+   */
+  readonly nextLabel?: string;
   readonly onBack: () => void;
   readonly onNext: () => void;
   readonly children: ReactNode;
@@ -25,7 +31,15 @@ interface Props {
  * who presses Enter to confirm what they typed would skip ahead with a value
  * they had not finished checking.
  */
-export function QuestionShell({ step, of, title, onBack, onNext, children }: Props) {
+export function QuestionShell({
+  step,
+  of,
+  title,
+  nextLabel = "Volgende",
+  onBack,
+  onNext,
+  children,
+}: Props) {
   const heading = useRef<HTMLHeadingElement>(null);
   const mounted = useRef(false);
 
@@ -57,7 +71,7 @@ export function QuestionShell({ step, of, title, onBack, onNext, children }: Pro
             Terug
           </button>
           <button type="button" onClick={onNext}>
-            Volgende
+            {nextLabel}
           </button>
         </div>
       </form>

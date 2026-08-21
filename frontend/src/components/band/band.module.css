@@ -7,6 +7,15 @@
  * maintain; they are what keeps a missing token visible as a plain colour
  * rather than as an invisible element.
  *
+ * The names have to be the names globals.css actually defines, and two of them
+ * were not: --colour-line and --colour-muted do not exist there, so every rule
+ * that reached for one silently fell through to its light-theme fallback. In
+ * the dark palette that put #5a6570 text on a #0c1013 background, which is
+ * about 3.4:1 and below AA. Nothing could see it: the design system's contrast
+ * test parses globals.css and never looks here, and axe runs against the light
+ * theme. Fixed at integration to --colour-border and --colour-ink-muted, which
+ * are the names that exist and are the ones the contrast test covers.
+ *
  * The type sizes of the band figures are deliberately NOT here. See scale.ts.
  */
 
@@ -46,7 +55,7 @@
   margin-top: 2.75rem;
   height: 0.875rem;
   border-radius: 999px;
-  background: var(--colour-line, rgba(20, 24, 28, 0.1));
+  background: var(--colour-border, rgba(20, 24, 28, 0.1));
   overflow: visible;
 }
 
@@ -98,7 +107,7 @@
   flex-wrap: wrap;
   gap: 0.75rem 1.25rem;
   font-size: 0.8125rem;
-  color: var(--colour-muted, #5a6570);
+  color: var(--colour-ink-muted, #5a6570);
 }
 
 /* A scenario band is a different shape on purpose: a thin capped rail, not a
@@ -124,7 +133,7 @@
   right: 0;
   top: 50%;
   height: 1px;
-  background: var(--colour-muted, #5a6570);
+  background: var(--colour-ink-muted, #5a6570);
 }
 
 .cap {
@@ -132,7 +141,7 @@
   top: 0;
   bottom: 0;
   width: 1px;
-  background: var(--colour-muted, #5a6570);
+  background: var(--colour-ink-muted, #5a6570);
 }
 
 .capLow {
@@ -171,7 +180,7 @@
   background: none;
   font: inherit;
   font-size: 0.8125rem;
-  color: var(--colour-muted, #5a6570);
+  color: var(--colour-ink-muted, #5a6570);
   text-decoration: underline;
   text-underline-offset: 0.2em;
   cursor: pointer;
@@ -179,9 +188,9 @@
 
 .panel {
   padding: 0.6rem 0.75rem;
-  border-left: 2px solid var(--colour-line, rgba(20, 24, 28, 0.18));
+  border-left: 2px solid var(--colour-border, rgba(20, 24, 28, 0.18));
   font-size: 0.8125rem;
-  color: var(--colour-muted, #5a6570);
+  color: var(--colour-ink-muted, #5a6570);
 }
 
 .panelList {
@@ -220,7 +229,7 @@
   margin: 0;
   font-size: 0.875rem;
   line-height: 1.5;
-  color: var(--colour-muted, #5a6570);
+  color: var(--colour-ink-muted, #5a6570);
 }
 
 .route {
@@ -239,9 +248,9 @@
 .empty {
   margin: 0;
   padding: 0.9rem 1rem;
-  border: 1px dashed var(--colour-line, rgba(20, 24, 28, 0.25));
+  border: 1px dashed var(--colour-border, rgba(20, 24, 28, 0.25));
   border-radius: 0.5rem;
-  color: var(--colour-muted, #5a6570);
+  color: var(--colour-ink-muted, #5a6570);
 }
 
 .rules {
@@ -258,7 +267,7 @@
   flex-direction: column;
   gap: 0.75rem;
   padding: 1rem 1.1rem;
-  border: 1px solid var(--colour-line, rgba(20, 24, 28, 0.14));
+  border: 1px solid var(--colour-border, rgba(20, 24, 28, 0.14));
   border-radius: 0.75rem;
   background: var(--colour-surface, #ffffff);
 }

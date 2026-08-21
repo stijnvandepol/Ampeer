@@ -1,69 +1,63 @@
-import Image from "next/image";
+import Link from "next/link";
 
+/**
+ * The landing page: what changes, and the way in.
+ *
+ * Everything here is a statement of fact about the rules or about this site.
+ * There is no euro amount on this page and there will not be one, because
+ * every euro amount this product knows comes out of a simulation of one
+ * specific household, with a band around it. A number printed here would be a
+ * number nobody computed for the person reading it.
+ *
+ * There is no date arithmetic either. A page that counts down to 1 January
+ * 2027 is manufacturing urgency out of a calendar, and rule four exists
+ * precisely because that is the easiest thing in the world to add.
+ */
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-10 px-6 py-16">
+      <section className="flex flex-col gap-5">
+        <p className="text-sm uppercase tracking-wide text-ink-muted">Salderen stopt in 2027</p>
+        <h1 className="text-3xl font-bold">
+          Wat kost het einde van de saldering uw huishouden?
+        </h1>
+        <p className="text-lg text-ink-muted">
+          Vanaf 1 januari 2027 vervalt de salderingsregeling. Een kWh die u zelf gebruikt is
+          vanaf dat moment meer waard dan diezelfde kWh die u teruglevert. Hoeveel dat voor u
+          scheelt hangt af van uw dak, uw verbruik en uw contract.
+        </p>
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="text-xl font-medium">Wat u terugkrijgt</h2>
+        <ul className="flex list-disc flex-col gap-2 pl-5 text-ink-muted">
+          <li>Een bedrag per jaar met de marge eromheen, niet een enkel getal.</li>
+          <li>Hoe zeker die uitkomst is, meteen naast de uitkomst zelf.</li>
+          <li>
+            Drie routes, met de gratis routes eerst: uw ritme verschuiven, slimmer sturen met wat
+            u al heeft, en opslag.
+          </li>
+          <li>Een link waarmee u er later bij kunt, zonder account.</li>
+        </ul>
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="text-xl font-medium">Wat wij niet doen</h2>
+        <p className="text-ink-muted">
+          Wij verkopen geen panelen, geen batterijen en geen energiecontract, en wij sturen u
+          niet door naar een partij die dat wel doet. &quot;Geen batterij&quot; is hier een geldige
+          uitkomst.
+        </p>
+      </section>
+
+      <p>
+        <Link
+          href="/berekenen/"
+          className="inline-flex rounded-md bg-accent px-5 py-3 font-medium text-on-accent"
+        >
+          Beantwoord vier vragen
+        </Link>
+      </p>
     </div>
   );
 }
