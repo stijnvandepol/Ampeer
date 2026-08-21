@@ -233,6 +233,78 @@ def test_the_document_quotes_the_permissions_the_backup_check_enforces(mode: str
     assert f"`{mode}`" in TEXT, f"the document does not quote {mode}"
 
 
+VIEWS = REPO_ROOT / "backend" / "advice" / "views.py"
+
+#: The HTTP verbs a DRF APIView turns into a handler by defining a method with
+#: that name. OPTIONS is answered by the framework and is not a handling of
+#: anybody's data, so it is not in this set.
+HTTP_HANDLERS = frozenset({"get", "post", "put", "patch", "delete", "head"})
+
+
+def _handlers_per_view() -> dict[str, set[str]]:
+    """Every view in backend/advice/views.py and the verbs it answers.
+
+    Read with ast rather than through Django's URL resolver, so this runs
+    without a settings module and without a database, for the reason the model
+    walk above gives.
+    """
+    tree = ast.parse(VIEWS.read_text(encoding="utf-8"))
+    views: dict[str, set[str]] = {}
+    for node in tree.body:
+        if not isinstance(node, ast.ClassDef):
+            continue
+        verbs = {
+            statement.name
+            for statement in node.body
+            if isinstance(statement, ast.FunctionDef) and statement.name in HTTP_HANDLERS
+        }
+        if verbs:
+            views[node.name] = verbs
+    assert views, "no view handlers found; this test no longer reads what it thinks it does"
+    return views
+
+
+def test_the_api_answers_only_the_verbs_the_document_describes() -> None:
+    """Chapter 7 says what a visitor can and cannot do, verb by verb.
+
+    Two of those sentences are about something that does not exist: there is no
+    way to delete an advice and no way to correct one in place. A handler
+    arriving would make the chapter wrong in the direction that matters most,
+    because it is the chapter somebody would read to find out whether a right
+    can be exercised.
+
+    Asserting the whole set rather than only the absence of delete, so a PUT or
+    a PATCH cannot arrive unremarked either. Both would be a rectification, and
+    the chapter says rectification adds a row instead of changing one.
+    """
+    verbs = {verb for handlers in _handlers_per_view().values() for verb in handlers}
+    assert verbs == {"get", "post"}, (
+        f"the API now answers {sorted(verbs)}. docs/dpia.md chapter 7 describes an API "
+        "that reads and computes and does nothing else; it has to be reread before this "
+        "test is updated, and chapter 10 lists the deletion question as unanswered."
+    )
+    assert "Er is geen vierde." in TEXT
+    assert "Er is geen verwijderknop en geen verwijderendpoint." in TEXT
+
+
+def test_the_document_says_which_data_an_access_request_does_not_reach() -> None:
+    """The nuance that makes the access claim honest rather than flattering.
+
+    The stored row holds the answers as well as the advice, and the read route
+    returns `stored.advice` alone. Saying inzage works without saying that would
+    overstate what a visitor sees about themselves.
+    """
+    source = VIEWS.read_text(encoding="utf-8")
+    assert "stored.advice" in source, (
+        "the read route no longer returns the advice alone; chapter 7 says it does"
+    )
+    assert "stored.inputs" not in source, (
+        "the read route now returns the stored answers too, so chapter 7 understates "
+        "what an access request reaches"
+    )
+    assert "ziet dus de uitkomst en niet de invoer" in TEXT
+
+
 def test_the_document_carries_no_em_dashes() -> None:
     """The same rule the methodology is held to, for the same reason."""
     assert "—" not in TEXT
