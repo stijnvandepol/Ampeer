@@ -43,6 +43,26 @@ GOLDEN: dict[str, dict[str, Any]] = json.loads(
 )
 
 
+def _chapter(title_fragment: str) -> str:
+    """One chapter of the document, located by its title rather than its number.
+
+    Every one of these used to split on "## 13." and the number of the chapter
+    after it. Inserting a chapter then broke a handful of tests at once, and the
+    obvious repair is to bump the numbers, which is the repair that one day
+    lands on the wrong chapter and leaves an assertion passing against text it
+    was never about. A title moves only when somebody means to move it.
+    """
+    headings = [match for match in re.finditer(r"^## \d+\. (?P<title>.+)$", TEXT, re.MULTILINE)]
+    matching = [match for match in headings if title_fragment in match.group("title")]
+    assert len(matching) == 1, (
+        f"{len(matching)} chapters have a title containing {title_fragment!r}: "
+        f"{[m.group('title') for m in matching]}"
+    )
+    start = matching[0].end()
+    later = [match for match in headings if match.start() > start]
+    return TEXT[start : later[0].start()] if later else TEXT[start:]
+
+
 def _dutch(value: Decimal) -> str:
     """Render a figure the way the document writes it, with a comma."""
     return str(value).replace(".", ",")
@@ -180,7 +200,7 @@ def test_the_document_does_not_claim_the_payback_band_moves_the_price_alone() ->
     to prevent.
     """
     assert "alleen uit de prijs van de batterij" not in TEXT
-    chapter = TEXT.split("## 12.", 1)[1].split("## 13.", 1)[0]
+    chapter = _chapter("Twee soorten band")
     assert "p10" in chapter, "chapter 12 no longer explains which band is a percentile"
     assert "laag, midden en hoog" in chapter
 
@@ -194,7 +214,7 @@ def test_the_document_quotes_the_payback_band_the_model_produces() -> None:
     compares against is a number that goes stale silently.
     """
     rob = GOLDEN["rob_fixed_contract"]
-    chapter = TEXT.split("## 12.", 1)[1].split("## 13.", 1)[0]
+    chapter = _chapter("Twee soorten band")
     for key in (
         "battery_payback_low_years",
         "battery_payback_mid_years",
@@ -334,7 +354,7 @@ def test_the_document_says_the_ageing_correction_is_not_applied() -> None:
     if "install_year" not in _filled_in_by_us():
         pytest.skip("the API now supplies the install year, so the caveat no longer applies")
     assert degradation_factor(None, 2025) == 1.0, "an unknown install year no longer means new"
-    chapter = TEXT.split("## 6.", 1)[1].split("## 7.", 1)[0]
+    chapter = _chapter("De opwek van je dak")
     assert "gebruiken wij nu nooit" in chapter, (
         "chapter 6 no longer says the ageing correction is never applied"
     )
@@ -472,7 +492,7 @@ def test_the_document_says_the_battery_never_charges_from_the_grid() -> None:
     assert "strategy: Strategy = Strategy.SELF_CONSUMPTION" in source, (
         "the default strategy moved; chapter 8 says a battery only stores surplus"
     )
-    chapter = TEXT.split("## 8.", 1)[1].split("## 9.", 1)[0]
+    chapter = _chapter("waarom onze getallen lager uitvallen")
     assert "laadt nooit stroom van het net" in chapter
     assert "handelt niet op de stroombeurs" in chapter
 
@@ -512,7 +532,7 @@ def test_the_document_says_where_a_battery_gets_its_power() -> None:
     assert BATTERY_C_RATE == 0.5, (
         f"a battery is now modelled at {BATTERY_C_RATE} C and chapter 8 says half"
     )
-    chapter = TEXT.split("## 8.", 1)[1].split("## 9.", 1)[0]
+    chapter = _chapter("waarom onze getallen lager uitvallen")
     assert "de helft ervan in kilowatt" in chapter
     assert "5 kW bij een batterij van 10 kWh" in chapter
     assert "0,3 en 1,0" in chapter, "the chapter no longer quotes the range that was measured"
@@ -528,7 +548,7 @@ def test_the_document_explains_all_three_confidence_levels() -> None:
     """
     from ampeer_advice.confidence import GOOD_FIELD_COUNT
 
-    chapter = TEXT.split("## 17.", 1)[1].split("## 18.", 1)[0]
+    chapter = _chapter("indicatief")
     for word in ("Indicatief", "Goed", "Precies"):
         assert word in chapter, f"chapter 17 no longer names {word}"
     assert GOOD_FIELD_COUNT == 5, (
@@ -564,7 +584,7 @@ def test_the_document_says_precise_cannot_be_reached_yet() -> None:
     )
     if supplied:
         pytest.skip("the API now supplies meter data, so PRECISE is reachable")
-    chapter = TEXT.split("## 17.", 1)[1].split("## 18.", 1)[0]
+    chapter = _chapter("indicatief")
     assert "kun je vandaag niet krijgen" in chapter, (
         "nothing supplies meter data, so no answer can say PRECISE, and chapter 17 "
         "has to keep saying so"
@@ -593,7 +613,7 @@ def test_the_document_describes_the_table_used_when_pvgis_is_unreachable() -> No
         watts * count * 24 / 1000.0
         for watts, count in zip(MONTHLY_MEAN_PRODUCTION_W_PER_KWP, days, strict=True)
     )
-    chapter = TEXT.split("## 6.", 1)[1].split("## 7.", 1)[0]
+    chapter = _chapter("De opwek van je dak")
     assert f"{round(annual)} kWh per" in chapter, (
         f"the fallback table totals {annual:.1f} kWh per kWp and chapter 6 quotes something else"
     )
@@ -620,7 +640,7 @@ def test_the_document_says_which_of_the_three_household_profiles_is_used() -> No
     assert [category.value for category in ProfileCategory] == ["E1A", "E1B", "E1C"], (
         "the profile categories changed; chapter 2 says there are three"
     )
-    chapter = TEXT.split("## 2.", 1)[1].split("## 3.", 1)[0]
+    chapter = _chapter("huizen zonder zonnepanelen")
     assert "drie van deze profielen" in chapter
     assert "enkel tarief" in chapter
     for share in ("27,05", "26,63", "27,95"):
@@ -644,7 +664,7 @@ def test_the_measured_shares_in_chapter_two_are_the_ones_the_profiles_have() -> 
         pytest.skip("the NEDU profile file is not committed; see infra/README.md")
 
     provider = NeduFileProvider(profiles)
-    chapter = TEXT.split("## 2.", 1)[1].split("## 3.", 1)[0]
+    chapter = _chapter("huizen zonder zonnepanelen")
     for category in ProfileCategory:
         fractions = provider.fractions(2025, category)
         quarter_of_day = np.arange(len(fractions)) % 96
@@ -656,3 +676,95 @@ def test_the_measured_shares_in_chapter_two_are_the_ones_the_profiles_have() -> 
             f"{category.value} puts {printed} percent in the solar window and chapter 2 "
             "quotes something else"
         )
+
+
+RULES_SOURCE = REPO_ROOT / "ampeer_advice" / "rules.py"
+
+#: Every number inside a rule condition, and the words chapter 13 uses for it.
+#:
+#: These are the figures that decide what a household is told, and they were
+#: the blind spot in two earlier sweeps of this document: one walked dataclass
+#: defaults and one walked module level constants, and a literal inside a lambda
+#: is neither. Four of the five were in no chapter at all, and the fifth was in
+#: chapter 17 as an aside about something else.
+RULE_THRESHOLDS = {
+    ("SHIFT_FLEXIBLE_LOAD", 0.35): "minder dan 35 procent",
+    ("CHARGE_EV_ON_SURPLUS", 500.0): "meer dan 500 kWh",
+    ("CONSIDER_DYNAMIC_CONTRACT", 0.40): "meer dan 40 procent",
+    ("CONSIDER_BATTERY", 1500.0): "meer dan 1500 kWh",
+    ("CONSIDER_BATTERY", 3.0): "meer dan 3 kWh",
+}
+
+#: Numbers in a condition that are not a threshold a household could be on the
+#: wrong side of. One entry, and it is a guard rather than a judgement: a
+#: household with no panels would divide by zero computing its export share.
+#: Listed rather than filtered by value, so a second zero appearing somewhere
+#: meaningful cannot slip through as more of the same.
+NOT_A_THRESHOLD = {("CONSIDER_DYNAMIC_CONTRACT", 0)}
+
+
+def _thresholds_in_conditions() -> set[tuple[str, float]]:
+    tree = ast.parse(RULES_SOURCE.read_text(encoding="utf-8"))
+    found: set[tuple[str, float]] = set()
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and getattr(node.func, "id", "") == "Rule"):
+            continue
+        rule_id = next(
+            keyword.value.value
+            for keyword in node.keywords
+            if keyword.arg == "rule_id" and isinstance(keyword.value, ast.Constant)
+        )
+        condition = next(keyword.value for keyword in node.keywords if keyword.arg == "condition")
+        for inner in ast.walk(condition):
+            if (
+                isinstance(inner, ast.Constant)
+                and isinstance(inner.value, (int, float))
+                and not isinstance(inner.value, bool)
+            ):
+                found.add((rule_id, inner.value))
+    assert found, "no thresholds found; this test no longer reads what it thinks it does"
+    return found
+
+
+def test_the_thresholds_in_the_document_are_the_ones_the_rules_apply() -> None:
+    """Both directions.
+
+    A new threshold has to be written into chapter 13, and an entry here stops
+    being valid the day its rule stops testing that number. Without the second
+    half, a rule loosened from 35 to 25 percent leaves the chapter telling a
+    household something that is no longer true about the advice it just got.
+    """
+    listed = set(RULE_THRESHOLDS) | NOT_A_THRESHOLD
+    found = _thresholds_in_conditions()
+    assert found == listed, (
+        "the numbers inside the rule conditions are not the ones listed here:\n"
+        f"  code only: {sorted(found - listed)}\n"
+        f"  list only: {sorted(listed - found)}"
+    )
+
+
+@pytest.mark.parametrize(("key", "phrase"), sorted(RULE_THRESHOLDS.items()))
+def test_the_document_states_every_threshold_that_decides_an_advice(
+    key: tuple[str, float], phrase: str
+) -> None:
+    """`fired` in the response names a rule. This is what makes that a reason.
+
+    CLAUDE.md asks that every advice returns which rules fired so that it is
+    explainable. A rule id is only an explanation next to what the rule tests,
+    and until 2026-08-21 that lived in a lambda.
+    """
+    chapter = _chapter("Wanneer wij iets adviseren")
+    assert phrase in chapter, f"chapter 13 does not state {phrase!r} for {key[0]}"
+
+
+def test_the_document_says_the_thresholds_are_chosen_rather_than_measured() -> None:
+    """None of the five comes from a source, and the chapter has to say so.
+
+    The comments in rules.py argue for each of them and none of them cites
+    anything, which is honest for a design threshold and dishonest to leave out
+    of a document whose first rule is that a figure comes from a source or a
+    measurement. Saying "these are ours" is the third option and the true one.
+    """
+    chapter = _chapter("Wanneer wij iets adviseren")
+    assert "grenzen zijn keuzes van ons" in chapter
+    assert "niet uit een meting" in chapter

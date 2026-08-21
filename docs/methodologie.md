@@ -72,7 +72,7 @@ veel. In de bandbreedte varieren wij deze aanname tussen 0,5 en 2,0 kWh per dag.
 
 **De beperking:** dit getal is aangenomen en niet gemeten. Het is de aanname waar wij het
 minst zeker over zijn. En in de eerste versie van de rekenmachine vragen wij helemaal niet
-of er overdag iemand thuis is: dan nemen wij aan van niet. Hoofdstuk 16 zet erbij wat dat
+of er overdag iemand thuis is: dan nemen wij aan van niet. Hoofdstuk 17 zet erbij wat dat
 met je antwoord doet en welke kant het op duwt.
 
 ## 4. De elektrische auto
@@ -91,7 +91,7 @@ zou zonneladen mooier voorstellen dan het is.
 **Hoe groot die auto is, en wat wij daarover niet weten.** Wij vragen wel of je een auto
 hebt en hoe je laadt, maar niet hoeveel je rijdt. Wij rekenen met 12.000 kilometer per jaar
 en 18 kWh per 100 kilometer, dus met 2160 kWh aan laden per jaar, en met een laadpunt van
-3,7 kilowatt. Ter vergelijking: het huishouden waarmee wij in hoofdstuk 16 rekenen gebruikt
+3,7 kilowatt. Ter vergelijking: het huishouden waarmee wij in hoofdstuk 17 rekenen gebruikt
 zelf 3500 kWh. De auto is dus geen detail in het antwoord.
 
 Die drie getallen zijn aannames van ons, net als de gedragingen hierboven. Ze komen niet
@@ -102,7 +102,7 @@ wij hebben geen manier om dat te merken.
 **De beperking:** deze drie gedragingen zijn stereotypen die wij zelf hebben opgesteld.
 Ze komen niet uit een meting van hoe Nederlanders werkelijk laden. En in de eerste versie
 van de rekenmachine vragen wij niet naar een auto: dan rekenen wij alsof je er geen hebt.
-Zie hoofdstuk 16.
+Zie hoofdstuk 17.
 
 ## 5. De warmtepomp
 
@@ -140,7 +140,7 @@ Dat duwt dezelfde kant op als de andere dingen die wij invullen: nieuwe panelen 
 meer op, meer opwek betekent meer teruglevering, en meer teruglevering betekent een groter
 bedrag bovenaan. Hoeveel dat op je rekening scheelt hangt van je huis af, maar de opwek
 zelf is exact: panelen van tien jaar oud zouden wij op vijf procent minder opwek rekenen
-en panelen van twintig jaar oud op tien procent minder. Hoofdstuk 16 zet dit bij de
+en panelen van twintig jaar oud op tien procent minder. Hoofdstuk 17 zet dit bij de
 andere aannames.
 
 **Als PVGIS niet bereikbaar is.** Dat gebeurt, en dan weigeren wij geen antwoord maar
@@ -347,7 +347,46 @@ Twaalf jaar is onze grens, omdat er doorgaans tien jaar garantie op een batterij
 verdien je hem pas daarna terug, dan gok je erop dat hij langer meegaat dan de garantie
 die je erop krijgt.
 
-## 13. Wij zeggen niet alleen ja of nee over een batterij
+## 13. Wanneer wij iets adviseren
+
+Bij elk antwoord staat welke regels gevuurd hebben. Dat is alleen een verklaring
+als je er ook bij kunt lezen wat die regels toetsen, anders is het een naam.
+
+| Wat wij zeggen | Wanneer |
+|---|---|
+| Verschuif je flexibele verbruik | Je gebruikt minder dan 35 procent van je opwek zelf, en er is overdag niemand thuis |
+| Laad je auto op je eigen overschot | Je hebt een auto die dat nog niet doet, en er blijft over het jaar meer dan 500 kWh overschot liggen tussen elf en drie |
+| Kijk naar een dynamisch contract | Je hebt nog een vast contract en levert meer dan 40 procent van je opwek terug |
+| Kijk naar een thuisbatterij | Je hebt er nog geen, houdt na de gratis adviezen meer dan 1500 kWh teruglevering over, en gebruikt tussen vijf uur 's middags en zeven uur 's ochtends gemiddeld meer dan 3 kWh per dag |
+| Kijk naar je bestaande batterij | Je hebt er al een |
+
+**Deze vijf grenzen zijn keuzes van ons.** Ze komen niet uit een meting en niet
+uit een norm. Wat er wel achter zit:
+
+- **35 procent zelfconsumptie.** Daaronder is er iets te verschuiven. Is er
+  overdag iemand thuis, dan is het makkelijke verschuiven meestal al gebeurd, en
+  dan is dit advies een open deur.
+- **500 kWh middagoverschot.** Onder dat bedrag ligt er over een heel jaar te
+  weinig zon in het midden van de dag om het laadmoment van een auto voor te
+  verzetten.
+- **40 procent teruglevering.** Dat is waar het verschil tussen de twee manieren
+  van teruglevering begint op te wegen tegen de moeite van overstappen.
+- **1500 kWh en 3 kWh.** Opslag heeft twee dingen nodig: iets om op te slaan en
+  iemand die het later gebruikt. Onder 3 kWh tussen vijf uur 's middags en zeven
+  uur 's ochtends is de batterij vol bij zonsondergang en nog steeds vol bij
+  zonsopgang, en dan koop je een kast die niets doet.
+
+**Wat dat betekent voor een huishouden dat er net onder zit.** Zit je op 36
+procent zelfconsumptie, dan zeggen wij niets over verschuiven, terwijl je buurman
+op 34 procent het advies wel krijgt. Dat is een harde grens en wij verzachten hem
+niet. Een advies is een ja of een nee: of wij vinden het de moeite waard om je
+week anders in te delen, of niet.
+
+De bedragen ernaast zijn iets anders. Die dragen allemaal een bandbreedte, want
+dat zijn schattingen. De grens is een keuze en het bedrag is een schatting, en
+die twee horen niet dezelfde vorm te hebben.
+
+## 14. Wij zeggen niet alleen ja of nee over een batterij
 
 Een thuisbatterij kost tussen de 450 en 900 euro per kWh geplaatst. Dat is een factor
 twee, en bij de meeste huishoudens ligt de terugverdientijd ergens ín die band: aan de
@@ -387,7 +426,7 @@ waard: de omslagprijs stond wel in ons voorbeeldbestand, maar geen enkele test v
 hem met wat het model uitrekende, dus kon hij verouderen zonder dat er iets rood werd. Dat
 doet nu wel iets.
 
-## 14. Wat de gratis routes opleveren, rekenen wij door in plaats van te schatten
+## 15. Wat de gratis routes opleveren, rekenen wij door in plaats van te schatten
 
 Bij elk advies dat je niets kost staat een bedrag. Dat bedrag is niet met een formule
 geschat maar doorgerekend: wij draaien je hele jaar opnieuw door dezelfde simulatie, met
@@ -431,7 +470,7 @@ Wij zetten dit erbij omdat het de kant op ging die ons ongelegen komt. Een fout 
 antwoord toevallig gunstiger maakt voor de partij die hem maakt, is precies de fout waarvan
 je mag verwachten dat hij blijft zitten.
 
-## 15. Wij houden ons model tegen echte Nederlandse meetgegevens
+## 16. Wij houden ons model tegen echte Nederlandse meetgegevens
 
 Er is één gemeten Nederlandse reeks die wij kunnen gebruiken zonder dat er ook maar
 iemand zijn meter gekoppeld heeft: het NEDU-profiel van aansluitingen die daadwerkelijk
@@ -471,7 +510,7 @@ Nederland in juni piekt, en maakte november helderder dan oktober. Allebei waar 
 ene jaar en geen van beide waar voor Nederland. De tabel is nu een gemiddelde over negen
 jaar.
 
-## 16. Wat wij aannemen als wij het niet vragen
+## 17. Wat wij aannemen als wij het niet vragen
 
 De eerste versie van de rekenmachine stelt vier vragen: je postcode, je jaarverbruik, je
 vermogen aan panelen en de richting en helling van je dak. Alles wat wij verder nodig
@@ -535,7 +574,7 @@ Beantwoord je meer vragen, dan vervalt de aanname en niet alleen de onzekerheid.
 staat er "Indicatief" boven een antwoord op vier vragen: niet omdat de band breder is,
 maar omdat dit de dingen zijn die wij hebben ingevuld in plaats van gevraagd.
 
-## 17. Wat "indicatief", "goed" en "precies" betekenen
+## 18. Wat "indicatief", "goed" en "precies" betekenen
 
 Boven elk antwoord staat een van deze drie woorden. Ze zeggen iets anders dan de
 bandbreedte eronder, en dat verschil is met opzet.
@@ -570,7 +609,7 @@ vervangt dat profiel zelf. Dat is het onderdeel dat het antwoord het meest
 bepaalt, dus een huishouden met meterdata en verder niets ingevuld weet meer over
 zijn antwoord dan een huishouden dat negen vragen beantwoordde.
 
-## 18. Wat wij niet weten
+## 19. Wat wij niet weten
 
 Voor de volledigheid, op een rij:
 
@@ -585,7 +624,7 @@ Voor de volledigheid, op een rij:
 - Als je maar vier vragen beantwoordt, weten wij niet of er overdag iemand thuis is, of je
   een elektrische auto hebt, of je een warmtepomp hebt, of je al een thuisbatterij hebt en
   wat voor contract je hebt. Wij nemen dan aan van niet, en dat maakt het bedrag bovenaan
-  groter dan het bij veel huishoudens is. Hoofdstuk 16 zet erbij hoeveel.
+  groter dan het bij veel huishoudens is. Hoofdstuk 17 zet erbij hoeveel.
 
 Koppel je je meter, dan vervallen de eerste twee en wordt de vijfde en zesde gekalibreerd
 op jouw eigen gegevens. Daarom is dat antwoord scherper, en daarom zeggen wij er eerlijk

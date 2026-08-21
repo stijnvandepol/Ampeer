@@ -6,9 +6,12 @@ returns a rule id, never a sentence: the Dutch text lives in ``nl.py`` and is
 attached at the edge, so a copy change and a behaviour change cannot break the
 same test.
 
-Conditions read fields, never arrays. ``context.self_consumption_rate < 0.35``
-is something you can point at when a household asks on a forum why it got this
-advice, and that is the whole requirement.
+Conditions read fields, never arrays: a comparison between one named field and
+one threshold is something you can point at when a household asks on a forum why
+it got this advice, and that is the whole requirement. The thresholds themselves
+are listed in chapter 13 of docs/methodologie.md, and tests/test_methodology.py
+fails when the two disagree. No number is repeated here, because a threshold
+quoted in a docstring is a second copy that nothing compares against.
 
 Three of the six rules estimate no saving at all. Their value is the advice
 itself, and attaching a euro figure to "have your existing battery checked"
