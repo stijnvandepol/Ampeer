@@ -338,9 +338,120 @@ def test_the_digest_check_sits_between_the_pull_and_the_start() -> None:
     """Order is the property. Before the pull there is nothing to inspect, and
     after `up` the container the check would have rejected is already serving."""
     pull = _only_deploy_step(lambda run: "compose" in run and " pull" in run, "pulls")
-    start = _only_deploy_step(lambda run: "compose" in run and "up -d" in run, "starts the stack")
+    start = _unconditional_start()
     check = _only_deploy_step(lambda run: "RepoDigests" in run, "inspects a pulled image digest")
     assert pull < check < start, f"pull at {pull}, check at {check}, up at {start}"
+
+
+def _unconditional_start() -> int:
+    """The index of the one step that switches traffic.
+
+    Two steps in the deploy job run `up -d`: the one that starts the release
+    and the one that puts the previous release back when it refuses to come
+    up. Telling them apart by their `if:` rather than by their text is what
+    keeps a second unconditional start from hiding behind a matching string,
+    and asserting there is exactly one is the property worth holding: a job
+    that starts the stack twice is not a deploy, it is a race.
+    """
+    steps = _steps("deploy")
+    unconditional = [
+        index
+        for index, step in enumerate(steps)
+        if "up -d" in str(step.get("run", "")) and not step.get("if")
+    ]
+    assert len(unconditional) == 1, (
+        f"expected exactly one unconditional `up -d`, found "
+        f"{[steps[i].get('name') for i in unconditional]}"
+    )
+    return unconditional[0]
+
+
+def _named_deploy_step(name_fragment: str) -> int:
+    steps = _steps("deploy")
+    matches = [
+        index for index, step in enumerate(steps) if name_fragment in str(step.get("name", ""))
+    ]
+    assert len(matches) == 1, (
+        f"expected exactly one deploy step named like {name_fragment!r}, found "
+        f"{[steps[i].get('name') for i in matches]}"
+    )
+    return matches[0]
+
+
+def test_the_migration_runs_before_the_traffic_switches() -> None:
+    """Order, and the reason is which window a failure leaves open.
+
+    Migrating after `up -d` puts every deploy through a moment where the new
+    release is already serving against the previous schema, and a migration
+    that fails there leaves it serving errors with no step left to abort. This
+    way round a failed migration stops the deploy while the previous release
+    is still whole. The price is that the old code briefly meets the new
+    schema, which the workflow's own comment states as a rule about what a
+    migration may contain.
+    """
+    migrate = _only_deploy_step(lambda run: "manage.py migrate" in run, "runs migrations")
+    assert migrate < _unconditional_start(), (
+        "the migration runs after the traffic has already switched"
+    )
+
+
+def test_the_migration_runs_after_the_images_are_verified() -> None:
+    """The other side of the same ordering.
+
+    Migrating before the digest check would let a repointed tag write to the
+    database, which is the one thing in this stack that no later step can put
+    back.
+    """
+    check = _only_deploy_step(lambda run: "RepoDigests" in run, "inspects a pulled image digest")
+    migrate = _only_deploy_step(lambda run: "manage.py migrate" in run, "runs migrations")
+    assert check < migrate, f"digest check at {check}, migrate at {migrate}"
+
+
+def test_the_deploy_records_the_running_release_before_it_replaces_it() -> None:
+    """After `up -d` the container carrying the answer is gone.
+
+    The recorded tag is the whole of the fallback: there is no second instance
+    and no state on the host that says which release was serving, only the
+    image reference on the container that was serving it.
+    """
+    record = _named_deploy_step("Record the release")
+    assert record < _unconditional_start(), "the running release is read after it is replaced"
+    step = _steps("deploy")[record]
+    assert step.get("id") == "current", f"the recording step has no id to be read by: {step}"
+    assert "GITHUB_OUTPUT" in str(step.get("run", "")), (
+        "the recording step publishes nothing, so no later step can read it"
+    )
+
+
+def test_a_failed_start_puts_the_previous_release_back() -> None:
+    """Without this the end of an outage is a person noticing it."""
+    fallback = _named_deploy_step("Fall back")
+    step = _steps("deploy")[fallback]
+    condition = str(step.get("if", ""))
+    assert "steps.start.outcome" in condition, (
+        f"the fallback does not name the step it answers for: {condition!r}"
+    )
+    assert "up -d" in str(step.get("run", "")), "the fallback starts nothing"
+    environment = " ".join(str(value) for value in (step.get("env") or {}).values())
+    assert "steps.current.outputs.version" in environment, (
+        f"the fallback never reads the recorded release: {environment!r}"
+    )
+    assert fallback > _unconditional_start(), "the fallback runs before the start it answers for"
+
+
+def test_no_step_in_the_deploy_can_turn_a_failure_green() -> None:
+    """A fallback that reported success would be the worst outcome here.
+
+    The job has to stay red when a release did not come up, even when putting
+    the previous one back worked, because the alternative is a pipeline that
+    calls an outage a successful deploy and a next release cut on top of a
+    version nobody knows is not running. `continue-on-error` on any step in
+    this job is how that would happen.
+    """
+    for step in _steps("deploy"):
+        assert "continue-on-error" not in step, (
+            f"{step.get('name')!r} can fail without failing the deploy: {step}"
+        )
 
 
 def test_the_workflow_says_what_provenance_true_does_and_does_not_buy() -> None:
