@@ -9,10 +9,18 @@ before this file was believed.
 from __future__ import annotations
 
 import re
+import shlex
 from pathlib import Path
 
 CONF = Path(__file__).resolve().parent.parent / "infra" / "nginx" / "nginx.conf"
 TEXT = CONF.read_text(encoding="utf-8")
+
+#: The same file with comment lines removed. Every test that looks for a
+#: directive must read this and not TEXT: the comments here explain the
+#: directives at length, quoting them, and a grep over the prose matches the
+#: thing it was written to describe. That has now happened twice in this
+#: repository, once in a systemd unit and once here.
+DIRECTIVES = chr(10).join(line for line in TEXT.splitlines() if not line.lstrip().startswith("#"))
 
 #: nginx variables that carry either the request path or the caller's address.
 #: A log format naming one of these writes the token, the visitor's IP, or the
@@ -189,8 +197,181 @@ def test_the_body_limit_is_far_below_what_django_would_accept() -> None:
 def test_nothing_is_proxied_except_the_api() -> None:
     """A proxy_pass outside /api/ is a way for the static site to become a
     forwarder to something nobody reviewed."""
-    passes = re.findall(r"proxy_pass\s+([^;]+);", TEXT)
+    passes = re.findall(r"proxy_pass\s+([^;]+);", DIRECTIVES)
     assert all("api" in target for target in passes), passes
     blocks = re.findall(r"location\s+(\S+)\s*\{([^}]*)\}", TEXT, re.DOTALL)
     proxying = [name for name, body in blocks if "proxy_pass" in body]
     assert all(name.startswith("/api/") for name in proxying), proxying
+
+
+#: A token in the shape the router actually produces: 22 url-safe characters.
+#: The one below is the value that was read out of a live throttle row on
+#: 2026-08-21, which is where this whole family of findings started.
+SAMPLE_TOKEN = "TESTtokenTESTtoken0000"
+
+
+def map_arms() -> tuple[list[tuple[str, str]], list[tuple[str, str]], str | None]:
+    """The `map $uri` block as nginx reads it.
+
+    nginx compares an exact string source first, whatever order it is written
+    in, then the regular expressions in the order they are defined, and only
+    then falls through to `default`. Modelling that here rather than reading
+    the file top to bottom is the difference between testing the map and
+    testing the way it happens to be laid out.
+    """
+    block = re.search(r"map\s+\$uri\s+\$(\w+)\s*\{(.*?)\n\s*\}", TEXT, re.DOTALL)
+    assert block, "no map rewriting $uri into a loggable route"
+    exact: list[tuple[str, str]] = []
+    regexes: list[tuple[str, str]] = []
+    default: str | None = None
+    for raw in block.group(2).splitlines():
+        line = raw.split("#", 1)[0].strip().removesuffix(";").strip()
+        if not line:
+            continue
+        source, value = shlex.split(line)
+        if source == "default":
+            default = value
+        elif source.startswith("~"):
+            regexes.append((source.lstrip("~*"), value))
+        else:
+            exact.append((source, value))
+    return exact, regexes, default
+
+
+def logged_route(uri: str) -> str:
+    """What nginx would put in the access log for this path."""
+    exact, regexes, default = map_arms()
+    for source, value in exact:
+        if source == uri:
+            return uri if value == "$uri" else value
+    for pattern, value in regexes:
+        if re.search(pattern, uri):
+            return uri if value == "$uri" else value
+    assert default is not None, "the map has no default"
+    return uri if default == "$uri" else default
+
+
+def test_the_map_never_falls_through_to_the_path_itself() -> None:
+    """The whole finding in one assertion.
+
+    `default $uri` makes this map an allowlist that fails open: every path it
+    does not recognise is written to the access log verbatim, and two of this
+    site's prefixes carry a secret in the path. Measured on 2026-08-21 against
+    a running stack: `GET /api/advice/<token>` without the trailing slash is a
+    301 from Django and was logged with the token in it.
+    """
+    _, _, default = map_arms()
+    assert default is not None, "the map has no default"
+    assert default != "$uri", "the map's default writes the path, token and all"
+
+
+def test_no_path_under_a_token_carrying_prefix_is_logged_verbatim() -> None:
+    """Not just the canonical route.
+
+    Django answers the missing trailing slash with a 301 and nginx logs the
+    request either way, so the near-miss is the case that matters. So is any
+    suffix under it, which nobody has to enumerate to try.
+    """
+    hostile = [
+        f"/api/advice/{SAMPLE_TOKEN}",
+        f"/api/advice/{SAMPLE_TOKEN}/",
+        f"/api/advice/{SAMPLE_TOKEN}//",
+        f"/api/advice/{SAMPLE_TOKEN}/x",
+        f"/api/advice/{SAMPLE_TOKEN}.json",
+        f"/api/advice/x/{SAMPLE_TOKEN}/",
+        f"/advies/{SAMPLE_TOKEN}",
+        f"/advies/{SAMPLE_TOKEN}/",
+        f"/advies/{SAMPLE_TOKEN}/index.html",
+        f"/advies/{SAMPLE_TOKEN}.html",
+        f"/advies/x/{SAMPLE_TOKEN}",
+    ]
+    for uri in hostile:
+        assert SAMPLE_TOKEN not in logged_route(uri), uri
+
+
+def test_the_two_canonical_routes_are_still_labelled_rather_than_lumped_together() -> None:
+    """Failing closed must not cost the log its reason to exist."""
+    assert logged_route(f"/api/advice/{SAMPLE_TOKEN}/") == "/api/advice/:token/"
+    assert logged_route(f"/advies/{SAMPLE_TOKEN}/") == "/advies/:token/"
+
+
+def test_every_token_free_api_route_is_still_named_in_the_log() -> None:
+    """Read from the URLconf, not written down twice.
+
+    A blanket label for everything under /api/advice/ would fail closed and
+    also make the log unable to say whether the compute endpoint is being hit
+    at all, which is most of what an access log on this service is for. So the
+    routes that provably carry no token are listed, and they are listed from
+    the router rather than from memory.
+    """
+    from advice.urls import urlpatterns
+
+    token_free = [
+        f"/api/advice/{pattern.pattern}"
+        for pattern in urlpatterns
+        if "token" not in pattern.pattern.regex.groupindex
+    ]
+    assert len(token_free) == 3, token_free
+    for route in token_free:
+        assert logged_route(route) == route, route
+
+
+def test_a_path_that_cannot_carry_a_token_is_logged_as_itself() -> None:
+    """The other half. A log that says `/other` for every asset and every page
+    answers nothing, and this map exists to keep the log useful."""
+    for uri in ("/", "/berekenen/", "/_next/static/chunk-abc123.js", "/404.html"):
+        assert logged_route(uri) == uri, uri
+
+
+def test_the_built_advice_page_is_still_told_apart_from_a_refusal() -> None:
+    """$uri is what it is when the line is written, not what arrived.
+
+    `try_files ... /advies/index.html` is an internal redirect, so a visitor
+    opening /advies/<token>/ is logged against the fallback target. Measured
+    against a running nginx on 2026-08-21: all three /advies/ requests logged
+    as /advies/index.html, before this change and after it. That is also why
+    the token never reached the log on that route in the first place, and why
+    an arm for the served page has to exist: without it the successful case and
+    the refused one are one label.
+    """
+    assert logged_route("/advies/index.html") == "/advies/index.html"
+    assert logged_route("/advies/nonsense") == "/advies/:other"
+
+
+def test_the_upstream_is_resolved_per_request_and_not_at_startup() -> None:
+    """A literal upstream name makes web refuse to start while api is down.
+
+    Measured 2026-08-21: with `proxy_pass http://api:8000;` and the api
+    container stopped, nginx logged `[emerg] host not found in upstream "api"`
+    and the whole site returned 000 — not a 502 on /api/ alone. A statically
+    exported page that needs no API and no database was dark because Postgres
+    would not start, and Docker's restart policy does not honour depends_on, so
+    on a host reboot the ordering that protects `docker compose up` is absent
+    exactly when nobody is logged in.
+
+    Verified after the change against a running container with no api present
+    at all: site 200, /api/ 502, zero emerg lines.
+    """
+    assert "resolver 127.0.0.11" in DIRECTIVES, "no resolver, so a variable upstream cannot work"
+
+    literals = re.findall(r"proxy_pass\s+http://(?!\$)([^;]+);", DIRECTIVES)
+    assert not literals, f"these upstreams are resolved once at startup: {literals}"
+
+
+def test_every_variable_upstream_carries_the_request_uri() -> None:
+    """The half of that change that fails silently.
+
+    `proxy_pass http://api:8000;` with a literal and no URI forwards the request
+    path unchanged. With a variable it does not, and every path arrives at the
+    API as "/" — so estimate, refine and every token read would hit the same
+    route and the site would look broken in a way that points at Django.
+
+    Verified against an echo upstream: /api/advice/estimate/ and
+    /api/advice/<token>/ both arrived whole.
+    """
+    variables = re.findall(r"proxy_pass\s+(http://\$[^;]+);", DIRECTIVES)
+    assert variables, "no variable upstream to check"
+    for target in variables:
+        assert target.endswith("$request_uri"), (
+            f"{target} drops the path: every request would arrive as /"
+        )

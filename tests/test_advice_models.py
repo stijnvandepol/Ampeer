@@ -236,3 +236,38 @@ def test_the_cache_table_migration_makes_a_table_django_can_actually_cache_in() 
         assert table not in connection.introspection.table_names()
         module.create_cache_table(None, editor)
     assert table in connection.introspection.table_names()
+
+
+def test_the_purge_also_clears_the_rate_limiter_it_left_behind() -> None:
+    """The retention promise has to cover every table, not the one somebody
+    remembered.
+
+    The throttle counter lives in the database so it survives a restart and is
+    shared across workers. Django's DatabaseCache only removes an expired row
+    when that same key is read again, and culls only above a hundred thousand
+    entries, so a visitor who never returns leaves a row forever. Measured on
+    2026-08-21: rows backdated four hundred days survived fresh traffic and a
+    full run of this command, because it filtered StoredAdvice and nothing
+    else. That table is in every volume snapshot and every backup.
+
+    The key is a keyed digest rather than an address now, so what survives is
+    no longer a visitor log. It is still a row nobody chose to keep.
+    """
+    from django.conf import settings
+    from django.db import connection
+
+    table = connection.ops.quote_name(settings.AMPEER_CACHE_TABLE)
+    stale = timezone.now() - timedelta(days=400)
+    fresh = timezone.now() + timedelta(hours=1)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"INSERT INTO {table} (cache_key, value, expires) VALUES (%s, %s, %s), (%s, %s, %s)",
+            [":1:throttle_x_deadbeef", "e30=", stale, ":1:throttle_x_livebeef", "e30=", fresh],
+        )
+
+    call_command("purge_expired_advice")
+
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT cache_key FROM {table} ORDER BY cache_key")
+        remaining = [row[0] for row in cursor.fetchall()]
+    assert remaining == [":1:throttle_x_livebeef"], remaining

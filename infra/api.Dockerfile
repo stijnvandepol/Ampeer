@@ -82,7 +82,7 @@ ENTRYPOINT ["/usr/local/bin/entrypoint-api.sh"]
 # The image knows how to check itself, so the check lives here rather than only
 # in a compose file that can be copied without it.
 #
-# Two things in this line were found by running it rather than by reading it:
+# Three things in this line were found by running it rather than by reading it:
 #
 # 1. The route is /api/advice/health/. The root URLconf mounts advice.urls at
 #    api/advice/, so /api/health/ is a 404.
@@ -91,8 +91,31 @@ ENTRYPOINT ["/usr/local/bin/entrypoint-api.sh"]
 #    it dies on the TLS handshake against a plain http socket. The header is
 #    what nginx sends for a real visitor, so this asks the same question a
 #    visitor's request does instead of a question only the healthcheck asks.
+# 3. The Host header has to be a host this service answers on, and 127.0.0.1
+#    is not one. Django validates Host against ALLOWED_HOSTS before any view
+#    runs, and prod.py builds that list from DJANGO_ALLOWED_HOSTS, which the
+#    README and .env.example both tell the operator to fill with `ampeer.nl`.
+#    Measured on 2026-08-21 with DJANGO_ALLOWED_HOSTS=ampeer.nl and a check
+#    sending `Host: 127.0.0.1:8000`: every probe returned
+#    `urllib.error.HTTPError: HTTP Error 400: Bad Request`, the container read
+#    `Up About a minute (unhealthy)` and stayed that way, while a POST to
+#    /api/advice/estimate/ carrying `Host: ampeer.nl` answered 201 with a
+#    token. A permanently red check is worse than no check: this is the only
+#    thing that notices a NEDU mount that is a directory, `depends_on:
+#    service_healthy` could never release on it, and infra/README.md tells the
+#    operator to expect `healthy`. The check now reads the same variable
+#    Django does and sends the first name in it. A leading dot is Django's
+#    subdomain pattern and `.ampeer.nl` matches `ampeer.nl`, so it is stripped;
+#    `*` matches everything, so the loopback is used for it.
 #
 # It opens the consumption profile, which is the part a bad mount breaks and
 # the part nothing else notices, and it issues no database query.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD ["python", "-c", "import urllib.request as u; u.urlopen(u.Request('http://127.0.0.1:8000/api/advice/health/', headers={'X-Forwarded-Proto': 'https'}), timeout=4).read()"]
+#
+# --start-interval is load bearing rather than tidiness. docker-compose.yml now
+# has `web` wait for this check to pass, so the time between container start
+# and the first probe is time added to every deploy while nothing is serving.
+# The engine's default is five seconds; two makes the wait about as long as the
+# gunicorn boot it is waiting for. Anything this check can catch it catches on
+# the first probe, so a shorter interval costs nothing and buys the difference.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --start-interval=2s --retries=3 \
+    CMD ["python", "-c", "import os,urllib.request as u; hosts=[h.strip() for h in os.environ.get('DJANGO_ALLOWED_HOSTS','').split(',') if h.strip()]; host=hosts[0] if hosts else '127.0.0.1'; host='127.0.0.1' if host=='*' else host.lstrip('.'); u.urlopen(u.Request('http://127.0.0.1:8000/api/advice/health/', headers={'Host': host, 'X-Forwarded-Proto': 'https'}), timeout=4).read()"]

@@ -2,8 +2,8 @@
 # section 12 of docs/superpowers/specs/2026-08-21-deploy-design.md can be run
 # against a real stack on a developer machine, and for nothing else.
 #
-# It changes exactly three things, and each one is a thing that would be a
-# defect in production:
+# It changes exactly four things. Three of them are things that would be a
+# defect in production, and the fourth is what keeps this file away from it:
 #
 #   1. It publishes a port. The whole network design is that nothing listens:
 #      cloudflared makes an outbound connection and there is no inbound route
@@ -16,6 +16,8 @@
 #   3. It mounts a synthetic consumption profile. See the header of the file it
 #      mounts: it is a flat curve, it proves the plumbing, and the arithmetic
 #      it produces is not an advice.
+#   4. It renames the project, which is the `name:` below and the only line
+#      here that is not about the stack at all. See the comment on it.
 #
 # infra/docker-compose.yml is untouched by all of this, and stays the file that
 # runs on the host. tests/test_stack_smoke.py asserts that the production file
@@ -37,6 +39,28 @@
 #     --env-file infra/fixtures/env.smoke up -d
 #
 # and the site is on http://127.0.0.1:8080/.
+
+# THE LINE THAT KEEPS A LOCAL TEARDOWN LOCAL.
+#
+# docker-compose.yml sets `name: ampeer`, and compose takes the project name
+# from the last file that names one, so without this line every command that
+# includes this override ran under the production project name. The last
+# command in section 7 of infra/README.md is `down -v`, and `-v` removes named
+# volumes: typed in a checkout on a machine whose docker context points at the
+# LXC, those eight characters delete the database that holds every stored
+# advice. Nothing in this repository takes a backup of it or mentions one.
+#
+# It was survivable only by habit: the audits ran everything under an explicit
+# `-p`, which is a property of whoever typed the command and not of any file.
+# This makes it a property of the file. `docker compose -f docker-compose.yml
+# -f compose.test.yml ... down -v` now names `ampeer-local`, and the production
+# project cannot be reached by any command that includes this file.
+#
+# It does not protect a `down -v` against docker-compose.yml alone. Nothing
+# can: that is the production teardown and it has to keep working. What can be
+# done there is done in the README, which no longer prints the two words next
+# to each other outside this override.
+name: ampeer-local
 
 services:
   api:
@@ -64,9 +88,19 @@ services:
 
   tunnel:
     # A profile that is never enabled, which is how compose is told to leave a
-    # service alone. `docker compose up` skips it; `docker compose config`
-    # still shows it, so the override does not hide the fourth service from
-    # anybody reading the merged file.
+    # service alone. `docker compose up` skips it; `docker compose config
+    # --no-interpolate` still shows it, so the override does not hide the
+    # fourth service from anybody reading the merged file.
+    #
+    # --no-interpolate is not a detail. Plain `docker compose config` prints
+    # every variable with its value substituted, and three of the values in
+    # this stack are credentials. Measured on 2026-08-21 against the production
+    # file with a placeholder env file, the merged output contained
+    # `--token <the connector token>` on the line below, plus DJANGO_SECRET_KEY
+    # and POSTGRES_PASSWORD twice, all in cleartext on a terminal and in
+    # whatever scrollback or CI log that terminal writes to. --no-interpolate
+    # prints `${CLOUDFLARE_TUNNEL_TOKEN}` instead, which answers every question
+    # about the shape of the document and none about its secrets.
     #
     # It is not deleted, because a compose override cannot delete a service and
     # faking it with an inert command would produce a container that is up and

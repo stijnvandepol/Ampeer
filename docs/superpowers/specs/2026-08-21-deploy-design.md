@@ -294,3 +294,62 @@ zijn de twee die een belofte bewaken die elders in dit project met tests is afge
 runner ephemeer wordt, en of het NEDU-bestand publiek gebruikt mag worden. Zonder het
 eerste is de deploy minder veilig dan hij hoort te zijn; zonder het tweede kan hij niet
 publiek. Allebei zijn ze opgeschreven zodat ze een beslissing zijn en geen vergetelheid.
+
+## 14. Wat drie audits hier veranderd hebben, 2026-08-21
+
+Achttien bevindingen, alle drie de lenzen gemeten tegen een draaiende stack in plaats van
+gelezen. De vier die de vorm van dit deelproject veranderd hebben:
+
+**De healthcheck was op de host permanent rood, en hij was de enige controle die een
+verkeerd gemonteerd profiel vangt.** Hij stuurde `Host: 127.0.0.1:8000` terwijl
+`ALLOWED_HOSTS` op `ampeer.nl` staat, dus Django antwoordde 400. De dienst werkte en de
+container was voor altijd ongezond. Niets zag het, want de rooktest genereerde
+`DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost` — gekozen voor nginx' `$host`, en dat dekte
+toevallig ook de Host-header van de healthcheck. De check leest de lijst nu uit de
+omgeving, en de rooktest draait onder een naam die hem niet per ongeluk kan bevredigen.
+
+**`web` startte niet zonder `api`.** nginx lost een letterlijke upstream eenmalig op bij
+het starten en weigert te starten als dat mislukt, dus een database die niet opkwam legde
+een statisch geexporteerde pagina plat die geen database nodig heeft. Gemeten: de hele site
+gaf `000`, niet een 502 op `/api/` alleen. En Docker's herstartbeleid respecteert
+`depends_on` niet, dus bij een herstart van de host was de volgorde die `docker compose up`
+beschermt juist afwezig. Nu een `resolver` met een variabele upstream, met `$request_uri`
+er expliciet achter: bij een variabele `proxy_pass` geeft nginx het pad niet vanzelf mee en
+zou elk verzoek als `/` aankomen.
+
+**De tempolimiet-teller was een permanent bezoekerslogboek.** Hij verhuisde naar de
+database omdat hij in geheugen per worker leefde, en dat blijft juist. Maar DRF sleutelt
+hem op het adres van de bezoeker met de tijdstippen als waarde, en Django's `DatabaseCache`
+ruimt een verlopen rij alleen op wanneer diezelfde sleutel opnieuw gelezen wordt. Wie niet
+terugkomt bleef staan; rijen van vierhonderd dagen oud overleefden verse verkeer en een
+volledige opruiming. De sleutel is nu een keyed digest van de aanroeper, en het
+opruimcommando dekt die tabel mee. Een bewaartermijn die alleen de tabel dekt waar iemand
+aan dacht, is geen bewaartermijn.
+
+**Postgres schreef het token, de antwoorden en het adres in zijn eigen log.** Django bindt
+parameters standaard aan de clientkant, dus ze stonden letterlijk in de statementtekst, en
+`log_min_error_statement=error` staat in deze image aan. `server_side_binding` haalt de
+waarden uit `STATEMENT`; dat sluit `DETAIL` niet, want die regel bouwt de server uit de rij
+zelf. Daarom staat `log_error_verbosity=terse` op de db-service. Samen gemeten op het echte
+driverpad: nul treffers, de fout wordt gelogd en de waarde niet. De db-container is de enige
+die een deploy nooit herbouwt, dus zijn log is het langstlevende in de stack.
+
+### Wat hier bewust niet opgelost is
+
+De deploy is geen rollback. `up -d` vernietigt de vorige container voordat de gezondheids-
+poort vuurt, dus terugvallen is een mens die `AMPEER_VERSION` bewerkt. Elke geslaagde deploy
+kost ongeveer 0,74 seconde uitval, en met de gezondheidspoort erbij 3,29 — gemeten, niet
+geschat, en de audit die er 9,2 van maakte had `--force-recreate` gebruikt dat de deploy niet
+gebruikt. Een `migrate` draait pas nadat het nieuwe verkeer al binnenkomt. Alle drie vragen
+een tweede instantie of een andere volgorde in de deploy-job, en dat is een eigen ronde.
+
+### Wat bij Stijn ligt, en waarom het geen omissie is
+
+Een push naar elke `feat/**`-branch kan code uitvoeren op `web2`. De rulesets dekken `main`
+en `dev`; `ci.yml` triggert op `feat/**`; en `test_no_job_runs_on_the_self_hosted_runner`
+draait pas nadat de job al gedraaid heeft. Een vereiste status check kan dat niet
+repareren, want de workflow start voordat checks starten. Gemeten wat het waard is: de
+gebruiker van de runner zit in de docker-groep, en `docker run -v /:/host` leest
+`/etc/shadow`. Wat wel werkt staat in `scripts/setup_rulesets.sh`: de runnergroep beperken
+tot deze ene workflow, en docker-groepslidmaatschap vervangen door een `sudoers`-regel voor
+precies die ene commandoregel. Allebei zijn het instellingen buiten deze repository.

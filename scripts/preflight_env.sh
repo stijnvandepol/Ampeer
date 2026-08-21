@@ -109,15 +109,35 @@ if [ "${carriage_returns}" -ne 0 ]; then
   exit 1
 fi
 
+# Whitespace counts as empty. Measured on 2026-08-21: DJANGO_SECRET_KEY set to
+# three spaces printed "9 variables set" and exited zero, and nothing
+# downstream saves it either. prod.py tests `if not value`, and three spaces
+# are truthy, so the process starts: the signing key is three spaces and
+# ALLOWED_HOSTS becomes ["   "], which answers every request with 400
+# DisallowedHost. That is not the restart loop this script was written for, it
+# is worse, because the container reports itself as up and the failure looks
+# like DNS or the tunnel.
+#
+# The trim is only used to decide emptiness. The value itself is never
+# rewritten, because compose will read it with the spaces on it and a script
+# that trimmed here would be agreeing the file is fine about a value compose
+# still reads differently. Same reason the carriage return above is reported
+# rather than stripped.
+blank() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  [ -z "${value}" ]
+}
+
 missing=()
 for name in "${REQUIRED[@]}"; do
-  if [ -z "${VALUES[${name}]:-}" ]; then
+  if blank "${VALUES[${name}]:-}"; then
     missing+=("${name}")
   fi
 done
 
 if [ "${#missing[@]}" -ne 0 ]; then
-  fail "${#missing[@]} required variable(s) missing or empty in ${ENV_FILE}:"
+  fail "${#missing[@]} required variable(s) missing, empty or whitespace in ${ENV_FILE}:"
   for name in "${missing[@]}"; do
     fail "  ${name}"
   done
@@ -125,6 +145,27 @@ if [ "${#missing[@]}" -ne 0 ]; then
   fail "restart in a loop instead of reporting this."
   exit 1
 fi
+
+# DJANGO_NUM_PROXIES is the one required value prod.py parses rather than
+# reads. `_required_count` refuses anything str.isdigit() refuses, and it does
+# so while the settings module is being imported, which is a container that
+# exits, is restarted, and exits again: the exact outage this script exists to
+# turn into one line. Set is not enough. Measured on 2026-08-21,
+# DJANGO_NUM_PROXIES=two passed this preflight and produced that loop.
+#
+# The pattern is the shell's spelling of isdigit for ASCII, and it is one step
+# stricter: it also refuses a value with a space in it, which isdigit refuses
+# as well. It never echoes the value, for the reason at the top of this file.
+PROXIES="${VALUES[DJANGO_NUM_PROXIES]}"
+case "${PROXIES}" in
+  *[!0-9]*)
+    fail "DJANGO_NUM_PROXIES is not a whole number of proxies."
+    fail "prod.py refuses anything else while importing settings, so the api"
+    fail "container would restart in a loop instead of reporting this. Two here:"
+    fail "the tunnel connector and nginx. Zero is legal and means neither."
+    exit 1
+    ;;
+esac
 
 # AMPEER_NEDU_PROFILE_PATH carries two meanings in docker-compose.yml on
 # purpose. The value the API reads is fixed to /srv/profiles/nedu.csv, set in

@@ -213,6 +213,74 @@ def test_an_image_this_repository_builds_declares_its_own_health() -> None:
     )
 
 
+def _api_healthcheck() -> str:
+    """The HEALTHCHECK instruction of api.Dockerfile, comments excluded.
+
+    Read from the file rather than from a built image, so this runs in CI where
+    there is no Docker.
+    """
+    dockerfile = (INFRA / "api.Dockerfile").read_text(encoding="utf-8")
+    marker = "\nHEALTHCHECK "
+    assert marker in dockerfile, "api.Dockerfile declares no HEALTHCHECK"
+    return dockerfile[dockerfile.index(marker) :]
+
+
+def test_the_readiness_check_asks_with_a_host_the_service_answers_on() -> None:
+    """Django refuses a request whose Host is not in ALLOWED_HOSTS before any
+    view runs, so a check that sends the wrong one can only ever be red.
+
+    It was. The check sent a hardcoded `Host: 127.0.0.1:8000` while prod.py
+    builds ALLOWED_HOSTS from DJANGO_ALLOWED_HOSTS, which infra/README.md and
+    infra/.env.example both tell the operator to fill with `ampeer.nl`.
+    Measured on 2026-08-21 against a running stack with that value: every probe
+    returned `HTTP Error 400: Bad Request`, `docker ps` read `Up About a minute
+    (unhealthy)` and never changed, and a POST to /api/advice/estimate/
+    carrying `Host: ampeer.nl` answered 201 at the same moment.
+
+    Nothing caught it, and three things depended on it: this check is the only
+    thing that notices a NEDU profile mounted as a directory, `web` now waits
+    on it, and the README's verify step tells the operator to expect `healthy`.
+    Django's test client never validates a Host, and the local fixture happened
+    to allow 127.0.0.1, so both places that could have failed agreed.
+
+    The rule is therefore that the header is derived from the same variable
+    Django reads, never written down.
+    """
+    healthcheck = _api_healthcheck()
+    assert "'Host'" in healthcheck, "the readiness check sends no Host header at all"
+    assert "DJANGO_ALLOWED_HOSTS" in healthcheck, (
+        "the readiness check does not read the list Django validates Host against, "
+        "so it can be red on a working service"
+    )
+    for literal in ("'Host': '127.0.0.1", '"Host": "127.0.0.1', "'Host': 'localhost"):
+        assert literal not in healthcheck, f"the readiness check hardcodes a Host: {literal!r}"
+
+
+def test_web_waits_for_the_api_to_be_healthy_rather_than_merely_started() -> None:
+    """`up -d` returns when every container it started is running, and running
+    says nothing about whether the thing inside works.
+
+    Measured on 2026-08-21 with a deliberately broken api image and
+    `condition: service_started`: `up -d` printed `Started` and exited 0, the
+    api container was `Restarting (1)` from then on, and the first red was two
+    steps later at `migrate`. With `service_healthy` the same deploy stops at
+    `up`: `dependency failed to start: container ampeer-api-1 is unhealthy`,
+    exit 1, which is the step somebody is watching.
+
+    Measured cost, same day, over a probe every 0.23 seconds across a release
+    that changes both image tags: the window in which nothing served went from
+    0.74 seconds to 3.29 seconds, because `web` now starts after the first
+    successful probe instead of immediately. That is the trade, and it is
+    written down here so it is a decision rather than a surprise.
+    """
+    web = service("web")
+    condition = web.get("depends_on", {}).get("api", {}).get("condition")
+    assert condition == "service_healthy", (
+        f"web depends on api with condition {condition!r}, so `up -d` is green on an api "
+        "that starts and immediately dies"
+    )
+
+
 def test_every_manage_py_call_resolves_inside_the_image() -> None:
     """The image's working directory and the commands that use it must agree.
 

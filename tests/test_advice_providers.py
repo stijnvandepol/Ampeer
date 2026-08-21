@@ -8,6 +8,7 @@ integers and the test below asks for the same roof twice by two routes.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -244,3 +245,63 @@ def test_a_configured_profile_file_is_accepted(tmp_path: Path) -> None:
     with override_settings(AMPEER_NEDU_PROFILE_PATH=str(profile_file)):
         provider = profile_provider()
     assert isinstance(provider, NeduFileProvider)
+
+
+def test_a_profile_file_that_cannot_be_opened_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`is_file()` stats the file. It never opens it.
+
+    The message says "is not a readable file", and readable was the one
+    property nothing tested. Measured on 2026-08-21 in a running container: a
+    profile at mode 000 owned by root, with the process at uid 10001, gave
+    `READINESS VERDICT: ok` and then a PermissionError on the first advice.
+    `-rw------- root root` is a plausible way to store a licensed dataset, so
+    this is not a hypothetical mount.
+
+    Patched rather than chmodded because chmod does not deny a read on Windows
+    and does not deny root one anywhere, so a test built on it would be green
+    on two of the three machines this runs on for no reason at all. The live
+    case is in the report for this change.
+    """
+    profile = tmp_path / "nedu-profiles-2025.csv"
+    profile.write_text("", encoding="utf-8")
+    opened = Path.open
+
+    def refuse(self: Path, *args: Any, **kwargs: Any) -> Any:
+        if self == profile:
+            raise PermissionError(13, "Permission denied")
+        return opened(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", refuse)
+    with (
+        override_settings(AMPEER_NEDU_PROFILE_PATH=str(profile)),
+        pytest.raises(RuntimeError, match="not a readable file"),
+    ):
+        profile_provider()
+
+
+def test_the_readiness_check_opens_the_profile_rather_than_stating_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The same gap seen from the endpoint that exists to catch it.
+
+    A readiness check that answers ok for a file it cannot read is worse than
+    no readiness check, because it is also a reason not to look.
+    """
+    from django.urls import reverse
+    from rest_framework.test import APIClient
+
+    profile = tmp_path / "nedu-profiles-2025.csv"
+    profile.write_text("", encoding="utf-8")
+    opened = Path.open
+
+    def refuse(self: Path, *args: Any, **kwargs: Any) -> Any:
+        if self == profile:
+            raise PermissionError(13, "Permission denied")
+        return opened(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", refuse)
+    with override_settings(AMPEER_NEDU_PROFILE_PATH=str(profile)):
+        response = APIClient().get(reverse("advice-health"))
+    assert response.status_code == 503, response.status_code

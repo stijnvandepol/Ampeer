@@ -159,6 +159,55 @@ def test_no_job_runs_on_the_self_hosted_runner() -> None:
     assert not offenders, f"jobs targeting the self-hosted runner: {offenders}"
 
 
+#: What the comment in scripts/setup_rulesets.sh has to keep saying, and why
+#: each fragment is in the list.
+#:
+#: The gap it describes cannot be closed from this repository, and the test
+#: directly above cannot close it either: ci.yml triggers on `push` to feat/**,
+#: setup_rulesets.sh protects only main and dev, so a commit adding a workflow
+#: with `runs-on: self-hosted` executes on web2 at push time and
+#: test_no_job_runs_on_the_self_hosted_runner goes red minutes later, on a job
+#: that has already run. No required status check can help, because the
+#: workflow starts before any check does. Measured on 2026-08-21: the runner's
+#: user is in the docker group, so `docker run -v /:/host` in such a job reads
+#: /etc/shadow, and one push is root on the LXC.
+#:
+#: The two controls that would work are settings and host configuration rather
+#: than files here, which is exactly why they need writing down somewhere a
+#: person configuring this repository will read: a control nobody is told about
+#: is a control nobody applies.
+RUNNER_GAP_NOTES = (
+    "feat/**",
+    "self-hosted",
+    "runner group",
+    "docker group",
+    "sudoers",
+    "detect",
+    "neither is in this repository",
+    "test_no_job_runs_on_the_self_hosted_runner",
+)
+
+
+@pytest.mark.parametrize("fragment", RUNNER_GAP_NOTES)
+def test_the_ruleset_script_writes_down_the_gap_no_ruleset_can_cover(fragment: str) -> None:
+    """The one finding in this round that is not fixable in code.
+
+    It is written into setup_rulesets.sh rather than into a doc, because that
+    script is what somebody runs when they are configuring the protections for
+    this repository, which is the moment the two missing controls are relevant
+    and the only moment anyone is thinking about them.
+
+    One case per fragment, so deleting a sentence names the sentence rather
+    than failing on a paragraph that is still mostly there.
+    """
+    body = RULESET_SCRIPT.read_text(encoding="utf-8")
+    comments = "\n".join(line for line in body.splitlines() if line.lstrip().startswith("#"))
+    assert fragment in comments.lower(), (
+        f"scripts/setup_rulesets.sh no longer says {fragment!r}; the self-hosted runner gap "
+        "is documented nowhere else and no test can prevent it"
+    )
+
+
 def test_every_job_has_a_timeout() -> None:
     """Without one, a hung job holds a runner for six hours."""
     missing = [name for name, job in _jobs().items() if "timeout-minutes" not in job]

@@ -52,6 +52,25 @@ RUN set -eu; \
     # why a stack whose API never comes up has no static site either. The copy
     # changes one hostname and nothing else, so every other line is checked
     # exactly as it ships, and the served file is the original.
+    #
+    # Measured on 2026-08-21 rather than reasoned about, because the consequence
+    # is larger than the sentence above suggests. Stop `api` and restart this
+    # container and it crash-loops on
+    #   nginx: [emerg] host not found in upstream "api" in /etc/nginx/nginx.conf
+    # serving nothing at all, not a page with a broken API. The same happens on
+    # its own whenever the api image is broken: Docker drops a restarting
+    # container's name from the network's DNS, so an api that cannot start takes
+    # the statically exported site down with it, and that site needs neither an
+    # API nor a database. `restart: unless-stopped` recovers it if the api
+    # eventually starts; if the database never initialises, it does not.
+    #
+    # Nothing in this file or in docker-compose.yml can decouple them. What can:
+    # a `resolver` plus a variable `proxy_pass` in infra/nginx/nginx.conf, which
+    # defers the lookup to request time so nginx starts without the api and
+    # answers 502 for /api/ while serving every page. If that lands, this `sed`
+    # keeps working as long as the literal `http://api:8000` still appears
+    # somewhere in the file, and stops being needed at all once the upstream is
+    # a variable, because nginx then does not resolve it while parsing.
     sed 's|http://api:8000|http://127.0.0.1:8000|' /etc/nginx/nginx.conf > /tmp/syntax-check.conf; \
     nginx -t -c /tmp/syntax-check.conf; \
     rm /tmp/syntax-check.conf

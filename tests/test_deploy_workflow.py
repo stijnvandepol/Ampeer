@@ -17,6 +17,7 @@ it by triggering only on a tag and waiting for a review.
 
 from __future__ import annotations
 
+import hashlib
 import re
 import shutil
 import subprocess
@@ -35,6 +36,16 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEPLOY_WORKFLOW = "deploy.yml"
 PREFLIGHT = REPO_ROOT / "scripts" / "preflight_env.sh"
 ENV_EXAMPLE = REPO_ROOT / "infra" / ".env.example"
+COMPOSE = REPO_ROOT / "infra" / "docker-compose.yml"
+
+#: The two images this repository builds, as (output name, published name).
+#: Read as a pair because the digest that leaves the build job and the tag the
+#: host pulls have to name the same image; a check that compares one image
+#: against the other's digest passes on every deploy and stops nothing.
+BUILT_IMAGES = (
+    ("api", "ghcr.io/stijnvandepol/ampeer-api"),
+    ("web", "ghcr.io/stijnvandepol/ampeer-web"),
+)
 
 #: The nine names prod.py refuses to start without. Written out here rather
 #: than imported from the preflight or from .env.example, for the reason
@@ -263,6 +274,158 @@ def test_the_workflow_pins_a_tag_to_the_images_it_publishes() -> None:
 
 
 # --------------------------------------------------------------------------
+# The approval window.
+#
+# `environment: production` puts a review between the build and the pull, and
+# that review can take hours. The compose file pulls a tag, and a tag is a name
+# whoever holds `packages: write` on this repository can repoint while the
+# review is open: the reviewer approves the run they read, and the host pulls
+# whatever the tag says at pull time, which is a different thing.
+#
+# The tag stays. It is what lets the host bring itself back up after a reboot
+# with no CI involved, and what makes a rollback one string in a file a person
+# can read. What closes the window is checking afterwards: the build job says
+# which digest it pushed, and the deploy asserts that is what arrived.
+# --------------------------------------------------------------------------
+
+
+def _deploy_run_lines() -> list[str]:
+    return [str(step.get("run", "")) for step in _steps("deploy")]
+
+
+def _only_deploy_step(predicate: Any, what: str) -> int:
+    matches = [index for index, run in enumerate(_deploy_run_lines()) if predicate(run)]
+    assert len(matches) == 1, f"expected exactly one deploy step that {what}, found {matches}"
+    return matches[0]
+
+
+@pytest.mark.parametrize(("name", "published"), BUILT_IMAGES)
+def test_the_build_job_publishes_the_digest_it_pushed(name: str, published: str) -> None:
+    """The digest is only knowable in the job that pushed it.
+
+    docker/build-push-action reports it as a step output, and a step output
+    dies with its job unless the job declares it as one of its own. Without
+    that there is nothing for the deploy to compare against, and the tag stays
+    the only name anywhere in the pipeline.
+    """
+    outputs = _job("build").get("outputs") or {}
+    key = f"{name}-digest"
+    assert key in outputs, f"the build job publishes no {key}: {sorted(outputs)}"
+    reference = str(outputs[key])
+    match = re.search(r"steps\.([A-Za-z0-9_-]+)\.outputs\.digest", reference)
+    assert match, f"{key} is not a step digest output: {reference!r}"
+    step = next((s for s in _steps("build") if s.get("id") == match.group(1)), None)
+    assert step is not None, f"{key} names step {match.group(1)!r}, which does not exist"
+    assert "build-push-action" in str(step.get("uses", "")), step
+    assert published in str(step.get("with", {}).get("tags", "")), (
+        f"{key} carries the digest of a step that does not push {published}"
+    )
+
+
+def test_the_deploy_checks_what_it_pulled_against_what_the_build_pushed() -> None:
+    """Both images, because verifying one of the two leaves the other
+    repointable, and `web` is the one that serves the pages."""
+    index = _only_deploy_step(lambda run: "RepoDigests" in run, "inspects a pulled image digest")
+    step = _steps("deploy")[index]
+    environment = " ".join(str(value) for value in (step.get("env") or {}).values())
+    for name, _published in BUILT_IMAGES:
+        assert f"needs.build.outputs.{name}-digest" in environment, (
+            f"the digest check never reads the build job's {name}-digest output: {environment!r}"
+        )
+
+
+def test_the_digest_check_sits_between_the_pull_and_the_start() -> None:
+    """Order is the property. Before the pull there is nothing to inspect, and
+    after `up` the container the check would have rejected is already serving."""
+    pull = _only_deploy_step(lambda run: "compose" in run and " pull" in run, "pulls")
+    start = _only_deploy_step(lambda run: "compose" in run and "up -d" in run, "starts the stack")
+    check = _only_deploy_step(lambda run: "RepoDigests" in run, "inspects a pulled image digest")
+    assert pull < check < start, f"pull at {pull}, check at {check}, up at {start}"
+
+
+def test_the_workflow_says_what_provenance_true_does_and_does_not_buy() -> None:
+    """`provenance: true` was on both build steps from the first version and
+    nothing anywhere reads the attestation it produces. An unverified
+    attestation is a claim; a claim that reads as a control is worse than no
+    control at all, so the file has to say which of the two this one is."""
+    text = (REPO_ROOT / ".github" / "workflows" / DEPLOY_WORKFLOW).read_text(encoding="utf-8")
+    assert "provenance: true" in text
+    comments = "\n".join(line for line in text.splitlines() if line.lstrip().startswith("#"))
+    assert "provenance" in comments, (
+        "provenance: true is set and no comment says whether anything verifies it"
+    )
+
+
+# --------------------------------------------------------------------------
+# The compose file on the host, which nothing has ever read.
+# --------------------------------------------------------------------------
+
+
+def test_the_deploy_pins_the_checksum_of_the_compose_file_it_runs() -> None:
+    """The same hole the preflight had, in the file that decides what runs.
+
+    /srv/ampeer/docker-compose.yml is placed by hand and the deploy job has no
+    checkout, so every test in this repository reads a copy that is not the one
+    the host uses. Measured on 2026-08-21: adding
+    `- /var/run/docker.sock:/var/run/docker.sock` to the api service on the
+    host leaves the whole suite green, and it is permanent.
+
+    This recomputes the digest from the repository, so the literal in the
+    workflow cannot drift from infra/docker-compose.yml. It can only disagree
+    with the host, which is the disagreement worth stopping a deploy for.
+    """
+    digest = hashlib.sha256(COMPOSE.read_bytes()).hexdigest()
+    text = (REPO_ROOT / ".github" / "workflows" / DEPLOY_WORKFLOW).read_text(encoding="utf-8")
+    assert digest in text, (
+        f"infra/docker-compose.yml hashes to {digest}, which .github/workflows/deploy.yml "
+        "does not name. Update COMPOSE_SHA256 in the workflow and re-copy the file to "
+        "/srv/ampeer/ on the host."
+    )
+
+
+def test_the_compose_file_is_checked_before_anything_uses_it() -> None:
+    """A checksum verified after `up` describes a file that has already started
+    containers."""
+    check = _only_deploy_step(
+        lambda run: "sha256sum" in run and "docker-compose.yml" in run,
+        "hashes the compose file",
+    )
+    for index, run in enumerate(_deploy_run_lines()):
+        if "compose" in run and ("up -d" in run or " pull" in run or "run --rm" in run):
+            assert index > check, f"step {index} uses the compose file before it is checked: {run}"
+
+
+# --------------------------------------------------------------------------
+# The one edge in the concurrency group, which cannot be closed here.
+# --------------------------------------------------------------------------
+
+
+def _comment_block_above(marker: str) -> str:
+    text = (REPO_ROOT / ".github" / "workflows" / DEPLOY_WORKFLOW).read_text(encoding="utf-8")
+    lines = text.splitlines()
+    index = next(i for i, line in enumerate(lines) if line.startswith(marker))
+    block: list[str] = []
+    while index > 0 and lines[index - 1].lstrip().startswith("#"):
+        index -= 1
+        block.append(lines[index])
+    return "\n".join(reversed(block)).lower()
+
+
+def test_the_concurrency_group_writes_down_the_run_it_silently_cancels() -> None:
+    """GitHub keeps at most one pending run per concurrency group.
+
+    Pushing v3 while v2 waits on the environment review cancels v2, with no
+    deploy and no failure anywhere: the tag exists, the images are in GHCR, and
+    nothing put them on the host. No workflow file can prevent it, because the
+    run that would report it is the run being cancelled, so the control here is
+    a sentence rather than a step and this keeps the sentence in place.
+    """
+    block = _comment_block_above("concurrency:")
+    assert "pending" in block, "the concurrency comment does not mention the pending run"
+    assert "cancel" in block, "the concurrency comment does not say what gets cancelled"
+
+
+# --------------------------------------------------------------------------
 # The preflight itself, driven as a program.
 #
 # Every case below is an outage that would otherwise present as a code fault: a
@@ -289,8 +452,18 @@ def _write_env(path: Path, values: dict[str, str], *, newline: str = "\n") -> Pa
 
 
 def _complete(profile: Path) -> dict[str, str]:
+    """A file the preflight has no complaint about, as the baseline every case
+    below breaks in exactly one way.
+
+    Two names cannot take the filler. AMPEER_NEDU_PROFILE_PATH has to be a
+    readable path, and DJANGO_NUM_PROXIES has to be a whole number, because
+    prod.py parses that one rather than reading it. Giving them real values
+    here is what keeps each case testing the thing it names instead of failing
+    on the fixture.
+    """
     values = dict.fromkeys(REQUIRED_ENV, "set")
     values["AMPEER_NEDU_PROFILE_PATH"] = profile.as_posix()
+    values["DJANGO_NUM_PROXIES"] = "2"
     return values
 
 
@@ -350,6 +523,65 @@ class TestThePreflight:
         result = _preflight(_write_env(tmp_path, values))
         assert result.returncode != 0
         assert "POSTGRES_PASSWORD" in result.stdout + result.stderr
+
+    @pytest.mark.parametrize("name", REQUIRED_ENV)
+    def test_a_whitespace_only_value_counts_as_missing(self, tmp_path: Path, name: str) -> None:
+        """Measured on 2026-08-21: `DJANGO_SECRET_KEY="   "` printed
+        "9 variables set" and exited zero.
+
+        Nothing downstream saves it. prod.py tests `if not value`, and three
+        spaces are truthy, so the process starts: the signing key is three
+        spaces, `DJANGO_ALLOWED_HOSTS` becomes `["   "]` and every request is
+        answered with 400 DisallowedHost. That is not a restart loop, it is
+        worse, because the container reports itself as up. It is what a half
+        filled .env looks like when somebody lines the values up in a column.
+        """
+        values = _complete(_profile(tmp_path))
+        values[name] = "   "
+        result = _preflight(_write_env(tmp_path, values))
+        assert result.returncode != 0, f"{name} may be whitespace without the deploy stopping"
+        assert name in result.stdout + result.stderr
+
+    @pytest.mark.parametrize("value", ["two", "2.5", "-1", " 2", "2 ", "1,2", "one"])
+    def test_it_refuses_a_proxy_count_that_is_not_a_whole_number(
+        self, tmp_path: Path, value: str
+    ) -> None:
+        """The one variable prod.py parses rather than reads.
+
+        `_required_count` refuses anything `str.isdigit()` refuses, and that is
+        a RuntimeError at import time, which is a container that exits and is
+        restarted and exits again. Measured on 2026-08-21:
+        `DJANGO_NUM_PROXIES=two` passed this preflight and produced exactly
+        that loop, which is the outage the preflight exists to stop.
+        """
+        values = _complete(_profile(tmp_path))
+        values["DJANGO_NUM_PROXIES"] = value
+        result = _preflight(_write_env(tmp_path, values))
+        assert result.returncode != 0, f"DJANGO_NUM_PROXIES={value!r} passed the preflight"
+        assert "DJANGO_NUM_PROXIES" in result.stdout + result.stderr
+
+    @pytest.mark.parametrize("value", ["0", "1", "2", "10"])
+    def test_it_accepts_a_whole_number_of_proxies_including_zero(
+        self, tmp_path: Path, value: str
+    ) -> None:
+        """Zero is a legal count and prod.py accepts it. A check that treated
+        the count as a flag would refuse the only value that means "no proxy in
+        front of this", which is how the stack is run locally."""
+        values = _complete(_profile(tmp_path))
+        values["DJANGO_NUM_PROXIES"] = value
+        result = _preflight(_write_env(tmp_path, values))
+        assert result.returncode == 0, result.stdout + result.stderr
+
+    def test_it_never_prints_a_rejected_value_either(self, tmp_path: Path) -> None:
+        """The proxy count is not a secret, but the message that reports it is
+        written next to eight values that are, and a preflight that echoes what
+        it read once will echo it again. Same rule, stated where the new check
+        could have broken it."""
+        values = _complete(_profile(tmp_path))
+        values["DJANGO_NUM_PROXIES"] = "hunter2-would-be-in-the-log"
+        result = _preflight(_write_env(tmp_path, values))
+        assert result.returncode != 0
+        assert "hunter2" not in result.stdout + result.stderr
 
     def test_it_stops_on_an_env_file_with_windows_line_endings(self, tmp_path: Path) -> None:
         """Found by this suite on 2026-08-21, on the first run.

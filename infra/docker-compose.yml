@@ -60,6 +60,27 @@ services:
     image: postgres@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
     logging: *logging
     restart: unless-stopped
+    # log_error_verbosity=terse drops the DETAIL and HINT lines from an error.
+    #
+    # prod.py now sets server_side_binding, so a failing statement is logged as
+    # `INSERT ... VALUES ($1, $2)` rather than with the values inlined. That
+    # closes STATEMENT and not DETAIL: the server builds that line from the row
+    # itself, so a unique violation still prints `Key (token)=(<the token>)`.
+    # Measured on 2026-08-21 with both bindings against this image.
+    #
+    # The db container is the one service a deploy never recreates, so its log
+    # is the longest lived in the stack: measured at roughly a year at this
+    # write rate. A token there outlasts by a wide margin the ninety day purge
+    # of the row it opens.
+    #
+    # The cost is real and is the reason this is a decision rather than an
+    # obvious win: DETAIL is where a constraint violation says which value
+    # broke it, so debugging a genuine data fault gets harder. That is the
+    # right trade for a table whose keys are credentials.
+    command:
+      - postgres
+      - -c
+      - log_error_verbosity=terse
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -121,9 +142,34 @@ services:
       context: ..
       dockerfile: infra/web.Dockerfile
     restart: unless-stopped
+    # service_healthy, not service_started. `up -d` returns as soon as every
+    # container it started is running, and "running" says nothing about whether
+    # the thing inside it works. Measured on 2026-08-21 with a deliberately
+    # broken api image and `condition: service_started`: `up -d` printed
+    # `Container ampeer-api-1  Started` and exited 0, the api container was
+    # `Restarting (1)` from then on, and the first red was two steps later at
+    # `migrate`. A deploy that goes green on a broken image is the worst of the
+    # two failures, because by then the previous container has been destroyed.
+    #
+    # With this condition compose waits for the api image's own HEALTHCHECK and
+    # fails the `up` itself, which is the step a person is watching. It costs
+    # availability on a good deploy: measured the same day over a probe every
+    # 0.23 seconds, the window in which nothing served went from 0.74 to 3.29
+    # seconds, because web now starts after the api's first successful probe.
+    #
+    # It also happens to be the ordering `web` genuinely needs, and that part is
+    # not a fix. nginx resolves every upstream while it parses its
+    # configuration, so `web` cannot start at all while the name `api` does not
+    # resolve; measured the same day, a broken api image left web itself in a
+    # restart loop on `nginx: [emerg] host not found in upstream "api"` and the
+    # statically exported site, which needs no api and no database, served
+    # nothing. That coupling is not fixable from this file: it needs a
+    # `resolver` and a variable `proxy_pass` in infra/nginx/nginx.conf, so
+    # nginx defers the lookup to request time and answers 502 for /api/ while
+    # still serving every page. See infra/README.md.
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
 
   tunnel:
     image: cloudflare/cloudflared@sha256:0aa26e284f05e6c77ae375b8c9c11d9eb6a448fb7bcd8d40f31cb6176189eb38

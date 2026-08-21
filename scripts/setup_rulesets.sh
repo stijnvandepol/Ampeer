@@ -4,6 +4,51 @@
 # The required checks below must match the job names in .github/workflows/ci.yml
 # and .github/workflows/security.yml exactly. A renamed job produces a check that
 # never arrives and a pull request that waits forever.
+
+# ---------------------------------------------------------------------------
+# What this script cannot protect, and what would.
+#
+# Read this before deciding the repository is configured. Written here rather
+# than in a doc because this file is what somebody runs when they set the
+# protections up, which is the only moment the two settings below are on
+# anybody's mind.
+#
+# The rulesets created here cover refs/heads/main and refs/heads/dev. Nothing
+# covers feat/**, and .github/workflows/ci.yml triggers on `push` to feat/**.
+# So a commit on any feature branch that adds a workflow job with
+# `runs-on: self-hosted` runs that job on web2, inside the owner's own network,
+# at push time. No review, no pull request, no ruleset.
+#
+# tests/test_pipeline_contract.py has test_no_job_runs_on_the_self_hosted_runner
+# and it does not prevent this. It detects it: the test runs in the `test` job
+# of the same push, so it goes red minutes after the job it objects to has
+# already finished. No required status check can help either, because a
+# required check gates a merge and the workflow starts before any check does.
+#
+# What that job can do was measured on 2026-08-21. The runner's user is in the
+# docker group, `docker run -v /:/host` then reads /etc/shadow, and membership
+# of that group is root on the host by design. One push is root on the LXC.
+#
+# The two controls that would actually work:
+#
+#   1. Restrict which workflows may use the runner. GitHub can scope a
+#      self-hosted runner group to selected repositories and selected
+#      workflows; pointing the runner group at .github/workflows/deploy.yml
+#      alone means a workflow added on a feature branch has nothing to run on.
+#      This is the one that closes it, because it removes the runner from the
+#      reach of a push rather than reporting afterwards that a push reached it.
+#   2. Take the runner's user out of the docker group and give it a sudoers
+#      rule for the fixed compose command line the deploy needs instead. Docker
+#      group membership is unrestricted root; a sudoers entry naming the exact
+#      command with no wildcard is not. This one does not stop a job running,
+#      it bounds what the job can do when one does.
+#
+# Both are Stijn's to apply and neither is in this repository: the first is a
+# setting in GitHub's runner group configuration, the second is a file on the
+# LXC. Nothing here can create either one, and no test can assert that they are
+# in place, so this comment is the whole of the control until they are.
+# ---------------------------------------------------------------------------
+
 set -euo pipefail
 
 REPO="${1:-stijnvandepol/Ampeer}"

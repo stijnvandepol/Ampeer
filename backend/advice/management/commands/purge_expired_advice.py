@@ -19,7 +19,9 @@ from argparse import ArgumentParser
 from datetime import timedelta
 from typing import Any
 
+from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
+from django.db import connection
 from django.utils import timezone
 
 from advice.models import StoredAdvice
@@ -29,6 +31,11 @@ from advice.models import StoredAdvice
 #: normal and must not be reported as a broken retention promise. One day is the
 #: smallest window that tells those two apart.
 GRACE_DAYS = 1
+
+#: base.py already names this, precisely so the migration that creates the
+#: table and the code that reads it cannot drift. Imported rather than
+#: repeated for the same reason.
+CACHE_TABLE = settings.AMPEER_CACHE_TABLE
 
 
 class Command(BaseCommand):
@@ -50,6 +57,33 @@ class Command(BaseCommand):
             return
         deleted, _ = StoredAdvice.objects.filter(expires_at__lte=timezone.now()).delete()
         self.stdout.write(f"deleted {deleted} expired advice(s)")
+        self.stdout.write(f"deleted {self._purge_throttle_counters()} expired throttle row(s)")
+
+    def _purge_throttle_counters(self) -> int:
+        """Delete the rate limiter's expired rows, which nothing else does.
+
+        The throttle counter lives in the database so it survives a restart and
+        is shared across workers, which was the right call and is not the
+        problem. The problem is that Django's DatabaseCache only removes an
+        expired row when that same key is read again, and culls only above
+        100,000 entries. A visitor who never returns leaves a row forever.
+
+        Measured on 2026-08-21: rows backdated four hundred days survived fresh
+        traffic and a full run of this command, because it filtered StoredAdvice
+        and nothing else. The ninety day promise covered the advice and not the
+        table beside it, which is in every volume snapshot and every backup.
+
+        The key is a keyed digest of the caller rather than an address now, so
+        what survives is no longer a visitor log. It is still a row nobody
+        chose to keep, and a retention that only covers the table somebody
+        remembered is not a retention.
+        """
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"DELETE FROM {connection.ops.quote_name(CACHE_TABLE)} WHERE expires < %s",
+                [timezone.now()],
+            )
+            return int(cursor.rowcount)
 
     def _check(self) -> None:
         """Measure without repairing.
