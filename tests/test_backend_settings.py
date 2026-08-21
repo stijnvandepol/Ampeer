@@ -226,3 +226,31 @@ def test_the_cors_middleware_runs_before_anything_that_could_redirect() -> None:
 
     middleware = list(settings.MIDDLEWARE)
     assert middleware[0] == "corsheaders.middleware.CorsMiddleware", middleware
+
+
+def test_the_deploy_check_in_ci_knows_every_setting_production_requires() -> None:
+    """The second copy of REQUIRED_ENV, and what happens when it goes stale.
+
+    `manage.py check --deploy` runs in the quality job under production
+    settings, so that job carries its own list of the environment variables
+    prod.py insists on. Adding a required setting without adding it there turns
+    a green pipeline red on a RuntimeError that reads like a bug in the settings
+    rather than an omission in a workflow. That is what happened on 2026-08-21
+    when CORS arrived: the setting refused to start, correctly, and the job had
+    never been told about it.
+
+    Two secrets are generated inside the step rather than written into the file,
+    so this looks for every name anywhere in the step body.
+    """
+    import re
+    from pathlib import Path
+
+    workflow = (
+        Path(__file__).resolve().parent.parent / ".github" / "workflows" / "ci.yml"
+    ).read_text(encoding="utf-8")
+    step = re.search(r"- name: Django deployment checklist.*?(?=\n      - )", workflow, re.DOTALL)
+    assert step, "the deploy check step is gone from ci.yml"
+    missing = [name for name in REQUIRED_ENV if name not in step.group(0)]
+    assert not missing, (
+        f"prod.py requires {missing} and the deploy check in ci.yml does not set them"
+    )

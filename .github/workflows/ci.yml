@@ -58,6 +58,7 @@ jobs:
           POSTGRES_USER: ampeer
           POSTGRES_HOST: db
           DJANGO_NUM_PROXIES: "1"
+          DJANGO_CORS_ALLOWED_ORIGINS: https://ampeer.nl
         run: |
           set -euo pipefail
           DJANGO_SECRET_KEY="$(uv run python -c 'import secrets; print(secrets.token_urlsafe(48))')"
