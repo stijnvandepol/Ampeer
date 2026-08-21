@@ -355,3 +355,121 @@ def test_the_document_spells_out_the_degradation_the_code_applies(value: float, 
     }
     assert value in known, f"{value} is no longer a figure the ageing model produces: {known}"
     assert words in TEXT, f"the document no longer spells out {value} as {words!r}"
+
+
+#: Every model dataclass the API builds, and the function in assembly.py that
+#: builds it. EV and HeatPump are constructed inside build_household, which is
+#: why two of them name the same builder.
+BUILT_MODELS = (
+    ("Household", "build_household"),
+    ("PVSystem", "build_pv_system"),
+    ("EV", "build_household"),
+    ("HeatPump", "build_household"),
+    ("BatterySpec", "build_battery_spec"),
+)
+
+#: Every field on those five that the API leaves at its default, the value it
+#: leaves it at, and the words this document uses about it.
+#:
+#: The value is written down beside the phrase on purpose. Keying only on the
+#: field name would let somebody change 12.000 kilometres to 20.000 while the
+#: document still said twelve and this test still passed, which is the failure
+#: the whole file exists for.
+#:
+#: Until 2026-08-21 this test looked at Household and PVSystem alone, so the
+#: nine defaults on the three nested models were invisible to it. Six of them
+#: were in no chapter of the document at all, including the size of the car:
+#: 12.000 km at 18 kWh per 100 km is 2160 kWh a year, against the 3500 kWh the
+#: reference household uses in total. A visitor who answered "yes, and it
+#: charges on my surplus" was given a car nobody described.
+ASSUMED_DEFAULTS = {
+    ("Household", "profile_category"): ("E1A", "huizen zonder zonnepanelen"),
+    ("Household", "shiftable_block_kwh"): (1.0, "Verplaatsbaar verbruik per dag"),
+    ("PVSystem", "install_year"): (None, "Hoe oud je panelen zijn"),
+    ("PVSystem", "system_loss_fraction"): (0.14, "systeemverlies"),
+    ("EV", "annual_km"): (12_000, "12.000 kilometer"),
+    ("EV", "kwh_per_100km"): (18.0, "18 kWh per 100"),
+    ("EV", "charge_power_kw"): (3.7, "3,7 kilowatt"),
+    ("HeatPump", "base_temperature_c"): (15.0, "15 graden"),
+    ("HeatPump", "cop_at_7c"): (3.5, "3,5 bij 7 graden"),
+    ("HeatPump", "cop_slope_per_c"): (0.06, "0,06 daalt"),
+    ("BatterySpec", "round_trip_efficiency"): (0.90, "rendement van 90 procent"),
+    ("BatterySpec", "usable_dod"): (0.90, "diepte stellen wij op 90 procent"),
+    ("BatterySpec", "allow_grid_charging"): (False, "laadt nooit stroom van het net"),
+}
+
+
+def _model(name: str) -> type:
+    import ampeer_sim.types as types_module
+
+    model = getattr(types_module, name, None)
+    assert model is not None, f"ampeer_sim.types no longer defines {name}"
+    return model
+
+
+def _defaults_the_api_leaves(name: str, builder: str) -> dict[str, object]:
+    """Field name to default, for every field assembly.py does not pass."""
+    supplied = _fields_the_api_supplies(name, builder)
+    return {
+        field.name: field.default
+        for field in dataclasses.fields(_model(name))
+        if field.name not in supplied
+    }
+
+
+def test_the_list_of_assumed_defaults_is_the_one_the_code_produces() -> None:
+    """Two directions, because one of them is how this went wrong.
+
+    A default arriving on any of the five must appear here, and an entry here
+    must still be a default the API leaves. Without the second half a field the
+    API starts asking for keeps a line vouching for an assumption that is no
+    longer made.
+    """
+    found = {
+        (name, field)
+        for name, builder in BUILT_MODELS
+        for field in _defaults_the_api_leaves(name, builder)
+    }
+    assert found == set(ASSUMED_DEFAULTS), (
+        "the defaults the API leaves are not the ones listed here:\n"
+        f"  code only: {sorted(found - set(ASSUMED_DEFAULTS))}\n"
+        f"  list only: {sorted(set(ASSUMED_DEFAULTS) - found)}"
+    )
+
+
+@pytest.mark.parametrize(("key", "expected"), sorted(ASSUMED_DEFAULTS.items()))
+def test_every_assumed_default_is_still_the_value_the_document_describes(
+    key: tuple[str, str], expected: tuple[object, str]
+) -> None:
+    """The value and the sentence move together or this fails."""
+    name, field = key
+    value, phrase = expected
+    actual = _defaults_the_api_leaves(name, dict(BUILT_MODELS)[name])[field]
+    # An enum default is compared by its value, so the expected column reads as
+    # the profile name a person would recognise rather than as a repr.
+    actual = getattr(actual, "value", actual)
+    assert actual == value, (
+        f"{name}.{field} is now {actual!r} and the document still describes {value!r}"
+    )
+    assert phrase in TEXT, f"the document no longer says {phrase!r} about {name}.{field}"
+
+
+def test_the_document_says_the_battery_never_charges_from_the_grid() -> None:
+    """The engine can. The product does not, and the difference is the claim.
+
+    `allow_grid_charging` defaults to False, no caller outside the tests sets
+    it, and nothing outside the tests selects ARBITRAGE or HYBRID or supplies
+    prices per quarter. So a battery in an answer only ever stores surplus.
+    Chapter 8 used to open with what the engine does when it trades, which
+    invites a reader to assume the answer contains that, and a battery that
+    trades is the version a seller quotes.
+    """
+    import ampeer_sim.simulate as simulate_module
+
+    source = Path(simulate_module.__file__).read_text(encoding="utf-8")
+    assert "strategy: Strategy = Strategy.SELF_CONSUMPTION" in source, (
+        "the default strategy moved; chapter 8 says a battery only stores surplus"
+    )
+    chapter = TEXT.split("## 8.", 1)[1].split("## 9.", 1)[0]
+    assert "laadt nooit stroom van het net" in chapter
+    assert "handelt niet op de stroombeurs" in chapter

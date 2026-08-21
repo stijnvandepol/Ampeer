@@ -77,6 +77,17 @@ vanaf het net, 's nachts. Je auto moet immers rijden, ook in november. Zonder di
 bijlading zou ons model doen alsof je in een sombere week minder kilometers maakt, en dat
 zou zonneladen mooier voorstellen dan het is.
 
+**Hoe groot die auto is, en wat wij daarover niet weten.** Wij vragen wel of je een auto
+hebt en hoe je laadt, maar niet hoeveel je rijdt. Wij rekenen met 12.000 kilometer per jaar
+en 18 kWh per 100 kilometer, dus met 2160 kWh aan laden per jaar, en met een laadpunt van
+3,7 kilowatt. Ter vergelijking: het huishouden waarmee wij in hoofdstuk 16 rekenen gebruikt
+zelf 3500 kWh. De auto is dus geen detail in het antwoord.
+
+Die drie getallen zijn aannames van ons, net als de gedragingen hierboven. Ze komen niet
+uit een meting en wij vragen ze niet uit. Rijd je veel meer of veel minder dan 12.000
+kilometer, dan klopt het deel van het antwoord dat over je auto gaat navenant minder, en
+wij hebben geen manier om dat te merken.
+
 **De beperking:** deze drie gedragingen zijn stereotypen die wij zelf hebben opgesteld.
 Ze komen niet uit een meting van hoe Nederlanders werkelijk laden. En in de eerste versie
 van de rekenmachine vragen wij niet naar een auto: dan rekenen wij alsof je er geen hebt.
@@ -89,6 +100,11 @@ stroomverbruik is die warmtevraag gedeeld door het rendement, en dat rendement d
 naarmate het kouder wordt. Dat laatste is belangrijker dan het lijkt: met een vast
 rendement zou je winterverbruik te laag uitkomen, precies in de maanden waarin je geen
 opwek hebt.
+
+De getallen erachter: wij rekenen met een rendement van 3,5 bij 7 graden buiten, dat per
+graad kouder met 0,06 daalt. Ook dat zijn aannames van ons en geen meting aan jouw pomp.
+Een pomp die daar bovenzit verbruikt minder dan wij tonen, een oudere pomp meer, en wij
+vragen niet naar het merk of het bouwjaar.
 
 De buitentemperatuur komt uit dezelfde bron als de instraling, dus voor jouw locatie en
 dezelfde uren.
@@ -138,11 +154,20 @@ minuten geeft. Dat is verwaarloosbaar naast de andere onzekerheden, maar het sta
 
 Wij rekenen een batterij door met laadvermogen, ontlaadvermogen, bruikbare diepte en
 rendement. Bij een rendement van 90 procent voor een volledige cyclus verlies je aan
-beide kanten ongeveer 5 procent.
+beide kanten ongeveer 5 procent. De bruikbare diepte stellen wij op 90 procent: van een
+batterij van 10 kWh rekenen wij dus met 9 kWh, want een batterij die helemaal leeg en
+helemaal vol gaat slijt sneller en de meeste systemen staan dat niet toe.
 
-Als wij een batterij laten handelen op de stroombeurs, mag hij alleen vooruitkijken naar
-prijzen die op dat moment ook echt bekend zijn. Die worden rond 13:00 gepubliceerd voor de
-dag erna, dus een dag vooruit mag en verder niet.
+**Wat onze batterij niet doet.** In een antwoord van Ampeer slaat een batterij alleen je
+eigen overschot op. Hij laadt nooit stroom van het net in om die later duurder te
+verkopen, en hij handelt niet op de stroombeurs. Onze rekenmotor kan dat wel, en de regels
+daarvoor staan hieronder, maar de rekenmachine kiest die stand niet en levert er ook geen
+prijzen voor aan. Wij zeggen dat erbij omdat een batterij die handelt in verkooppraatjes
+vaak het interessantste getal oplevert, en dat getal zit niet in ons antwoord.
+
+Zouden wij een batterij laten handelen op de stroombeurs, dan mag hij alleen vooruitkijken
+naar prijzen die op dat moment ook echt bekend zijn. Die worden rond 13:00 gepubliceerd
+voor de dag erna, dus een dag vooruit mag en verder niet.
 
 Dat klinkt als een detail en het is het belangrijkste getal in het hele hoofdstuk. Een
 simulatie die het hele jaar aan prijzen vooraf kent, koopt altijd op het laagste punt en
