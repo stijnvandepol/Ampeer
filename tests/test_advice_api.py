@@ -451,3 +451,75 @@ def test_nothing_stored_anywhere_looks_like_a_person() -> None:
             assert len(text) <= MAX_ANSWER_LENGTH, (
                 f"{label}{path} is {len(text)} characters, so it is free text: {text!r}"
             )
+
+
+@pytest.mark.django_db
+class TestTheBrowserIsAllowedToReadTheAnswer:
+    """CORS, tested with an Origin header, because that is the whole gap.
+
+    This API had no CORS at all until 2026-08-21, and nothing noticed. The
+    reason is worth keeping: Playwright stubs every advice route so it never
+    talks to Django, and DRF's APIClient sends no Origin and enforces no
+    same-origin policy, so every test here passed against a server that would
+    have had its answers withheld by every real browser. A test that does not
+    send an Origin cannot see a missing Access-Control-Allow-Origin.
+
+    The visitor's symptom would have been "controleer uw verbinding" on a
+    perfectly good connection, and the GET path is worse than the POST: it is a
+    simple request, so it reaches the server, spends one of the visitor's 120
+    reads an hour, computes an answer, and the browser drops it.
+    """
+
+    ALLOWED = "http://localhost:3000"
+
+    def test_a_preflight_from_the_frontend_is_answered(self) -> None:
+        """The POSTs send content-type: application/json, which is outside the
+        CORS safelist, so a browser preflights them. An unanswered OPTIONS is a
+        request that never happens."""
+        response = APIClient().options(
+            reverse("advice-estimate"),
+            HTTP_ORIGIN=self.ALLOWED,
+            HTTP_ACCESS_CONTROL_REQUEST_METHOD="POST",
+            HTTP_ACCESS_CONTROL_REQUEST_HEADERS="content-type",
+        )
+        assert response.status_code == 200, response.status_code
+        assert response["access-control-allow-origin"] == self.ALLOWED
+        assert "POST" in response["access-control-allow-methods"]
+        assert "content-type" in response["access-control-allow-headers"].lower()
+
+    def test_a_computed_advice_carries_the_header_the_browser_needs(self) -> None:
+        response = APIClient().post(
+            reverse("advice-estimate"), ESTIMATE, format="json", HTTP_ORIGIN=self.ALLOWED
+        )
+        assert response.status_code == 201, response.data
+        assert response["access-control-allow-origin"] == self.ALLOWED
+
+    def test_reading_a_stored_advice_carries_it_too(self) -> None:
+        """The GET is a simple request, so without the header the work is done
+        and then thrown away by the browser. That costs the visitor a read from
+        their hourly budget and shows them nothing."""
+        client = APIClient()
+        token = client.post(reverse("advice-estimate"), ESTIMATE, format="json").json()["token"]
+        response = client.get(reverse("advice-detail", args=[token]), HTTP_ORIGIN=self.ALLOWED)
+        assert response.status_code == 200
+        assert response["access-control-allow-origin"] == self.ALLOWED
+
+    def test_a_page_nobody_allowed_gets_no_header(self) -> None:
+        """The half that makes the other three mean something. A wildcard would
+        pass every assertion above and let any page on the internet read a
+        household's figures out of this API."""
+        response = APIClient().post(
+            reverse("advice-estimate"),
+            ESTIMATE,
+            format="json",
+            HTTP_ORIGIN="https://ergens-anders.example",
+        )
+        assert "access-control-allow-origin" not in response
+
+    def test_no_cookie_crosses_the_boundary(self) -> None:
+        """There is no session on this API, so there is nothing to send. Saying
+        so in a test means a later view cannot start relying on one quietly."""
+        response = APIClient().post(
+            reverse("advice-estimate"), ESTIMATE, format="json", HTTP_ORIGIN=self.ALLOWED
+        )
+        assert response.get("access-control-allow-credentials") != "true"

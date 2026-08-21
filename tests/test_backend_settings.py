@@ -25,6 +25,11 @@ REQUIRED_ENV = {
     # appends the client address to X-Forwarded-For. The value is a property of
     # a deployment, which is exactly why prod.py has no default for it.
     "DJANGO_NUM_PROXIES": "1",
+    # The origins the browser may read an answer from. A property of a
+    # deployment, like the two above, and with the same treatment: no default,
+    # because a permissive fallback here is an API any page on the internet can
+    # read a household's figures out of, and it fails silently from this side.
+    "DJANGO_CORS_ALLOWED_ORIGINS": "https://ampeer.nl,https://www.ampeer.nl",
 }
 
 
@@ -190,3 +195,34 @@ def test_the_wsgi_entry_point_names_production_and_cannot_be_talked_out_of_it() 
     )
     assert 'os.environ["DJANGO_SETTINGS_MODULE"] = "ampeer.settings.prod"' in source
     assert "os.environ.setdefault" not in source, "setdefault lets an exported dev module win"
+
+
+def test_production_never_opens_the_api_to_every_origin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The setting that would undo the whole list.
+
+    django-cors-headers reads CORS_ALLOW_ALL_ORIGINS before the list, so one
+    True anywhere in the settings chain makes every allowed-origin assertion in
+    the API tests pass while the answer goes to anybody who asks.
+    """
+    prod = _load_prod(monkeypatch)
+    assert prod.CORS_ALLOWED_ORIGINS == ["https://ampeer.nl", "https://www.ampeer.nl"]
+    assert getattr(prod, "CORS_ALLOW_ALL_ORIGINS", False) is False
+    assert getattr(prod, "CORS_ALLOW_CREDENTIALS", False) is False
+    assert "*" not in prod.CORS_ALLOWED_ORIGINS
+
+
+def test_the_cors_middleware_runs_before_anything_that_could_redirect() -> None:
+    """Ordering, not presence.
+
+    A preflight is an OPTIONS with no credentials. If SecurityMiddleware's
+    SSL redirect or CommonMiddleware's slash append answers it first, the
+    browser gets a 301 with no CORS header and blocks the request. The symptom
+    is a working GET and a blocked POST, which is the hardest shape to
+    diagnose because half the site keeps working.
+    """
+    from django.conf import settings
+
+    middleware = list(settings.MIDDLEWARE)
+    assert middleware[0] == "corsheaders.middleware.CorsMiddleware", middleware

@@ -454,3 +454,51 @@ no-store`. Elk van die antwoorden beschrijft één huishouden: het verbruik, het
 dak en wat de energie kost. Een gedeelde proxy die er een kopie van bewaart geeft
 de volgende bezoeker op dat adres de cijfers van iemand anders. Ook op de 400,
 want die geeft de geweigerde antwoorden terug.
+
+
+## 14. CORS, toegevoegd op 2026-08-21 na een audit
+
+Dit hoofdstuk stond er niet, en die stilte is de bevinding. De browser roept deze
+API rechtstreeks aan, dus de twee helften zitten op verschillende herkomsten en een
+browser geeft een antwoord niet door zonder dat het mag. Het frontend-ontwerp beloofde
+in hoofdstuk 4 dat de API die header stuurt; dit ontwerp noemde het nergens, dus het
+deelproject dat de API bouwde wist niet dat het nodig was.
+
+Er was geen enkele poort waar dat rood kon worden. De end-to-end tests stubben elke
+adviesroute, dus Playwright praat nooit met Django. DRF's `APIClient` stuurt geen
+`Origin` mee en kent geen same-origin-beleid, dus elke API-test slaagde tegen een
+server waarvan een echte browser het antwoord had achtergehouden. De contracttest
+leest een bestand. `manage.py check --deploy` heeft er geen controle voor.
+
+De symptomen zouden ongelijk verdeeld zijn geweest, en dat maakt het erger. De POSTs
+sturen `content-type: application/json`, wat buiten de CORS-safelist valt, dus die
+worden vooraf gepolst en falen zonder de server te bereiken. De GET is een simpel
+verzoek: die bereikt de server wél, kost de bezoeker een van zijn 120 leesbeurten per
+uur, laat een advies berekenen, en dan gooit de browser het antwoord weg. De bezoeker
+leest in beide gevallen "controleer uw verbinding" terwijl zijn verbinding klopt.
+
+Nu:
+
+- `django-cors-headers`, met de middleware **als eerste**, boven `SecurityMiddleware`.
+  Ordening en niet enkel aanwezigheid: een preflight is een OPTIONS zonder
+  credentials, en als de SSL-redirect of de slash-append hem eerst beantwoordt krijgt
+  de browser een 301 zonder header. Het symptoom is dan een werkende GET en een
+  geblokkeerde POST, de lastigste vorm om te herkennen omdat het halve product blijft
+  werken. Een test pint de positie.
+- `CORS_ALLOWED_ORIGINS` uit de omgeving in productie, zonder standaardwaarde, net als
+  `SECRET_KEY` en `DJANGO_NUM_PROXIES`. Een permissieve terugval hier is een API waar
+  elke pagina op internet de cijfers van een huishouden uit kan lezen, en dat faalt
+  van deze kant af stil: het verzoek slaagt, alleen krijgt iemand anders het antwoord.
+- `CORS_ALLOW_ALL_ORIGINS` staat expliciet uit en een test bewaakt dat. Die vlag wordt
+  vóór de lijst gelezen, dus één `True` ergens in de settings-keten laat elke
+  origin-assertie in de API-tests slagen terwijl het antwoord naar iedereen gaat.
+- Alleen `content-type` in `CORS_ALLOW_HEADERS`, alleen GET, POST en OPTIONS in
+  `CORS_ALLOW_METHODS`. De standaardlijsten zijn breder en elke regel erop is iets
+  waar een preflight mee instemt.
+- `CORS_ALLOW_CREDENTIALS = False`. Er is geen sessie op deze API, dus er is niets te
+  sturen; het hardop zeggen zorgt dat een latere view er niet per ongeluk op gaat
+  leunen.
+
+De tests sturen een `Origin` mee. Dat is de hele les: een test die er geen stuurt kan
+een ontbrekende `Access-Control-Allow-Origin` niet zien, en dat was precies waarom
+zesendertig groene API-tests hier niets over zeiden.
