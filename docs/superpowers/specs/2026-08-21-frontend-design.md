@@ -63,9 +63,18 @@ ervan zijn te testen:
    aangeprate urgentie nodig en zou die niet mogen krijgen.
 5. **De enige twee oproepen tot actie zijn "verfijn uw antwoord" en "bewaar deze link".**
    Er is geen derde. Er komt nooit een knop die naar een verkopende partij leidt.
+6. **De betaalde route krijgt nooit meer ruimte dan de gratis routes samen.** Toegevoegd op
+   2026-08-21, nadat een audit mat dat het batterijblok 38,5 procent van de pagina besloeg
+   bij een huishouden dat te horen kreeg er geen te kopen. Regel 3 was geimplementeerd als
+   volgorde in het document, en volgorde is de zwakste vorm van voorrang die er is: de
+   gratis routes stonden bovenaan en verloren op hoogte, op detail en op het aantal getallen
+   dat een lezer kreeg aangeboden. Zie hoofdstuk 7.
 
-Regels 1, 2, 3 en 5 zijn met Playwright te controleren en worden dat ook. Regel 4 wordt
-bewaakt door een test die de gebouwde pagina's afzoekt op de patronen die erbij horen.
+Regels 1, 2, 3, 5 en 6 zijn met Playwright te controleren en worden dat ook. Regel 4 wordt
+bewaakt door een test die de gebouwde pagina's afzoekt op de patronen die erbij horen, en
+dat is bewust de zwakste van de zes: een audit heeft drie plausibele manieren beschreven om
+er langs te komen, waaronder urgentie die uit een datumberekening komt in plaats van uit een
+woord. Wie die test uitbreidt, breidt de lijst uit en niet de belofte.
 
 Beweging mag de aandacht naar de onzekerheid trekken en nooit naar een aankoop.
 
@@ -201,6 +210,50 @@ duidelijk andere vorm, met `varied` en `pinned` opvraagbaar in gewone taal.
 Een bedrag waarvan `band` `null` is, zoals `sized_capacity_kwh`, toont zijn eigen
 `basis_text` en niet een verzonnen marge. Het antwoord zegt daar zelf waarom er geen band
 omheen staat, en dat is precies de zin die een lezer moet zien.
+
+### Wat de audits hierover rechtzetten, 2026-08-21
+
+De zin "een verlopende balk waarin de breedte de onzekerheid ís" stond hier vanaf het begin
+en klopte niet met wat er gebouwd was. `.fill` stond altijd op honderd procent, dus een
+regel met een marge van zestig euro en een met driehonderddrieentachtig werden als twee
+identieke objecten van 416 pixels getekend, en de vijf capaciteitsbanden waren pixel voor
+pixel dezelfde figuur. De lezer leerde de onzekerheid alleen door de getallen te lezen,
+wat precies is wat deze pagina niet zou hoeven vereisen.
+
+De balk is nu een as van nul tot het bovenste eind van de band zelf, en de vulling is een
+segment daarop. De breedte is dus de onzekerheid als aandeel van het grootste bedrag dat
+het model plausibel acht. Er is geen referentieconstante verzonnen: beide uiteinden van de
+as zijn getallen die het model heeft geproduceerd, en omdat het een breuk is, is hij
+vergelijkbaar tussen euro's, jaren en euro's per kWh. Een band met breedte nul wordt als
+breedte nul getekend, want de oude terugval tekende daar een rail met een gecentreerde
+markering: het beeld van een bereik waar er geen is.
+
+Twee dingen die dezelfde vorm hadden en langs dezelfde regel glipten:
+
+**De kleur draaide de lettergroottes om.** Het verloop vervaagde naar dertig procent
+dekking aan de uiteinden, gemeten 1,94:1 tegen de pagina in het lichte thema, terwijl het
+midden op 6,33:1 stond met een massieve markering erop. De lettergroottes gehoorzaamden
+regel 1 keurig; de kleur deed het tegendeel, en het oog landde op het middelpunt terwijl de
+band richting zijn eigen antwoord vervaagde. Het verloop loopt nu andersom.
+
+**Het batterijblok was 38,5 procent van de pagina** bij een huishouden waarvan het oordeel
+"dit verdient zich niet terug" is, tweeeneenvijfde keer beide gratis routes samen, met een
+tabel van vijf capaciteiten en wat elk oplevert. Regel 3 zegt dat de gratis routes eerst
+komen, en dat was geimplementeerd als volgorde in het document. Volgorde is de zwakste vorm
+van voorrang die er is: ze stonden bovenaan en verloren op hoogte, op detail en op het
+aantal getallen dat een lezer kreeg aangeboden.
+
+Daarom staat er nu een zesde regel bij die vier in hoofdstuk 2:
+
+6. **De betaalde route krijgt nooit meer ruimte dan de gratis routes samen.** Het
+   doorgerekende detail zit achter een uitklapper die dicht is tenzij het model opslag
+   daadwerkelijk aanbeveelt. Er wordt niets weggehaald: alle cijfers staan in het document,
+   een klik ver. Een test meet de hoogte van de betaalde sectie tegen die van de gratis
+   secties, in plaats van de volgorde te vertrouwen.
+
+Alle drie deze fouten wezen dezelfde kant op, en dat is het patroon dat in dit project
+inmiddels vaker voorkomt dan toeval verklaart: ze maakten het antwoord zekerder dan het is
+of de batterij aantrekkelijker dan hij is, en geen van drieen gaf een foutmelding.
 
 ## 8. Het formulier
 
