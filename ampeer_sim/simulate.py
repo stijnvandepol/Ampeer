@@ -22,6 +22,7 @@ from ampeer_sim.providers import ProductionProvider, ProfileProvider
 from ampeer_sim.timebase import YearGrid
 from ampeer_sim.types import (
     BatterySpec,
+    EnergyFlows,
     Household,
     MoneyResult,
     PVSystem,
@@ -104,9 +105,36 @@ def run_advice(
         else (None, None)
     )
 
-    def one_run(
-        run_household: Household, run_system: PVSystem, run_scenario: TariffSet
-    ) -> tuple[MoneyResult, float]:
+    # Two of the five varied assumptions are prices and move no energy at all.
+    # A run that differs only in what a kilowatt hour is worth produces exactly
+    # the same flows, so the grid holds 3^3 = 27 distinct simulations and 243
+    # pricings of them, not 243 simulations.
+    #
+    # For a household without a battery that is a modest saving, because the
+    # no-battery path is vectorised numpy. For one that owns a battery it is the
+    # difference between a usable service and an unusable one: that path runs a
+    # per-quarter Python loop, and the same request measured 8.70 seconds before
+    # this and 1.06 after. Nothing in the answer changes; the 216 runs removed
+    # were recomputing a series they had already computed.
+    #
+    # This is the same reasoning already applied to the contract switch in
+    # ampeer_advice: changing what energy costs is not a reason to simulate the
+    # energy again.
+    #
+    # Keyed on the two frozen dataclasses themselves rather than on a list of
+    # variation names. A name list would have to be kept in step with
+    # _apply_variations by hand, and the day somebody adds an assumption that
+    # moves energy and forgets to add it here, the cache would hand back a
+    # series computed for different inputs and the band would be quietly wrong.
+    # Household and PVSystem are frozen, so they are their own honest key: any
+    # variation that changes the energy changes one of them, and any variation
+    # that only changes a price does not.
+    flows_cache: dict[tuple[Household, PVSystem], tuple[EnergyFlows, float]] = {}
+
+    def flows_for(run_household: Household, run_system: PVSystem) -> tuple[EnergyFlows, float]:
+        cached = flows_cache.get((run_household, run_system))
+        if cached is not None:
+            return cached
         production = production_series(
             hourly_production, run_system, grid, weather_year=weather_year
         )
@@ -125,15 +153,20 @@ def run_advice(
             charge_plan=charge_plan,
             discharge_plan=discharge_plan,
         )
-        money = compare(flows, baseline, run_scenario, prices_per_quarter)
-        return money, flows.self_consumption_rate
+        cached = (flows, flows.self_consumption_rate)
+        flows_cache[run_household, run_system] = cached
+        return cached
 
     differences: list[Decimal] = []
     central_money: MoneyResult | None = None
     central_rate = 0.0
 
     for factors in variation_grid():
-        money, rate = one_run(*_apply_variations(household, pv_system, scenario, factors))
+        run_household, run_system, run_scenario = _apply_variations(
+            household, pv_system, scenario, factors
+        )
+        flows, rate = flows_for(run_household, run_system)
+        money = compare(flows, baseline, run_scenario, prices_per_quarter)
         differences.append(money.difference_eur)
         if is_central(factors):
             central_money, central_rate = money, rate
