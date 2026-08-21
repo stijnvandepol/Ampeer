@@ -1,11 +1,14 @@
 /*
  * The band, drawn.
  *
- * Every colour reaches for a token from globals.css and carries a fallback, so
- * this file renders correctly on its own and takes the palette when the design
- * system is loaded beside it. The fallbacks are not a second palette to
- * maintain; they are what keeps a missing token visible as a plain colour
- * rather than as an invisible element.
+ * Every colour reaches for a token from globals.css and carries a fallback that
+ * is itself a token, so this file renders correctly on its own and takes the
+ * palette when the design system is loaded beside it. The fallbacks used to be
+ * hex codes, and one of them, #5b8def, was in neither palette and had never
+ * been measured against any background; a response carrying a confidence level
+ * this build did not know fell through to it and drew a band in a bright blue
+ * that read as more certain than PRECISE. There is a test in tests/design that
+ * fails on any literal colour in this file for that reason.
  *
  * The names have to be the names globals.css actually defines, and two of them
  * were not: --colour-line and --colour-muted do not exist there, so every rule
@@ -15,6 +18,12 @@
  * test parses globals.css and never looks here, and axe runs against the light
  * theme. Fixed at integration to --colour-border and --colour-ink-muted, which
  * are the names that exist and are the ones the contrast test covers.
+ *
+ * WHAT THE GEOMETRY MEANS. The track is the axis, running from zero to the
+ * band's own upper end. The fill is the band, and its WIDTH is the spread: see
+ * position.ts. The marker is the middle, at its own place on that axis. Before
+ * this the fill was width: 100% on every band, and two bands with spreads of 60
+ * and 383 euro were the same 416-pixel object.
  *
  * The type sizes of the band figures are deliberately NOT here. See scale.ts.
  */
@@ -26,6 +35,12 @@
   gap: 1.25rem;
 }
 
+/*
+ * The confidence level, as a solid chip in the tone itself with
+ * --colour-on-tone on top. A tint of the tone behind body ink said the same
+ * thing more quietly, and this is the one label the spec puts in the first
+ * screen; it should not be the faintest thing in it.
+ */
 .confidence {
   display: inline-flex;
   align-items: center;
@@ -36,38 +51,44 @@
   font-size: 0.8125rem;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--colour-ink, #14181c);
-  background: color-mix(in srgb, var(--tone, #5b8def) 18%, transparent);
-  border: 1px solid color-mix(in srgb, var(--tone, #5b8def) 45%, transparent);
+  color: var(--colour-on-tone);
+  background: var(--tone, var(--colour-confidence-indicative));
 }
 
-.confidence::before {
-  content: "";
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 50%;
-  background: var(--tone, #5b8def);
-}
-
-/* The track is the object. Its width is the uncertainty, at full size. */
+/* The axis. Zero at the left, the band's own upper end at the right. */
 .track {
   position: relative;
   margin-top: 2.75rem;
   height: 0.875rem;
   border-radius: 999px;
-  background: var(--colour-border, rgba(20, 24, 28, 0.1));
+  background: var(--colour-surface-sunken);
   overflow: visible;
 }
 
+/*
+ * The band itself. Its left edge and its width both come from the component as
+ * inline styles, because both are computed from the amounts. Full tone at the
+ * ends and lighter in the middle: the ends are the answer and the middle is a
+ * marking inside them, so colour has to say the same thing the type sizes say.
+ * It ran the other way round until the ends were measured at about 2:1 against
+ * the page, below the 3:1 that WCAG 1.4.11 asks of a graphic carrying meaning,
+ * while the middle sat at 6:1 with a solid marker on it.
+ */
 .fill {
   position: absolute;
-  inset: 0 auto 0 0;
+  top: 0;
+  bottom: 0;
   border-radius: 999px;
   background: linear-gradient(
     90deg,
-    color-mix(in srgb, var(--tone, #5b8def) 30%, transparent) 0%,
-    var(--tone, #5b8def) 50%,
-    color-mix(in srgb, var(--tone, #5b8def) 30%, transparent) 100%
+    var(--tone, var(--colour-confidence-indicative)) 0%,
+    color-mix(
+        in srgb,
+        var(--tone, var(--colour-confidence-indicative)) 75%,
+        var(--colour-surface)
+      )
+      50%,
+    var(--tone, var(--colour-confidence-indicative)) 100%
   );
   transition-property: width;
   transition-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
@@ -80,7 +101,7 @@
   width: 3px;
   transform: translateX(-50%);
   border-radius: 2px;
-  background: var(--colour-ink, #14181c);
+  background: var(--colour-ink);
 }
 
 .middleLabel {
@@ -90,16 +111,17 @@
   white-space: nowrap;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--colour-ink, #14181c);
+  color: var(--colour-ink);
 }
 
 .ends {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.25rem 1rem;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  color: var(--colour-ink, #14181c);
+  color: var(--colour-ink);
 }
 
 .caption {
@@ -107,7 +129,7 @@
   flex-wrap: wrap;
   gap: 0.75rem 1.25rem;
   font-size: 0.8125rem;
-  color: var(--colour-ink-muted, #5a6570);
+  color: var(--colour-ink-subtle);
 }
 
 /* A scenario band is a different shape on purpose: a thin capped rail, not a
@@ -120,12 +142,20 @@
   max-width: 26rem;
 }
 
+/* The axis again, in the smaller figure's own shape. */
 .rail {
   position: relative;
   height: 0.75rem;
   margin-top: 0.25rem;
 }
 
+/*
+ * The axis line itself. --colour-border-strong rather than --colour-border,
+ * because this line is the reference the band's width is read against and SC
+ * 1.4.11 asks 3:1 of a graphic that carries meaning. --colour-border is the
+ * decorative hairline and is exempt from that; using it here would have been
+ * the exemption applied to the one line on the figure that is not decoration.
+ */
 .rail::before {
   content: "";
   position: absolute;
@@ -133,15 +163,25 @@
   right: 0;
   top: 50%;
   height: 1px;
-  background: var(--colour-ink-muted, #5a6570);
+  background: var(--colour-border-strong);
+}
+
+/* The band on that axis. Left and width are computed from the amounts. */
+.segment {
+  position: absolute;
+  top: 50%;
+  height: 3px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: var(--colour-band-track);
 }
 
 .cap {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: var(--colour-ink-muted, #5a6570);
+  top: -0.3rem;
+  bottom: -0.3rem;
+  width: 2px;
+  background: var(--colour-band-track);
 }
 
 .capLow {
@@ -158,15 +198,16 @@
   width: 0.5rem;
   height: 0.5rem;
   transform: translate(-50%, -50%) rotate(45deg);
-  background: var(--colour-ink, #14181c);
+  background: var(--colour-ink);
 }
 
 .scenarioEnds {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.25rem 0.75rem;
   font-variant-numeric: tabular-nums;
-  color: var(--colour-ink, #14181c);
+  color: var(--colour-ink);
 }
 
 .scenarioMiddle {
@@ -180,7 +221,7 @@
   background: none;
   font: inherit;
   font-size: 0.8125rem;
-  color: var(--colour-ink-muted, #5a6570);
+  color: var(--colour-ink-muted);
   text-decoration: underline;
   text-underline-offset: 0.2em;
   cursor: pointer;
@@ -188,9 +229,10 @@
 
 .panel {
   padding: 0.6rem 0.75rem;
-  border-left: 2px solid var(--colour-border, rgba(20, 24, 28, 0.18));
+  border-left: 2px solid var(--colour-border);
+  background: var(--colour-surface-raised);
   font-size: 0.8125rem;
-  color: var(--colour-ink-muted, #5a6570);
+  color: var(--colour-ink-muted);
 }
 
 .panelList {
@@ -202,7 +244,7 @@
 
 .panelTerm {
   font-weight: 600;
-  color: var(--colour-ink, #14181c);
+  color: var(--colour-ink);
 }
 
 .panelValue {
@@ -222,14 +264,14 @@
   font-size: 1.5rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--colour-ink, #14181c);
+  color: var(--colour-ink);
 }
 
 .basis {
   margin: 0;
   font-size: 0.875rem;
   line-height: 1.5;
-  color: var(--colour-ink-muted, #5a6570);
+  color: var(--colour-ink-muted);
 }
 
 .route {
@@ -242,15 +284,15 @@
   margin: 0;
   font-size: 1.25rem;
   line-height: 1.3;
-  color: var(--colour-ink, #14181c);
+  color: var(--colour-ink);
 }
 
 .empty {
   margin: 0;
   padding: 0.9rem 1rem;
-  border: 1px dashed var(--colour-border, rgba(20, 24, 28, 0.25));
+  border: 1px dashed var(--colour-border);
   border-radius: 0.5rem;
-  color: var(--colour-ink-muted, #5a6570);
+  color: var(--colour-ink-muted);
 }
 
 .rules {
@@ -267,13 +309,13 @@
   flex-direction: column;
   gap: 0.75rem;
   padding: 1rem 1.1rem;
-  border: 1px solid var(--colour-border, rgba(20, 24, 28, 0.14));
+  border: 1px solid var(--colour-border);
   border-radius: 0.75rem;
-  background: var(--colour-surface, #ffffff);
+  background: var(--colour-surface-raised);
 }
 
 .ruleText {
   margin: 0;
   line-height: 1.6;
-  color: var(--colour-ink, #14181c);
+  color: var(--colour-ink);
 }

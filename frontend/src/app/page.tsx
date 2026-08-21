@@ -1,4 +1,14 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  // Deliberately "betekent" and not "kost". A title that presumes a cost
+  // presumes the answer, and for a household with high self-consumption the
+  // answer is close to nothing. "Nu geen batterij" being a valid outcome and
+  // "het kost u weinig" being a valid outcome are the same rule; this page is
+  // read before either has been computed.
+  title: "Wat het einde van de saldering voor u betekent",
+};
 
 /**
  * The landing page: what changes, and the way in.
@@ -17,25 +27,30 @@ export default function Home() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-10 px-6 py-16">
       <section className="flex flex-col gap-5">
-        <p className="text-sm uppercase tracking-wide text-ink-muted">Salderen stopt in 2027</p>
+        <p className="text-sm uppercase tracking-wide text-ink-muted">
+          Salderen stopt in 2027
+        </p>
         <h1 className="text-3xl font-bold">
           Wat kost het einde van de saldering uw huishouden?
         </h1>
         <p className="text-lg text-ink-muted">
-          Vanaf 1 januari 2027 vervalt de salderingsregeling. Een kWh die u zelf gebruikt is
-          vanaf dat moment meer waard dan diezelfde kWh die u teruglevert. Hoeveel dat voor u
-          scheelt hangt af van uw dak, uw verbruik en uw contract.
+          Vanaf 1 januari 2027 vervalt de salderingsregeling. Een kWh die u zelf
+          gebruikt is vanaf dat moment meer waard dan diezelfde kWh die u
+          teruglevert. Hoeveel dat voor u scheelt hangt af van uw dak, uw
+          verbruik en uw contract.
         </p>
       </section>
 
       <section className="flex flex-col gap-4">
         <h2 className="text-xl font-medium">Wat u terugkrijgt</h2>
         <ul className="flex list-disc flex-col gap-2 pl-5 text-ink-muted">
-          <li>Een bedrag per jaar met de marge eromheen, niet een enkel getal.</li>
+          <li>
+            Een bedrag per jaar met de marge eromheen, niet een enkel getal.
+          </li>
           <li>Hoe zeker die uitkomst is, meteen naast de uitkomst zelf.</li>
           <li>
-            Drie routes, met de gratis routes eerst: uw ritme verschuiven, slimmer sturen met wat
-            u al heeft, en opslag.
+            Drie routes, met de gratis routes eerst: uw ritme verschuiven,
+            slimmer sturen met wat u al heeft, en opslag.
           </li>
           <li>Een link waarmee u er later bij kunt, zonder account.</li>
         </ul>
@@ -44,17 +59,14 @@ export default function Home() {
       <section className="flex flex-col gap-4">
         <h2 className="text-xl font-medium">Wat wij niet doen</h2>
         <p className="text-ink-muted">
-          Wij verkopen geen panelen, geen batterijen en geen energiecontract, en wij sturen u
-          niet door naar een partij die dat wel doet. &quot;Geen batterij&quot; is hier een geldige
-          uitkomst.
+          Wij verkopen geen panelen, geen batterijen en geen energiecontract, en
+          wij sturen u niet door naar een partij die dat wel doet. &quot;Geen
+          batterij&quot; is hier een geldige uitkomst.
         </p>
       </section>
 
       <p>
-        <Link
-          href="/berekenen/"
-          className="inline-flex rounded-md bg-accent px-5 py-3 font-medium text-on-accent"
-        >
+        <Link href="/berekenen/" className="button-accent">
           Beantwoord vier vragen
         </Link>
       </p>

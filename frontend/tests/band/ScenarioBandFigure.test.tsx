@@ -3,10 +3,13 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import fixture from "../fixtures/advice-response.json";
 import { ScenarioBandFigure } from "@/components/band/ScenarioBandFigure";
+import { dutchAmount } from "@/components/band/format";
+import { bandSpanFraction } from "@/components/band/position";
 import type { Advice, ScenarioBand } from "@/lib/types";
 
 const advice = fixture as unknown as Advice;
-const band = advice.routes.flatMap((r) => r.rules).find((r) => r.saving_eur)!.saving_eur as ScenarioBand;
+const band = advice.routes.flatMap((r) => r.rules).find((r) => r.saving_eur)!
+  .saving_eur as ScenarioBand;
 
 describe("a scenario band", () => {
   it("shows its low and high, not only its middle", () => {
@@ -42,7 +45,9 @@ describe("a scenario band", () => {
 
   it("is visually distinct from a percentile band", () => {
     const { container } = render(<ScenarioBandFigure band={band} unit="eur" />);
-    expect(container.querySelector('[data-band-kind="scenario"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-band-kind="scenario"]'),
+    ).not.toBeNull();
     expect(container.querySelector('[data-band-kind="percentile"]')).toBeNull();
   });
 
@@ -52,24 +57,107 @@ describe("a scenario band", () => {
     const { container } = render(<ScenarioBandFigure band={band} unit="eur" />);
     const middle = container.querySelector('[data-role="band-middle"]');
     const end = container.querySelector('[data-role="band-end"]');
-    const size = (el: Element) => Number.parseFloat(getComputedStyle(el).fontSize || "0");
+    const size = (el: Element) =>
+      Number.parseFloat(getComputedStyle(el).fontSize || "0");
     expect(size(middle!)).toBeGreaterThan(0);
     expect(size(end!)).toBeGreaterThan(0);
     expect(size(middle!)).toBeLessThanOrEqual(size(end!));
   });
 
-  it("renders amounts as given, without going through a number", () => {
+  it("renders amounts in Dutch, without going through a number", () => {
     // parseFloat("126.09").toString() is "126.09" today and a rounding bug the
-    // first time an amount has trailing precision. The string is the value.
-    render(<ScenarioBandFigure band={band} unit="eur" />);
-    expect(screen.getByText(new RegExp(band.mid.replace(".", "[.,]")))).toBeInTheDocument();
+    // first time an amount has trailing precision. The digits are the value;
+    // only the separators move.
+    const { container } = render(<ScenarioBandFigure band={band} unit="eur" />);
+    const shown = container.textContent ?? "";
+    const digits = (text: string) => text.replace(/[.,]/g, "");
+    for (const amount of [band.low, band.mid, band.high]) {
+      expect(shown).toContain(dutchAmount(amount));
+      expect(digits(dutchAmount(amount))).toBe(digits(amount));
+    }
   });
 
   it("says the unit it was given rather than assuming euros", () => {
     const years = advice.battery!.payback_years;
-    render(<ScenarioBandFigure band={years} unit="years" />);
-    expect(screen.getAllByText(/jaar/)).toHaveLength(3);
-    expect(screen.getByText(new RegExp(`${years.mid} jaar`))).toBeInTheDocument();
+    const { container } = render(
+      <ScenarioBandFigure band={years} unit="years" />,
+    );
+    const shown = [
+      ...container.querySelectorAll(
+        '[data-role="band-end"],[data-role="band-middle"]',
+      ),
+    ].map((element) => element.textContent);
+    expect(shown).toEqual([
+      `${dutchAmount(years.low)} jaar`,
+      `${dutchAmount(years.mid)} jaar`,
+      `${dutchAmount(years.high)} jaar`,
+    ]);
+  });
+
+  it("puts the unit in its accessible name too, not only on the visible numbers", () => {
+    // Ten of these are on an advice page and the description used to interpolate
+    // the raw values, so a listener heard "Tussen 6.99 en 18.89" for a payback
+    // time and "Tussen 571.80 en 772.69" for a price per kWh: the same unitless
+    // sentence for euros, years and euros per kWh. The unit prop was in scope
+    // and unused.
+    const spoken = [
+      [advice.battery!.payback_years, "years", "jaar"],
+      [advice.battery!.break_even_cost_per_kwh, "eur_per_kwh", "euro per kWh"],
+      [band, "eur", "euro"],
+    ] as const;
+    for (const [figure, unit, word] of spoken) {
+      const { unmount } = render(
+        <ScenarioBandFigure band={figure} unit={unit} />,
+      );
+      const description =
+        screen.getByRole("figure").getAttribute("aria-label") ?? "";
+      expect(description, `${unit} is read out without a unit`).toContain(word);
+      expect(description).toContain(dutchAmount(figure.low));
+      expect(description).toContain(dutchAmount(figure.high));
+      unmount();
+    }
+  });
+
+  it("gives each disclosure a name of its own, pointing at a panel that exists", () => {
+    // All ten carried the identical accessible name, and aria-controls named an
+    // id that was not in the document for as long as the panel stayed closed,
+    // which is every one of them until somebody clicks.
+    const first = render(<ScenarioBandFigure band={band} unit="eur" />);
+    const other = render(
+      <ScenarioBandFigure band={advice.battery!.payback_years} unit="years" />,
+    );
+    const [one, two] = screen.getAllByRole("button", { name: /waarover/i });
+    expect(one?.getAttribute("aria-label")).not.toBe(
+      two?.getAttribute("aria-label"),
+    );
+    // SC 2.5.3: the visible label has to be in the accessible name.
+    expect(one?.getAttribute("aria-label")).toContain(one?.textContent ?? "");
+    for (const button of [one, two]) {
+      const controls = button?.getAttribute("aria-controls") ?? "";
+      expect(controls).not.toBe("");
+      expect(
+        document.getElementById(controls),
+        `${controls} is not in the document`,
+      ).not.toBeNull();
+    }
+    first.unmount();
+    other.unmount();
+  });
+
+  it("draws its own spread and not the width of the track", () => {
+    const { container } = render(<ScenarioBandFigure band={band} unit="eur" />);
+    const figure = container.querySelector("[data-band-span]");
+    const expected = bandSpanFraction(band.low, band.high);
+    expect(expected).toBeGreaterThan(0);
+    expect(expected).toBeLessThan(1);
+    expect(Number(figure?.getAttribute("data-band-span"))).toBeCloseTo(
+      expected,
+      4,
+    );
+    const segment = container.querySelector(
+      '[class*="segment"]',
+    ) as HTMLElement;
+    expect(segment.style.width).toBe(`${expected * 100}%`);
   });
 });
 

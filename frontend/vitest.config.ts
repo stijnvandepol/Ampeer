@@ -31,10 +31,15 @@ export default defineConfig({
       // the half of an if nobody took, which on this page is every error path;
       // functions catch a handler that is wired up and never fired.
       thresholds: {
-        statements: 95,
-        branches: 91,
-        functions: 94,
-        lines: 96,
+        // Raised 95/91/94/96 -> 96/93/96/97 on 2026-08-21, from a measurement
+        // of 96.94 / 93.03 / 96.04 / 97.52 rounded down. The fix rounds after
+        // the audits added seventy-five tests and every number rose. Ratcheting
+        // is the point: a floor left where it was is a floor that stops noticing
+        // regressions the moment the tree gets better than it.
+        statements: 96,
+        branches: 93,
+        functions: 96,
+        lines: 97,
       },
     },
   },

@@ -6,13 +6,21 @@ import { BOUNDS, POSTCODE4_PATTERN } from "@/lib/validation";
 /** The authority. This file is the copy. */
 // Resolved from the working directory, which vitest sets to frontend/.
 // `import.meta.url` is not a file URL under the jsdom environment.
-const SERIALIZERS = readFileSync(resolve(process.cwd(), "../backend/advice/serializers.py"), "utf-8");
-const VALIDATION = readFileSync(resolve(process.cwd(), "src/lib/validation.ts"), "utf-8");
+const SERIALIZERS = readFileSync(
+  resolve(process.cwd(), "../backend/advice/serializers.py"),
+  "utf-8",
+);
+const VALIDATION = readFileSync(
+  resolve(process.cwd(), "src/lib/validation.ts"),
+  "utf-8",
+);
 
 /** Every module-level `NAME = number` in the serializer, as a number. */
 function pythonConstants(source: string): Record<string, number> {
   const constants: Record<string, number> = {};
-  for (const [, name, literal] of source.matchAll(/^([A-Z][A-Z0-9_]*)\s*=\s*(-?[\d_]+(?:\.\d+)?)$/gm)) {
+  for (const [, name, literal] of source.matchAll(
+    /^([A-Z][A-Z0-9_]*)\s*=\s*(-?[\d_]+(?:\.\d+)?)$/gm,
+  )) {
     constants[name as string] = Number((literal as string).replaceAll("_", ""));
   }
   return constants;
@@ -24,9 +32,15 @@ const MIRRORS: Readonly<Record<string, readonly [string, string]>> = {
   peak_power_wp: ["MIN_PEAK_POWER_WP", "MAX_PEAK_POWER_WP"],
   azimuth_deg: ["MIN_AZIMUTH_DEG", "MAX_AZIMUTH_DEG"],
   tilt_deg: ["MIN_TILT_DEG", "MAX_TILT_DEG"],
-  annual_consumption_kwh: ["MIN_ANNUAL_CONSUMPTION_KWH", "MAX_ANNUAL_CONSUMPTION_KWH"],
+  annual_consumption_kwh: [
+    "MIN_ANNUAL_CONSUMPTION_KWH",
+    "MAX_ANNUAL_CONSUMPTION_KWH",
+  ],
   heat_demand_kwh: ["MIN_HEAT_DEMAND_KWH", "MAX_HEAT_DEMAND_KWH"],
-  battery_capacity_kwh: ["MIN_BATTERY_CAPACITY_KWH", "MAX_BATTERY_CAPACITY_KWH"],
+  battery_capacity_kwh: [
+    "MIN_BATTERY_CAPACITY_KWH",
+    "MAX_BATTERY_CAPACITY_KWH",
+  ],
 };
 
 describe("the input bounds", () => {
@@ -62,13 +76,23 @@ describe("the input bounds", () => {
     for (const [field, [minName, maxName]] of Object.entries(MIRRORS)) {
       const bound = BOUNDS[field];
       expect(bound, `no bound for ${field}`).toBeDefined();
-      expect(constants[minName], `${minName} is not a constant in serializers.py`).toBeDefined();
-      expect(constants[maxName], `${maxName} is not a constant in serializers.py`).toBeDefined();
+      expect(
+        constants[minName],
+        `${minName} is not a constant in serializers.py`,
+      ).toBeDefined();
+      expect(
+        constants[maxName],
+        `${maxName} is not a constant in serializers.py`,
+      ).toBeDefined();
       if (bound?.min !== constants[minName]) {
-        disagreements.push(`${field}.min is ${bound?.min}, ${minName} is ${constants[minName]}`);
+        disagreements.push(
+          `${field}.min is ${bound?.min}, ${minName} is ${constants[minName]}`,
+        );
       }
       if (bound?.max !== constants[maxName]) {
-        disagreements.push(`${field}.max is ${bound?.max}, ${maxName} is ${constants[maxName]}`);
+        disagreements.push(
+          `${field}.max is ${bound?.max}, ${maxName} is ${constants[maxName]}`,
+        );
       }
     }
     expect(disagreements, "the API wins; fix validation.ts").toEqual([]);
@@ -76,14 +100,20 @@ describe("the input bounds", () => {
 
   it("names, per entry, the constant it mirrors, so the next person can check", () => {
     for (const [minName, maxName] of Object.values(MIRRORS)) {
-      expect(VALIDATION, `${minName} is not named in validation.ts`).toContain(minName);
-      expect(VALIDATION, `${maxName} is not named in validation.ts`).toContain(maxName);
+      expect(VALIDATION, `${minName} is not named in validation.ts`).toContain(
+        minName,
+      );
+      expect(VALIDATION, `${maxName} is not named in validation.ts`).toContain(
+        maxName,
+      );
     }
     expect(VALIDATION).toContain("backend/advice/serializers.py");
   });
 
   it("says in its docstring which side wins", () => {
-    expect(VALIDATION).toMatch(/API WINS AND THIS FILE IS THE ONE THAT IS\s+\*\s+WRONG/);
+    expect(VALIDATION).toMatch(
+      /API WINS AND THIS FILE IS THE ONE THAT IS\s+\*\s+WRONG/,
+    );
   });
 
   it("has a lower bound below its upper bound everywhere", () => {
@@ -97,12 +127,17 @@ describe("the postcode pattern", () => {
   it("accepts four ASCII digits and nothing else", () => {
     expect(POSTCODE4_PATTERN.test("5401")).toBe(true);
     for (const bad of ["540", "54011", "54o1", " 5401", "5401\n", "٥٤٠١"]) {
-      expect(POSTCODE4_PATTERN.test(bad), `accepted ${JSON.stringify(bad)}`).toBe(false);
+      expect(
+        POSTCODE4_PATTERN.test(bad),
+        `accepted ${JSON.stringify(bad)}`,
+      ).toBe(false);
     }
   });
 
   it("is the same regex the serializer uses, minus Python's trailing-newline quirk", () => {
-    expect(SERIALIZERS).toContain(String.raw`POSTCODE4_PATTERN = r"^[0-9]{4}\Z"`);
+    expect(SERIALIZERS).toContain(
+      String.raw`POSTCODE4_PATTERN = r"^[0-9]{4}\Z"`,
+    );
   });
 
   it("does not pretend to know a postcode from a four digit string", () => {

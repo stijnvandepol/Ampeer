@@ -23,10 +23,16 @@ export function installMatchMedia(reduceMotion: boolean): void {
       media,
       matches: media.includes("prefers-reduced-motion") ? reduceMotion : false,
       onchange: null,
-      addEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+      addEventListener: (
+        _type: string,
+        listener: (event: MediaQueryListEvent) => void,
+      ) => {
         listeners.add(listener);
       },
-      removeEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+      removeEventListener: (
+        _type: string,
+        listener: (event: MediaQueryListEvent) => void,
+      ) => {
         listeners.delete(listener);
       },
       addListener: () => {},

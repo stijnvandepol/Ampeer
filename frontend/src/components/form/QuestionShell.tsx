@@ -15,6 +15,19 @@ interface Props {
    * difference between a form and a trap.
    */
   readonly nextLabel?: string;
+  /**
+   * True while the answer is being computed, which is a request that has left
+   * and not come back.
+   *
+   * Both buttons go dead for the length of it, and the forward one says so
+   * with aria-busy. A live compute button during those seconds is four full
+   * server-side simulations for four impatient clicks, a fifth of a
+   * household's twenty an hour, and there is no retry anywhere in this
+   * codebase to undo them. A live Terug is worse in a quieter way: it walks
+   * back to the previous question and the navigation that is already under way
+   * then pulls the page out from under the visitor.
+   */
+  readonly busy?: boolean;
   readonly onBack: () => void;
   readonly onNext: () => void;
   readonly children: ReactNode;
@@ -36,6 +49,7 @@ export function QuestionShell({
   of,
   title,
   nextLabel = "Volgende",
+  busy = false,
   onBack,
   onNext,
   children,
@@ -67,10 +81,15 @@ export function QuestionShell({
       >
         {children}
         <div className="flex gap-3">
-          <button type="button" onClick={onBack}>
+          <button type="button" disabled={busy} onClick={onBack}>
             Terug
           </button>
-          <button type="button" onClick={onNext}>
+          <button
+            type="button"
+            disabled={busy}
+            aria-busy={busy}
+            onClick={onNext}
+          >
             {nextLabel}
           </button>
         </div>

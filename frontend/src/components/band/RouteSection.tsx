@@ -18,7 +18,11 @@ export function RouteSection({ route }: Props) {
   const headingId = `route-${route.route.toLowerCase()}`;
 
   return (
-    <section className={styles.route} data-route={route.route} aria-labelledby={headingId}>
+    <section
+      className={styles.route}
+      data-route={route.route}
+      aria-labelledby={headingId}
+    >
       <h2 id={headingId} className={styles.routeTitle}>
         {route.title}
       </h2>

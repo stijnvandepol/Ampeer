@@ -16,7 +16,15 @@
  * place the test environment can see.
  */
 
-/** The two ends of the headline band: the widest thing on the page. */
+/**
+ * The two ends of the headline band.
+ *
+ * They are not the largest type on the page and the comment here used to say
+ * they were. Measured on the built advice page at 1280 pixels wide: the h1 is
+ * 39.36px and these are 28px. The rule they carry is a comparison with the
+ * middle of their own band, which is what the tests check; the h1 is a heading
+ * and not a figure, so it is not in that comparison at all.
+ */
 export const BAND_END_REM = 1.75;
 
 /** The marking inside it. Smaller than the ends, deliberately. */

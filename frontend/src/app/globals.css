@@ -88,14 +88,16 @@
   --text-3xl: clamp(2.25rem, 1.8rem + 2.2vw, 3.5rem);
 
   /*
-   * The two sizes rule 1 rests on. The band's ends are the answer and the
-   * middle is a marking inside it, so the middle is the SMALLER of the two.
-   * Setting the middle in display type with the ends in small print is a
-   * single number with decoration, which is the one thing this page may not
-   * become. Lane B's test measures the ratio; these tokens are why it holds.
+   * --text-band-end and --text-band-middle used to sit here, with a comment
+   * saying a test measured their ratio and that "these tokens are why it
+   * holds". Nothing rendered them: src/components/band/scale.ts sets both
+   * sizes inline, in rem, because jsdom loads no stylesheet and a size that
+   * lives only here reads back as zero on both elements, which makes the
+   * comparison pass without having measured anything. So the tokens were two
+   * values no pixel depended on, and the test that ordered them was a test of
+   * itself. Both are gone; scale.ts is the single place the two sizes exist
+   * and e2e/rules.spec.ts measures them in a real browser.
    */
-  --text-band-end: var(--text-2xl);
-  --text-band-middle: var(--text-lg);
 
   --leading-tight: 1.15;
   --leading-snug: 1.35;
@@ -322,18 +324,34 @@
   }
 
   /*
-   * The pair that keeps meaning out of movement. A component that says
-   * something by animating renders BOTH children: the animated one and a
-   * plain-language equivalent. Exactly one of the two is ever displayed, so the
-   * visitor who asked for less movement loses the animation and not the thing
-   * it was saying.
+   * The one call to action that is a button rather than a sentence. It exists
+   * as a class rather than as utilities so that --colour-accent-hover has a
+   * rule that renders it; a token that appears only in the @theme block is a
+   * token Tailwind can name and no page ever draws.
    */
-  [data-motion="animated"] {
-    display: revert;
+  .button-accent {
+    display: inline-flex;
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-5);
+    background-color: var(--colour-accent);
+    color: var(--colour-on-accent);
+    font-weight: var(--weight-medium);
   }
 
-  [data-motion="static"] {
-    display: none;
+  .button-accent:hover {
+    background-color: var(--colour-accent-hover);
+  }
+
+  /*
+   * A failure the visitor has to notice, drawn in the danger colour with
+   * --colour-on-danger on top rather than as red body text. Same reason: the
+   * pair is measured by the contrast test and was drawn by nothing.
+   */
+  .notice-danger {
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    background-color: var(--colour-danger);
+    color: var(--colour-on-danger);
   }
 }
 
@@ -343,9 +361,16 @@
  * A shortened transition still moves, so the meaning is still inside the
  * movement, and that meaning is exactly what the preference exists to remove.
  * 0.01ms is below one frame, so no intermediate state is ever painted: the end
- * state simply is the state. --motion-enabled flips to 0 and the two
- * data-motion slots swap, which is how a component that was saying something by
- * moving says it in words instead.
+ * state simply is the state. --motion-enabled flips to 0 for anything reading
+ * it at runtime.
+ *
+ * There used to be a [data-motion] pair here as well, and a motionSlot() helper
+ * beside it, for components that say something by moving and have to say it in
+ * words instead. Nothing ever used either: the only animation on the site is
+ * the band growing to its width, which carries no meaning the still band does
+ * not already carry. A mechanism with no call sites and a test guarding it is
+ * a check that measures nothing, so both are gone. The day a component does
+ * carry meaning in a movement, that is the day to write it back.
  */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -364,13 +389,5 @@
     --duration-quick: 0ms;
     --duration-considered: 0ms;
     --motion-enabled: 0;
-  }
-
-  [data-motion="animated"] {
-    display: none;
-  }
-
-  [data-motion="static"] {
-    display: revert;
   }
 }

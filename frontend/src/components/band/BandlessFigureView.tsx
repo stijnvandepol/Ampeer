@@ -1,4 +1,5 @@
 import type { BandlessFigure } from "@/lib/types";
+import { dutchAmount } from "./format";
 import styles from "./band.module.css";
 
 /** The units a figure without a band can arrive in. */
@@ -24,7 +25,7 @@ export function BandlessFigureView({ figure, unit }: Props) {
   return (
     <figure className={styles.bandless} data-band-kind="none">
       <p className={styles.bandlessValue} data-role="bandless-value">
-        {figure.value} {UNIT_SUFFIX[unit]}
+        {dutchAmount(String(figure.value))} {UNIT_SUFFIX[unit]}
       </p>
       <figcaption className={styles.basis} data-role="basis-text">
         {figure.basis_text}

@@ -36,7 +36,10 @@ export function fieldMessages(error: unknown): readonly string[] {
  */
 export type Attempt = "compute" | "link";
 
-export function describeApiError(error: unknown, attempt: Attempt = "compute"): string {
+export function describeApiError(
+  error: unknown,
+  attempt: Attempt = "compute",
+): string {
   if (!(error instanceof ApiError)) {
     // fetch() rejects rather than resolving when the network is gone, the
     // origin is unreachable, or CORS refused the response. The browser

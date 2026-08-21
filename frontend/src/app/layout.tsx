@@ -19,7 +19,15 @@ const geistMono = Geist_Mono({
 export const MAIN_ID = "hoofdinhoud";
 
 export const metadata: Metadata = {
-  title: "Ampeer",
+  /*
+   * A default and a template rather than one string. Measured on the built
+   * site: /, /berekenen/ and /advies/<token>/ all carried <title>Ampeer</title>,
+   * so three of the four routes were indistinguishable in a tab strip, in a
+   * history list, in a bookmark, and to a screen reader announcing the page on
+   * arrival. Each route that can set its own now does; the default is what is
+   * left for the ones that cannot.
+   */
+  title: { default: "Ampeer", template: "%s | Ampeer" },
   description:
     "Reken uit wat het einde van de salderingsregeling uw huishouden kost, met de marge erbij.",
 };

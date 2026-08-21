@@ -52,8 +52,7 @@ export interface ScenarioBand {
  * compiler can catch rather than a branch that never runs.
  */
 export type SizingBasis =
-  | "CHOSEN_FROM_SIMULATED_CAPACITIES"
-  | "LIMITED_BY_LARGEST_SIMULATED_CAPACITY";
+  "CHOSEN_FROM_SIMULATED_CAPACITIES" | "LIMITED_BY_LARGEST_SIMULATED_CAPACITY";
 
 /**
  * A figure the model deliberately does not put a margin around, carrying the
@@ -115,4 +114,8 @@ export interface Advice {
 }
 
 /** The order the reader sees. Free routes first, whatever they are worth. */
-export const ROUTE_ORDER = ["SHIFT_BEHAVIOUR", "SMART_CONTROL", "STORAGE"] as const;
+export const ROUTE_ORDER = [
+  "SHIFT_BEHAVIOUR",
+  "SMART_CONTROL",
+  "STORAGE",
+] as const;

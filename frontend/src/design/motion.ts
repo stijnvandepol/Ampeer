@@ -9,9 +9,8 @@ import { DURATION } from "@/design/tokens";
  *
  * Re-exported so a component can import one module for everything about
  * movement. globals.css is the other half: it disables animation under
- * prefers-reduced-motion rather than shortening it, and flips the two
- * data-motion slots so a component that was saying something by moving says it
- * in words instead.
+ * prefers-reduced-motion rather than shortening it, so a component that would
+ * have said something by moving has to say it some other way.
  */
 export { DURATION };
 
@@ -50,25 +49,10 @@ function preferenceDuringBuild(): boolean {
  * useSyncExternalStore rather than useState plus useEffect: matchMedia is an
  * external store, and reading it in an effect means one render with the wrong
  * answer before the right one, which for this particular preference is one
- * render in which an animation may already have begun. Prefer the CSS route
- * where there is one; `[data-motion]` in globals.css needs no JavaScript at all
- * and therefore has no first paint to get wrong.
+ * render in which an animation may already have begun. Prefer a CSS route
+ * where there is one: it needs no JavaScript at all and therefore has no first
+ * paint to get wrong.
  */
 export function useReducedMotion(): boolean {
   return useSyncExternalStore(subscribe, readPreference, preferenceDuringBuild);
-}
-
-/**
- * The attribute that picks which half of a motion pair is shown.
- *
- * A component that carries information in a transition renders both halves and
- * marks them with this, so the CSS decides which one the visitor sees. Doing it
- * in CSS rather than in JavaScript means the right half is in the first paint,
- * with no flash of the wrong one while React hydrates.
- *
- *     <span {...motionSlot("animated")}>…the moving version…</span>
- *     <span {...motionSlot("static")}>…the same fact, written out…</span>
- */
-export function motionSlot(slot: "animated" | "static"): { "data-motion": "animated" | "static" } {
-  return { "data-motion": slot };
 }

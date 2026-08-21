@@ -77,7 +77,8 @@ function normaliseAzimuth(value: number): number {
   return whole === -180 ? 180 : whole;
 }
 
-function selectedDirection(azimuth: number): CompassDirection | null {
+function selectedDirection(azimuth: number | null): CompassDirection | null {
+  if (azimuth === null) return null;
   const normalised = normaliseAzimuth(azimuth);
   for (const direction of DIRECTION_ORDER) {
     if (COMPASS_AZIMUTH_DEG[direction] === normalised) return direction;
@@ -86,9 +87,27 @@ function selectedDirection(azimuth: number): CompassDirection | null {
 }
 
 interface Props {
-  readonly azimuth: number;
+  /**
+   * The direction that was chosen, or null while nobody has chosen one.
+   *
+   * Null and not a default. A radio that arrives checked is announced as an
+   * answer ("Zuid, aangevinkt") before the visitor has said anything, and it is
+   * then the one direction that cannot be given as an answer: clicking or
+   * pressing Space on an already checked radio fires no change event, so the
+   * answer never reaches the flow. South is the most common roof in this
+   * country, which made that the most common roof to be stuck on.
+   */
+  readonly azimuth: number | null;
   readonly tilt: number;
-  readonly onChange: (next: { azimuth: number; tilt: number }) => void;
+  /**
+   * The roof as it now stands, with null for a direction still unchosen.
+   *
+   * The tilt always has a value, because a slider has to sit somewhere the
+   * moment it is drawn, and the direction does not. Reporting the two together
+   * with the direction still null is what keeps a nudge of the slider from
+   * counting as an answer about which way the roof faces.
+   */
+  readonly onChange: (next: { azimuth: number | null; tilt: number }) => void;
   /**
    * The tilt bounds the API enforces, fetched once by `lib/validation` and
    * handed down. They are optional only so this control still works before that
@@ -106,7 +125,13 @@ interface Props {
  * estimate one confidence level too high, so the flow counts it once. See
  * ROUND_ONE_QUESTION_COUNT in Progress.tsx.
  */
-export function RoofPicker({ azimuth, tilt, onChange, tiltMin = 0, tiltMax = 90 }: Props) {
+export function RoofPicker({
+  azimuth,
+  tilt,
+  onChange,
+  tiltMin = 0,
+  tiltMax = 90,
+}: Props) {
   const groupName = useId();
   const tiltId = `${useId()}-tilt`;
   const tiltValueId = `${tiltId}-value`;
@@ -116,9 +141,9 @@ export function RoofPicker({ azimuth, tilt, onChange, tiltMin = 0, tiltMax = 90 
   const currentTilt = Math.min(highest, Math.max(lowest, toWholeDegrees(tilt)));
   const selected = selectedDirection(azimuth);
 
-  function emit(next: { azimuth: number; tilt: number }) {
+  function emit(next: { azimuth: number | null; tilt: number }) {
     onChange({
-      azimuth: normaliseAzimuth(next.azimuth),
+      azimuth: next.azimuth === null ? null : normaliseAzimuth(next.azimuth),
       tilt: Math.min(highest, Math.max(lowest, toWholeDegrees(next.tilt))),
     });
   }
@@ -138,7 +163,9 @@ export function RoofPicker({ azimuth, tilt, onChange, tiltMin = 0, tiltMax = 90 
                   name={groupName}
                   value={direction}
                   checked={selected === direction}
-                  onChange={() => emit({ azimuth: COMPASS_AZIMUTH_DEG[direction], tilt })}
+                  onChange={() =>
+                    emit({ azimuth: COMPASS_AZIMUTH_DEG[direction], tilt })
+                  }
                 />
                 <label htmlFor={inputId}>{DIRECTION_LABELS[direction]}</label>
               </div>
@@ -157,7 +184,9 @@ export function RoofPicker({ azimuth, tilt, onChange, tiltMin = 0, tiltMax = 90 
           step={1}
           value={currentTilt}
           aria-describedby={tiltValueId}
-          onChange={(event) => emit({ azimuth, tilt: Number(event.target.value) })}
+          onChange={(event) =>
+            emit({ azimuth, tilt: Number(event.target.value) })
+          }
         />
         <output id={tiltValueId} htmlFor={tiltId} className="text-sm">
           {currentTilt} graden

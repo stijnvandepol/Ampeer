@@ -12,8 +12,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { act, renderHook } from "@testing-library/react";
 
-import { DURATION, REDUCED_MOTION_QUERY, useReducedMotion } from "@/design/motion";
-import { CONFIDENCE_TONE, TYPE_SCALE } from "@/design/tokens";
+import {
+  DURATION,
+  REDUCED_MOTION_QUERY,
+  useReducedMotion,
+} from "@/design/motion";
+import { CONFIDENCE_TONE } from "@/design/tokens";
+import {
+  BAND_END_REM,
+  BAND_MIDDLE_REM,
+  SCENARIO_END_REM,
+  SCENARIO_MIDDLE_REM,
+} from "@/components/band/scale";
 
 const css = readFileSync("src/app/globals.css", "utf-8");
 
@@ -59,21 +69,31 @@ describe("the reduced-motion block", () => {
       const ms = Number.parseFloat(amount ?? "0") * (unit === "s" ? 1000 : 1);
       if (ms > 0.01) offenders.push(`${declaration?.trim()} is ${ms}ms`);
     }
-    expect(offenders, "these still move under prefers-reduced-motion").toEqual([]);
+    expect(offenders, "these still move under prefers-reduced-motion").toEqual(
+      [],
+    );
   });
 
   it("zeroes the duration tokens as well, for anything reading them at runtime", () => {
     for (const token of ["--duration-quick", "--duration-considered"]) {
-      expect(reducedBlock, `${token} is not zeroed`).toMatch(new RegExp(`${token}:\\s*0m?s`));
+      expect(reducedBlock, `${token} is not zeroed`).toMatch(
+        new RegExp(`${token}:\\s*0m?s`),
+      );
     }
     expect(reducedBlock).toMatch(/--motion-enabled:\s*0/);
   });
 
-  it("swaps in a still version rather than only removing the moving one", () => {
-    // Removing the animation and leaving nothing behind loses whatever the
-    // animation was saying. Both slots have to change hands.
-    expect(reducedBlock).toMatch(/\[data-motion="animated"\][\s\S]*?display:\s*none/);
-    expect(reducedBlock).toMatch(/\[data-motion="static"\][\s\S]*?display:\s*revert/);
+  it("carries no half of a motion pair that nothing renders", () => {
+    // There was a [data-motion] pair here and a motionSlot() helper beside it,
+    // for a component that says something by moving and has to say it in words
+    // instead. Neither ever had a call site, so the two assertions that used to
+    // stand here measured the stylesheet against itself. The check worth
+    // keeping is the opposite one: if the pair comes back, it comes back with
+    // something that uses it.
+    const motion = readFileSync("src/design/motion.ts", "utf-8");
+    expect(css.includes('[data-motion="animated"]')).toBe(
+      motion.includes("motionSlot("),
+    );
   });
 });
 
@@ -82,43 +102,48 @@ describe("the duration tokens", () => {
     // Two copies of a number with nothing comparing them is how they drift.
     for (const [name, ms] of Object.entries(DURATION)) {
       const token = `--duration-${name}`;
-      const declared = rootBlock.match(new RegExp(`${token}:\\s*(\\d+)ms`))?.[1];
+      const declared = rootBlock.match(
+        new RegExp(`${token}:\\s*(\\d+)ms`),
+      )?.[1];
       expect(declared, `${token} is not declared in :root`).toBeDefined();
-      expect(Number(declared), `${token} disagrees with DURATION.${name}`).toBe(ms);
+      expect(Number(declared), `${token} disagrees with DURATION.${name}`).toBe(
+        ms,
+      );
     }
   });
 });
 
 describe("the token maps", () => {
   it("names only custom properties the stylesheet actually declares", () => {
-    for (const variable of [...Object.values(CONFIDENCE_TONE), ...Object.values(TYPE_SCALE)]) {
-      expect(css, `${variable} is named in TypeScript but not declared in CSS`).toContain(
-        `${variable}:`,
-      );
+    for (const variable of Object.values(CONFIDENCE_TONE)) {
+      expect(
+        css,
+        `${variable} is named in TypeScript but not declared in CSS`,
+      ).toContain(`${variable}:`);
     }
   });
 
-  it("keeps the band's middle no larger than its ends", () => {
-    // Rule 1, expressed in the tokens rather than only in the component that
-    // uses them. The middle is a marking inside the band; the ends are the
-    // answer. If these two ever swap, the page has become a big number with
-    // decoration, and no component test would have to notice.
-    const step = (token: string) =>
-      rootBlock.match(new RegExp(`${token}:\\s*var\\((--text-[a-z0-9-]+)\\)`))?.[1];
-    const order = [
-      "--text-xs",
-      "--text-sm",
-      "--text-base",
-      "--text-lg",
-      "--text-xl",
-      "--text-2xl",
-      "--text-3xl",
-    ];
-    const middle = step("--text-band-middle");
-    const end = step("--text-band-end");
-    expect(middle, "--text-band-middle is not a step of the scale").toBeDefined();
-    expect(end, "--text-band-end is not a step of the scale").toBeDefined();
-    expect(order.indexOf(middle ?? "")).toBeLessThanOrEqual(order.indexOf(end ?? ""));
+  it("keeps the band's middle no larger than its ends, where the pixels come from", () => {
+    // Rule 1. This used to compare --text-band-middle against --text-band-end
+    // in the stylesheet, with a comment in globals.css saying those tokens were
+    // why the rule held. Nothing rendered them: scale.ts sets both sizes inline
+    // in rem, because jsdom loads no stylesheet and a size that lives only in a
+    // stylesheet reads back as zero here. So the old assertion ordered two
+    // values no pixel depended on. It orders the values the pixels do come from
+    // now, and e2e/rules.spec.ts measures the rendered result in a real browser
+    // on top of that.
+    expect(BAND_MIDDLE_REM).toBeLessThanOrEqual(BAND_END_REM);
+    expect(SCENARIO_MIDDLE_REM).toBeLessThanOrEqual(SCENARIO_END_REM);
+    expect(BAND_END_REM).toBeGreaterThan(0);
+    expect(SCENARIO_END_REM).toBeGreaterThan(0);
+  });
+
+  it("declares no band type-size token, because nothing would render one", () => {
+    // A declaration, not a mention: globals.css names both tokens in the
+    // comment that records why they were removed, and a check that could only
+    // be satisfied by deleting that explanation would be the wrong check.
+    expect(css).not.toMatch(/--text-band-end:/);
+    expect(css).not.toMatch(/--text-band-middle:/);
   });
 });
 

@@ -13,7 +13,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 const css = readFileSync("src/app/globals.css", "utf-8");
 
@@ -26,8 +26,28 @@ function channel(eight: number): number {
 
 function luminance(hex: string): number {
   const digits = hex.replace("#", "");
-  const [r, g, b] = [0, 2, 4].map((at) => Number.parseInt(digits.slice(at, at + 2), 16));
-  return 0.2126 * channel(r ?? 0) + 0.7152 * channel(g ?? 0) + 0.0722 * channel(b ?? 0);
+  const [r, g, b] = [0, 2, 4].map((at) =>
+    Number.parseInt(digits.slice(at, at + 2), 16),
+  );
+  return (
+    0.2126 * channel(r ?? 0) +
+    0.7152 * channel(g ?? 0) +
+    0.0722 * channel(b ?? 0)
+  );
+}
+
+/** Two opaque colours, blended. `share` of the first, the rest of the second. */
+function mix(front: string, back: string, share: number): string {
+  const [f, b] = [front.replace("#", ""), back.replace("#", "")];
+  let out = "#";
+  for (const at of [0, 2, 4]) {
+    const one = Number.parseInt(f.slice(at, at + 2), 16);
+    const two = Number.parseInt(b.slice(at, at + 2), 16);
+    out += Math.round(share * one + (1 - share) * two)
+      .toString(16)
+      .padStart(2, "0");
+  }
+  return out;
 }
 
 function contrast(a: string, b: string): number {
@@ -42,7 +62,9 @@ type Palette = Record<string, string>;
 
 function paletteIn(block: string): Palette {
   const found: Palette = {};
-  for (const [, name, value] of block.matchAll(/--colour-([a-z0-9-]+):\s*([^;]+);/g)) {
+  for (const [, name, value] of block.matchAll(
+    /--colour-([a-z0-9-]+):\s*([^;]+);/g,
+  )) {
     if (name && value) found[name] = value.trim();
   }
   return found;
@@ -140,14 +162,19 @@ describe("the palette", () => {
     const [first, ...rest] = names;
     expect(first?.[1].length ?? 0).toBeGreaterThan(0);
     for (const [theme, keys] of rest) {
-      expect(keys, `${theme} does not declare the same colours as ${first?.[0]}`).toEqual(first?.[1]);
+      expect(
+        keys,
+        `${theme} does not declare the same colours as ${first?.[0]}`,
+      ).toEqual(first?.[1]);
     }
   });
 
   it("gives the explicit choice exactly the colours it overrides", () => {
     // Four copies of a palette is a maintenance hazard unless something checks
     // they still say the same thing. This is that something.
-    expect(BLOCKS['light (explicit [data-theme="light"])']).toEqual(BLOCKS["light (bare :root)"]);
+    expect(BLOCKS['light (explicit [data-theme="light"])']).toEqual(
+      BLOCKS["light (bare :root)"],
+    );
     expect(BLOCKS['dark (explicit [data-theme="dark"])']).toEqual(
       BLOCKS["dark (prefers-color-scheme)"],
     );
@@ -158,9 +185,10 @@ describe("the palette", () => {
     // and pass, which is the shape of a check that has quietly stopped working.
     for (const [theme, palette] of Object.entries(BLOCKS)) {
       for (const [name, value] of Object.entries(palette)) {
-        expect(value, `${theme}: --colour-${name} is not a literal hex`).toMatch(
-          /^#[0-9a-f]{6}$/,
-        );
+        expect(
+          value,
+          `${theme}: --colour-${name} is not a literal hex`,
+        ).toMatch(/^#[0-9a-f]{6}$/);
       }
     }
   });
@@ -168,31 +196,143 @@ describe("the palette", () => {
   it("leaves no colour without a check", () => {
     // A token added without a pair is a token nobody measured.
     const checked = new Set(
-      [...TEXT_PAIRS, ...GRAPHIC_PAIRS].flatMap(([a, b]) => [a, b]).concat([...EXEMPT]),
+      [...TEXT_PAIRS, ...GRAPHIC_PAIRS]
+        .flatMap(([a, b]) => [a, b])
+        .concat([...EXEMPT]),
     );
     const declared = Object.keys(BLOCKS["light (bare :root)"]);
     expect(declared.filter((name) => !checked.has(name))).toEqual([]);
   });
 
-  it.each(Object.entries(BLOCKS))("reaches AA for every text pair in %s", (theme, palette) => {
-    const failures: string[] = [];
-    for (const [fg, bg] of TEXT_PAIRS) {
-      const [front, back] = [palette[fg], palette[bg]];
-      expect(front, `${theme}: no --colour-${fg}`).toBeDefined();
-      expect(back, `${theme}: no --colour-${bg}`).toBeDefined();
-      const ratio = contrast(front ?? "#000000", back ?? "#000000");
-      if (ratio < 4.5) failures.push(`${fg} on ${bg}: ${ratio.toFixed(2)}:1`);
-    }
-    expect(failures, `${theme} is below WCAG 2.2 AA (4.5:1)`).toEqual([]);
+  it.each(Object.entries(BLOCKS))(
+    "reaches AA for every text pair in %s",
+    (theme, palette) => {
+      const failures: string[] = [];
+      for (const [fg, bg] of TEXT_PAIRS) {
+        const [front, back] = [palette[fg], palette[bg]];
+        expect(front, `${theme}: no --colour-${fg}`).toBeDefined();
+        expect(back, `${theme}: no --colour-${bg}`).toBeDefined();
+        const ratio = contrast(front ?? "#000000", back ?? "#000000");
+        if (ratio < 4.5) failures.push(`${fg} on ${bg}: ${ratio.toFixed(2)}:1`);
+      }
+      expect(failures, `${theme} is below WCAG 2.2 AA (4.5:1)`).toEqual([]);
+    },
+  );
+
+  it.each(Object.entries(BLOCKS))(
+    "reaches 3:1 for every meaningful graphic in %s",
+    (theme, palette) => {
+      const failures: string[] = [];
+      for (const [fg, bg] of GRAPHIC_PAIRS) {
+        const ratio = contrast(
+          palette[fg] ?? "#000000",
+          palette[bg] ?? "#000000",
+        );
+        if (ratio < 3) failures.push(`${fg} vs ${bg}: ${ratio.toFixed(2)}:1`);
+      }
+      expect(failures, `${theme} is below WCAG 2.2 SC 1.4.11 (3:1)`).toEqual(
+        [],
+      );
+    },
+  );
+
+  it("draws every colour it declares, somewhere other than the @theme block", () => {
+    // Seven tokens were declared, measured by the pairs above, and rendered by
+    // no route: ink-subtle, surface-raised, surface-sunken, band-track, on-tone,
+    // on-danger and accent-hover. Nothing could see it, because @theme inline
+    // hands every one of them to Tailwind with a var() reference, so a naive
+    // search for the name finds a "use" for a token no page draws.
+    //
+    // So the @theme block is cut out before looking. What counts as a use is a
+    // var() in a real rule, in this file or in a component stylesheet, or the
+    // token's name in TypeScript for the maps that select between them. A
+    // Tailwind utility class does not count: it would put the check back where
+    // it started.
+    const withoutTheme = css.replace(/@theme[^{]*\{[\s\S]*?\n\}/m, "");
+    expect(withoutTheme.length, "the @theme block was not found").toBeLessThan(
+      css.length,
+    );
+    const elsewhere = readdirSync("src", { recursive: true, encoding: "utf-8" })
+      .filter(
+        (name) => /\.(css|ts|tsx)$/.test(name) && !name.endsWith("globals.css"),
+      )
+      .map((name) => readFileSync(`src/${name}`, "utf-8"))
+      .join("\n");
+    const unused = Object.keys(BLOCKS["light (bare :root)"]).filter((name) => {
+      const reference = `var(--colour-${name}`;
+      return (
+        !withoutTheme.includes(reference) &&
+        !elsewhere.includes(reference) &&
+        !elsewhere.includes(`"--colour-${name}"`)
+      );
+    });
+    expect(unused, "declared, measured, and drawn by nothing").toEqual([]);
   });
 
-  it.each(Object.entries(BLOCKS))("reaches 3:1 for every meaningful graphic in %s", (theme, palette) => {
+  it("lets the band's own stylesheet state no colour of its own", () => {
+    // band.module.css used to carry a hex fallback beside every var(), and one
+    // of them, #5b8def, was in neither palette. A confidence level this build
+    // did not know produced var(undefined), React dropped the property, and the
+    // band was drawn in that colour: never measured, never in a theme, and
+    // close enough to the PRECISE navy to read as more certain than PRECISE.
+    const band = readFileSync(
+      "src/components/band/band.module.css",
+      "utf-8",
+    ).replace(/\/\*[\s\S]*?\*\//g, "");
+    const literals = [
+      ...band.matchAll(/#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(/g),
+    ].map((found) => found[0]);
+    expect(literals, "a colour with one definition, in one theme").toEqual([]);
+  });
+
+  it("keeps every point of the band's gradient above 3:1 against the page", () => {
+    // The gradient is a background-image, which is the blind spot two correct
+    // checks share: this file parses tokens and never looks at a component, and
+    // axe's colour-contrast rule is text-only and ignores background-image
+    // entirely. Measured at the ends the old gradient composited to about 2:1
+    // while the middle sat at 6:1, so colour said the opposite of what the type
+    // sizes said.
+    //
+    // This computes it from the tokens; e2e/rules.spec.ts samples the pixels of
+    // the built page, which is the check that cannot be fooled by a stylesheet
+    // that says one thing and renders another. Both are here because this one
+    // fails in a second and names the token.
+    const band = readFileSync("src/components/band/band.module.css", "utf-8");
+    const mixed = band.match(
+      /color-mix\(\s*in srgb,\s*var\(--tone[\s\S]*?(\d+)%,\s*var\(--colour-surface\)/,
+    );
+    expect(
+      mixed,
+      "the gradient no longer mixes the tone with the surface",
+    ).not.toBeNull();
+    const share = Number(mixed?.[1] ?? 0) / 100;
+    expect(share).toBeGreaterThan(0);
+
     const failures: string[] = [];
-    for (const [fg, bg] of GRAPHIC_PAIRS) {
-      const ratio = contrast(palette[fg] ?? "#000000", palette[bg] ?? "#000000");
-      if (ratio < 3) failures.push(`${fg} vs ${bg}: ${ratio.toFixed(2)}:1`);
+    for (const [theme, palette] of Object.entries(BLOCKS)) {
+      const surface = palette["surface"] ?? "#000000";
+      for (const tone of [
+        "confidence-indicative",
+        "confidence-good",
+        "confidence-precise",
+      ]) {
+        const full = palette[tone] ?? "#000000";
+        for (const [where, colour] of [
+          ["end", full],
+          ["middle", mix(full, surface, share)],
+        ] as const) {
+          const ratio = contrast(colour, surface);
+          if (ratio < 3)
+            failures.push(
+              `${theme}: ${tone} at the ${where}: ${ratio.toFixed(2)}:1`,
+            );
+        }
+      }
     }
-    expect(failures, `${theme} is below WCAG 2.2 SC 1.4.11 (3:1)`).toEqual([]);
+    expect(
+      failures,
+      "below WCAG 2.2 SC 1.4.11 (3:1) somewhere along the band",
+    ).toEqual([]);
   });
 
   it("computes the same ratio for a pair the specification names", () => {

@@ -20,11 +20,7 @@
             "low": "105.08",
             "mid": "126.09",
             "high": "165.51",
-            "varied": [
-              "supply_price",
-              "feed_in_price",
-              "feed_in_cost_per_kwh"
-            ],
+            "varied": ["supply_price", "feed_in_price", "feed_in_cost_per_kwh"],
             "pinned": [
               "annual_consumption_kwh",
               "shiftable_block_kwh",
@@ -56,11 +52,7 @@
             "low": "269.56",
             "mid": "347.53",
             "high": "652.74",
-            "varied": [
-              "supply_price",
-              "feed_in_price",
-              "feed_in_cost_per_kwh"
-            ],
+            "varied": ["supply_price", "feed_in_price", "feed_in_cost_per_kwh"],
             "pinned": [
               "annual_consumption_kwh",
               "shiftable_block_kwh",
@@ -105,19 +97,13 @@
       "low": "142.95",
       "mid": "168.06",
       "high": "193.17",
-      "varied": [
-        "supply_price",
-        "feed_in_price"
-      ],
+      "varied": ["supply_price", "feed_in_price"],
       "pinned": [
         "annual_consumption_kwh",
         "shiftable_block_kwh",
         "system_loss_fraction"
       ],
-      "varied_text": [
-        "de stroomprijs",
-        "de terugleververgoeding"
-      ],
+      "varied_text": ["de stroomprijs", "de terugleververgoeding"],
       "pinned_text": [
         "je jaarverbruik",
         "hoeveel verbruik je kunt verschuiven",
@@ -129,11 +115,7 @@
       "low": "6.99",
       "mid": "12.05",
       "high": "18.89",
-      "varied": [
-        "supply_price",
-        "feed_in_price",
-        "battery_cost_per_kwh"
-      ],
+      "varied": ["supply_price", "feed_in_price", "battery_cost_per_kwh"],
       "pinned": [
         "annual_consumption_kwh",
         "shiftable_block_kwh",
@@ -155,19 +137,13 @@
       "low": "571.80",
       "mid": "672.24",
       "high": "772.69",
-      "varied": [
-        "supply_price",
-        "feed_in_price"
-      ],
+      "varied": ["supply_price", "feed_in_price"],
       "pinned": [
         "annual_consumption_kwh",
         "shiftable_block_kwh",
         "system_loss_fraction"
       ],
-      "varied_text": [
-        "de stroomprijs",
-        "de terugleververgoeding"
-      ],
+      "varied_text": ["de stroomprijs", "de terugleververgoeding"],
       "pinned_text": [
         "je jaarverbruik",
         "hoeveel verbruik je kunt verschuiven",
@@ -182,19 +158,13 @@
           "low": "142.95",
           "mid": "168.06",
           "high": "193.17",
-          "varied": [
-            "supply_price",
-            "feed_in_price"
-          ],
+          "varied": ["supply_price", "feed_in_price"],
           "pinned": [
             "annual_consumption_kwh",
             "shiftable_block_kwh",
             "system_loss_fraction"
           ],
-          "varied_text": [
-            "de stroomprijs",
-            "de terugleververgoeding"
-          ],
+          "varied_text": ["de stroomprijs", "de terugleververgoeding"],
           "pinned_text": [
             "je jaarverbruik",
             "hoeveel verbruik je kunt verschuiven",
@@ -209,19 +179,13 @@
           "low": "143.23",
           "mid": "168.39",
           "high": "193.55",
-          "varied": [
-            "supply_price",
-            "feed_in_price"
-          ],
+          "varied": ["supply_price", "feed_in_price"],
           "pinned": [
             "annual_consumption_kwh",
             "shiftable_block_kwh",
             "system_loss_fraction"
           ],
-          "varied_text": [
-            "de stroomprijs",
-            "de terugleververgoeding"
-          ],
+          "varied_text": ["de stroomprijs", "de terugleververgoeding"],
           "pinned_text": [
             "je jaarverbruik",
             "hoeveel verbruik je kunt verschuiven",
@@ -236,19 +200,13 @@
           "low": "143.51",
           "mid": "168.72",
           "high": "193.93",
-          "varied": [
-            "supply_price",
-            "feed_in_price"
-          ],
+          "varied": ["supply_price", "feed_in_price"],
           "pinned": [
             "annual_consumption_kwh",
             "shiftable_block_kwh",
             "system_loss_fraction"
           ],
-          "varied_text": [
-            "de stroomprijs",
-            "de terugleververgoeding"
-          ],
+          "varied_text": ["de stroomprijs", "de terugleververgoeding"],
           "pinned_text": [
             "je jaarverbruik",
             "hoeveel verbruik je kunt verschuiven",
@@ -263,19 +221,13 @@
           "low": "143.39",
           "mid": "168.57",
           "high": "193.75",
-          "varied": [
-            "supply_price",
-            "feed_in_price"
-          ],
+          "varied": ["supply_price", "feed_in_price"],
           "pinned": [
             "annual_consumption_kwh",
             "shiftable_block_kwh",
             "system_loss_fraction"
           ],
-          "varied_text": [
-            "de stroomprijs",
-            "de terugleververgoeding"
-          ],
+          "varied_text": ["de stroomprijs", "de terugleververgoeding"],
           "pinned_text": [
             "je jaarverbruik",
             "hoeveel verbruik je kunt verschuiven",
@@ -290,19 +242,13 @@
           "low": "143.15",
           "mid": "168.28",
           "high": "193.42",
-          "varied": [
-            "supply_price",
-            "feed_in_price"
-          ],
+          "varied": ["supply_price", "feed_in_price"],
           "pinned": [
             "annual_consumption_kwh",
             "shiftable_block_kwh",
             "system_loss_fraction"
           ],
-          "varied_text": [
-            "de stroomprijs",
-            "de terugleververgoeding"
-          ],
+          "varied_text": ["de stroomprijs", "de terugleververgoeding"],
           "pinned_text": [
             "je jaarverbruik",
             "hoeveel verbruik je kunt verschuiven",

@@ -142,6 +142,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
+      # The Python half has run `ruff format --check` since the first
+      # commit. This side had eslint and tsc and no formatter at all, so
+      # `quality` and `frontend-quality` were not the same gate under two
+      # names. tests/test_pipeline_contract.py now asserts both read it.
+      - run: pnpm format:check
 
   # WARNING: required status check. See the note on `quality`.
   frontend-test:

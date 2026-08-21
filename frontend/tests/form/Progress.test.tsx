@@ -24,7 +24,10 @@ describe("the progress indicator", () => {
     // from a literal in the test, so the test cannot pass while the flow uses
     // a different number.
     render(<Progress step={1} of={ROUND_ONE_QUESTION_COUNT} />);
-    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuemax", "4");
+    expect(screen.getByRole("progressbar")).toHaveAttribute(
+      "aria-valuemax",
+      "4",
+    );
   });
 
   it("agrees with the question counts the serializers carry", () => {

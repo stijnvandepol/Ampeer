@@ -45,7 +45,9 @@ export function ThemeToggle() {
         id={id}
         value={choice}
         onChange={(event) => {
-          const chosen = CHOICES.find((option) => option.value === event.target.value);
+          const chosen = CHOICES.find(
+            (option) => option.value === event.target.value,
+          );
           if (chosen !== undefined) setThemeChoice(chosen.value);
         }}
         className="rounded-md border border-border-strong bg-surface px-2 py-1 text-sm text-ink"

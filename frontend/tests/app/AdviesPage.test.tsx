@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { installMatchMedia } from "../matchMedia";
 import fixture from "../fixtures/advice-response.json";
 import AdviesPage from "@/app/advies/page";
+import { dutchAmount } from "@/components/band/format";
 import { ROUTE_ORDER } from "@/lib/types";
 
 const TOKEN = fixture.token;
@@ -62,19 +63,29 @@ describe("the advice page", () => {
 
     const headline = container.querySelector('[data-band-kind="percentile"]');
     expect(headline).not.toBeNull();
-    // The amounts reach the screen as the strings they arrived as. A parsed
-    // copy would be rounded by whichever parser touched it last.
-    expect(headline?.textContent).toContain(fixture.headline.p10);
-    expect(headline?.textContent).toContain(fixture.headline.p50);
-    expect(headline?.textContent).toContain(fixture.headline.p90);
+    // The amounts reach the screen in Dutch, and with every digit the API sent.
+    // They used to reach it as "1395.51", which is the en-US form and not the
+    // language of this application. What may not happen on the way is a trip
+    // through a number, so the second assertion is the one that matters: the
+    // digits on the screen are the digits that arrived, in the same order.
+    const digits = (text: string) => text.replace(/[.,]/g, "");
+    for (const amount of [
+      fixture.headline.p10,
+      fixture.headline.p50,
+      fixture.headline.p90,
+    ]) {
+      expect(headline?.textContent).toContain(dutchAmount(amount));
+      expect(headline?.textContent).not.toContain(amount);
+      expect(digits(dutchAmount(amount))).toBe(digits(amount));
+    }
   });
 
   it("renders all three routes in the order the API sent them", async () => {
     vi.stubGlobal("fetch", respondWith(fixture));
     const { container } = render(<AdviesPage />);
     await screen.findByText(fixture.confidence_label);
-    const rendered = [...container.querySelectorAll("[data-route]")].map((element) =>
-      element.getAttribute("data-route"),
+    const rendered = [...container.querySelectorAll("[data-route]")].map(
+      (element) => element.getAttribute("data-route"),
     );
     expect(rendered).toEqual([...ROUTE_ORDER]);
   });
@@ -100,9 +111,9 @@ describe("the advice page", () => {
     const bandless = container.querySelector('[data-band-kind="none"]');
     expect(bandless).not.toBeNull();
     expect(bandless?.querySelector('[data-role="band-middle"]')).toBeNull();
-    expect(bandless?.querySelector('[data-role="basis-text"]')?.textContent).toBe(
-      fixture.battery.sized_capacity_kwh.basis_text,
-    );
+    expect(
+      bandless?.querySelector('[data-role="basis-text"]')?.textContent,
+    ).toBe(fixture.battery.sized_capacity_kwh.basis_text);
   });
 
   it("draws every figure in the battery block with a band, including the curve", async () => {
@@ -114,6 +125,84 @@ describe("the advice page", () => {
     // per point of the curve.
     const expected = 2 + 3 + fixture.battery.curve.length;
     expect(scenario).toHaveLength(expected);
+  });
+
+  it("keeps the battery block shut when the model said it does not pay back", async () => {
+    // Measured on the built page at 1280x900 before this: the headline band was
+    // 345px, the two free routes 313px each, and "De batterij, doorgerekend"
+    // 1365px, which is 38.5% of the page and 2.2 times the two free routes
+    // together, on a household whose verdict is BATTERY_DOES_NOT_PAY_BACK and
+    // whose rule text says "niet de moeite waard". It passed all five rules,
+    // because "free routes first" was implemented as DOM order, and order is
+    // the weakest form of precedence there is. Reading the page, it said no and
+    // then handed over a sizing menu with prices in it.
+    expect(fixture.battery.verdict).toBe("BATTERY_DOES_NOT_PAY_BACK");
+    vi.stubGlobal("fetch", respondWith(fixture));
+    const { container } = render(<AdviesPage />);
+    await screen.findByText(fixture.confidence_label);
+    const toggle = container.querySelector("[data-role='battery-detail']");
+    expect(toggle).not.toBeNull();
+    expect(toggle?.getAttribute("aria-expanded")).toBe("false");
+    const panel = document.getElementById(
+      toggle?.getAttribute("aria-controls") ?? "",
+    );
+    expect(
+      panel,
+      "aria-controls names an element that is not in the document",
+    ).not.toBeNull();
+    expect(panel?.hasAttribute("hidden")).toBe(true);
+    // The figures are in the document, so nothing has been hidden from anybody
+    // who goes looking; they are behind a control that starts closed.
+    expect(panel?.querySelectorAll('[data-band-kind="scenario"]').length).toBe(
+      3 + fixture.battery.curve.length,
+    );
+  });
+
+  it("opens it when the model says a battery is worth considering", async () => {
+    // The verdict is a rule id, which is a machine's word for which storage
+    // rule fired, and it is the only thing on the response that says whether
+    // this is a route the model is recommending. A household it does recommend
+    // one to should not have to click to see the sizing.
+    const recommended = {
+      ...fixture,
+      battery: { ...fixture.battery, verdict: "CONSIDER_BATTERY" },
+    };
+    vi.stubGlobal("fetch", respondWith(recommended));
+    const { container } = render(<AdviesPage />);
+    await screen.findByText(fixture.confidence_label);
+    const toggle = container.querySelector("[data-role='battery-detail']");
+    expect(toggle?.getAttribute("aria-expanded")).toBe("true");
+    const panel = document.getElementById(
+      toggle?.getAttribute("aria-controls") ?? "",
+    );
+    expect(panel?.hasAttribute("hidden")).toBe(false);
+  });
+
+  it("announces that the advice arrived and puts focus on it", async () => {
+    // The loading sentence used to be replaced rather than updated, so its
+    // removal announced nothing, the arriving content was in no live region,
+    // and focus never moved. A screen reader opening a shared link heard "Een
+    // moment" and then silence.
+    let settle: (value: unknown) => void = () => {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise((resolve) => (settle = resolve))),
+    );
+    render(<AdviesPage />);
+    const region = screen.getByRole("status");
+    expect(region).toHaveTextContent("Een moment");
+    settle({ ok: true, status: 200, json: () => Promise.resolve(fixture) });
+    await screen.findByText(fixture.confidence_label);
+    // The same element, updated. A live region that is removed and replaced by
+    // a different element announces nothing at all.
+    expect(region).toBeInTheDocument();
+    expect(region).toHaveTextContent(/advies/i);
+    expect(region).not.toHaveTextContent("Een moment");
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("heading", { level: 1 }),
+      ),
+    );
   });
 
   it("does not put the verdict rule id in front of a reader", async () => {
@@ -137,8 +226,12 @@ describe("the advice page", () => {
     vi.stubGlobal("fetch", respondWith(fixture));
     const { container } = render(<AdviesPage />);
     await screen.findByText(fixture.confidence_label);
-    expect(screen.getByRole("link", { name: "Verfijn uw antwoord" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Kopieer deze link" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Verfijn uw antwoord" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Kopieer deze link" }),
+    ).toBeInTheDocument();
     const hrefs = [...container.querySelectorAll("a[href]")].map((element) =>
       element.getAttribute("href"),
     );
@@ -151,8 +244,14 @@ describe("the advice page", () => {
     stubClipboard(writeText);
     render(<AdviesPage />);
     await screen.findByText(fixture.confidence_label);
-    await userEvent.click(screen.getByRole("button", { name: "Kopieer deze link" }));
-    await waitFor(() => expect(screen.getByText(/Neem de link hierboven over/)).toBeInTheDocument());
+    await userEvent.click(
+      screen.getByRole("button", { name: "Kopieer deze link" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByText(/Neem de link hierboven over/),
+      ).toBeInTheDocument(),
+    );
   });
 
   it("confirms a copy that worked", async () => {
@@ -161,13 +260,20 @@ describe("the advice page", () => {
     stubClipboard(writeText);
     render(<AdviesPage />);
     await screen.findByText(fixture.confidence_label);
-    await userEvent.click(screen.getByRole("button", { name: "Kopieer deze link" }));
-    await waitFor(() => expect(screen.getByText("Gekopieerd.")).toBeInTheDocument());
+    await userEvent.click(
+      screen.getByRole("button", { name: "Kopieer deze link" }),
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Gekopieerd.")).toBeInTheDocument(),
+    );
     expect(writeText).toHaveBeenCalledWith(window.location.href);
   });
 
   it("names what went wrong when the API refused", async () => {
-    vi.stubGlobal("fetch", respondWith({ detail: "Request was throttled." }, 429));
+    vi.stubGlobal(
+      "fetch",
+      respondWith({ detail: "Request was throttled." }, 429),
+    );
     render(<AdviesPage />);
     expect(await screen.findByRole("alert")).toHaveTextContent("over een uur");
   });
@@ -177,7 +283,9 @@ describe("the advice page", () => {
     vi.stubGlobal("fetch", fetchSpy);
     goTo("/advies/");
     render(<AdviesPage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("er staat er geen in de link");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "er staat er geen in de link",
+    );
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -202,7 +310,9 @@ describe("the advice page", () => {
     // The Dutch sentence, never the enum. "FALLBACK" in front of a reader is
     // the language boundary being crossed by the frontend, and which of the two
     // sources it was changes how much weight the whole answer deserves.
-    expect(screen.getByText(fixture.production_source_text)).toBeInTheDocument();
+    expect(
+      screen.getByText(fixture.production_source_text),
+    ).toBeInTheDocument();
     expect(screen.queryByText(fixture.production_source)).toBeNull();
   });
 });

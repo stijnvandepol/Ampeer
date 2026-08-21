@@ -10,6 +10,37 @@ function parse(raw: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+/**
+ * The message this field would show for what is in it, or null for nothing to
+ * say. An empty field says nothing: it has not been answered yet, which is the
+ * flow's business rather than this component's.
+ *
+ * One function and not two copies, because the message on the screen and the
+ * refusal reported upwards have to be the same decision. While they were two
+ * pieces of arithmetic side by side, a field could show an error and report
+ * upwards that it had none.
+ */
+function messageFor(raw: string, limits: Limits): string | null {
+  if (raw.trim() === "") return null;
+  const parsed = parse(raw);
+  if (parsed === null) return "Vul een getal in.";
+  if (parsed < limits.min)
+    return `Vul minstens ${limits.min} ${limits.unit} in.`;
+  if (parsed > limits.max)
+    return `Vul hoogstens ${limits.max} ${limits.unit} in.`;
+  if (limits.integer && !Number.isInteger(parsed)) {
+    return "Vul een heel getal in, zonder cijfers achter de komma.";
+  }
+  return null;
+}
+
+interface Limits {
+  readonly min: number;
+  readonly max: number;
+  readonly unit: string;
+  readonly integer: boolean;
+}
+
 interface Props {
   readonly id: string;
   readonly label: string;
@@ -34,6 +65,16 @@ interface Props {
    */
   readonly integer?: boolean;
   readonly onChange: (value: number | null) => void;
+  /**
+   * Told whether this field is refusing what it holds.
+   *
+   * `onChange(null)` means two different things: an empty field, and a field
+   * holding a number this component has already told the visitor it cannot
+   * use. The flow above has to tell them apart, because "Beantwoord deze vraag
+   * om verder te gaan" over a question that was answered, badly, is a false
+   * message printed underneath a true one.
+   */
+  readonly onRefusal?: (refusing: boolean) => void;
 }
 
 /**
@@ -52,8 +93,11 @@ export function NumberQuestion({
   unit,
   integer = false,
   onChange,
+  onRefusal,
 }: Props) {
-  const [draft, setDraft] = useState<string>(() => (value === null ? "" : String(value)));
+  const [draft, setDraft] = useState<string>(() =>
+    value === null ? "" : String(value),
+  );
   const [seen, setSeen] = useState<number | null>(value);
 
   // The parent owns the value, but it may reject what was typed (by reporting
@@ -68,29 +112,16 @@ export function NumberQuestion({
     if (value !== null && value !== parse(draft)) setDraft(String(value));
   }
 
-  const parsed = parse(draft);
+  const limits: Limits = { min, max, unit, integer };
   const errorId = `${id}-error`;
   const hintId = `${id}-hint`;
-
-  let error: string | null = null;
-  if (draft.trim() !== "") {
-    if (parsed === null) {
-      error = "Vul een getal in.";
-    } else if (parsed < min) {
-      error = `Vul minstens ${min} ${unit} in.`;
-    } else if (parsed > max) {
-      error = `Vul hoogstens ${max} ${unit} in.`;
-    } else if (integer && !Number.isInteger(parsed)) {
-      error = "Vul een heel getal in, zonder cijfers achter de komma.";
-    }
-  }
+  const error = messageFor(draft, limits);
 
   function handleChange(raw: string) {
     setDraft(raw);
-    const next = parse(raw);
-    const withinBounds = next !== null && next >= min && next <= max;
-    const acceptable = withinBounds && (!integer || Number.isInteger(next));
-    onChange(acceptable ? next : null);
+    const refusal = messageFor(raw, limits);
+    onRefusal?.(refusal !== null);
+    onChange(refusal === null ? parse(raw) : null);
   }
 
   return (
@@ -113,8 +144,13 @@ export function NumberQuestion({
           {unit}
         </span>
       </div>
+      {/*
+        text-danger is the colour every other failure on this site is marked
+        with. Without it this paragraph carried the same class as the unit
+        beside the field and nothing else: an error dressed as a caption.
+      */}
       {error !== null && (
-        <p id={errorId} role="alert" className="text-sm">
+        <p id={errorId} role="alert" className="text-sm text-danger">
           {error}
         </p>
       )}

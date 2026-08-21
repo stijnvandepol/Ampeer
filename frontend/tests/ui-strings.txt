@@ -1,0 +1,236 @@
+# Every string in frontend/src that can reach a DOM text node or an accessible
+# name, normalised to single spaces and sorted. Extracted with the TypeScript
+# compiler API by e2e/language.spec.ts, which compares this file byte for byte
+# against what it finds and fails on any difference in either direction.
+#
+# THE RULE FOR A LINE IN THIS FILE
+#
+# A line here must be one of three things: navigation, a form label or heading,
+# or a message about the request the visitor just made. It may name the shape of
+# a figure, because that is interface text. It may never be a sentence about the
+# household's electricity. Advice text arrives from the API, which is the
+# language boundary: `title`, `text`, `confidence_label`, `basis_text`,
+# `varied_text`, `pinned_text` and `production_source_text` are written in
+# ampeer_advice/nl.py, keyed by rule id, so a change of wording and a change of
+# behaviour cannot break the same test.
+#
+# This file exists because no lexical rule separates "Verfijn uw antwoord" from
+# "Vraag nu een offerte aan". Nothing here judges meaning. What it does is make
+# a new sentence in the frontend impossible to add without it appearing in a
+# diff, on a line, under this header.
+#
+# One line is a deliberate exception and is allowed by the spec:
+# "Hier is niets meer te halen." in components/band/RouteSection.tsx, the answer
+# a route with no rules gives. The point of this file is that it is a line
+# somebody added on purpose rather than an invisible exception.
+#
+# WHY SOME LINES ARE NOT SENTENCES
+#
+# The extractor judges position and not meaning, so it also collects strings
+# that sit in a text position and are never read by anybody: enum names, class
+# lists, storage keys, a media query, the inline theme bootstrap in
+# _shell/theme.ts, and the fragments a template literal is built from. Those
+# lines are the price of an extractor with no vocabulary, and paying it is the
+# point: a filter clever enough to drop them would be clever enough to drop
+# "Vraag nu een offerte aan". The rule above is about the lines that are
+# sentences, and a new one of those is one added line in a diff.
+#
+# Lines beginning with # and blank lines are this header and are not data.
+# Regenerate with:  UPDATE_UI_STRINGS=1 pnpm e2e language
+# That run rewrites this file and then fails, so regenerating can never be the
+# thing that made a build green. Read the diff.
+
+");if(c==="light"||c==="dark"){document.documentElement.setAttribute("
+",c)}}catch(e){}
+#
+%
+%s | Ampeer
+(prefers-reduced-motion: reduce)
+)
+,
+, met
+-
+-error
+-hint
+-label
+-panel
+-tilt
+-value
+.
+/
+/advies
+/berekenen/
+/berekenen/?ronde=2
+/methodologie/
+ARRIVAL
+Adviesversie
+Ampeer
+Ampeer verkoopt geen panelen, geen batterijen en geen energiecontract, en plaatst geen advertenties.
+Beantwoord deze vraag om verder te gaan.
+Beantwoord vier vragen
+Begin een nieuwe berekening
+Berekenen
+Betrouwbaarheid:
+CHOSEN_FROM_SIMULATED_CAPACITIES
+Combinaties
+De batterij, doorgerekend
+De hele doorrekening van de batterij
+De rekenserver gaf een antwoord dat wij niet konden lezen.
+De rekenserver had een storing. Probeer het straks opnieuw.
+De rekenserver kon dit antwoord niet gebruiken. Controleer uw invoer.
+De rekenserver kon dit antwoord niet gebruiken:
+De vragen worden klaargezet.
+Deze link hoort niet bij een berekening. Controleer of hij compleet is overgenomen.
+Deze link opent dit advies opnieuw, zonder account. Bewaar hem als u er later bij wilt.
+Deze pagina hoort bij een berekening en er staat er geen in de link.
+Dit advies konden wij niet laten zien
+Donker
+Drie routes, met de gratis routes eerst: uw ritme verschuiven, slimmer sturen met wat u al heeft, en opslag.
+EAST
+Een bedrag per jaar met de marge eromheen, niet een enkel getal.
+Een link waarmee u er later bij kunt, zonder account.
+Een moment, wij halen de doorrekening op die bij deze link hoort.
+Er zijn kort achter elkaar veel berekeningen gedaan vanaf dit adres. Probeer het over een uur opnieuw.
+GOOD
+Gekopieerd.
+Heeft u een dynamisch energiecontract?
+Heeft u een thuisbatterij?
+Heeft u een warmtepomp?
+Hier is niets meer te halen.
+Hoe Ampeer rekent
+Hoe groot is de batterij?
+Hoe ligt het dak?
+Hoe schuin staat het dak?
+Hoe zeker die uitkomst is, meteen naast de uitkomst zelf.
+Hoeveel stroom gebruikt de warmtepomp per jaar?
+Hoeveel stroom verbruikt u per jaar?
+Hoeveel wattpiek aan zonnepanelen ligt er?
+Hoofdnavigatie
+INDICATIVE
+Is er al een thuisbatterij?
+Is er een warmtepomp?
+Is er op een doordeweekse dag meestal iemand thuis?
+Is er overdag meestal iemand thuis?
+Is uw contract dynamisch, met een prijs per uur?
+Ja
+Kopieer deze link
+Kopieren lukte niet. Neem de link hierboven over.
+LIMITED_BY_LARGEST_SIMULATED_CAPACITY
+Licht
+Maat waarop dit is gebaseerd
+Meestal 's nachts
+Meestal bij thuiskomst, aan het begin van de avond
+Methodologie
+Motorversie
+NIGHT
+NONE
+NORTH
+NORTHEAST
+NORTHWEST
+Naar de inhoud
+Nee
+Noord
+Noordoost
+Noordwest
+Oost
+Overdag, op ons eigen overschot
+PRECISE
+Postcode, alleen de vier cijfers
+Prijs per kWh waarbij hij precies uit kan
+Reken uit wat het einde van de salderingsregeling uw huishouden kost, met de marge erbij.
+SHIFT_BEHAVIOUR
+SMART_CONTROL
+SOLAR
+SOUTH
+SOUTHEAST
+SOUTHWEST
+STORAGE
+Salderen stopt in 2027
+Stond vast
+Systeem
+Tabel
+Terug
+Terugverdientijd
+Thema
+Tussen
+Uw advies
+Uw advies is opgehaald.
+Uw advies wordt opgehaald
+Uw gegevens
+Uw jaar wordt doorgerekend. Dit duurt even.
+Vanaf 1 januari 2027 vervalt de salderingsregeling. Een kWh die u zelf gebruikt is vanaf dat moment meer waard dan diezelfde kWh die u teruglevert. Hoeveel dat voor u scheelt hangt af van uw dak, uw verbruik en uw contract.
+Varieerde
+Verbruik per jaar
+Verbruiksjaar
+Verder
+Verfijn uw antwoord
+Vermogen van de installatie
+Vijf vragen erbij maken deze uitkomst scherper: of er overdag iemand thuis is, hoe de auto laadt, of er een warmtepomp is, wat voor contract u heeft en of er al opslag is.
+Voortgang
+Vraag
+Vul een getal in.
+Vul een heel getal in, zonder cijfers achter de komma.
+Vul hoogstens
+Vul minstens
+WEST
+Waarmee gerekend is
+Waarover varieert dit bedrag?
+Wanneer laadt de auto?
+Wanneer laadt uw elektrische auto?
+Wat andere maten zouden opleveren
+Wat die maat per jaar oplevert
+Wat het einde van de saldering u per jaar kost
+Wat het einde van de saldering voor u betekent
+Wat kost het einde van de saldering uw huishouden?
+Wat u terugkrijgt
+Wat wij niet doen
+Wat zijn de eerste vier cijfers van uw postcode?
+Weerjaar
+Welke kant ligt het dak op?
+West
+Wij hebben geen elektrische auto
+Wij konden de rekenserver niet bereiken. Controleer uw verbinding en probeer het opnieuw.
+Wij verkopen geen panelen, geen batterijen en geen energiecontract, en wij sturen u niet door naar een partij die dat wel doet. "Geen batterij" is hier een geldige uitkomst.
+Zuid
+Zuidoost
+Zuidwest
+als middelpunt, uit
+ampeer-antwoorden
+ampeer-thema
+dark
+data-theme
+doorrekeningen
+doorrekeningen.
+en
+euro
+euro als middelpunt, uit
+euro per jaar, met
+euro per kWh
+graden
+h
+hoofdinhoud
+http://127.0.0.1:8000
+in.
+ja
+jaar
+kWh
+kWh opslag
+light
+ms
+mt-10 text-xl font-medium
+mt-6 font-medium
+mt-8 text-lg font-medium
+nee
+per jaar
+per kWh
+ronde
+route-
+system
+tariefcombinaties.
+text-3xl font-bold
+tot
+try{var c=localStorage.getItem("
+van
+var(
+vraag-titel
+€

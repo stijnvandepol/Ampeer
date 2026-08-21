@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { BandlessFigureView } from "@/components/band/BandlessFigureView";
 import { HeadlineBand } from "@/components/band/HeadlineBand";
@@ -16,6 +16,42 @@ import { useLocationHref, useLocationPath } from "../_shell/browser";
 const REFINE_HREF = "/berekenen/?ronde=2";
 
 /**
+ * Whether the sizing detail is shown without the visitor asking for it.
+ *
+ * `battery.verdict` is the id of the storage rule the model landed on, and
+ * ampeer_advice/rules.py has exactly three: CONSIDER_BATTERY,
+ * BATTERY_DEPENDS_ON_PRICE and BATTERY_DOES_NOT_PAY_BACK. Only the first is the
+ * model saying a battery is worth looking at, so only the first opens the block.
+ *
+ * WHY THIS EXISTS AT ALL. Measured on the built page at 1280x900, on the
+ * fixture household whose verdict is BATTERY_DOES_NOT_PAY_BACK and whose rule
+ * text says "niet de moeite waard": the headline band was 345px, the two free
+ * routes 313px each, the storage route 219px, and this block 1365px. That is
+ * 38.5% of the page and 2.2 times the two free routes together, and inside it
+ * was a five-capacity table of what each size earns. It passed all five rules
+ * from chapter 2, because "free routes first" was implemented as DOM order, and
+ * order is the weakest form of precedence there is: a page can say no and then
+ * spend most of itself on a sizing menu without breaking a single one of them.
+ *
+ * `CLAUDE.md` says the free routes come first "ook als ze niets opleveren voor
+ * Ampeer". Nothing said the paid route may then take twice their space, so this
+ * says it, and e2e/rules.spec.ts measures it: when the verdict is not a
+ * recommendation, this block may not be taller than the free routes together.
+ *
+ * Nothing is hidden from anybody. Every figure is still in the document and one
+ * click away, and the sentence that says why is the API's own, already on the
+ * page above in the storage route.
+ */
+function verdictRecommendsABattery(verdict: string): boolean {
+  // A comparison rather than a list of one, and that is not only brevity:
+  // e2e/language.spec.ts harvests the initialiser of every variable to build the
+  // user-visible string allowlist, and deliberately does not harvest the
+  // operands of `===`. A rule id is a machine's word and does not belong in a
+  // file whose header says a line in it is something a visitor reads.
+  return verdict === "CONSIDER_BATTERY";
+}
+
+/**
  * The battery block, when the model produced one.
  *
  * Every figure here either carries its band or carries the sentence that says
@@ -29,57 +65,89 @@ const REFINE_HREF = "/berekenen/?ronde=2";
  * matching entry of `routes` and is already on the page above.
  */
 function BatteryBlock({ battery }: { readonly battery: BatteryAdvice }) {
+  const [open, setOpen] = useState(verdictRecommendsABattery(battery.verdict));
+  const panelId = useId();
   return (
-    <section aria-labelledby="batterij" className="flex flex-col gap-8">
+    <section aria-labelledby="batterij" className="flex flex-col gap-4">
       <h2 id="batterij" className="text-xl font-medium">
         De batterij, doorgerekend
       </h2>
 
-      <div className="flex flex-col gap-2">
-        <h3 className="text-sm font-medium uppercase tracking-wide text-ink-muted">
-          Maat waarop dit is gebaseerd
-        </h3>
-        <BandlessFigureView figure={battery.sized_capacity_kwh} unit="kwh" />
-      </div>
+      {/*
+        A button with aria-expanded rather than a native details, which is the
+        one thing here that looks like the worse choice and is not. The scenario
+        bands on this page already disclose themselves this way, so a details
+        would be a second disclosure mechanism on one page; and the panel below
+        contains ten of those buttons, which an assistive technology and a test
+        both have to be able to reach in one pass from the outside in. It is
+        rendered whether it is open or not, and hidden with the `hidden`
+        attribute, so aria-controls names an element that exists.
+      */}
+      <button
+        type="button"
+        data-role="battery-detail"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen((was) => !was)}
+        className="self-start text-sm text-ink-muted underline underline-offset-4"
+      >
+        De hele doorrekening van de batterij
+      </button>
 
-      <div className="flex flex-col gap-2">
-        <h3 className="text-sm font-medium uppercase tracking-wide text-ink-muted">
-          Wat die maat per jaar oplevert
-        </h3>
-        <ScenarioBandFigure band={battery.annual_saving_eur} unit="eur" />
-      </div>
+      <div
+        id={panelId}
+        hidden={!open}
+        className="flex flex-col gap-8 border-l-2 border-hairline pl-4"
+      >
+        <div className="flex flex-col gap-2">
+          <h3 className="text-sm font-medium uppercase tracking-wide text-ink-muted">
+            Maat waarop dit is gebaseerd
+          </h3>
+          <BandlessFigureView figure={battery.sized_capacity_kwh} unit="kwh" />
+        </div>
 
-      <div className="flex flex-col gap-2">
-        <h3 className="text-sm font-medium uppercase tracking-wide text-ink-muted">
-          Terugverdientijd
-        </h3>
-        <ScenarioBandFigure band={battery.payback_years} unit="years" />
-      </div>
+        <div className="flex flex-col gap-2">
+          <h3 className="text-sm font-medium uppercase tracking-wide text-ink-muted">
+            Wat die maat per jaar oplevert
+          </h3>
+          <ScenarioBandFigure band={battery.annual_saving_eur} unit="eur" />
+        </div>
 
-      <div className="flex flex-col gap-2">
-        <h3 className="text-sm font-medium uppercase tracking-wide text-ink-muted">
-          Prijs per kWh waarbij hij precies uit kan
-        </h3>
-        <ScenarioBandFigure band={battery.break_even_cost_per_kwh} unit="eur_per_kwh" />
-      </div>
+        <div className="flex flex-col gap-2">
+          <h3 className="text-sm font-medium uppercase tracking-wide text-ink-muted">
+            Terugverdientijd
+          </h3>
+          <ScenarioBandFigure band={battery.payback_years} unit="years" />
+        </div>
 
-      <div className="flex flex-col gap-4">
-        <h3 className="text-sm font-medium uppercase tracking-wide text-ink-muted">
-          Wat andere maten zouden opleveren
-        </h3>
-        <ul className="flex flex-col gap-5">
-          {battery.curve.map(([capacity, band]) => (
-            <li key={capacity} className="flex flex-col gap-2">
-              {/*
-               * The capacity is a coordinate and not a figure with a margin:
-               * it names which simulation the band beside it came from. The
-               * band is the answer, and it is the thing that carries a range.
-               */}
-              <p className="text-sm text-ink-muted">{capacity} kWh opslag</p>
-              <ScenarioBandFigure band={band} unit="eur" />
-            </li>
-          ))}
-        </ul>
+        <div className="flex flex-col gap-2">
+          <h3 className="text-sm font-medium uppercase tracking-wide text-ink-muted">
+            Prijs per kWh waarbij hij precies uit kan
+          </h3>
+          <ScenarioBandFigure
+            band={battery.break_even_cost_per_kwh}
+            unit="eur_per_kwh"
+          />
+        </div>
+
+        <div className="flex flex-col gap-4">
+          <h3 className="text-sm font-medium uppercase tracking-wide text-ink-muted">
+            Wat andere maten zouden opleveren
+          </h3>
+          <ul className="flex flex-col gap-5">
+            {battery.curve.map(([capacity, band]) => (
+              <li key={capacity} className="flex flex-col gap-2">
+                {/*
+                 * The capacity is a coordinate and not a figure with a margin:
+                 * it names which simulation the band beside it came from. The
+                 * band is the answer, and it is the thing that carries a range.
+                 */}
+                <p className="text-sm text-ink-muted">{capacity} kWh opslag</p>
+                <ScenarioBandFigure band={band} unit="eur" />
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </section>
   );
@@ -87,7 +155,9 @@ function BatteryBlock({ battery }: { readonly battery: BatteryAdvice }) {
 
 /** The two calls to action. There is no third and neither leaves for a seller. */
 function CallsToAction({ shareUrl }: { readonly shareUrl: string }) {
-  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
+    "idle",
+  );
 
   async function copy() {
     try {
@@ -102,21 +172,22 @@ function CallsToAction({ shareUrl }: { readonly shareUrl: string }) {
   }
 
   return (
-    <section aria-labelledby="verder" className="flex flex-col gap-5 border-t border-hairline pt-8">
+    <section
+      aria-labelledby="verder"
+      className="flex flex-col gap-5 border-t border-hairline pt-8"
+    >
       <h2 id="verder" className="text-xl font-medium">
         Verder
       </h2>
 
       <div className="flex flex-col gap-2">
         <p className="text-ink-muted">
-          Vijf vragen erbij maken deze uitkomst scherper: of er overdag iemand thuis is, hoe de
-          auto laadt, of er een warmtepomp is, wat voor contract u heeft en of er al opslag is.
+          Vijf vragen erbij maken deze uitkomst scherper: of er overdag iemand
+          thuis is, hoe de auto laadt, of er een warmtepomp is, wat voor
+          contract u heeft en of er al opslag is.
         </p>
         <p>
-          <Link
-            href={REFINE_HREF}
-            className="inline-flex rounded-md bg-accent px-5 py-3 font-medium text-on-accent"
-          >
+          <Link href={REFINE_HREF} className="button-accent">
             Verfijn uw antwoord
           </Link>
         </p>
@@ -124,7 +195,8 @@ function CallsToAction({ shareUrl }: { readonly shareUrl: string }) {
 
       <div className="flex flex-col gap-2">
         <p className="text-ink-muted">
-          Deze link opent dit advies opnieuw, zonder account. Bewaar hem als u er later bij wilt.
+          Deze link opent dit advies opnieuw, zonder account. Bewaar hem als u
+          er later bij wilt.
         </p>
         <p className="break-all font-mono text-sm text-ink">{shareUrl}</p>
         <p className="flex items-center gap-3">
@@ -137,7 +209,8 @@ function CallsToAction({ shareUrl }: { readonly shareUrl: string }) {
           </button>
           <span role="status" className="text-sm text-ink-muted">
             {copyState === "copied" && "Gekopieerd."}
-            {copyState === "failed" && "Kopieren lukte niet. Neem de link hierboven over."}
+            {copyState === "failed" &&
+              "Kopieren lukte niet. Neem de link hierboven over."}
           </span>
         </p>
       </div>
@@ -148,8 +221,14 @@ function CallsToAction({ shareUrl }: { readonly shareUrl: string }) {
 /** What the answer was computed with, so the reader can check it against the methodology. */
 function Provenance({ advice }: { readonly advice: Advice }) {
   return (
-    <section aria-labelledby="herkomst" className="flex flex-col gap-3 border-t border-hairline pt-8">
-      <h2 id="herkomst" className="text-sm font-medium uppercase tracking-wide text-ink-muted">
+    <section
+      aria-labelledby="herkomst"
+      className="flex flex-col gap-3 border-t border-hairline pt-8"
+    >
+      <h2
+        id="herkomst"
+        className="text-sm font-medium uppercase tracking-wide text-ink-muted"
+      >
         Waarmee gerekend is
       </h2>
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-sm text-ink-muted">
@@ -169,7 +248,10 @@ function Provenance({ advice }: { readonly advice: Advice }) {
         it was changes how much weight the whole answer deserves, so it belongs
         on the page rather than in a log.
       */}
-      <p data-role="production-source" className="max-w-prose text-sm text-ink-muted">
+      <p
+        data-role="production-source"
+        className="max-w-prose text-sm text-ink-muted"
+      >
         {advice.production_source_text}
       </p>
     </section>
@@ -198,6 +280,7 @@ export default function AdviesPage() {
   const [fetchFailure, setFetchFailure] = useState<string | null>(null);
   const shareUrl = useLocationHref();
   const path = useLocationPath();
+  const heading = useRef<HTMLHeadingElement>(null);
   // Three states, not two. Undefined is the built HTML, where there is no URL
   // to read; null is a URL with no token in it. Collapsing them would put the
   // "this link has no advice in it" screen into every static build.
@@ -218,6 +301,14 @@ export default function AdviesPage() {
     };
   }, [token]);
 
+  // Focus follows the answer. Nothing on this page is a navigation, so without
+  // this the visitor is left wherever they were when the request went out,
+  // which for somebody arriving on a shared link is the top of a document that
+  // has just changed underneath them.
+  useEffect(() => {
+    if (advice !== null) heading.current?.focus();
+  }, [advice]);
+
   const failure =
     token === null
       ? "Deze pagina hoort bij een berekening en er staat er geen in de link."
@@ -226,8 +317,10 @@ export default function AdviesPage() {
   if (failure !== null) {
     return (
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-6 py-16">
-        <h1 className="text-2xl font-bold">Dit advies konden wij niet laten zien</h1>
-        <p role="alert" className="text-danger">
+        <h1 className="text-2xl font-bold">
+          Dit advies konden wij niet laten zien
+        </h1>
+        <p role="alert" className="notice-danger">
           {failure}
         </p>
         <p>
@@ -239,40 +332,64 @@ export default function AdviesPage() {
     );
   }
 
-  if (advice === null) {
-    // Not a blank page and not a spinner without an end. It says what is
-    // happening, and the failure branch above is what replaces it when the
-    // request does not arrive, so there is no state in which this sentence
-    // stays on the screen forever.
-    return (
-      <div className="mx-auto w-full max-w-3xl px-6 py-16">
-        <h1 className="text-2xl font-bold">Uw advies wordt opgehaald</h1>
-        <p role="status" className="mt-4 text-ink-muted">
-          Een moment, wij halen de doorrekening op die bij deze link hoort.
-        </p>
-      </div>
-    );
-  }
+  /*
+   * One live region, present in both states, whose text changes.
+   *
+   * The loading sentence used to live in a paragraph that was replaced wholesale
+   * by the answer. Removing a live region announces nothing, the arriving
+   * content was inside no live region of its own, and focus did not move, so a
+   * screen reader opening a shared link heard "Een moment" and then silence for
+   * as long as the visitor was prepared to wait. Keeping one element in the same
+   * place in the tree and changing its words is what makes the second sentence
+   * an announcement rather than a repaint.
+   *
+   * It is visually hidden because the visible half is already said twice over:
+   * by the heading while the answer is coming, and by the answer itself once it
+   * is here.
+   */
+  const announcement =
+    advice === null
+      ? "Een moment, wij halen de doorrekening op die bij deze link hoort."
+      : "Uw advies is opgehaald.";
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-12 px-6 py-12">
-      <section className="flex flex-col gap-6">
-        <h1 className="text-2xl font-bold">Wat het einde van de saldering u per jaar kost</h1>
-        <HeadlineBand
-          band={advice.headline}
-          confidence={advice.confidence}
-          label={advice.confidence_label}
-        />
-      </section>
+      <p role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
 
-      {advice.routes.map((route) => (
-        <RouteSection key={route.route} route={route} />
-      ))}
+      {advice === null ? (
+        // Not a blank page and not a spinner without an end. It says what is
+        // happening, and the failure branch above is what replaces it when the
+        // request does not arrive, so there is no state in which this sentence
+        // stays on the screen forever.
+        <section className="flex flex-col gap-4 py-4">
+          <h1 className="text-2xl font-bold">Uw advies wordt opgehaald</h1>
+          <p className="text-ink-muted">{announcement}</p>
+        </section>
+      ) : (
+        <>
+          <section className="flex flex-col gap-6">
+            <h1 ref={heading} tabIndex={-1} className="text-2xl font-bold">
+              Wat het einde van de saldering u per jaar kost
+            </h1>
+            <HeadlineBand
+              band={advice.headline}
+              confidence={advice.confidence}
+              label={advice.confidence_label}
+            />
+          </section>
 
-      {advice.battery !== null && <BatteryBlock battery={advice.battery} />}
+          {advice.routes.map((route) => (
+            <RouteSection key={route.route} route={route} />
+          ))}
 
-      <CallsToAction shareUrl={shareUrl} />
-      <Provenance advice={advice} />
+          {advice.battery !== null && <BatteryBlock battery={advice.battery} />}
+
+          <CallsToAction shareUrl={shareUrl} />
+          <Provenance advice={advice} />
+        </>
+      )}
     </div>
   );
 }

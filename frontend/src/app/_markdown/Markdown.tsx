@@ -12,7 +12,9 @@ const HEADING_CLASS: Readonly<Record<number, string>> = {
 
 function renderSpans(spans: readonly Span[]): ReactNode {
   return spans.map((span, index) => (
-    <Fragment key={index}>{span.bold ? <strong>{span.text}</strong> : span.text}</Fragment>
+    <Fragment key={index}>
+      {span.bold ? <strong>{span.text}</strong> : span.text}
+    </Fragment>
   ));
 }
 
@@ -24,7 +26,10 @@ function renderBlock(block: Block, key: number): ReactNode {
     // page that has its own structure.
     const Tag = `h${block.level}` as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
     return (
-      <Tag key={key} className={HEADING_CLASS[block.level] ?? "mt-6 font-medium"}>
+      <Tag
+        key={key}
+        className={HEADING_CLASS[block.level] ?? "mt-6 font-medium"}
+      >
         {renderSpans(block.spans)}
       </Tag>
     );
@@ -38,7 +43,10 @@ function renderBlock(block: Block, key: number): ReactNode {
   }
   if (block.kind === "list") {
     return (
-      <ul key={key} className="mt-4 flex list-disc flex-col gap-2 pl-5 text-ink-muted">
+      <ul
+        key={key}
+        className="mt-4 flex list-disc flex-col gap-2 pl-5 text-ink-muted"
+      >
         {block.items.map((item, index) => (
           <li key={index}>{renderSpans(item)}</li>
         ))}
@@ -50,7 +58,13 @@ function renderBlock(block: Block, key: number): ReactNode {
     // its own scroller with a tab stop, rather than pushing the page sideways
     // on a phone. tabIndex makes the scroller reachable from the keyboard,
     // which is what WCAG 2.2 asks of any region that scrolls.
-    <div key={key} className="mt-6 overflow-x-auto" tabIndex={0} role="group" aria-label="Tabel">
+    <div
+      key={key}
+      className="mt-6 overflow-x-auto"
+      tabIndex={0}
+      role="group"
+      aria-label="Tabel"
+    >
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr>
@@ -69,7 +83,10 @@ function renderBlock(block: Block, key: number): ReactNode {
           {block.rows.map((row, rowIndex) => (
             <tr key={rowIndex}>
               {row.map((cell, cellIndex) => (
-                <td key={cellIndex} className="border-b border-hairline px-3 py-2 text-ink-muted">
+                <td
+                  key={cellIndex}
+                  className="border-b border-hairline px-3 py-2 text-ink-muted"
+                >
                   {renderSpans(cell)}
                 </td>
               ))}
@@ -93,5 +110,9 @@ interface Props {
  * to answer. See `parse.ts` for what is supported and what happens to the rest.
  */
 export function Markdown({ source }: Props) {
-  return <>{parseMarkdown(source).map((block, index) => renderBlock(block, index))}</>;
+  return (
+    <>
+      {parseMarkdown(source).map((block, index) => renderBlock(block, index))}
+    </>
+  );
 }

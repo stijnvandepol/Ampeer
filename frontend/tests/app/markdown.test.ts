@@ -1,20 +1,35 @@
 import { describe, expect, it } from "vitest";
 import { loadMethodology } from "@/lib/methodology";
-import { UnsupportedMarkdown, parseMarkdown, parseSpans } from "@/app/_markdown/parse";
+import {
+  UnsupportedMarkdown,
+  parseMarkdown,
+  parseSpans,
+} from "@/app/_markdown/parse";
 
 describe("the markdown the methodology page is built from", () => {
   it("reads a heading with its level", () => {
     expect(parseMarkdown("## Kort samengevat")).toEqual([
-      { kind: "heading", level: 2, spans: [{ text: "Kort samengevat", bold: false }] },
+      {
+        kind: "heading",
+        level: 2,
+        spans: [{ text: "Kort samengevat", bold: false }],
+      },
     ]);
   });
 
   it("joins the lines of a wrapped paragraph", () => {
-    const blocks = parseMarkdown("Wij bouwen uit jouw antwoorden\neen patroon van een jaar.");
+    const blocks = parseMarkdown(
+      "Wij bouwen uit jouw antwoorden\neen patroon van een jaar.",
+    );
     expect(blocks).toEqual([
       {
         kind: "paragraph",
-        spans: [{ text: "Wij bouwen uit jouw antwoorden een patroon van een jaar.", bold: false }],
+        spans: [
+          {
+            text: "Wij bouwen uit jouw antwoorden een patroon van een jaar.",
+            bold: false,
+          },
+        ],
       },
     ]);
   });
@@ -32,24 +47,39 @@ describe("the markdown the methodology page is built from", () => {
     expect(blocks).toEqual([
       {
         kind: "list",
-        items: [[{ text: "eerste regel loopt door", bold: false }], [{ text: "tweede", bold: false }]],
+        items: [
+          [{ text: "eerste regel loopt door", bold: false }],
+          [{ text: "tweede", bold: false }],
+        ],
       },
     ]);
   });
 
   it("reads a pipe table as a header and rows", () => {
-    const blocks = parseMarkdown("| Wat | Laag |\n|---|---|\n| Stroomprijs | 0,22 |");
+    const blocks = parseMarkdown(
+      "| Wat | Laag |\n|---|---|\n| Stroomprijs | 0,22 |",
+    );
     expect(blocks).toEqual([
       {
         kind: "table",
-        header: [[{ text: "Wat", bold: false }], [{ text: "Laag", bold: false }]],
-        rows: [[[{ text: "Stroomprijs", bold: false }], [{ text: "0,22", bold: false }]]],
+        header: [
+          [{ text: "Wat", bold: false }],
+          [{ text: "Laag", bold: false }],
+        ],
+        rows: [
+          [
+            [{ text: "Stroomprijs", bold: false }],
+            [{ text: "0,22", bold: false }],
+          ],
+        ],
       },
     ]);
   });
 
   it("does not swallow the paragraph that follows a block", () => {
-    const blocks = parseMarkdown("# Titel\n\n- een\n\nDaarna.\n\n| a |\n|---|\n| b |");
+    const blocks = parseMarkdown(
+      "# Titel\n\n- een\n\nDaarna.\n\n| a |\n|---|\n| b |",
+    );
     expect(blocks.map((block) => block.kind)).toEqual([
       "heading",
       "list",
@@ -86,6 +116,8 @@ describe("the markdown the methodology page is built from", () => {
     const blocks = parseMarkdown(await loadMethodology());
     const kinds = new Set(blocks.map((block) => block.kind));
     expect(kinds).toEqual(new Set(["heading", "paragraph", "list", "table"]));
-    expect(blocks.filter((block) => block.kind === "table").length).toBeGreaterThan(0);
+    expect(
+      blocks.filter((block) => block.kind === "table").length,
+    ).toBeGreaterThan(0);
   });
 });

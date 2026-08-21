@@ -92,12 +92,17 @@ describe("the answers, on their way to the API", () => {
 
   it("is null while round one is incomplete", () => {
     expect(toEstimateInput({ ...ROUND_ONE, peakPowerWp: null })).toBeNull();
-    expect(toEstimateInput({ ...ROUND_ONE, annualConsumptionKwh: null })).toBeNull();
+    expect(
+      toEstimateInput({ ...ROUND_ONE, annualConsumptionKwh: null }),
+    ).toBeNull();
     expect(toEstimateInput(EMPTY_ANSWERS)).toBeNull();
   });
 
   it("turns the one car question into the two fields the serializer wants", () => {
-    expect(toRefineInput(ROUND_TWO)).toMatchObject({ has_ev: true, ev_behaviour: "SOLAR" });
+    expect(toRefineInput(ROUND_TWO)).toMatchObject({
+      has_ev: true,
+      ev_behaviour: "SOLAR",
+    });
     expect(toRefineInput({ ...ROUND_TWO, ev: "NONE" })).toMatchObject({
       has_ev: false,
       ev_behaviour: null,
@@ -107,7 +112,9 @@ describe("the answers, on their way to the API", () => {
   it("refuses each yes that did not bring its detail, the way the serializer does", () => {
     expect(toRefineInput({ ...ROUND_TWO, heatPump: true })).toBeNull();
     expect(toRefineInput({ ...ROUND_TWO, battery: true })).toBeNull();
-    expect(toRefineInput({ ...ROUND_TWO, heatPump: true, heatDemandKwh: 2400 })).toMatchObject({
+    expect(
+      toRefineInput({ ...ROUND_TWO, heatPump: true, heatDemandKwh: 2400 }),
+    ).toMatchObject({
       has_heat_pump: true,
       heat_demand_kwh: 2400,
     });
@@ -142,7 +149,9 @@ describe("the question the visitor is looking at", () => {
     expect(stepComplete(ROUND_ONE, 1, 1)).toBe(true);
     expect(stepComplete(ROUND_ONE, 1, 2)).toBe(true);
     expect(stepComplete(ROUND_ONE, 1, 3)).toBe(true);
-    expect(stepComplete({ ...ROUND_ONE, roofAnswered: false }, 1, 2)).toBe(false);
+    expect(stepComplete({ ...ROUND_ONE, roofAnswered: false }, 1, 2)).toBe(
+      false,
+    );
   });
 
   it("checks the three pairs of round two as pairs", () => {
@@ -191,9 +200,15 @@ describe("the half filled form, across a reload", () => {
   it("survives a storage that is empty, broken, or not there at all", () => {
     expect(loadAnswers(undefined)).toEqual(EMPTY_ANSWERS);
     expect(loadAnswers(memoryStorage())).toEqual(EMPTY_ANSWERS);
-    expect(loadAnswers(memoryStorage({ [ANSWERS_STORAGE_KEY]: "{" }))).toEqual(EMPTY_ANSWERS);
-    expect(loadAnswers(memoryStorage({ [ANSWERS_STORAGE_KEY]: "[1,2]" }))).toEqual(EMPTY_ANSWERS);
-    expect(loadAnswers(memoryStorage({ [ANSWERS_STORAGE_KEY]: "null" }))).toEqual(EMPTY_ANSWERS);
+    expect(loadAnswers(memoryStorage({ [ANSWERS_STORAGE_KEY]: "{" }))).toEqual(
+      EMPTY_ANSWERS,
+    );
+    expect(
+      loadAnswers(memoryStorage({ [ANSWERS_STORAGE_KEY]: "[1,2]" })),
+    ).toEqual(EMPTY_ANSWERS);
+    expect(
+      loadAnswers(memoryStorage({ [ANSWERS_STORAGE_KEY]: "null" })),
+    ).toEqual(EMPTY_ANSWERS);
     expect(loadAnswers(throwingStorage())).toEqual(EMPTY_ANSWERS);
   });
 

@@ -19,7 +19,9 @@ export function RuleCard({ rule }: Props) {
   return (
     <article className={styles.rule} data-rule-id={rule.rule_id}>
       <p className={styles.ruleText}>{rule.text}</p>
-      {rule.saving_eur === null ? null : <ScenarioBandFigure band={rule.saving_eur} unit="eur" />}
+      {rule.saving_eur === null ? null : (
+        <ScenarioBandFigure band={rule.saving_eur} unit="eur" />
+      )}
     </article>
   );
 }

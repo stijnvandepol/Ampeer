@@ -8,7 +8,11 @@ import {
   readStoredChoice,
   writeStoredChoice,
 } from "@/app/_shell/theme";
-import { ADVICE_BASE_PATH, advicePath, tokenFromPath } from "@/app/_advice/link";
+import {
+  ADVICE_BASE_PATH,
+  advicePath,
+  tokenFromPath,
+} from "@/app/_advice/link";
 
 function memoryStorage(initial: Record<string, string> = {}) {
   const map = new Map(Object.entries(initial));
@@ -31,12 +35,18 @@ describe("the explicit light and dark choice", () => {
   it("follows the system until somebody says otherwise", () => {
     expect(readStoredChoice(memoryStorage())).toBe(DEFAULT_THEME_CHOICE);
     expect(readStoredChoice(undefined)).toBe("system");
-    expect(readStoredChoice(memoryStorage({ [THEME_STORAGE_KEY]: "solarized" }))).toBe("system");
+    expect(
+      readStoredChoice(memoryStorage({ [THEME_STORAGE_KEY]: "solarized" })),
+    ).toBe("system");
   });
 
   it("reads back a stored choice", () => {
-    expect(readStoredChoice(memoryStorage({ [THEME_STORAGE_KEY]: "dark" }))).toBe("dark");
-    expect(readStoredChoice(memoryStorage({ [THEME_STORAGE_KEY]: "light" }))).toBe("light");
+    expect(
+      readStoredChoice(memoryStorage({ [THEME_STORAGE_KEY]: "dark" })),
+    ).toBe("dark");
+    expect(
+      readStoredChoice(memoryStorage({ [THEME_STORAGE_KEY]: "light" })),
+    ).toBe("light");
   });
 
   it("stores a choice and removes it again when the visitor goes back to the system", () => {
@@ -82,13 +92,19 @@ describe("the explicit light and dark choice", () => {
 
 describe("the shareable link", () => {
   it("puts the token in the path, with the trailing slash next.config.ts produces", () => {
-    expect(advicePath("FIXTUREfixture00000000")).toBe("/advies/FIXTUREfixture00000000/");
+    expect(advicePath("FIXTUREfixture00000000")).toBe(
+      "/advies/FIXTUREfixture00000000/",
+    );
     expect(advicePath("x").startsWith(`${ADVICE_BASE_PATH}/`)).toBe(true);
   });
 
   it("reads the token back out of a pathname", () => {
-    expect(tokenFromPath("/advies/FIXTUREfixture00000000/")).toBe("FIXTUREfixture00000000");
-    expect(tokenFromPath("/advies/FIXTUREfixture00000000")).toBe("FIXTUREfixture00000000");
+    expect(tokenFromPath("/advies/FIXTUREfixture00000000/")).toBe(
+      "FIXTUREfixture00000000",
+    );
+    expect(tokenFromPath("/advies/FIXTUREfixture00000000")).toBe(
+      "FIXTUREfixture00000000",
+    );
   });
 
   it("says there is none rather than guessing", () => {

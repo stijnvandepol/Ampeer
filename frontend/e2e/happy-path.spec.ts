@@ -38,7 +38,10 @@ async function stubApi(page: Page, recorded: Recorded[]): Promise<void> {
       return;
     }
     if (request.method() === "POST") {
-      recorded.push({ url: request.url(), body: request.postDataJSON() as unknown });
+      recorded.push({
+        url: request.url(),
+        body: request.postDataJSON() as unknown,
+      });
     }
     await route.fulfill({
       status: request.method() === "POST" ? 201 : 200,
@@ -49,7 +52,9 @@ async function stubApi(page: Page, recorded: Recorded[]): Promise<void> {
   });
 }
 
-test("a visitor answers four questions and lands on an advice", async ({ page }) => {
+test("a visitor answers four questions and lands on an advice", async ({
+  page,
+}) => {
   const recorded: Recorded[] = [];
   await stubApi(page, recorded);
 
@@ -89,7 +94,9 @@ test("a visitor answers four questions and lands on an advice", async ({ page })
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Wat het einde van de saldering u per jaar kost",
   );
-  await expect(page.getByText(fixture.confidence_label, { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByText(fixture.confidence_label, { exact: true }).first(),
+  ).toBeVisible();
 
   const posted = recorded.filter((entry) => entry.url.includes("/estimate/"));
   expect(posted).toHaveLength(1);
@@ -112,23 +119,33 @@ test("the shareable link opens the advice in a browser that has never been here"
   await stubApi(page, []);
   await page.goto(`/advies/${TOKEN}/`);
 
-  await expect(page.getByText(fixture.confidence_label, { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByText(fixture.confidence_label, { exact: true }).first(),
+  ).toBeVisible();
   await expect(page.locator('[data-band-kind="percentile"]')).toBeVisible();
   // Every fired rule from the fixture reached the page, keyed by its own id,
   // so the advice stays traceable back to the rule that produced it.
   for (const route of fixture.routes) {
     for (const rule of route.rules) {
-      await expect(page.locator(`[data-rule-id="${rule.rule_id}"]`)).toBeVisible();
+      await expect(
+        page.locator(`[data-rule-id="${rule.rule_id}"]`),
+      ).toBeVisible();
     }
   }
   await context.close();
 });
 
-test("a token the API never issued is refused without a request", async ({ page }) => {
+test("a token the API never issued is refused without a request", async ({
+  page,
+}) => {
   const seen: string[] = [];
   await page.route("**/api/advice/**", async (route) => {
     seen.push(route.request().url());
-    await route.fulfill({ status: 404, contentType: "application/json", body: "{}" });
+    await route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: "{}",
+    });
   });
 
   await page.goto("/advies/nietEenToken/");
@@ -140,9 +157,13 @@ test("a token the API never issued is refused without a request", async ({ page 
   expect(seen).toEqual([]);
 });
 
-test("the methodology page is the file from the repository, rendered", async ({ page }) => {
+test("the methodology page is the file from the repository, rendered", async ({
+  page,
+}) => {
   await page.goto("/methodologie/");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Hoe Ampeer rekent");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Hoe Ampeer rekent",
+  );
   // A table from the document, as a table rather than as pipes.
   await expect(page.getByRole("table").first()).toBeVisible();
   // Nothing was injected as markup: the source is Markdown and the renderer

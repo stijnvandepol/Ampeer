@@ -29,13 +29,17 @@ async function serveFixture(page: Page): Promise<void> {
   );
 }
 
-test("the choice is applied before anything else on the page runs", async ({ page }) => {
+test("the choice is applied before anything else on the page runs", async ({
+  page,
+}) => {
   // Written straight into storage, so the first document this browser loads is
   // already one where the choice and the system preference disagree. That is
   // the case the inline script exists for and the only one where a flash is
   // visible.
   await page.goto("/");
-  await page.evaluate(() => window.localStorage.setItem("ampeer-thema", "dark"));
+  await page.evaluate(() =>
+    window.localStorage.setItem("ampeer-thema", "dark"),
+  );
 
   await page.goto("/methodologie/");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
@@ -48,15 +52,20 @@ test("the choice is applied before anything else on the page runs", async ({ pag
   // whole claim: the attribute is on the root element before there is
   // anything on screen to be wrong about.
   const order = await page.evaluate(() => {
-    const nodes = [...document.querySelectorAll("script, header, main, footer")];
+    const nodes = [
+      ...document.querySelectorAll("script, header, main, footer"),
+    ];
     const isTheme = (node: Element) =>
-      node.tagName === "SCRIPT" && (node.textContent ?? "").includes("ampeer-thema");
+      node.tagName === "SCRIPT" &&
+      (node.textContent ?? "").includes("ampeer-thema");
     const inline = nodes.findIndex(isTheme);
     const themeScript = nodes[inline] as HTMLScriptElement | undefined;
     const blockingBefore = nodes
       .slice(0, Math.max(inline, 0))
       .filter((node): node is HTMLScriptElement => node.tagName === "SCRIPT")
-      .filter((script) => !script.async && !script.defer && !script.noModule).length;
+      .filter(
+        (script) => !script.async && !script.defer && !script.noModule,
+      ).length;
     return {
       inline,
       firstVisible: nodes.findIndex((node) => node.tagName !== "SCRIPT"),
@@ -64,14 +73,28 @@ test("the choice is applied before anything else on the page runs", async ({ pag
       deferred: themeScript?.async === true || themeScript?.defer === true,
     };
   });
-  expect(order.inline, "the theme script is not in the document at all").toBeGreaterThanOrEqual(0);
-  expect(order.firstVisible, "no header, main or footer was found").toBeGreaterThanOrEqual(0);
+  expect(
+    order.inline,
+    "the theme script is not in the document at all",
+  ).toBeGreaterThanOrEqual(0);
+  expect(
+    order.firstVisible,
+    "no header, main or footer was found",
+  ).toBeGreaterThanOrEqual(0);
   expect(order.inline).toBeLessThan(order.firstVisible);
-  expect(order.blockingBefore, "a blocking script runs before the theme is decided").toBe(0);
-  expect(order.deferred, "the theme script is deferred, so it cannot beat the paint").toBe(false);
+  expect(
+    order.blockingBefore,
+    "a blocking script runs before the theme is decided",
+  ).toBe(0);
+  expect(
+    order.deferred,
+    "the theme script is deferred, so it cannot beat the paint",
+  ).toBe(false);
 });
 
-test("the visitor can pick a palette, and it survives the next page", async ({ page }) => {
+test("the visitor can pick a palette, and it survives the next page", async ({
+  page,
+}) => {
   await page.goto("/");
   await page.getByLabel("Thema").selectOption("dark");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
@@ -96,8 +119,11 @@ test("every route passes axe in the dark palette too", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
   for (const path of ALL_PATHS) {
     await page.goto(path);
-    await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
-    if (path === ADVICE_PATH) await expect(page.locator("[data-band-kind]").first()).toBeVisible();
+    await page.evaluate(() =>
+      document.documentElement.setAttribute("data-theme", "dark"),
+    );
+    if (path === ADVICE_PATH)
+      await expect(page.locator("[data-band-kind]").first()).toBeVisible();
     const results = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag22aa"])
       .analyze();

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { COMPASS_AZIMUTH_DEG, RoofPicker } from "@/components/form/RoofPicker";
 
@@ -24,7 +24,9 @@ describe("the roof picker", () => {
 
   it("offers every direction the mapping knows", () => {
     render(<RoofPicker azimuth={0} tilt={35} onChange={() => {}} />);
-    expect(screen.getAllByRole("radio")).toHaveLength(Object.keys(COMPASS_AZIMUTH_DEG).length);
+    expect(screen.getAllByRole("radio")).toHaveLength(
+      Object.keys(COMPASS_AZIMUTH_DEG).length,
+    );
   });
 
   it("reports whole degrees, because that is what the cache is keyed on", async () => {
@@ -70,17 +72,77 @@ describe("the roof picker", () => {
     expect(screen.getByRole("radio", { name: /^noord$/i })).toBeChecked();
   });
 
+  it("checks nothing for an azimuth that is not one of the eight", () => {
+    // A restored session carries whatever was stored, and storage is the
+    // browser, where anything may have written it. 37 degrees is not a
+    // direction this control offers, so it shows none as chosen rather than
+    // rounding it into one the visitor never picked.
+    render(<RoofPicker azimuth={37} tilt={35} onChange={() => {}} />);
+    for (const radio of screen.getAllByRole("radio")) {
+      expect(radio).not.toBeChecked();
+    }
+  });
+
   it("is operable from the keyboard alone", async () => {
     const onChange = vi.fn();
     render(<RoofPicker azimuth={0} tilt={35} onChange={onChange} />);
     await userEvent.tab();
     await userEvent.keyboard("{ArrowRight}");
     expect(onChange).toHaveBeenCalled();
-    expect(Number.isInteger(onChange.mock.calls.at(-1)?.[0].azimuth)).toBe(true);
+    expect(Number.isInteger(onChange.mock.calls.at(-1)?.[0].azimuth)).toBe(
+      true,
+    );
+  });
+
+  it("checks nothing at all before a direction has been chosen", () => {
+    // South is the most common roof in the Netherlands and the one this
+    // control used to start on, which made it the one direction that could not
+    // be given as an answer. A radio that arrives checked is announced as
+    // "Zuid, aangevinkt" to a screen reader, so the interface asserts an
+    // answer nobody gave, and clicking or pressing Space on an already checked
+    // radio fires no change event, so choosing it changes nothing. The only
+    // way out was to pick a wrong direction and come back.
+    render(<RoofPicker azimuth={null} tilt={35} onChange={() => {}} />);
+    for (const radio of screen.getAllByRole("radio")) {
+      expect(radio).not.toBeChecked();
+    }
+  });
+
+  it("reports no direction when only the tilt was moved", () => {
+    // The tilt is half of one question and the direction is the other half.
+    // A visitor who nudges only the slider has said nothing about which way
+    // the roof faces, and an east roof simulated as a south roof raises
+    // nothing anywhere: it just answers about a house that does not exist.
+    const onChange = vi.fn();
+    render(<RoofPicker azimuth={null} tilt={35} onChange={onChange} />);
+    fireEvent.change(screen.getByRole("slider"), { target: { value: "40" } });
+    expect(onChange).toHaveBeenLastCalledWith({ azimuth: null, tilt: 40 });
+  });
+
+  it("keeps the direction already chosen when the tilt moves afterwards", () => {
+    const onChange = vi.fn();
+    render(<RoofPicker azimuth={-90} tilt={35} onChange={onChange} />);
+    fireEvent.change(screen.getByRole("slider"), { target: { value: "40" } });
+    expect(onChange).toHaveBeenLastCalledWith({ azimuth: -90, tilt: 40 });
+  });
+
+  it("lets south be chosen, which is the roof most of this country has", async () => {
+    const onChange = vi.fn();
+    render(<RoofPicker azimuth={null} tilt={35} onChange={onChange} />);
+    await userEvent.click(screen.getByRole("radio", { name: /^zuid$/i }));
+    expect(onChange).toHaveBeenLastCalledWith({ azimuth: 0, tilt: 35 });
   });
 
   it("keeps the tilt slider inside the bounds it was given", () => {
-    render(<RoofPicker azimuth={0} tilt={35} onChange={() => {}} tiltMin={10} tiltMax={60} />);
+    render(
+      <RoofPicker
+        azimuth={0}
+        tilt={35}
+        onChange={() => {}}
+        tiltMin={10}
+        tiltMax={60}
+      />,
+    );
     const slider = screen.getByRole("slider");
     expect(slider).toHaveAttribute("min", "10");
     expect(slider).toHaveAttribute("max", "60");

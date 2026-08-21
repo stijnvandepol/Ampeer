@@ -37,7 +37,11 @@ export interface Span {
 }
 
 export type Block =
-  | { readonly kind: "heading"; readonly level: number; readonly spans: readonly Span[] }
+  | {
+      readonly kind: "heading";
+      readonly level: number;
+      readonly spans: readonly Span[];
+    }
   | { readonly kind: "paragraph"; readonly spans: readonly Span[] }
   | { readonly kind: "list"; readonly items: readonly (readonly Span[])[] }
   | {
@@ -130,7 +134,11 @@ export function parseMarkdown(source: string): readonly Block[] {
     if (heading !== null) {
       const hashes = heading[1] ?? "";
       const text = heading[2] ?? "";
-      blocks.push({ kind: "heading", level: hashes.length, spans: parseSpans(text, number_) });
+      blocks.push({
+        kind: "heading",
+        level: hashes.length,
+        spans: parseSpans(text, number_),
+      });
       index += 1;
       continue;
     }
@@ -160,20 +168,28 @@ export function parseMarkdown(source: string): readonly Block[] {
         } else if (items.length > 0) {
           // A wrapped line belongs to the item above it. Markdown joins them
           // with a space; the source's own line breaks are not meaningful.
-          items[items.length - 1] = `${items[items.length - 1] ?? ""} ${current.trim()}`;
+          items[items.length - 1] =
+            `${items[items.length - 1] ?? ""} ${current.trim()}`;
         } else {
           break;
         }
         index += 1;
       }
-      blocks.push({ kind: "list", items: items.map((item) => parseSpans(item, number_)) });
+      blocks.push({
+        kind: "list",
+        items: items.map((item) => parseSpans(item, number_)),
+      });
       continue;
     }
 
     const paragraph: string[] = [];
     while (index < lines.length) {
       const current = lines[index] ?? "";
-      if (current.trim() === "" || isTableRow(current) || LIST_ITEM.test(current.trimStart())) {
+      if (
+        current.trim() === "" ||
+        isTableRow(current) ||
+        LIST_ITEM.test(current.trimStart())
+      ) {
         break;
       }
       if (HEADING.test(current.trimStart())) break;
@@ -181,7 +197,10 @@ export function parseMarkdown(source: string): readonly Block[] {
       paragraph.push(current.trim());
       index += 1;
     }
-    blocks.push({ kind: "paragraph", spans: parseSpans(paragraph.join(" "), number_) });
+    blocks.push({
+      kind: "paragraph",
+      spans: parseSpans(paragraph.join(" "), number_),
+    });
   }
 
   return blocks;

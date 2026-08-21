@@ -1,6 +1,11 @@
 "use client";
 
-import { EMPTY_ANSWERS, loadAnswers, saveAnswers, type Answers } from "./answers";
+import {
+  EMPTY_ANSWERS,
+  loadAnswers,
+  saveAnswers,
+  type Answers,
+} from "./answers";
 
 /**
  * sessionStorage as one store React can subscribe to.

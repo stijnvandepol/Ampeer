@@ -7,16 +7,22 @@ import { Markdown } from "@/app/_markdown/Markdown";
 import { SiteFooter } from "@/app/_shell/SiteFooter";
 import { SiteHeader } from "@/app/_shell/SiteHeader";
 import { THEME_ATTRIBUTE, THEME_STORAGE_KEY } from "@/app/_shell/theme";
-import { useLocationHref, useLocationPath, useSearchParam } from "@/app/_shell/browser";
+import {
+  useLocationHref,
+  useLocationPath,
+  useSearchParam,
+} from "@/app/_shell/browser";
 
 describe("the landing page", () => {
   it("leads into the four questions and nowhere else", () => {
     const { container } = render(<Home />);
     // The trailing slash is next.config.ts's doing and is added by the build,
     // not by Link, so this accepts the path with or without it.
-    expect(screen.getByRole("link", { name: "Beantwoord vier vragen" }).getAttribute("href")).toMatch(
-      /^\/berekenen\/?$/,
-    );
+    expect(
+      screen
+        .getByRole("link", { name: "Beantwoord vier vragen" })
+        .getAttribute("href"),
+    ).toMatch(/^\/berekenen\/?$/);
     const hrefs = [...container.querySelectorAll("a[href]")].map((element) =>
       element.getAttribute("href"),
     );
@@ -34,7 +40,12 @@ describe("the landing page", () => {
   it("carries no countdown and no scarcity", () => {
     const { container } = render(<Home />);
     const text = (container.textContent ?? "").toLowerCase();
-    for (const pattern of ["nog maar", "laatste kans", "huishoudens gingen", "mis niet"]) {
+    for (const pattern of [
+      "nog maar",
+      "laatste kans",
+      "huishoudens gingen",
+      "mis niet",
+    ]) {
       expect(text).not.toContain(pattern);
     }
   });
@@ -48,13 +59,16 @@ describe("the site shell", () => {
 
   it("names the pages that exist and adds no third call to action", () => {
     render(<SiteHeader />);
-    expect(screen.getByRole("link", { name: "Ampeer" })).toHaveAttribute("href", "/");
-    expect(screen.getByRole("link", { name: "Berekenen" }).getAttribute("href")).toMatch(
-      /^\/berekenen\/?$/,
+    expect(screen.getByRole("link", { name: "Ampeer" })).toHaveAttribute(
+      "href",
+      "/",
     );
-    expect(screen.getByRole("link", { name: "Methodologie" }).getAttribute("href")).toMatch(
-      /^\/methodologie\/?$/,
-    );
+    expect(
+      screen.getByRole("link", { name: "Berekenen" }).getAttribute("href"),
+    ).toMatch(/^\/berekenen\/?$/);
+    expect(
+      screen.getByRole("link", { name: "Methodologie" }).getAttribute("href"),
+    ).toMatch(/^\/methodologie\/?$/);
   });
 
   it("says what Ampeer does not sell", () => {
@@ -82,13 +96,19 @@ describe("the methodology page", () => {
     // An async server component: called, then rendered. It reads the file at
     // build time and there is no browser half of it at all.
     render(await MethodologiePage());
-    expect(screen.getByRole("heading", { level: 1, name: "Hoe Ampeer rekent" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Hoe Ampeer rekent" }),
+    ).toBeInTheDocument();
     expect(screen.getAllByRole("table").length).toBeGreaterThan(0);
   });
 
   it("renders markdown as elements and never as markup", () => {
     const { container } = render(
-      <Markdown source={"# Titel\n\nEen **vet** woord.\n\n- een\n- twee\n\n| a | b |\n|---|---|\n| 1 | 2 |"} />,
+      <Markdown
+        source={
+          "# Titel\n\nEen **vet** woord.\n\n- een\n- twee\n\n| a | b |\n|---|---|\n| 1 | 2 |"
+        }
+      />,
     );
     expect(container.querySelector("h1")?.textContent).toBe("Titel");
     expect(container.querySelector("strong")?.textContent).toBe("vet");
@@ -102,16 +122,23 @@ describe("the methodology page", () => {
   });
 
   it("gives a wide table its own scroller instead of pushing the page sideways", () => {
-    const { container } = render(<Markdown source={"| a | b |\n|---|---|\n| 1 | 2 |"} />);
+    const { container } = render(
+      <Markdown source={"| a | b |\n|---|---|\n| 1 | 2 |"} />,
+    );
     const scroller = container.querySelector(".overflow-x-auto");
     expect(scroller).not.toBeNull();
     expect(scroller?.getAttribute("tabindex")).toBe("0");
   });
 
   it("renders a heading at every level the document may use", () => {
-    const source = ["# een", "## twee", "### drie", "#### vier", "##### vijf", "###### zes"].join(
-      "\n\n",
-    );
+    const source = [
+      "# een",
+      "## twee",
+      "### drie",
+      "#### vier",
+      "##### vijf",
+      "###### zes",
+    ].join("\n\n");
     const { container } = render(<Markdown source={source} />);
     expect(container.querySelectorAll("h1,h2,h3,h4,h5,h6")).toHaveLength(6);
   });

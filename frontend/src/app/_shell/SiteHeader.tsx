@@ -17,11 +17,30 @@ export function SiteHeader() {
         <Link href="/" className="font-medium tracking-tight text-ink">
           Ampeer
         </Link>
-        <nav aria-label="Hoofdnavigatie" className="flex items-center gap-5">
-          <Link href="/berekenen/" className="text-sm text-ink-muted underline-offset-4 hover:underline">
+        {/*
+         * flex-wrap, and it is load bearing rather than tidy. The outer div
+         * wrapped and this nav did not, so it was one flex item 341px wide that
+         * could not break, and every page of the site had a horizontal
+         * scrollbar below about 390px: measured at 360x640, scrollWidth 366
+         * against clientWidth 360, on all four routes, and 365 against 320 at
+         * 400% zoom. 360 is the most common Android viewport in the
+         * Netherlands. WCAG 2.2 AA 1.4.10, and axe cannot see it at all, so
+         * e2e/rules.spec.ts measures the document instead.
+         */}
+        <nav
+          aria-label="Hoofdnavigatie"
+          className="flex flex-wrap items-center gap-x-5 gap-y-2"
+        >
+          <Link
+            href="/berekenen/"
+            className="text-sm text-ink-muted underline-offset-4 hover:underline"
+          >
             Berekenen
           </Link>
-          <Link href="/methodologie/" className="text-sm text-ink-muted underline-offset-4 hover:underline">
+          <Link
+            href="/methodologie/"
+            className="text-sm text-ink-muted underline-offset-4 hover:underline"
+          >
             Methodologie
           </Link>
           <ThemeToggle />

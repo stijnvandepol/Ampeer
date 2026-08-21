@@ -69,19 +69,28 @@ export const EMPTY_ANSWERS: Answers = {
  */
 export const ANSWERS_STORAGE_KEY = "ampeer-antwoorden";
 
-function readNumber(source: Record<string, unknown>, key: string): number | null {
+function readNumber(
+  source: Record<string, unknown>,
+  key: string,
+): number | null {
   const value = source[key];
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function readBoolean(source: Record<string, unknown>, key: string): boolean | null {
+function readBoolean(
+  source: Record<string, unknown>,
+  key: string,
+): boolean | null {
   const value = source[key];
   return typeof value === "boolean" ? value : null;
 }
 
 function readEv(source: Record<string, unknown>): EvAnswer | null {
   const value = source["ev"];
-  return value === "NONE" || value === "NIGHT" || value === "ARRIVAL" || value === "SOLAR"
+  return value === "NONE" ||
+    value === "NIGHT" ||
+    value === "ARRIVAL" ||
+    value === "SOLAR"
     ? value
     : null;
 }
@@ -94,7 +103,9 @@ function readEv(source: Record<string, unknown>): EvAnswer | null {
  * cast would put a string where a number belongs and the failure would surface
  * as a 400 from the API naming a field the visitor never saw.
  */
-export function loadAnswers(storage: Pick<Storage, "getItem"> | undefined): Answers {
+export function loadAnswers(
+  storage: Pick<Storage, "getItem"> | undefined,
+): Answers {
   if (storage === undefined) return EMPTY_ANSWERS;
   let parsed: unknown;
   try {
@@ -125,7 +136,10 @@ export function loadAnswers(storage: Pick<Storage, "getItem"> | undefined): Answ
   };
 }
 
-export function saveAnswers(storage: Pick<Storage, "setItem"> | undefined, answers: Answers): void {
+export function saveAnswers(
+  storage: Pick<Storage, "setItem"> | undefined,
+  answers: Answers,
+): void {
   if (storage === undefined) return;
   try {
     storage.setItem(ANSWERS_STORAGE_KEY, JSON.stringify(answers));
@@ -135,7 +149,9 @@ export function saveAnswers(storage: Pick<Storage, "setItem"> | undefined, answe
   }
 }
 
-export function clearAnswers(storage: Pick<Storage, "removeItem"> | undefined): void {
+export function clearAnswers(
+  storage: Pick<Storage, "removeItem"> | undefined,
+): void {
   if (storage === undefined) return;
   try {
     storage.removeItem(ANSWERS_STORAGE_KEY);
@@ -170,7 +186,11 @@ export function postcodeText(value: number): string | null {
  * checks them as pairs: a heat pump without a demand is refused there, and
  * finding that out three screens later is finding it out too late.
  */
-export function stepComplete(answers: Answers, round: 1 | 2, index: number): boolean {
+export function stepComplete(
+  answers: Answers,
+  round: 1 | 2,
+  index: number,
+): boolean {
   if (round === 1) {
     if (index === 0) return answers.postcode4 !== null;
     if (index === 1) return answers.peakPowerWp !== null;
@@ -179,15 +199,28 @@ export function stepComplete(answers: Answers, round: 1 | 2, index: number): boo
   }
   if (index === 0) return answers.daytimeOccupancy !== null;
   if (index === 1) return answers.ev !== null;
-  if (index === 2) return answers.heatPump !== null && (!answers.heatPump || answers.heatDemandKwh !== null);
+  if (index === 2)
+    return (
+      answers.heatPump !== null &&
+      (!answers.heatPump || answers.heatDemandKwh !== null)
+    );
   if (index === 3) return answers.dynamicContract !== null;
-  return answers.battery !== null && (!answers.battery || answers.batteryCapacityKwh !== null);
+  return (
+    answers.battery !== null &&
+    (!answers.battery || answers.batteryCapacityKwh !== null)
+  );
 }
 
 /** Round one is complete when all five values are present and the roof was set. */
 export function toEstimateInput(answers: Answers): EstimateInput | null {
-  const { postcode4, peakPowerWp, annualConsumptionKwh, roofAnswered } = answers;
-  if (postcode4 === null || peakPowerWp === null || annualConsumptionKwh === null) return null;
+  const { postcode4, peakPowerWp, annualConsumptionKwh, roofAnswered } =
+    answers;
+  if (
+    postcode4 === null ||
+    peakPowerWp === null ||
+    annualConsumptionKwh === null
+  )
+    return null;
   if (!roofAnswered) return null;
   const postcode = postcodeText(postcode4);
   if (postcode === null) return null;
@@ -212,9 +245,17 @@ export function toEstimateInput(answers: Answers): EstimateInput | null {
 export function toRefineInput(answers: Answers): RefineInput | null {
   const base = toEstimateInput(answers);
   if (base === null) return null;
-  const { daytimeOccupancy, ev, heatPump, heatDemandKwh, dynamicContract, battery } = answers;
+  const {
+    daytimeOccupancy,
+    ev,
+    heatPump,
+    heatDemandKwh,
+    dynamicContract,
+    battery,
+  } = answers;
   if (daytimeOccupancy === null || ev === null) return null;
-  if (heatPump === null || dynamicContract === null || battery === null) return null;
+  if (heatPump === null || dynamicContract === null || battery === null)
+    return null;
   if (heatPump && heatDemandKwh === null) return null;
   if (battery && answers.batteryCapacityKwh === null) return null;
   return {

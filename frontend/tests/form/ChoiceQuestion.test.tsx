@@ -15,11 +15,19 @@ const options = [
 describe("a choice question", () => {
   it("renders one radio per option, labelled the way it was given", () => {
     render(
-      <ChoiceQuestion id="ev" label="Wanneer laadt de auto?" options={options} value={null} onChange={() => {}} />,
+      <ChoiceQuestion
+        id="ev"
+        label="Wanneer laadt de auto?"
+        options={options}
+        value={null}
+        onChange={() => {}}
+      />,
     );
     expect(screen.getAllByRole("radio")).toHaveLength(options.length);
     for (const option of options) {
-      expect(screen.getByRole("radio", { name: option.label })).toBeInTheDocument();
+      expect(
+        screen.getByRole("radio", { name: option.label }),
+      ).toBeInTheDocument();
     }
   });
 
@@ -27,7 +35,13 @@ describe("a choice question", () => {
     // The label is Dutch and the value is the enum member the API accepts.
     const onChange = vi.fn();
     render(
-      <ChoiceQuestion id="ev" label="Wanneer laadt de auto?" options={options} value={null} onChange={onChange} />,
+      <ChoiceQuestion
+        id="ev"
+        label="Wanneer laadt de auto?"
+        options={options}
+        value={null}
+        onChange={onChange}
+      />,
     );
     await userEvent.click(screen.getByRole("radio", { name: "Snachts" }));
     expect(onChange).toHaveBeenLastCalledWith("NIGHT");
@@ -43,13 +57,21 @@ describe("a choice question", () => {
         onChange={() => {}}
       />,
     );
-    expect(screen.getByRole("radio", { name: "Als de zon schijnt" })).toBeChecked();
+    expect(
+      screen.getByRole("radio", { name: "Als de zon schijnt" }),
+    ).toBeChecked();
   });
 
   it("is operable from the keyboard alone", async () => {
     const onChange = vi.fn();
     render(
-      <ChoiceQuestion id="ev" label="Wanneer laadt de auto?" options={options} value={null} onChange={onChange} />,
+      <ChoiceQuestion
+        id="ev"
+        label="Wanneer laadt de auto?"
+        options={options}
+        value={null}
+        onChange={onChange}
+      />,
     );
     await userEvent.tab();
     await userEvent.keyboard("{ArrowDown}");
@@ -58,8 +80,16 @@ describe("a choice question", () => {
 
   it("names the group, so the question is not lost between the answers", () => {
     render(
-      <ChoiceQuestion id="ev" label="Wanneer laadt de auto?" options={options} value={null} onChange={() => {}} />,
+      <ChoiceQuestion
+        id="ev"
+        label="Wanneer laadt de auto?"
+        options={options}
+        value={null}
+        onChange={() => {}}
+      />,
     );
-    expect(screen.getByRole("group", { name: "Wanneer laadt de auto?" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: "Wanneer laadt de auto?" }),
+    ).toBeInTheDocument();
   });
 });

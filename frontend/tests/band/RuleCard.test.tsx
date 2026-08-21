@@ -5,8 +5,12 @@ import { RuleCard } from "@/components/band/RuleCard";
 import type { Advice, FiredRule } from "@/lib/types";
 
 const advice = fixture as unknown as Advice;
-const withBand = advice.routes.flatMap((r) => r.rules).find((r) => r.saving_eur !== null)!;
-const withoutBand = advice.routes.flatMap((r) => r.rules).find((r) => r.saving_eur === null)!;
+const withBand = advice.routes
+  .flatMap((r) => r.rules)
+  .find((r) => r.saving_eur !== null)!;
+const withoutBand = advice.routes
+  .flatMap((r) => r.rules)
+  .find((r) => r.saving_eur === null)!;
 
 describe("a rule card", () => {
   it("shows the API's sentence and nothing it wrote itself", () => {
@@ -16,7 +20,9 @@ describe("a rule card", () => {
 
   it("draws a band beside a rule that carries one", () => {
     const { container } = render(<RuleCard rule={withBand} />);
-    expect(container.querySelector('[data-band-kind="scenario"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-band-kind="scenario"]'),
+    ).not.toBeNull();
   });
 
   it("invents no band for a rule that carries none", () => {

@@ -23,7 +23,8 @@ export const ROUND_ONE_QUESTION_COUNT = 4;
 export const ROUND_TWO_QUESTION_COUNT = 5;
 
 /** What `RefineInputSerializer.QUESTION_COUNT` is on the other side. */
-export const ALL_QUESTION_COUNT = ROUND_ONE_QUESTION_COUNT + ROUND_TWO_QUESTION_COUNT;
+export const ALL_QUESTION_COUNT =
+  ROUND_ONE_QUESTION_COUNT + ROUND_TWO_QUESTION_COUNT;
 
 interface Props {
   readonly step: number;
@@ -48,7 +49,10 @@ export function Progress({ step, of }: Props) {
         aria-valuetext={text}
         className="h-1.5 w-full overflow-hidden rounded-full bg-current/15"
       >
-        <div className="h-full rounded-full bg-current/60" style={{ width: `${filled}%` }} />
+        <div
+          className="h-full rounded-full bg-current/60"
+          style={{ width: `${filled}%` }}
+        />
       </div>
     </div>
   );

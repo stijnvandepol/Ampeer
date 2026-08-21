@@ -40,7 +40,9 @@ function isTheme(value: string | null): value is Theme {
  * not an error worth telling anybody about, so it falls back to the system
  * preference, which is the state the page was already in.
  */
-export function readStoredChoice(storage: Pick<Storage, "getItem"> | undefined): ThemeChoice {
+export function readStoredChoice(
+  storage: Pick<Storage, "getItem"> | undefined,
+): ThemeChoice {
   if (storage === undefined) return DEFAULT_THEME_CHOICE;
   try {
     const stored = storage.getItem(THEME_STORAGE_KEY);

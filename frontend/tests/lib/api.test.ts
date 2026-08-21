@@ -33,7 +33,9 @@ function stub(status: number, body: unknown) {
 describe("the api client", () => {
   it("returns the advice on success", async () => {
     stub(201, fixture);
-    await expect(postEstimate(input)).resolves.toMatchObject({ token: expect.any(String) });
+    await expect(postEstimate(input)).resolves.toMatchObject({
+      token: expect.any(String),
+    });
   });
 
   it("turns a 400 into an error that names the fields", async () => {
@@ -58,7 +60,9 @@ describe("the api client", () => {
   it("does not lose a throttle message that has no field to hang on", async () => {
     // A 429 answers {"detail": "Request was throttled..."}, which is a
     // sentence about the request rather than about one of its fields.
-    stub(429, { detail: "Request was throttled. Expected available in 1800 seconds." });
+    stub(429, {
+      detail: "Request was throttled. Expected available in 1800 seconds.",
+    });
     await postEstimate(input).catch((error: ApiError) => {
       expect(error.message).toContain("throttled");
       expect(error.fields).toEqual({});
@@ -68,7 +72,9 @@ describe("the api client", () => {
   it("survives an error response with no body at all", async () => {
     // The 404 from StoredAdviceView sends nothing, on purpose: an unknown
     // token and an expired one have to answer identically.
-    const fetchMock = vi.fn<typeof fetch>(async () => new Response(null, { status: 404 }));
+    const fetchMock = vi.fn<typeof fetch>(
+      async () => new Response(null, { status: 404 }),
+    );
     vi.stubGlobal("fetch", fetchMock);
     await expect(getAdvice(TOKEN)).rejects.toBeInstanceOf(ApiError);
     await getAdvice(TOKEN).catch((error: ApiError) => {
@@ -121,14 +127,22 @@ describe("the api client", () => {
   it("refuses a token that is not the shape the API issues", async () => {
     // 22 url-safe characters. Anything else is a typo or a probe, and asking
     // the API about it is a request nobody needed to make.
-    await expect(getAdvice("../../etc/passwd")).rejects.toBeInstanceOf(ApiError);
+    await expect(getAdvice("../../etc/passwd")).rejects.toBeInstanceOf(
+      ApiError,
+    );
   });
 
   it("makes no request at all for a token of the wrong shape", async () => {
     // The point of the check. A 404 from the router would cost a call against
     // a budget of 120 an hour and tell the visitor nothing new.
     const fetchMock = stub(200, fixture);
-    for (const bad of ["", "short", `${TOKEN}x`, "abcdefghijklmnopqrstu/", "../../etc/passwd"]) {
+    for (const bad of [
+      "",
+      "short",
+      `${TOKEN}x`,
+      "abcdefghijklmnopqrstu/",
+      "../../etc/passwd",
+    ]) {
       await getAdvice(bad).catch(() => {});
     }
     expect(fetchMock).not.toHaveBeenCalled();
@@ -189,5 +203,204 @@ describe("the api client", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
     await expect(getAdvice(TOKEN)).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+/**
+ * A 200 whose body is JSON but is not an advice.
+ *
+ * There is no error boundary above these callers, so a body that reaches a
+ * renderer without the fields it promises unmounts the whole tree and leaves a
+ * main element with nothing in it and nothing to read. A proxy answering
+ * {"error": "upstream"} with a 200, or one field renamed on the backend, does
+ * that to every visitor at once. So the shape is checked here, at the one
+ * place the JSON becomes an Advice, and a wrong one becomes the same named
+ * failure as every other refusal from this module.
+ */
+interface Loose {
+  [key: string]: unknown;
+}
+
+function copyFixture(): Loose {
+  return JSON.parse(JSON.stringify(fixture)) as Loose;
+}
+
+function looseAt(source: Loose, key: string): Loose {
+  return source[key] as Loose;
+}
+
+function firstOf(source: Loose, key: string): Loose {
+  const list = source[key];
+  return Array.isArray(list) ? (list[0] as Loose) : ({} as Loose);
+}
+
+function mutated(change: (advice: Loose) => void): Loose {
+  const advice = copyFixture();
+  change(advice);
+  return advice;
+}
+
+const WRONG_SHAPES: readonly (readonly [string, unknown])[] = [
+  ["an array, which typeof calls an object", []],
+  ["a proxy's own error body", { error: "upstream" }],
+  ["no token", mutated((advice) => delete advice["token"])],
+  ["a token that is a number", mutated((advice) => (advice["token"] = 1))],
+  [
+    "a confidence level that is not one of the three",
+    mutated((a) => (a["confidence"] = "MAYBE")),
+  ],
+  [
+    "no confidence label",
+    mutated((advice) => delete advice["confidence_label"]),
+  ],
+  ["no headline at all", mutated((advice) => delete advice["headline"])],
+  [
+    "a headline amount that arrived as a JSON number",
+    mutated((advice) => (looseAt(advice, "headline")["p10"] = 1)),
+  ],
+  [
+    "a headline with no run count",
+    mutated((advice) => delete looseAt(advice, "headline")["runs"]),
+  ],
+  ["routes that are not a list", mutated((advice) => (advice["routes"] = {}))],
+  [
+    "a route name the renderer has no section for",
+    mutated(
+      (advice) => (firstOf(advice, "routes")["route"] = "SOMETHING_ELSE"),
+    ),
+  ],
+  [
+    "a rule with no id to trace it back by",
+    mutated(
+      (advice) => delete firstOf(firstOf(advice, "routes"), "rules")["rule_id"],
+    ),
+  ],
+  [
+    "a saving band missing the Dutch it is rendered from",
+    mutated(
+      (advice) =>
+        delete looseAt(
+          firstOf(firstOf(advice, "routes"), "rules"),
+          "saving_eur",
+        )["varied_text"],
+    ),
+  ],
+  [
+    "a saving amount that arrived as a JSON number",
+    mutated(
+      (advice) =>
+        (looseAt(firstOf(firstOf(advice, "routes"), "rules"), "saving_eur")[
+          "mid"
+        ] = 126.09),
+    ),
+  ],
+  [
+    "a battery that is not an object",
+    mutated((advice) => (advice["battery"] = "geen")),
+  ],
+  [
+    "a sized capacity carrying a band it says it has not got",
+    mutated(
+      (advice) =>
+        (looseAt(looseAt(advice, "battery"), "sized_capacity_kwh")["band"] =
+          0.5),
+    ),
+  ],
+  [
+    "a sizing basis that is not one of the two",
+    mutated(
+      (advice) =>
+        (looseAt(looseAt(advice, "battery"), "sized_capacity_kwh")["basis"] =
+          "GUESSED"),
+    ),
+  ],
+  [
+    "a payback figure with no band around it",
+    mutated((advice) => delete looseAt(advice, "battery")["payback_years"]),
+  ],
+  [
+    "a curve point that is not a capacity and a band",
+    mutated((advice) => (looseAt(advice, "battery")["curve"] = [[3.0]])),
+  ],
+  [
+    "a curve capacity that arrived as a string",
+    mutated(
+      (advice) => (looseAt(advice, "battery")["curve"] = [["3.0", null]]),
+    ),
+  ],
+  [
+    "no engine version to log the answer against",
+    mutated((a) => delete a["engine_version"]),
+  ],
+  ["no advice version", mutated((advice) => delete advice["advice_version"])],
+  [
+    "no production source",
+    mutated((advice) => delete advice["production_source"]),
+  ],
+  [
+    "a production source with no sentence beside it",
+    mutated((advice) => delete advice["production_source_text"]),
+  ],
+  [
+    "a profile year that arrived as a string",
+    mutated((a) => (a["profile_year"] = "2025")),
+  ],
+  ["no weather year", mutated((advice) => delete advice["weather_year"])],
+];
+
+describe("a 200 that is not an advice", () => {
+  it.each(WRONG_SHAPES)(
+    "is refused when the body has %s",
+    async (_what, body) => {
+      stub(200, body);
+      await expect(getAdvice(TOKEN)).rejects.toBeInstanceOf(ApiError);
+    },
+  );
+
+  it("is refused on the way out of a computation too, not only on a read", async () => {
+    stub(201, { error: "upstream" });
+    await expect(postEstimate(input)).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("says which kind of failure it was rather than throwing something nameless", async () => {
+    // Every failure out of this module is one type, so a caller that catches
+    // ApiError has covered this one as well and has a sentence to show.
+    stub(200, { error: "upstream" });
+    await getAdvice(TOKEN).catch((error: ApiError) => {
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.status).toBe(200);
+      expect(error.message).toMatch(/advice/i);
+    });
+    expect.assertions(3);
+  });
+
+  it("accepts the advice the API actually sends", async () => {
+    stub(200, fixture);
+    await expect(getAdvice(TOKEN)).resolves.toMatchObject({
+      token: fixture.token,
+    });
+  });
+
+  it("accepts an advice with no battery block, which is a valid answer", async () => {
+    // "Nu geen batterij" is an outcome the model is allowed to reach, and the
+    // API sends null for it. Refusing that would refuse a correct answer.
+    stub(
+      200,
+      mutated((advice) => (advice["battery"] = null)),
+    );
+    await expect(getAdvice(TOKEN)).resolves.toMatchObject({ battery: null });
+  });
+
+  it("accepts a rule that saves nothing measurable, which sends a null band", async () => {
+    stub(
+      200,
+      mutated(
+        (advice) =>
+          (firstOf(firstOf(advice, "routes"), "rules")["saving_eur"] = null),
+      ),
+    );
+    await expect(getAdvice(TOKEN)).resolves.toMatchObject({
+      token: fixture.token,
+    });
   });
 });
