@@ -78,11 +78,25 @@ class Command(BaseCommand):
         chose to keep, and a retention that only covers the table somebody
         remembered is not a retention.
         """
+        # A table name cannot be a bound parameter in SQL, so it has to be
+        # interpolated, and bandit flags any interpolation into something that
+        # looks like a statement. Django's own DatabaseCache._cull builds this
+        # exact shape for the same reason.
+        #
+        # What makes it safe here, and what a reader should check rather than
+        # take on trust: CACHE_TABLE is settings.AMPEER_CACHE_TABLE, a literal
+        # in base.py that no request can reach, and it still goes through the
+        # backend's own quote_name. The only value is bound.
+        #
+        # The explanation sits above the marker and never spells the marker
+        # out, because bandit reads every word after that token on the same
+        # line as a test id and warns once per word. It happened here on
+        # 2026-08-21 and printed seventeen warnings a run, and it happened
+        # again while this very comment was being written, which is why the
+        # token appears nowhere in this paragraph.
+        statement = f"DELETE FROM {connection.ops.quote_name(CACHE_TABLE)} WHERE expires < %s"  # nosec B608
         with connection.cursor() as cursor:
-            cursor.execute(
-                f"DELETE FROM {connection.ops.quote_name(CACHE_TABLE)} WHERE expires < %s",
-                [timezone.now()],
-            )
+            cursor.execute(statement, [timezone.now()])
             return int(cursor.rowcount)
 
     def _check(self) -> None:
