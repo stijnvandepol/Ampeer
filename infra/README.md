@@ -412,6 +412,32 @@ That rule is not enforceable from a workflow, and nothing here pretends to
 enforce it. What the ordering does guarantee is that a migration which fails
 stops the deploy while the previous release is still whole.
 
+**Rehearsed on 2026-08-21**, because that last sentence had never been executed
+either. A migration was mounted into the api image that adds a column and then
+asks for an index on a column that does not exist, and it was run the way the
+deploy runs it, with the site being probed four times a second throughout:
+
+- `migrate` exited **1**, so the job stops there and never reaches `up -d`.
+- The site served **every one of the eleven probes** taken while it ran. The
+  previous release was untouched, because nothing had been switched.
+- The database was untouched as well. The column the migration had already
+  added was gone afterwards and the migration was not recorded as applied.
+  PostgreSQL runs DDL inside a transaction and Django wraps each migration in
+  one, so a migration that fails leaves nothing of itself behind.
+
+**That last point holds per migration and not per release**, which is the part
+worth knowing before it matters. The same rehearsal with two migrations, the
+first adding a column and the second failing, left the first applied: its column
+was present and its name was in `django_migrations`. Only the failing one rolled
+back.
+
+So an aborted deploy can leave the previous release running against a schema
+that is part of the way to the next one. It keeps serving, and it keeps serving
+for exactly as long as those migrations only added, which is the rule above.
+That is a second reason for it, and a better one than the window between
+`migrate` and `up -d`: the window lasts seconds, and this state lasts until
+somebody deploys again.
+
 ### `web` cannot start while `api` does not resolve
 
 nginx resolves every upstream name while it parses its configuration, so a

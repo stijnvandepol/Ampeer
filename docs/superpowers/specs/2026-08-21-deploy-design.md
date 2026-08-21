@@ -383,6 +383,9 @@ veilige helft van een ruil, en de prijs is een regel:
 
 Die regel is van hieruit niet af te dwingen. Wat wel afgedwongen is, is de winst: een
 migratie die faalt stopt de deploy terwijl de vorige release nog heel is en nog bedient.
+Dat is op 21 augustus 2026 met een opzettelijk kapotte migratie tegen een draaiende stack
+nagespeeld; hoofdstuk 5 van `infra/README.md` zet de metingen erbij, inclusief de nuance
+dat een release met meer dan een migratie de gelukte migraties toegepast achterlaat.
 `test_the_migration_runs_before_the_traffic_switches` bewaakt de volgorde, en
 `test_the_migration_runs_after_the_images_are_verified` bewaakt de andere kant ervan:
 migreren voor de digest-controle zou een omgehangen tag naar de database laten schrijven,
