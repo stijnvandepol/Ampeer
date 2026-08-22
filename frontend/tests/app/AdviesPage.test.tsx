@@ -104,6 +104,43 @@ describe("the advice page", () => {
     expect(screen.getByText(/niets meer te halen/i)).toBeInTheDocument();
   });
 
+  it("has an answer for a household with nothing left to gain", async () => {
+    // The shape two of the six golden households produce: no rule fires in any
+    // route, so `battery` is null as well, because a battery is only priced for
+    // a household some storage rule reached. Each half is covered above and
+    // neither half is this: a page with nothing at all to say had never been
+    // rendered, and it is the answer somebody who already uses 94 percent of
+    // their own production receives.
+    const nothingToGain = {
+      ...fixture,
+      routes: fixture.routes.map((route) => ({ ...route, rules: [] })),
+      battery: null,
+    };
+    vi.stubGlobal("fetch", respondWith(nothingToGain));
+    const { container } = render(<AdviesPage />);
+    await screen.findByText(fixture.confidence_label);
+
+    // What it still owes them: the figure, its band and how sure it is.
+    expect(screen.getByText(fixture.confidence_label)).toBeInTheDocument();
+    expect(
+      container.querySelector('[data-band-kind="percentile"]'),
+    ).not.toBeNull();
+
+    // All three routes, in order, each saying so for itself rather than the
+    // page hiding what it found nothing in.
+    expect(container.querySelectorAll("[data-route]")).toHaveLength(3);
+    expect(screen.getAllByText(/niets meer te halen/i)).toHaveLength(3);
+
+    // And no battery. A household just told there is nothing to gain from
+    // storage must not then be shown a battery sized and priced for them; that
+    // is the one place where this product could read as selling something.
+    // data-role and not a data-battery attribute: the first version of this
+    // line asserted on one that does not exist anywhere in the source, which
+    // would have passed whether the block rendered or not.
+    expect(container.querySelector('[data-role="battery-detail"]')).toBeNull();
+    expect(screen.queryByText(/doorgerekend/i)).toBeNull();
+  });
+
   it("gives the bandless capacity its own sentence and no invented margin", async () => {
     vi.stubGlobal("fetch", respondWith(fixture));
     const { container } = render(<AdviesPage />);
