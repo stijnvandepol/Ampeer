@@ -8,6 +8,7 @@ enforced by nothing. A comment does not fail a build. These run inside the
 from __future__ import annotations
 
 import json
+import os
 import re
 import tomllib
 from pathlib import Path
@@ -883,3 +884,80 @@ def test_no_file_still_says_the_security_workflow_runs_on_a_feature_push(path: s
     text = (REPO_ROOT / path).read_text(encoding="utf-8")
     for head, tail in WRONG_WORDINGS:
         assert head + tail not in text, f"{path} still says {head + tail!r}"
+
+
+#: Directories whose contents are not this repository's own source: installed
+#: packages, build output, and the profile data that is not committed.
+_NOT_OURS = ("/.venv/", "/node_modules/", "/.git/", "/out/", "/data/", "/.next/", "/htmlcov/")
+
+_TEST_REFERENCE = re.compile(r"tests/test_[a-z0-9_]+\.py")
+
+
+def _files_that_can_carry_a_reference() -> list[Path]:
+    """Every file of ours that could name a test, pruned during the walk.
+
+    Pruned rather than filtered afterwards: rglob descends into .venv and
+    node_modules first and discards them second, which cost fourteen seconds
+    against a suite that runs in forty. A test slow enough to be noticed is a
+    test somebody eventually runs with -k.
+    """
+    suffixes = {".py", ".sh", ".yml", ".yaml", ".ts", ".tsx", ".md", ".toml", ".conf"}
+    skip = {name.strip("/") for name in _NOT_OURS}
+    found: list[Path] = []
+    for directory, subdirectories, filenames in os.walk(REPO_ROOT):
+        subdirectories[:] = [name for name in subdirectories if name not in skip]
+        for filename in filenames:
+            path = Path(directory) / filename
+            if path.suffix in suffixes:
+                found.append(path)
+    return found
+
+
+def test_every_test_file_named_in_a_comment_exists() -> None:
+    """This repository explains itself by naming the test that holds each rule.
+
+    Thirty-seven places do it on 2026-08-22: a constant says which pairing
+    guards it, a workflow says which test recomputes its digest, a shell script
+    says what would catch its drift. That is the habit this codebase is built
+    on, and it is only worth anything while the file named is the file that
+    exists.
+
+    A rename is what breaks it, and it breaks silently: the comment still reads
+    like a guarantee, the reader goes looking, finds nothing, and has no way to
+    tell whether the guard moved or was deleted. Nothing else in the suite
+    would notice, because a comment cannot fail a build.
+
+    Only the path is checked. Whether the named test still asserts what the
+    comment says it asserts is not mechanically knowable, and pretending
+    otherwise would be its own false guarantee.
+    """
+    missing: dict[str, set[str]] = {}
+    for path in _files_that_can_carry_a_reference():
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:  # pragma: no cover - binary with a text suffix
+            continue
+        for reference in set(_TEST_REFERENCE.findall(text)):
+            if not (REPO_ROOT / reference).is_file():
+                missing.setdefault(reference, set()).add(path.relative_to(REPO_ROOT).as_posix())
+    assert not missing, "comments name test files that do not exist:\n" + "\n".join(
+        f"  {reference} named in {sorted(where)}" for reference, where in sorted(missing.items())
+    )
+
+
+def test_the_reference_scan_actually_reads_this_repository() -> None:
+    """The half that keeps the test above from passing on nothing.
+
+    A pattern that matched nothing, a suffix list that excluded the workflows,
+    or an exclusion that swallowed the tree would all leave the assertion above
+    trivially true. It has to find the references that are known to be there.
+    """
+    found = {
+        reference
+        for path in _files_that_can_carry_a_reference()
+        for reference in _TEST_REFERENCE.findall(path.read_text(encoding="utf-8", errors="ignore"))
+    }
+    assert len(found) >= 5, f"only found {sorted(found)}; the scan is not reading the repository"
+    assert "tests/test_pipeline_contract.py" in found, (
+        "the workflows no longer name this file, which would be a bigger change than a rename"
+    )
