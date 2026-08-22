@@ -193,7 +193,7 @@ arrives before phase 1, and access to the host including whether `web2` becomes
 ephemeral. They are not repeated here, because two lists of the same open
 questions is how one of them gets answered twice and the other not at all.
 
-Three sit outside that document.
+Four sit outside that document.
 
 - **Whether `feat/**` stays in the push trigger of `.github/workflows/ci.yml`.**
   Removing it roughly halves the minutes a branch costs, and rewrites five
@@ -207,6 +207,22 @@ Three sit outside that document.
   new module on the Django side. That is a change to code that ships, with no
   test to gain, and the register decision above already went further into
   user-facing text than I would want to go twice without a word back.
+- **Whether a battery verdict may be refused on the middle of its band alone.**
+  `_storage_verdict` in `ampeer_advice/advise.py` recommends only when the
+  whole payback band clears twelve years, and refuses as soon as the middle
+  misses it. A household whose band runs from well inside the limit to well
+  outside hears a flat no rather than that it depends on the quote. Measured on
+  2026-08-23: `large_array_small_use` pays back between 6.99 and 18.89 years
+  with a middle of 12.05 and is told the battery does not pay back, while at
+  450 euro per kWh it pays for itself in seven. The asymmetry is deliberate and
+  tested. The argument for it is that this product should be reluctant to
+  recommend and free to refuse, since refusing sells nothing. The argument
+  against is the one the function's own docstring makes about a single number
+  deciding the most consequential sentence in the product, applied to one side
+  only. It also matters that nothing reaches the middle state any more: that
+  household used to, at 9.69 years, and left it when the capacity curve stopped
+  being priced on consumption the free routes had already claimed. Changing
+  what a household is told is not mine to take.
 - **The order the two open pull requests are merged in.** #23 carries this
   branch into `dev` and #22 carries `dev` into `main`, so #23 goes first and #22
   is rerun afterwards.
