@@ -623,6 +623,14 @@ POSTGRES_USER=ampeer POSTGRES_PASSWORD=devtest \
 part of a full local run. It refuses to guess a password, so without them it
 reports `pytest` as NOT RUN rather than passing over a tenth of the suite.
 
+With a database, a browser and gitleaks present, a full local run leaves nothing
+NOT RUN. That matters more than it sounds while GitHub Actions is unavailable,
+because the local run is then the only run there is. The browser comes from
+`pnpm exec playwright install --with-deps chromium` in `frontend/`, and gitleaks
+needs no separate install: `pre-commit install-hooks` fetches the version
+`.pre-commit-config.yaml` pins, which is the one the `secrets` job downloads,
+and the runner finds it in that cache.
+
 The container holds nothing worth keeping. `docker rm -f ampeer-devtest` when
 you are done, and start it again next time; the suite creates and drops its own
 test database on every run.

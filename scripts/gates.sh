@@ -14,10 +14,17 @@
 #      filters or pattern-matches what a tool prints. Output goes to the
 #      terminal for a human; the verdict comes from the process.
 #   2. A gate that cannot run here is reported as NOT RUN, never skipped
-#      quietly and never counted as a pass. Postgres, node and the gitleaks
-#      binary are not always present on a development machine, and a summary
-#      that hid their absence would be the same defect this file was written
-#      for, one layer up.
+#      quietly and never counted as a pass. A summary that hid an absence would
+#      be the same defect this file was written for, one layer up.
+#
+#      The corollary took until 2026-08-22 to notice: reporting NOT RUN for
+#      something that could have run is the same understatement in the other
+#      direction, and it is worse while GitHub Actions is unavailable, because
+#      then this script is the only check there is. Two gates were doing it.
+#      gitleaks was declared missing whenever it was not on PATH, while
+#      .pre-commit-config.yaml pins the same version the security workflow
+#      downloads and pre-commit had already fetched it. e2e always skipped on
+#      the grounds that CI installs the browser, on machines that had one.
 #
 # It is a convenience, not an authority. The required checks live in
 # .github/workflows/, they run on a clean machine, and they are what the
@@ -89,6 +96,40 @@ if [ "${#WANTED[@]}" -ne 0 ]; then
 fi
 
 have() { command -v "$1" >/dev/null 2>&1; }
+
+# gitleaks, from PATH or from where pre-commit already put it.
+#
+# .pre-commit-config.yaml pins the same version the security workflow
+# downloads, so the copy in that cache is the one this repository already
+# trusts. Looking there rather than asking for a second install is what makes
+# the history scan runnable on a developer machine at all: until 2026-08-22
+# this gate reported NOT RUN on every machine, including ones where
+# `pre-commit run --all-files` had just run gitleaks over the working tree.
+#
+# The cache directory name is a hash, so it is searched rather than written
+# down. Finding nothing reports NOT RUN, which is the same answer as before.
+gitleaks_dir() {
+  if command -v gitleaks >/dev/null 2>&1; then dirname "$(command -v gitleaks)"; return; fi
+  local cache="${PRE_COMMIT_HOME:-${XDG_CACHE_HOME:-${HOME}/.cache}/pre-commit}"
+  [ -d "${cache}" ] || return 0
+  local found
+  found=$(find "${cache}" -type f \
+    \( -name gitleaks -o -name gitleaks.exe \) 2>/dev/null | head -n 1)
+  [ -n "${found}" ] && dirname "${found}"
+}
+
+# Whether Playwright has a browser to drive.
+#
+# Asked of the filesystem rather than by running it, because a missing
+# browser makes playwright exit non-zero, and this script has to tell a gate
+# that failed apart from a gate that could not run.
+playwright_browsers_present() {
+  local roots="${PLAYWRIGHT_BROWSERS_PATH:-} ${LOCALAPPDATA:-}/ms-playwright ${HOME}/.cache/ms-playwright ${HOME}/Library/Caches/ms-playwright"
+  for root in ${roots}; do
+    [ -d "${root}" ] && [ -n "$(ls -A "${root}" 2>/dev/null)" ] && return 0
+  done
+  return 1
+}
 
 # A TCP connect, not pg_isready: psql is not installed everywhere the suite
 # runs, and this only has to answer whether there is any point in starting. It
@@ -199,7 +240,16 @@ if have pnpm; then
   gate pnpm-audit         in_frontend pnpm audit --audit-level low
   # Playwright drives a real browser it has to download first, which is a
   # deliberate choice to leave to CI rather than to every clone.
-  skip e2e "playwright downloads a browser first, which is left to CI; run pnpm exec playwright install --with-deps chromium and then pnpm e2e from frontend/"
+  # Run it when the browser is already here, and only report NOT RUN when it
+  # is not. The first version of this line always skipped, on the grounds
+  # that CI installs the browser; that made the gate report NOT RUN on a
+  # machine where it could have run, which is the same understatement the
+  # gitleaks line below had.
+  if playwright_browsers_present; then
+    gate e2e in_frontend pnpm e2e
+  else
+    skip e2e "no playwright browser found; run pnpm exec playwright install --with-deps chromium from frontend/"
+  fi
 else
   for name in frontend-install frontend-lint frontend-typecheck frontend-format frontend-test frontend-build pnpm-audit e2e; do
     skip "${name}" "pnpm is not on PATH; run corepack enable in frontend/"
@@ -216,10 +266,16 @@ gitleaks_scan() {
   gitleaks detect --source . --redact --no-banner \
     --log-opts "origin/${GITLEAKS_BASE:-dev}..HEAD"
 }
-if have gitleaks; then
+GITLEAKS_DIR=$(gitleaks_dir)
+if [ -n "${GITLEAKS_DIR}" ]; then
+  # On PATH rather than interpolated into the command, so the line below is
+  # the line the workflow runs. tests/test_pipeline_contract.py pairs them by
+  # their text, and it caught the first version of this change, which spelled
+  # the binary as a variable and no longer matched.
+  PATH="${GITLEAKS_DIR}:${PATH}"
   gate gitleaks gitleaks_scan
 else
-  skip gitleaks "the binary is not installed; CI fetches a pinned, checksummed release"
+  skip gitleaks "no gitleaks on PATH and none in the pre-commit cache; run pre-commit install-hooks"
 fi
 
 # --- verdict -----------------------------------------------------------------
