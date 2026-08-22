@@ -467,3 +467,109 @@ def test_the_chapter_of_open_decisions_states_how_many_there_are() -> None:
         f"chapter 10 lists {len(items)} decisions, so it has to open with "
         f"{stated!r}. A total that undercounts is how one of them gets left behind."
     )
+
+
+def _serializer_fields(class_name: str) -> list[str]:
+    """The fields a serializer declares itself, without its inherited ones.
+
+    RefineInputSerializer extends the estimate, so its own body is exactly what
+    round two adds, which is the number chapter 2 is making a claim about.
+    """
+    tree = ast.parse(SERIALIZERS.read_text(encoding="utf-8"))
+    declared = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ClassDef) and node.name == class_name
+    )
+    return [
+        target.id
+        for statement in declared.body
+        if isinstance(statement, ast.Assign)
+        for target in statement.targets
+        if isinstance(target, ast.Name)
+        and isinstance(statement.value, ast.Call)
+        and "serializers." in ast.unparse(statement.value.func)
+    ]
+
+
+def _question_count(class_name: str) -> int:
+    """The QUESTION_COUNT a serializer declares, read without importing Django."""
+    tree = ast.parse(SERIALIZERS.read_text(encoding="utf-8"))
+    declared = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ClassDef) and node.name == class_name
+    )
+    for statement in declared.body:
+        if (
+            isinstance(statement, ast.AnnAssign)
+            and isinstance(statement.target, ast.Name)
+            and statement.target.id == "QUESTION_COUNT"
+            and isinstance(statement.value, ast.Constant)
+            and isinstance(statement.value.value, int)
+        ):
+            return statement.value.value
+    raise AssertionError(f"{class_name} declares no QUESTION_COUNT")
+
+
+def test_the_document_counts_the_answers_it_says_are_stored() -> None:
+    """Chapter 2 said round two adds seven answers, then listed eight.
+
+    The list was right and the total was not. It is the second miscount found
+    in this document, after chapter 10 opening with "Vier dingen" above five,
+    and both went unnoticed for the same reason: a total written in words does
+    not catch the eye the way a digit disagreeing with a list would.
+
+    Here it matters more than in chapter 10. This is the chapter that answers
+    what the service stores about a person, so a count that is one short is a
+    privacy document under-reporting its own processing. Nobody was misled,
+    since the fields are listed beside it, but the number is the part a reader
+    quotes.
+
+    Derived from the serializers rather than repeated: RefineInputSerializer
+    extends the estimate, so its own body is exactly what round two adds. Both
+    the questions asked and the answers kept are paired, because they differ
+    and the document now says why: roof direction and tilt are one question and
+    two stored values.
+    """
+    # Lowercased on both sides: a total that opens a sentence is capitalised in
+    # the document and that is not a difference worth failing on.
+    flattened = re.sub(r"\s+", " ", TEXT).lower()
+    for class_name, kind, count in (
+        (
+            "EstimateInputSerializer",
+            "antwoorden",
+            len(_serializer_fields("EstimateInputSerializer")),
+        ),
+        ("RefineInputSerializer", "antwoorden", len(_serializer_fields("RefineInputSerializer"))),
+        ("EstimateInputSerializer", "vragen", _question_count("EstimateInputSerializer")),
+        ("RefineInputSerializer", "vragen", _question_count("RefineInputSerializer")),
+    ):
+        assert count in _DUTCH_NUMERALS, f"{class_name} has {count} {kind}, past this table"
+        phrase = f"{_DUTCH_NUMERALS[count].lower()} {kind}"
+        assert phrase in flattened, (
+            f"{class_name} has {count} {kind} and chapter 2 does not say {phrase!r}. "
+            "A privacy document that undercounts what it keeps is describing a "
+            "different service than the one that runs."
+        )
+
+
+def test_the_two_rounds_are_read_apart_rather_than_together() -> None:
+    """The floor under the pairing above, and it guards a specific mistake.
+
+    RefineInputSerializer inherits from EstimateInputSerializer, so a reading
+    that walked the inherited fields as well would report thirteen for round
+    two and pass against a document that said thirteen. The counts have to stay
+    the ones the classes declare themselves.
+    """
+    first = _serializer_fields("EstimateInputSerializer")
+    second = _serializer_fields("RefineInputSerializer")
+    assert first and second, f"the scan found {first} and {second}"
+    assert not set(first) & set(second), (
+        f"round two is being read as including round one: {sorted(set(first) & set(second))}"
+    )
+    assert "postcode4" in first, "round one no longer asks for a postcode"
+    assert _question_count("RefineInputSerializer") > _question_count("EstimateInputSerializer"), (
+        "the second round does not ask more than the first, so one of the two counts is "
+        "not being read from the class it belongs to"
+    )

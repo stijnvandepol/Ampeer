@@ -45,11 +45,13 @@ Alles hieronder komt uit `backend/advice/models.py` en
 
 ### Wat de bezoeker invult
 
-De eerste ronde stelt vier vragen: viercijferige postcode, jaarverbruik in kWh,
-vermogen aan panelen in wattpiek, en dakrichting en hellingshoek. Een tweede
-ronde kan daar zeven antwoorden aan toevoegen: overdag thuis, elektrische auto
-en het laadmoment, warmtepomp en warmtevraag, contractvorm, thuisbatterij en de
-omvang daarvan.
+De eerste ronde stelt vier vragen en levert vijf antwoorden op: viercijferige
+postcode, jaarverbruik in kWh, vermogen aan panelen in wattpiek, en dakrichting
+en hellingshoek, die samen een vraag zijn en apart worden opgeslagen. Een
+tweede ronde stelt vijf vragen erbij en levert acht antwoorden: overdag thuis,
+elektrische auto en het laadmoment, warmtepomp en warmtevraag, contractvorm,
+thuisbatterij en de omvang daarvan. Negen vragen in totaal, en dat getal
+bepaalt ook het betrouwbaarheidsniveau in hoofdstuk 17 van de methodologie.
 
 **De postcode wordt op vier cijfers gevalideerd en er is geen veld waar meer in
 past.** Dat is niet een afspraak maar een reguliere expressie in de serializer:
