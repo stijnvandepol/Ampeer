@@ -11,6 +11,10 @@ unavailable since 2026-08-21 and every run is billed, so the first green run
 after it comes back should not be spent discovering that a filename was typed
 with the wrong capital.
 
+A third difference is not about files at all: parts of this suite skip
+depending on where they run, and a skip is invisible in a green run. That is
+guarded at the bottom of this file.
+
 Everything here is decided from the index rather than from the working tree,
 because the working tree on Windows will happily answer a question about case
 with the answer you hoped for.
@@ -182,4 +186,88 @@ def test_no_shell_script_is_started_through_its_own_executable_bit(name: str) ->
     assert not direct, (
         f"{name} has an ExecStart pointing straight at {direct}, which needs an "
         "executable bit that the checkout does not provide"
+    )
+
+
+# ---------------------------------------------------------------------------
+# What a green run did not run
+# ---------------------------------------------------------------------------
+
+#: Every reason this suite is allowed to skip a test, and what it costs.
+#:
+#: A skip is invisible in a green run. "983 passed" says nothing about the
+#: three tests that did not, and until 2026-08-22 the three that did not here
+#: were the ones asserting a backup file is 0600 inside a 0700 directory, which
+#: is a claim docs/dpia.md makes in its risk table. They had never run on this
+#: machine, and nobody could have known from the output.
+#:
+#: Measured that day by running the suite in a Linux container beside the one
+#: here. Windows skipped three and ran 983; Linux skipped two and ran 984; the
+#: union is 986 and neither environment runs all of it. The two Linux skips are
+#: the NEDU profile tests, whose data file is deliberately not committed, so
+#: those never run in CI either.
+#:
+#: Pinned so that a new skip is an edit here, in front of a reviewer, rather
+#: than a line that quietly subtracts a test from every run afterwards.
+ALLOWED_SKIPS = {
+    "run tools/ingest_profiles.py first": "the ingested profile is not committed",
+    "the NEDU profile file is not committed; see infra/README.md": (
+        "same file, and this one also skips in CI"
+    ),
+    "this filesystem does not carry POSIX modes; the host and CI do": (
+        "Windows only; these are the backup permission tests and they run on Linux"
+    ),
+    "the deploy job no longer falls back, so the README should say so": (
+        "a behaviour check that turns itself off when the behaviour goes"
+    ),
+    "the API now supplies the install year, so the caveat no longer applies": (
+        "the document would have to change, and the test says so instead of failing"
+    ),
+    "the API now supplies meter data, so PRECISE is reachable": (
+        "same shape, for the confidence ceiling"
+    ),
+}
+
+_SKIP_REASON = re.compile(r'(?:pytest\.skip\(|reason=)"([^"]+)"')
+
+
+def _skip_reasons() -> dict[str, list[str]]:
+    """Every reason the suite can skip on, and where it is written."""
+    found: dict[str, list[str]] = {}
+    for path in sorted((REPO_ROOT / "tests").glob("test_*.py")):
+        for reason in _SKIP_REASON.findall(path.read_text(encoding="utf-8")):
+            found.setdefault(reason, []).append(path.name)
+    return found
+
+
+def test_every_skip_in_this_suite_is_one_that_was_argued_for() -> None:
+    """A test that does not run is not a test that passed.
+
+    Both directions. A reason not in the table is a test quietly subtracting
+    itself from every run; a reason in the table that no longer exists is an
+    entry vouching for a skip that is gone, which is how this table would rot
+    into always passing.
+    """
+    reasons = _skip_reasons()
+    unexplained = sorted(set(reasons) - set(ALLOWED_SKIPS))
+    assert not unexplained, "these skips are not accounted for:\n  " + "\n  ".join(
+        f"{reason!r} in {reasons[reason]}" for reason in unexplained
+    )
+    stale = sorted(set(ALLOWED_SKIPS) - set(reasons))
+    assert not stale, (
+        "these reasons are listed here and no test skips on them any more; remove the "
+        f"entry rather than leaving it to vouch for nothing: {stale}"
+    )
+
+
+def test_the_skip_scan_finds_the_skips_that_are_there() -> None:
+    """The floor, since the test above is a comparison between two sets.
+
+    Both are empty if the pattern stops matching, and two empty sets are equal.
+    """
+    reasons = _skip_reasons()
+    assert len(reasons) >= 5, f"only found {sorted(reasons)}"
+    assert "this filesystem does not carry POSIX modes; the host and CI do" in reasons, (
+        "the permission tests no longer name the reason they skip on Windows, which is "
+        "the skip this whole check was written around"
     )
