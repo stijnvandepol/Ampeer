@@ -65,11 +65,18 @@ def _case_collisions(names: list[str]) -> dict[str, list[str]]:
 
 
 def test_the_collision_rule_recognises_a_collision() -> None:
-    """Both branches of the check below, run rather than reasoned about."""
-    assert _case_collisions(["docs/dpia.md", "docs/DPIA.md"]) == {
-        "docs/dpia.md": ["docs/dpia.md", "docs/DPIA.md"]
+    """Both branches of the check below, run rather than reasoned about.
+
+    The example pair names nothing this repository has, and that is not
+    decoration. The first version used docs/dpia.md against docs/DPIA.md, and
+    the scan above read this file, found a literal whose lowercase form is a
+    real tracked path, and reported it. A fixture that looks like the defect it
+    describes gets found by the detector that describes it.
+    """
+    assert _case_collisions(["docs/imaginary.md", "docs/Imaginary.md"]) == {
+        "docs/imaginary.md": ["docs/imaginary.md", "docs/Imaginary.md"]
     }
-    assert _case_collisions(["docs/dpia.md", "docs/decisions.md"]) == {}
+    assert _case_collisions(["docs/imaginary.md", "docs/other.md"]) == {}
 
 
 def test_no_two_tracked_files_differ_only_in_case() -> None:
