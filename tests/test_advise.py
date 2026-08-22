@@ -839,3 +839,63 @@ def test_an_advice_refuses_a_result_from_a_different_run() -> None:
             filled_fields=6,
             weather_year=WEATHER_YEAR,
         )
+
+
+#: The tolerance every payback comparison is allowed to use, in years.
+#:
+#: The figure lives per household in advice_households.json, beside the value it
+#: guards. That is a convenient shape and a dangerous one: when one case fails,
+#: widening its own tolerance is a one character edit in a data file, it turns
+#: the assertion for that household into nothing, and the diff looks like the
+#: golden file being updated, which is a thing that legitimately happens.
+#:
+#: tests/golden/README.md already says not to do it, and CLAUDE.md makes it one
+#: of the standing rules for this repository. Neither could fail a build. This
+#: constant is what makes them able to.
+#:
+#: It may be lowered and not raised, for the same reason the coverage floor may
+#: only go up. Raising it means editing this line, which is a diff in a test
+#: rather than in a data file, and it has to be argued for where somebody
+#: reviewing will see it.
+MAX_PAYBACK_TOLERANCE_YEARS = 0.25
+
+
+def _households_with_a_payback() -> dict[str, Any]:
+    return {
+        name: case
+        for name, case in EXPECTED.items()
+        if case.get("battery_payback_mid_years") is not None
+    }
+
+
+def test_no_household_carries_a_payback_tolerance_of_its_own() -> None:
+    """One number for all of them, so no single case can be loosened alone.
+
+    Measured on 2026-08-22: all three households that get a payback carry 0.25,
+    which is about two percent of the tightest of the three middles. Nothing is
+    loosened here; what changes is that loosening one of them now fails.
+    """
+    households = _households_with_a_payback()
+    assert households, "no golden household has a payback; this test reads nothing"
+    tolerances = {name: case["payback_tolerance_years"] for name, case in households.items()}
+    assert set(tolerances.values()) == {MAX_PAYBACK_TOLERANCE_YEARS}, (
+        "the golden households no longer share one payback tolerance, so at least one "
+        f"assertion has been loosened on its own: {tolerances}"
+    )
+
+
+def test_the_payback_tolerance_stays_small_against_the_figure_it_guards() -> None:
+    """A tolerance is only a tolerance while it is smaller than the answer.
+
+    Equality with a shared constant does not say the constant is sensible: all
+    three could carry a tolerance of ten years and agree perfectly. This is the
+    other half, and it is deliberately loose, because the point is not to pick a
+    percentage but to refuse a tolerance that has stopped meaning anything.
+    """
+    for name, case in _households_with_a_payback().items():
+        middle = float(case["battery_payback_mid_years"])
+        share = float(case["payback_tolerance_years"]) / middle
+        assert share < 0.05, (
+            f"{name} allows {share:.1%} of its own payback as slack, which is wide "
+            "enough to hide a change in the sentence a household acts on"
+        )
