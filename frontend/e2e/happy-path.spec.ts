@@ -125,6 +125,18 @@ test("the shareable link opens the advice in a browser that has never been here"
   await expect(page.locator('[data-band-kind="percentile"]')).toBeVisible();
   // Every fired rule from the fixture reached the page, keyed by its own id,
   // so the advice stays traceable back to the rule that produced it.
+  // Counted rather than flattened: flatMap widens the per-route element type
+  // to a union and the loop below stops type checking. A fixture with no rule
+  // in it would make that loop assert nothing while still reading as a check
+  // that every fired rule reached the page.
+  const fired = fixture.routes.reduce(
+    (total, route) => total + route.rules.length,
+    0,
+  );
+  expect(
+    fired,
+    "the fixture fires no rule, so the loop below would check nothing",
+  ).toBeGreaterThan(0);
   for (const route of fixture.routes) {
     for (const rule of route.rules) {
       await expect(
