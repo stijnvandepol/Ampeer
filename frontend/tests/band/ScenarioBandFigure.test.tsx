@@ -170,7 +170,19 @@ describe("what a scenario band says it varied", () => {
     for (const dutch of band.varied_text) {
       expect(screen.getByText(new RegExp(dutch))).toBeInTheDocument();
     }
-    expect(screen.queryByText(/supply_price/)).toBeNull();
-    expect(screen.queryByText(/feed_in_cost_per_kwh/)).toBeNull();
+    // Taken from the band rather than written out. The two names that used to
+    // stand here were a guess about what could leak: one of them,
+    // feed_in_cost_per_kwh, is not in this band at all, so that assertion was
+    // never going to find anything and read as a check on the language
+    // boundary while being one on nothing. These are the identifiers this
+    // band actually carries, so a rename in the model cannot outrun them and
+    // a new one is covered on arrival.
+    expect(band.varied.length + band.pinned.length).toBeGreaterThan(0);
+    for (const identifier of [...band.varied, ...band.pinned]) {
+      expect(
+        screen.queryByText(new RegExp(identifier)),
+        `${identifier} reached the screen instead of its Dutch name`,
+      ).toBeNull();
+    }
   });
 });
