@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from helpers.shell import shell_int
 
 # Reused rather than re-derived. `_workflows` is the same parse the pipeline
 # contract reads, and SELF_HOSTED_EXCEPTIONS is the exception itself: importing
@@ -1156,4 +1157,71 @@ def test_the_backup_timer_runs_after_the_purge() -> None:
     assert minutes["ampeer-backup.timer"] > minutes["ampeer-purge.timer"], (
         "the backup runs before the purge, so every dump is a snapshot of rows "
         f"the purge is about to delete: {minutes}"
+    )
+
+
+#: A schedule this test is willing to reduce to a period: every day, once, at a
+#: fixed time. Anything else is refused rather than guessed at, because the
+#: number it feeds is a threshold and a wrong period silently makes a health
+#: check either useless or permanently red.
+_DAILY_SCHEDULE = re.compile(r"^OnCalendar=\*-\*-\* \d{2}:\d{2}:\d{2}$")
+
+
+def _timer_period_hours(name: str) -> int:
+    """How often a timer fires, for the one shape that can be read off."""
+    text = (REPO_ROOT / "infra" / "systemd" / name).read_text(encoding="utf-8")
+    schedules = [line.strip() for line in text.splitlines() if line.startswith("OnCalendar=")]
+    assert len(schedules) == 1, (
+        f"{name} declares {len(schedules)} OnCalendar lines; systemd takes the union of "
+        "them and this test cannot reduce that to a period"
+    )
+    assert _DAILY_SCHEDULE.match(schedules[0]), (
+        f"{name} is scheduled as {schedules[0]!r}, which is no longer the daily shape "
+        "this test can decide. MAX_AGE_HOURS in scripts/backup_db.sh has to be "
+        "re-derived by hand and this test taught to read the new shape."
+    )
+    return 24
+
+
+def test_the_staleness_threshold_clears_the_timer_it_is_measured_against() -> None:
+    """MAX_AGE_HOURS and the timer decide each other, in two files.
+
+    The constant says so itself: it has to be more than the timer's period or
+    --check goes red every day in the minutes before the run, and the timer
+    unit says the same thing from the other side. Two comments agreeing is not
+    a check, and the failure they describe is the loud kind: a health check
+    that is red every morning is one somebody turns off.
+
+    Both bounds matter and they come from the same sentence in the script.
+    Above the period, or the check is red before every run. Below twice the
+    period, or a single missed run no longer fails it, which is the thing the
+    check exists for. Twenty six against a daily timer sits in the middle with
+    room for AccuracySec and a slow dump.
+    """
+    hours = shell_int(BACKUP, "MAX_AGE_HOURS")
+    period = _timer_period_hours("ampeer-backup.timer")
+
+    assert hours > period, (
+        f"--check calls a dump stale after {hours} hours and the timer only runs every "
+        f"{period}, so the deploy would refuse a backup that is working"
+    )
+    assert hours < 2 * period, (
+        f"--check tolerates {hours} hours against a timer that runs every {period}, so a "
+        "whole missed run passes as healthy, and a check that survives the failure it "
+        "is for is not a check"
+    )
+
+
+def test_the_purge_timer_is_the_shape_the_retention_promise_assumes() -> None:
+    """The other daily timer, held to the same reading.
+
+    docs/dpia.md promises the service stops answering after ninety days, and
+    that promise rests on the read path filtering on expires_at rather than on
+    this timer, which is why it is exact. What the timer decides is how long a
+    dead row stays on disk after that, and chapter 4 describes it as daily.
+    A weekly timer would leave a purged advice in the table for six more days
+    while the document went on calling the task daily.
+    """
+    assert _timer_period_hours("ampeer-purge.timer") == 24, (
+        "the purge no longer runs daily, and docs/dpia.md chapter 4 calls it 'een dagelijkse taak'"
     )

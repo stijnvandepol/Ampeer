@@ -18,6 +18,7 @@ import re
 from pathlib import Path
 
 import pytest
+from helpers.shell import shell_int
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DPIA = REPO_ROOT / "docs" / "dpia.md"
@@ -62,19 +63,6 @@ def _int_constant(source: Path, name: str) -> int:
     return value.value
 
 
-def _shell_int(source: Path, name: str) -> int:
-    """A bare `NAME=value` assignment in a shell script.
-
-    Read rather than sourced, for the reason scripts/preflight_env.sh gives
-    about the env file it parses: running a file to find out what is in it is a
-    different act from reading it.
-    """
-    pattern = re.compile("^" + name + "=([0-9]+)$", re.MULTILINE)
-    match = pattern.search(source.read_text(encoding="utf-8"))
-    assert match, f"{source.name} no longer assigns {name}"
-    return int(match.group(1))
-
-
 def test_the_document_quotes_the_retention_the_service_applies() -> None:
     """Ninety days is the promise the whole document rests on."""
     days = _int_constant(SETTINGS, "AMPEER_ADVICE_TTL_DAYS")
@@ -92,7 +80,7 @@ def test_the_document_quotes_how_long_a_backup_outlives_a_deletion() -> None:
     KEEP_DAYS without changing the document would leave a privacy assessment
     understating how long deleted data survives.
     """
-    days = _shell_int(BACKUP, "KEEP_DAYS")
+    days = shell_int(BACKUP, "KEEP_DAYS")
     assert days in NUMBER_WORDS, f"backups are kept {days} days and this test has no words for it"
     assert NUMBER_WORDS[days] in TEXT, f"the document does not say {NUMBER_WORDS[days]}"
 
@@ -600,7 +588,7 @@ def test_the_document_states_the_backup_window_the_prune_actually_leaves() -> No
     long deleted data survives, which is exactly what happened, and not because
     anybody changed KEEP_DAYS.
     """
-    days = _shell_int(BACKUP, "KEEP_DAYS")
+    days = shell_int(BACKUP, "KEEP_DAYS")
     script = BACKUP.read_text(encoding="utf-8")
     assert '-mtime "+${KEEP_DAYS}"' in script, (
         "the prune no longer uses find's +N form, and the arithmetic below is only "
