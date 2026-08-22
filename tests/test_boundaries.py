@@ -62,5 +62,10 @@ def test_the_backend_may_import_the_pure_packages() -> None:
 
 
 def test_engine_version_is_declared() -> None:
+    """The shape of the version only.
+
+    What it is allowed to mean is pinned in tests/test_golden.py, which fails
+    when a model constant or a golden answer moves without the version moving.
+    """
     assert isinstance(ampeer_sim.ENGINE_VERSION, str)
     assert ampeer_sim.ENGINE_VERSION.count(".") == 2
