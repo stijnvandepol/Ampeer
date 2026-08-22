@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from helpers.profiles import nedu_profile_path
 
 from ampeer_advice import tariffs
 from ampeer_advice.battery import MAX_ACCEPTABLE_PAYBACK_YEARS
@@ -659,7 +660,7 @@ def test_the_measured_shares_in_chapter_two_are_the_ones_the_profiles_have() -> 
     from ampeer_sim.profiles.nedu import NeduFileProvider
     from ampeer_sim.types import ProfileCategory
 
-    profiles = REPO_ROOT / "data" / "nedu-profiles-2025.csv"
+    profiles = nedu_profile_path(2025)
     if not profiles.is_file():
         pytest.skip("the NEDU profile file is not committed; see infra/README.md")
 

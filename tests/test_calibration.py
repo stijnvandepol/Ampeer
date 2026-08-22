@@ -18,6 +18,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from helpers.profiles import nedu_profile_path
 
 from ampeer_sim.calibration import compare_export_profile, hourly_share, monthly_share
 from ampeer_sim.engine.run import simulate
@@ -36,7 +37,11 @@ MEASURED_HOURLY: tuple[float, ...] = tuple(REFERENCE["hourly_share"])
 
 #: Only present on a machine that has run tools/ingest_profiles.py. Gitignored,
 #: because the redistribution terms of the NEDU files are not confirmed.
-RAW_PROFILES = Path(__file__).resolve().parent.parent / "data" / "nedu-profiles-2025.csv"
+#:
+#: The name comes from the tool rather than being written again. The test below
+#: skips when this file is absent, and a skip whose condition is an absence
+#: cannot tell "not downloaded yet" from "looking in the wrong place".
+RAW_PROFILES = nedu_profile_path(2025)
 
 GRID = YearGrid.for_year(2025)
 WEATHER_YEAR = 2025
@@ -172,3 +177,29 @@ def test_the_committed_reference_still_matches_the_raw_profile_file() -> None:
     measured = NeduFileProvider(RAW_PROFILES).feed_in_fractions(2025, ProfileCategory.E1A)
     assert monthly_share(measured, GRID) == pytest.approx(MEASURED_MONTHLY, abs=1e-5)
     assert hourly_share(measured, GRID) == pytest.approx(MEASURED_HOURLY, abs=1e-5)
+
+
+def test_the_profile_name_is_derived_from_the_tool_that_writes_it() -> None:
+    """The floor under a skip that nobody would notice standing.
+
+    RAW_PROFILES gates a skipif. If the name it points at stopped being the
+    name tools/ingest_profiles.py writes, the file would never be there, the
+    skip would fire on every machine and in CI, and the message would read
+    exactly as it does on a machine that simply has not downloaded it.
+
+    So the name is read from the tool. What this asserts is that the reading
+    still works and still depends on the year, because a template that lost its
+    year would resolve to one fixed name and be wrong for every other.
+    """
+    from helpers.profiles import INGEST, nedu_profile_name
+
+    name = nedu_profile_name(2025)
+    assert name.endswith(".csv"), f"the tool writes {name!r}, which is not a csv"
+    assert "2025" in name, f"{name!r} does not carry the year it was asked for"
+    assert nedu_profile_name(2030) != name, (
+        "the destination does not depend on the year, so every year would land on one file"
+    )
+    assert name in INGEST.read_text(encoding="utf-8").replace("{year}", "2025"), (
+        f"{name!r} is not what {INGEST.name} builds; the derivation has drifted from "
+        "the source it is supposed to be reading"
+    )
