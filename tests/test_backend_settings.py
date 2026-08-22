@@ -84,6 +84,26 @@ def test_production_allows_only_the_hosts_it_was_given(
 
 
 def test_nothing_authenticates_because_there_is_nothing_to_log_in_to() -> None:
+    """Absent on purpose, which is worth saying because two named requirements
+    are absent with them.
+
+    CLAUDE.md lists Argon2id hashing and django-axes under security that holds
+    in every phase, and neither is configured. That follows from this test
+    rather than contradicting it: base.py leaves out auth, sessions and admin
+    because an installed app is attack surface whether or not a URL points at
+    it, and a brute force defence with no login to defend is the same thing.
+
+    What makes the absence safe today also makes it dangerous later. Django
+    supplies AUTHENTICATION_BACKENDS and PASSWORD_HASHERS whether or not
+    anything uses them, and its defaults are ModelBackend alone and
+    PBKDF2PasswordHasher first, measured on 2026-08-22. So the day accounts
+    arrive, passwords are hashed with PBKDF2 unless somebody changes it, and
+    nothing raises. Argon2 does not replace a blank, it replaces a working
+    default, which is the harder kind of thing to remember.
+
+    test_authentication_never_arrives_without_its_defences, lower in this file,
+    is what fails on that day.
+    """
     from django.conf import settings
 
     assert settings.REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"] == []
@@ -601,3 +621,101 @@ def test_every_stored_datetime_field_is_aware() -> None:
     from django.conf import settings
 
     assert settings.USE_TZ, f"these fields would all be stored naive: {fields}"
+
+
+# ---------------------------------------------------------------------------
+# The defences that arrive with the first account
+# ---------------------------------------------------------------------------
+
+#: The app whose presence means this service has something to log in to.
+AUTH_APP = "django.contrib.auth"
+
+#: What django-axes needs before it protects anything, from its own install
+#: instructions: the app, its backend ahead of the others so a locked out
+#: attempt never reaches them, and its middleware.
+AXES_APP = "axes"
+AXES_BACKEND = "axes.backends.AxesStandaloneBackend"
+AXES_MIDDLEWARE = "axes.middleware.AxesMiddleware"
+
+
+def _missing_login_defences(
+    installed: set[str], backends: list[str], hashers: list[str], middleware: list[str]
+) -> list[str]:
+    """What CLAUDE.md requires of a service that has accounts, and is absent.
+
+    A function rather than a chain of assertions, so that the branch which does
+    not run today can still be exercised. A conditional test of the shape "if
+    auth is installed then check the rest" is green on a service with no auth
+    without having checked anything, and green-because-not-applicable is the
+    failure this whole suite is written against.
+    """
+    if AUTH_APP not in installed:
+        return []
+    missing = []
+    if AXES_APP not in installed:
+        missing.append(f"{AXES_APP} is not in INSTALLED_APPS")
+    if not backends or backends[0] != AXES_BACKEND:
+        missing.append(f"{AXES_BACKEND} is not the first AUTHENTICATION_BACKENDS entry")
+    if AXES_MIDDLEWARE not in middleware:
+        missing.append(f"{AXES_MIDDLEWARE} is not in MIDDLEWARE")
+    if not hashers or "Argon2" not in hashers[0]:
+        missing.append("the first PASSWORD_HASHERS entry is not an Argon2 hasher")
+    return missing
+
+
+def test_the_rule_about_login_defences_recognises_a_setup_that_lacks_them() -> None:
+    """Both branches of the check above, run rather than reasoned about.
+
+    Without this the assertion below would be a statement about a condition
+    that is false, which is the same as no statement at all. Here the rule is
+    handed a service that has accounts and nothing else, and has to name all
+    four; then one that has everything, and has to name none.
+    """
+    bare = _missing_login_defences({AUTH_APP}, [], [], [])
+    assert len(bare) == 4, f"the rule found only {bare} wrong with a bare auth setup"
+
+    complete = _missing_login_defences(
+        {AUTH_APP, AXES_APP},
+        [AXES_BACKEND, "django.contrib.auth.backends.ModelBackend"],
+        ["django.contrib.auth.hashers.Argon2PasswordHasher"],
+        [AXES_MIDDLEWARE],
+    )
+    assert complete == [], f"a correctly defended login is reported as missing {complete}"
+
+    ordering = _missing_login_defences(
+        {AUTH_APP, AXES_APP},
+        ["django.contrib.auth.backends.ModelBackend", AXES_BACKEND],
+        ["django.contrib.auth.hashers.Argon2PasswordHasher"],
+        [AXES_MIDDLEWARE],
+    )
+    assert ordering, (
+        "axes behind the model backend is reported as fine, and it is not: a lockout "
+        "that runs second is a lockout the attempt has already got past"
+    )
+
+
+def test_authentication_never_arrives_without_its_defences() -> None:
+    """The requirement, aimed at the phase that will introduce it.
+
+    Phase 1 brings accounts. The day `django.contrib.auth` goes into
+    INSTALLED_APPS, this fails unless axes and Argon2 go in with it, and it
+    names each thing that is missing rather than leaving somebody to reread
+    CLAUDE.md.
+
+    Two of the four security requirements about logging in are checked here.
+    The third, JWT in httpOnly SameSite=Strict cookies with refresh rotation,
+    is not visible in settings alone and belongs with the view that issues
+    them. Saying so is better than implying this covers it.
+    """
+    from django.conf import settings
+
+    missing = _missing_login_defences(
+        set(settings.INSTALLED_APPS),
+        list(getattr(settings, "AUTHENTICATION_BACKENDS", [])),
+        list(getattr(settings, "PASSWORD_HASHERS", [])),
+        list(settings.MIDDLEWARE),
+    )
+    assert not missing, (
+        "this service has accounts and CLAUDE.md asks for these before it does:\n  "
+        + "\n  ".join(missing)
+    )
