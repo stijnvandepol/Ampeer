@@ -478,12 +478,43 @@ def test_every_bound_the_serializer_enforces_has_a_copy_in_the_form() -> None:
     assert not missing, f"serializers.py bounds these and BOUNDS does not mention them: {missing}"
 
 
+def test_every_bound_the_form_applies_is_one_the_serializer_also_applies() -> None:
+    """The direction neither of the two above walks.
+
+    One asserts every Python bound has a copy in the form. The other compares
+    the values of the fields both of them know about, and skipped a field the
+    serializer does not bound: `if field in authoritative` reads as caution and
+    is a hole. A BOUNDS entry with nothing behind it means the form refuses
+    something the API would have accepted, and the visitor is stopped by our
+    own message rather than by a rule.
+
+    That is the quieter half of the two failures validation.ts describes in its
+    own opening. Too loose produces a 400 the visitor can at least see; too
+    tight produces a form that will not go on, for a reason that exists nowhere
+    but here.
+    """
+    authoritative = _serializer_bounds()
+    invented = sorted(set(_frontend_bounds()) - set(authoritative))
+    assert not invented, (
+        f"BOUNDS refuses values for {invented} and serializers.py bounds none of them, "
+        "so the form is stricter than the API and the difference lives only in the "
+        "frontend"
+    )
+
+
 def test_every_bound_in_the_form_is_the_bound_the_serializer_enforces() -> None:
+    """The values themselves, for every field the form bounds.
+
+    No longer skipping a field the serializer does not know: the test above
+    makes that case impossible, and a comparison that steps over its own
+    unknowns reports agreement it never checked. Reported here rather than
+    raising a KeyError, so the two failures read the same way.
+    """
     authoritative = _serializer_bounds()
     disagreements = [
-        f"{field}: the form says {bound}, serializers.py says {authoritative[field]}"
+        f"{field}: the form says {bound}, serializers.py says {authoritative.get(field, 'nothing')}"
         for field, bound in _frontend_bounds().items()
-        if field in authoritative and bound != authoritative[field]
+        if authoritative.get(field) != bound
     ]
     assert not disagreements, f"the API wins; fix validation.ts: {disagreements}"
 
