@@ -15,6 +15,7 @@ and no Node, and it fails on the side where the response is produced.
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 from pathlib import Path
@@ -534,4 +535,122 @@ def test_the_third_copy_of_the_postcode_range_agrees_with_the_first() -> None:
     )
     assert literals == {low, high}, (
         f"postcodeText names {sorted(literals)} and the range is {low} to {high}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The address, not just the shape
+# ---------------------------------------------------------------------------
+
+ROOT_URLS = REPO_ROOT / "backend" / "ampeer" / "urls.py"
+ADVICE_URLS = REPO_ROOT / "backend" / "advice" / "urls.py"
+NGINX = REPO_ROOT / "infra" / "nginx" / "nginx.conf"
+API_TS = REPO_ROOT / "frontend" / "src" / "lib" / "api.ts"
+
+#: A path this frontend asks the API for, quoted or in a template literal.
+_CALLED_PATH = re.compile(r"""["'`](/api/[^"'`]*)["'`]""")
+
+#: What a template literal interpolates, flattened so a token and a postcode
+#: read the same. What matters is the shape of the address, not the value.
+_INTERPOLATION = re.compile(r"\$\{[^}]*\}")
+
+
+def _api_prefix() -> str:
+    """Where Django mounts the advice API, from the root URL configuration.
+
+    Django is the only place that decides this. nginx forwards it and the
+    frontend asks for it, and both of those are copies.
+    """
+    tree = ast.parse(ROOT_URLS.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and getattr(node.func, "id", "") == "path"):
+            continue
+        if len(node.args) < 2 or not isinstance(node.args[0], ast.Constant):
+            continue
+        included = node.args[1]
+        if (
+            isinstance(included, ast.Call)
+            and getattr(included.func, "id", "") == "include"
+            and included.args
+            and isinstance(included.args[0], ast.Constant)
+            and included.args[0].value == "advice.urls"
+        ):
+            return "/" + str(node.args[0].value)
+    raise AssertionError(f"{ROOT_URLS.name} no longer mounts advice.urls anywhere")
+
+
+def _api_routes() -> set[str]:
+    """Every fixed route under that prefix, from the app's own URL configuration.
+
+    The token route is a re_path over a pattern rather than a literal, so it is
+    not a name that can be compared. It is answered for below by allowing one
+    interpolated segment.
+    """
+    tree = ast.parse(ADVICE_URLS.read_text(encoding="utf-8"))
+    return {
+        str(node.args[0].value)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and getattr(node.func, "id", "") == "path"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+    }
+
+
+def test_every_path_the_frontend_calls_is_one_the_backend_serves() -> None:
+    """The shape was checked and the address was not.
+
+    This file already argues that two codebases sharing a JSON shape with no
+    shared check is how a frontend ends up showing something the backend did
+    not mean. The address is the same argument one step earlier: the fixture
+    can be perfect and every call can still land on a 404.
+
+    `/api/advice/` is written out in fifteen places across this repository, and
+    each of them asserted its own half. Change the mount in
+    backend/ampeer/urls.py and the Python tests keep passing, because they use
+    reverse(); the frontend tests keep passing, because they mock; the nginx
+    test keeps passing, because it checks that its own block exists. Only a
+    visitor finds out.
+
+    Django decides, so Django is read. Everything else here is a copy.
+    """
+    prefix = _api_prefix()
+    routes = _api_routes()
+    assert routes, f"{ADVICE_URLS.name} declares no routes at all"
+
+    called = {
+        _INTERPOLATION.sub("<dynamic>", path)
+        for path in _CALLED_PATH.findall(API_TS.read_text(encoding="utf-8"))
+    }
+    assert called, f"{API_TS.name} asks the API for nothing; this test read nothing"
+
+    wrong = []
+    for path in sorted(called):
+        if not path.startswith(prefix):
+            wrong.append(f"{path} is not under {prefix}")
+            continue
+        rest = path[len(prefix) :]
+        if rest == "<dynamic>/" or rest in routes:
+            continue
+        wrong.append(f"{path} asks for {rest!r}, which is not one of {sorted(routes)}")
+    assert not wrong, "the frontend calls addresses the backend does not serve:\n  " + "\n  ".join(
+        wrong
+    )
+
+
+def test_nginx_forwards_the_prefix_django_answers_on() -> None:
+    """The third copy, and the one that fails in production rather than in a test.
+
+    nginx has its own location for this prefix, with a log format that keeps a
+    token out of the access log. If Django moves and nginx does not, the block
+    stops matching, requests fall through to the general /api/ location, and
+    the promise about tokens in logs quietly stops applying to the one path it
+    was written for.
+    """
+    prefix = _api_prefix()
+    text = NGINX.read_text(encoding="utf-8")
+    assert re.search(rf"location\s+{re.escape(prefix)}\s*\{{", text), (
+        f"nginx.conf has no location block for {prefix}, which is where Django now "
+        "answers. Requests would fall through to the generic /api/ block and lose the "
+        "log format that keeps tokens out of the access log."
     )
