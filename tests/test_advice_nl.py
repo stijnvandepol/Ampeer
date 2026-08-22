@@ -50,13 +50,27 @@ def test_every_model_input_a_band_can_name_has_a_dutch_name() -> None:
     put a name into a band: the sensitivity variations, plus the battery price,
     which the payback band varies on its own.
     """
+    from ampeer_advice.advise import PINNED_INPUTS
+    from ampeer_advice.battery import BATTERY_PRICE_INPUT
     from ampeer_advice.nl import INPUT_LABELS
+    from ampeer_advice.tariffs import scenario_2027_levels
     from ampeer_sim.economics.sensitivity import VARIATIONS
 
-    nameable = {variation.name for variation in VARIATIONS} | {
-        "supply_price",
-        "battery_cost_per_kwh",
-    }
+    # Every place a name can enter a band, read from that place rather than
+    # copied. Until 2026-08-22 this was the variations plus two names typed out
+    # here, which covered the real set only because three of the four sources
+    # happen to overlap with the variations. A name pinned in advise.py or
+    # listed in tariffs.py that was not also a variation would have passed this
+    # test and raised in `label_for` for every visitor, which is a 500 rather
+    # than a red build. Measured that day: the two sets were identical, so this
+    # fixes a derivation and not a defect.
+    nameable = (
+        {variation.name for variation in VARIATIONS}
+        | set(PINNED_INPUTS)
+        | set(scenario_2027_levels(dynamic=False).inputs)
+        | set(scenario_2027_levels(dynamic=True).inputs)
+        | {BATTERY_PRICE_INPUT}
+    )
     missing = nameable - set(INPUT_LABELS)
     assert not missing, f"model inputs with no Dutch name: {sorted(missing)}"
 

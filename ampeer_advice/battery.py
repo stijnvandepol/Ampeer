@@ -36,6 +36,12 @@ from itertools import pairwise
 from ampeer_advice.tariffs import BATTERY_COST_PER_KWH
 from ampeer_advice.types import BatteryAdvice, ScenarioBand
 
+#: The name the payback band adds to the inputs it varied. Named rather than
+#: written inline, because tests/test_advice_nl.py pairs every name a band can
+#: emit with the Dutch table in nl.py, and a name buried in a tuple literal is
+#: one that pairing has to be told about by hand instead of reading.
+BATTERY_PRICE_INPUT = "battery_cost_per_kwh"
+
 #: The capacities that are simulated. Five points, because the curve is smooth
 #: and more points cost time without moving the knee.
 CAPACITIES: tuple[float, ...] = (3.0, 5.0, 7.0, 10.0, 15.0)
@@ -146,7 +152,7 @@ def battery_advice(curve: Sequence[tuple[float, ScenarioBand]]) -> BatteryAdvice
         payback_years=ScenarioBand.over(
             values=[payback(cost, value) for cost in costs for value in savings],
             mid=payback(BATTERY_COST_PER_KWH.mid, saving.mid),
-            varied=(*saving.varied, "battery_cost_per_kwh"),
+            varied=(*saving.varied, BATTERY_PRICE_INPUT),
             pinned=saving.pinned,
         ),
         curve=points,
