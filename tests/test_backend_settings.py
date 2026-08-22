@@ -437,3 +437,71 @@ class TestWhatTheProcessIsAllowedToWriteDown:
         assert "django.request" in line, line
         assert "500" in line, line
         assert "test_backend_settings.py" in line, line
+
+
+def test_timestamps_are_stored_in_utc() -> None:
+    """CLAUDE.md says every timestamp is stored in UTC. Two settings decide it.
+
+    Neither was asserted anywhere, in a file that pins twelve other settings
+    because they decide a security property. This one decides an integrity
+    property, and the way it fails is quiet.
+
+    With USE_TZ off, `timezone.now()` returns naive local time, and the four
+    DateTimeFields in advice/models.py store that. Three of them are ordinary
+    and would only drift by an hour twice a year. The fourth is `occurred_at` on
+    the append-only audit log, and local time gives October an hour that happens
+    twice: two rows an hour apart can carry the same wall clock and the ordering
+    the model declares stops answering when something happened. An audit log
+    that cannot order itself is the one table in this service that cannot be
+    rebuilt from anything.
+
+    Asserted as the effect rather than the constant. Reading TIME_ZONE back
+    would prove the file says UTC; asking `timezone.now()` proves what the code
+    actually writes.
+    """
+    from django.conf import settings
+    from django.utils import timezone
+
+    assert settings.USE_TZ is True, "USE_TZ is off, so datetimes are stored naive"
+    assert settings.TIME_ZONE == "UTC", (
+        f"TIME_ZONE is {settings.TIME_ZONE!r}; storage is UTC in this project"
+    )
+
+    now = timezone.now()
+    assert now.tzinfo is not None, "timezone.now() is naive, whatever the settings say"
+    assert now.utcoffset() is not None and now.utcoffset().total_seconds() == 0, (
+        f"timezone.now() carries an offset of {now.utcoffset()}, so it is not UTC"
+    )
+
+
+def test_every_stored_datetime_field_is_aware() -> None:
+    """The other end of the same property, at the models rather than the clock.
+
+    Django decides awareness per connection from USE_TZ, so this cannot drift
+    from the test above on its own. It is here because it names the fields, and
+    a fifth DateTimeField added later is covered without anybody remembering to
+    add it.
+
+    Nothing here asserts a display timezone. CLAUDE.md asks for Europe/Amsterdam
+    on screen and the frontend currently renders no timestamp at all, so there
+    is nothing to check and saying so is better than a test that passes because
+    it looks at nothing.
+    """
+    import django
+
+    django.setup()
+    from django.apps import apps
+    from django.db import models as django_models
+
+    model_classes = apps.get_app_config("advice").get_models()
+    fields = [
+        (model.__name__, field.name)
+        for model in model_classes
+        for field in model._meta.get_fields()
+        if isinstance(field, django_models.DateTimeField)
+    ]
+    assert len(fields) >= 4, f"only found {fields}; this test is no longer reading the models"
+
+    from django.conf import settings
+
+    assert settings.USE_TZ, f"these fields would all be stored naive: {fields}"
