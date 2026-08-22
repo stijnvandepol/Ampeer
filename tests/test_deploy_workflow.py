@@ -196,7 +196,18 @@ def test_the_deploy_job_needs_the_build_job() -> None:
 
 
 def _steps(job: str) -> list[dict[str, Any]]:
+    """Every step of a job, refusing a job that has none.
+
+    `_job` already refuses a name that is not there. What it cannot refuse is a
+    job whose shape changed: a job that calls a reusable workflow carries `uses`
+    at job level and no steps, and twenty assertions here read as "no step does
+    X", every one of which passes over an empty list.
+    """
     steps: list[dict[str, Any]] = _job(job).get("steps", [])
+    assert steps, (
+        f"the {job!r} job declares no steps, so every check over them below would "
+        "pass without reading anything"
+    )
     return steps
 
 

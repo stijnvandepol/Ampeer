@@ -399,7 +399,15 @@ GATED_ROOTS = ("ampeer_sim", "ampeer_advice", "backend", "tools")
 
 
 def _run_steps(workflow: str, job: str) -> list[str]:
+    """The shell commands a job runs, refusing a job with no steps at all.
+
+    The emptiness that matters is the job's, not this filter's: a job made
+    entirely of actions has no `run` step and that is fine. A job with no steps
+    is a job whose shape changed, and the gate comparisons below would then
+    report agreement about nothing.
+    """
     steps = _workflows()[workflow]["jobs"][job].get("steps", [])
+    assert steps, f"{workflow}:{job} declares no steps"
     return [str(step["run"]) for step in steps if "run" in step]
 
 
@@ -553,6 +561,7 @@ FRONTEND_GATES = (
 
 def _steps(workflow: str, job: str) -> list[dict[str, Any]]:
     steps: list[dict[str, Any]] = _workflows()[workflow]["jobs"][job].get("steps", [])
+    assert steps, f"{workflow}:{job} declares no steps"
     return steps
 
 
