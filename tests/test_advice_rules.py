@@ -14,7 +14,7 @@ from typing import Any
 
 from ampeer_advice.confidence import confidence_for
 from ampeer_advice.rules import RULE_IDS, RULES, evaluate
-from ampeer_advice.types import AdviceContext, Confidence, Route
+from ampeer_advice.types import AdviceContext, Confidence, Route, ScenarioBand
 from ampeer_sim.types import Band
 
 _NEUTRAL: dict[str, Any] = {
@@ -47,7 +47,11 @@ def _fired_ids(context: AdviceContext) -> list[str]:
     return [fired.rule_id for fired in evaluate(context)]
 
 
-def _saving(context: AdviceContext, rule_id: str) -> Decimal | None:
+# Not Decimal. estimated_saving_eur became a ScenarioBand when the project
+# rule that no figure is shown without one came in, and this signature had
+# stayed behind. Every caller asserts None, so nothing behaved wrongly; the
+# annotation was simply describing a field that no longer exists in that shape.
+def _saving(context: AdviceContext, rule_id: str) -> ScenarioBand | None:
     (fired,) = [f for f in evaluate(context) if f.rule_id == rule_id]
     return fired.estimated_saving_eur
 

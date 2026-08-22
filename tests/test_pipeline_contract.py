@@ -701,8 +701,8 @@ GATE_FRAGMENTS = {
     "uv run ruff format --check ampeer_sim ampeer_advice backend tests tools": (
         "uv run ruff format --check ampeer_sim ampeer_advice backend tests tools"
     ),
-    "uv run mypy ampeer_sim ampeer_advice backend tools": (
-        "uv run mypy ampeer_sim ampeer_advice backend tools"
+    "uv run mypy ampeer_sim ampeer_advice backend tests tools": (
+        "uv run mypy ampeer_sim ampeer_advice backend tests tools"
     ),
     "uv run python backend/manage.py check --deploy --fail-level WARNING": (
         "uv run python backend/manage.py check --deploy --fail-level WARNING"
@@ -820,7 +820,7 @@ CLAIMS_ABOUT_FEATURE_PUSHES = (
 )
 
 
-def _push_branches(workflow: dict[str, Any]) -> list[str]:
+def _push_branches(workflow: dict[Any, Any]) -> list[str]:
     """The branches a workflow triggers on for a push, past the YAML trap.
 
     PyYAML resolves an unquoted `on` key to the boolean True, so reading

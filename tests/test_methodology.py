@@ -425,7 +425,7 @@ def _model(name: str) -> type:
     import ampeer_sim.types as types_module
 
     model = getattr(types_module, name, None)
-    assert model is not None, f"ampeer_sim.types no longer defines {name}"
+    assert isinstance(model, type), f"ampeer_sim.types no longer defines {name}"
     return model
 
 
@@ -507,12 +507,12 @@ def _class_attribute(source: Path, class_name: str, attribute: str) -> object:
     )
     for statement in node.body:
         target = None
+        value: ast.expr | None = None
         if isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name):
-            target = statement.target.id
+            target, value = statement.target.id, statement.value
         elif isinstance(statement, ast.Assign) and isinstance(statement.targets[0], ast.Name):
-            target = statement.targets[0].id
+            target, value = statement.targets[0].id, statement.value
         if target == attribute:
-            value = statement.value
             assert isinstance(value, ast.Constant), f"{class_name}.{attribute} is not a literal"
             return value.value
     raise AssertionError(f"{class_name} no longer sets {attribute}")
@@ -710,18 +710,20 @@ def _thresholds_in_conditions() -> set[tuple[str, float]]:
         if not (isinstance(node, ast.Call) and getattr(node.func, "id", "") == "Rule"):
             continue
         rule_id = next(
-            keyword.value.value
+            str(keyword.value.value)
             for keyword in node.keywords
             if keyword.arg == "rule_id" and isinstance(keyword.value, ast.Constant)
         )
         condition = next(keyword.value for keyword in node.keywords if keyword.arg == "condition")
         for inner in ast.walk(condition):
-            if (
-                isinstance(inner, ast.Constant)
-                and isinstance(inner.value, (int, float))
-                and not isinstance(inner.value, bool)
-            ):
-                found.add((rule_id, inner.value))
+            if not isinstance(inner, ast.Constant):
+                continue
+            number = inner.value
+            # bool is a subclass of int, so it has to be excluded before the
+            # number check rather than after it.
+            if isinstance(number, bool) or not isinstance(number, (int, float)):
+                continue
+            found.add((rule_id, float(number)))
     assert found, "no thresholds found; this test no longer reads what it thinks it does"
     return found
 

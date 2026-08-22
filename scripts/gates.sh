@@ -151,7 +151,7 @@ gate sync uv sync --locked --group dev --group backend
 
 gate ruff        uv run ruff check ampeer_sim ampeer_advice backend tests tools
 gate ruff-format uv run ruff format --check ampeer_sim ampeer_advice backend tests tools
-gate mypy        uv run mypy ampeer_sim ampeer_advice backend tools
+gate mypy        uv run mypy ampeer_sim ampeer_advice backend tests tools
 
 # The deployment checklist under production settings. prod.py refuses to import
 # without these, and the values are generated here for the same reason ci.yml

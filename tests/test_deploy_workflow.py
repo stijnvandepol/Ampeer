@@ -80,7 +80,7 @@ def _job(name: str) -> dict[str, Any]:
     return job
 
 
-def _triggers(document: dict[str, Any]) -> dict[str, Any]:
+def _triggers(document: dict[Any, Any]) -> dict[str, Any]:
     """The `on:` block, fetched past a YAML trap that would make this vacuous.
 
     PyYAML resolves an unquoted `on` key to the boolean True, so

@@ -47,7 +47,7 @@ jobs:
       - run: uv sync --locked --group dev --group backend
       - run: uv run ruff check ampeer_sim ampeer_advice backend tests tools
       - run: uv run ruff format --check ampeer_sim ampeer_advice backend tests tools
-      - run: uv run mypy ampeer_sim ampeer_advice backend tools
+      - run: uv run mypy ampeer_sim ampeer_advice backend tests tools
       # Django's own deployment checklist, against the settings module wsgi.py
       # names, with warnings fatal. At the default fail level a warning about a
       # missing HSTS header or an absent CSRF middleware prints and exits zero,

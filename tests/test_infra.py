@@ -47,13 +47,15 @@ PUBLISHED_KEY = re.compile(r"^\s*published\s*:", re.MULTILINE)
 
 
 def compose() -> dict[str, Any]:
-    return yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))
+    loaded: dict[str, Any] = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))
+    return loaded
 
 
 def service(name: str) -> dict[str, Any]:
     services = compose()["services"]
     assert name in services, f"no service {name!r}: {sorted(services)}"
-    return services[name]
+    definition: dict[str, Any] = services[name]
+    return definition
 
 
 def test_the_stack_has_the_four_services_it_needs() -> None:
