@@ -10,9 +10,12 @@ from __future__ import annotations
 import importlib
 import sys
 from types import ModuleType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
+
+if TYPE_CHECKING:  # the runtime import stays inside the function, like every
+    from rest_framework.views import APIView  # other Django import in this file
 
 REQUIRED_ENV = {
     "DJANGO_SECRET_KEY": "x" * 50,
@@ -95,6 +98,98 @@ def test_both_public_throttle_scopes_are_configured() -> None:
     rates = settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]
     assert rates["advice-compute"] == "20/hour"
     assert rates["advice-read"] == "120/hour"
+
+
+#: The routes that answer without a rate limit, and the reason each is allowed to.
+#:
+#: The readiness endpoint is the only one. Its own docstring gives the reason:
+#: in production the throttle counter lives in Postgres, so leaving the throttle
+#: on would turn a check that runs every thirty seconds into the database query
+#: it exists to avoid. Adding a second entry here is a decision that shows up in
+#: a test diff rather than as an attribute somebody forgot to write.
+UNTHROTTLED_ROUTES = frozenset({"api/advice/health/"})
+
+
+def _routed_views() -> list[tuple[str, type[APIView]]]:
+    """Every route the URL configuration actually serves, with its view class.
+
+    Read through the resolver rather than by listing views.py, because what
+    matters is what is reachable. A view class that exists and is not routed
+    cannot be called; a view that is routed is public whether or not anybody
+    remembered to write it down.
+
+    The class comes off the callback, so an attribute inherited from a base
+    class resolves the way DRF will resolve it at request time. EstimateView
+    declares no throttle_scope of its own and gets one from _ComputeView, which
+    a scan of the source text would have to reimplement to see.
+    """
+    from django.urls import URLPattern, URLResolver, get_resolver
+
+    def walk(patterns: list[object], prefix: str = "") -> list[tuple[str, type[APIView]]]:
+        found: list[tuple[str, type[APIView]]] = []
+        for entry in patterns:
+            if isinstance(entry, URLResolver):
+                found.extend(walk(list(entry.url_patterns), prefix + str(entry.pattern)))
+            elif isinstance(entry, URLPattern):
+                view = getattr(entry.callback, "cls", None)
+                assert view is not None, (
+                    f"{prefix}{entry.pattern} is served by {entry.callback}, which is not "
+                    "a DRF view. DRF throttling runs inside APIView.initial, so a plain "
+                    "Django view mounted here answers with no rate limit at all."
+                )
+                found.append((prefix + str(entry.pattern), view))
+        return found
+
+    return walk(list(get_resolver().url_patterns))
+
+
+def test_every_public_route_is_rate_limited() -> None:
+    """CLAUDE.md asks for rate limiting on all public endpoints. All is the word.
+
+    The test above pins the two rates, which says the scopes are configured. It
+    does not say anything answers under one. DRF decides that per view, and the
+    way it decides is the problem:
+
+        # If a view does not have a `throttle_scope` always allow the request
+        if not self.scope:
+            return True
+
+    That is ScopedRateThrottle.allow_request, quoted from the installed version.
+    A view added without throttle_scope is not throttled loosely, it is not
+    throttled at all, and the omission is one missing attribute that raises
+    nothing, logs nothing, and passes every test that checks what the endpoint
+    returns. The endpoints here compute for about half a second of CPU each.
+
+    So the guard is written to fail on the absence rather than on a wrong value:
+    every route the resolver serves has to name a scope that has a rate, or be
+    on the exemption list above with the throttle explicitly switched off.
+    """
+    from django.conf import settings
+
+    rates = settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]
+    routes = _routed_views()
+    assert len(routes) >= 4, f"the resolver walk found {routes}; it is not reading the URLconf"
+    assert any(route.endswith("estimate/") for route, _ in routes), (
+        "the estimate endpoint is not among the routes found, so this test is looking "
+        "somewhere other than at this service"
+    )
+
+    for route, view in routes:
+        if route in UNTHROTTLED_ROUTES:
+            assert tuple(view.throttle_classes) == (), (
+                f"{route} is on the exemption list but {view.__name__} still carries "
+                f"{view.throttle_classes}. An exemption has to be switched off on "
+                "purpose, so that it cannot be confused with an attribute nobody wrote."
+            )
+            continue
+        scope = getattr(view, "throttle_scope", None)
+        assert scope in rates, (
+            f"{route} is served by {view.__name__} with throttle_scope={scope!r}, which "
+            f"has no rate in {sorted(rates)}. DRF answers such a view without any limit."
+        )
+        assert view.throttle_classes, (
+            f"{view.__name__} names a scope but has no throttle classes, so nothing reads the scope"
+        )
 
 
 def test_the_root_urlconf_named_in_the_settings_actually_loads() -> None:
@@ -469,8 +564,9 @@ def test_timestamps_are_stored_in_utc() -> None:
 
     now = timezone.now()
     assert now.tzinfo is not None, "timezone.now() is naive, whatever the settings say"
-    assert now.utcoffset() is not None and now.utcoffset().total_seconds() == 0, (
-        f"timezone.now() carries an offset of {now.utcoffset()}, so it is not UTC"
+    offset = now.utcoffset()
+    assert offset is not None and offset.total_seconds() == 0, (
+        f"timezone.now() carries an offset of {offset}, so it is not UTC"
     )
 
 
