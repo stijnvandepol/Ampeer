@@ -10,9 +10,9 @@ machine verlaat. Elk feit hierin is uit de code gelezen of gemeten, niet
 onthouden, en `tests/test_dpia.py` houdt de getallen hieronder naast de plek in
 de code waar ze vandaan komen. Verandert er een, dan valt die test om.
 
-Dit is geen juridisch advies en het is niet ondertekend. Vier dingen zijn
-beslissingen van de verwerkingsverantwoordelijke en staan in hoofdstuk 9 met de
-informatie die nodig is om ze te nemen.
+Dit is geen juridisch advies en het is niet ondertekend. Vijf dingen zijn
+beslissingen van de verwerkingsverantwoordelijke en staan in hoofdstuk 10 met
+de informatie die nodig is om ze te nemen.
 
 ## 1. Is een DPIA hier verplicht
 
@@ -126,9 +126,12 @@ teruggeeft en niet meer kan vinden. Dat is de belofte waar een deelbare link,
 een inzageverzoek en een verwijderverzoek alle drie over gaan.
 
 **Sinds 21 augustus 2026 is er een tweede kopie**, en dat is een bewuste ruil.
-Er wordt dagelijks een dump gemaakt en die dumps worden zeven dagen bewaard, dus
-een advies dat de dienst niet meer teruggeeft kan nog ten hoogste een week in een
-back-upbestand staan. Drie dingen begrenzen dat, en het zijn eigenschappen van
+Er wordt dagelijks een dump gemaakt en `KEEP_DAYS` staat op zeven, dus
+een advies dat de dienst niet meer teruggeeft kan nog ten hoogste acht dagen in
+een back-upbestand staan. Acht en niet zeven, en dat is geen afronding maar hoe
+het opruimen telt: `find -mtime +7` verwijdert pas vanaf acht volle dagen, dus
+naast de dump van vandaag blijven die van dag een tot en met zeven staan. Op
+schijf staan er daarmee ten hoogste acht. Drie dingen begrenzen dat, en het zijn eigenschappen van
 het script en de timer en geen beloften:
 
 1. de dump draait een uur na de opruiming, dus een dump bevat nooit advies dat
@@ -256,8 +259,8 @@ is, en het is de reden dat dit hoofdstuk kort kan zijn.
 | Een deelbare link belandt bij iemand anders, bijvoorbeeld in een doorgestuurd bericht | Dit is inherent aan een link zonder account. De link verloopt na negentig dagen. Wat erachter staat is een postcodegebied en een jaarverbruik, geen naam |
 | Het IP-adres van een bezoeker wordt bewaard | Het wordt gehasht voordat het teller wordt, en er is geen tabel met een adresveld |
 | De volledige postcode bereikt de dienst | De serializer weigert alles wat geen vier cijfers is, in plaats van af te kappen |
-| Een back-upbestand lekt | `0600` in een map `0700`, ten hoogste zeven bestanden, en de deploy weigert door te gaan als een van beide ruimer staat |
-| Verwijderde gegevens leven voort in een back-up | Ten hoogste zeven dagen, en de dagelijkse opruiming haalt herleefde rijen na een terugzetting weer weg |
+| Een back-upbestand lekt | `0600` in een map `0700`, ten hoogste acht bestanden, en de deploy weigert door te gaan als een van beide ruimer staat |
+| Verwijderde gegevens leven voort in een back-up | Ten hoogste acht dagen, en de dagelijkse opruiming haalt herleefde rijen na een terugzetting weer weg |
 | De opruiming stopt zonder dat iemand het merkt | De deploy draait een controle die rood wordt zodra er iets over datum is, en de timer zelf faalt zichtbaar |
 | Een derde partij krijgt het surfgedrag van de bezoeker | Geen enkel verzoek buiten de eigen oorsprong, afgedwongen door een test |
 | Het advies wordt gestuurd door een commercieel belang | Geen advertenties, geen leads, geen eigen contract en geen hardwareverkoop. Elke regel die vuurt komt terug in het antwoord, dus een advies is na te lopen |

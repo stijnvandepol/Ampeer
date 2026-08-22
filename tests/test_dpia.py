@@ -573,3 +573,115 @@ def test_the_two_rounds_are_read_apart_rather_than_together() -> None:
         "the second round does not ask more than the first, so one of the two counts is "
         "not being read from the class it belongs to"
     )
+
+
+METHODOLOGY = REPO_ROOT / "docs" / "methodologie.md"
+
+
+def test_the_document_states_the_backup_window_the_prune_actually_leaves() -> None:
+    """KEEP_DAYS is not the number of days a dump survives, and it was quoted
+    as though it were.
+
+    The test above pairs KEEP_DAYS with the sentence that describes the rule,
+    and that sentence is right: dumps older than seven days are removed at
+    every run. Two summaries of it were not. The risk table said at most seven
+    files, and chapter 4 said at most a week, and both are one short.
+
+    Measured on 2026-08-22 by making files aged nought to nine days and running
+    the prune over them: eight survive. `find -mtime +7` deletes only from
+    eight whole days, so today's dump stands beside the ones from days one to
+    seven. The script prunes after writing, deliberately, so the new dump is
+    always among them.
+
+    This is a sharper failure than a miscount. The guard was there, it was
+    green, and it was comparing the number an operator types against a sentence
+    about it, while the number the system produces is one higher. The docstring
+    above it warns in so many words about a privacy assessment understating how
+    long deleted data survives, which is exactly what happened, and not because
+    anybody changed KEEP_DAYS.
+    """
+    days = _shell_int(BACKUP, "KEEP_DAYS")
+    script = BACKUP.read_text(encoding="utf-8")
+    assert '-mtime "+${KEEP_DAYS}"' in script, (
+        "the prune no longer uses find's +N form, and the arithmetic below is only "
+        "true of that form: +N matches from N+1 whole days. Re-derive it before "
+        "trusting the numbers in chapter 4."
+    )
+    standing = days + 1
+    assert standing in _DUTCH_NUMERALS, f"{standing} dumps stand and this table has no word"
+    flattened = re.sub(r"\s+", " ", TEXT).lower()
+    for phrase in (
+        f"{_DUTCH_NUMERALS[standing].lower()} bestanden",
+        f"{_DUTCH_NUMERALS[standing].lower()} dagen",
+    ):
+        assert phrase in flattened, (
+            f"the prune leaves {standing} dumps standing and the document does not say "
+            f"{phrase!r}. Quoting KEEP_DAYS instead understates how long a purged "
+            "advice survives in a copy."
+        )
+
+
+def test_every_chapter_this_document_points_at_exists() -> None:
+    """A renumbering leaves a cross reference pointing at the wrong chapter.
+
+    docs/methodologie.md has a test that its sections are numbered
+    consecutively, which means inserting one renumbers those after it, which
+    means every reference to a later chapter moves. Nothing checked that the
+    references moved with them.
+
+    What this does not catch is the error that prompted it. Chapter 0 said the
+    controller's decisions are in chapter 9, and they are in chapter 10.
+    Chapter 9 exists, so a resolvable-reference check passes. That one is
+    caught by the pairing below, which asks what the chapter is about rather
+    than whether it is there.
+    """
+    for name, document in (
+        ("docs/dpia.md", TEXT),
+        ("docs/methodologie.md", METHODOLOGY.read_text(encoding="utf-8")),
+    ):
+        chapters = {
+            int(match.group(1)) for match in re.finditer(r"^## (\d+)\.", document, re.MULTILINE)
+        }
+        assert chapters, f"{name} has no numbered chapters, so this test read nothing"
+        flattened = re.sub(r"\s+", " ", document)
+        dangling = sorted(
+            {
+                int(match.group(1))
+                for match in re.finditer(
+                    r"hoofdstuk (\d+)(?! van de methodologie)", flattened, re.IGNORECASE
+                )
+            }
+            - chapters
+        )
+        assert not dangling, (
+            f"{name} points at chapters {dangling}, which it does not have. A reference "
+            "to another document has to say so, the way 'hoofdstuk 17 van de "
+            "methodologie' does."
+        )
+
+
+def test_the_opening_points_at_the_chapter_that_holds_the_open_decisions() -> None:
+    """The forward reference in chapter 0, against the chapter it names.
+
+    It said chapter 9 and meant chapter 10, and said four where there are five.
+    Both were fixed in chapter 10 two commits earlier without the sentence that
+    points at it being touched, which is the ordinary way a correction leaves a
+    second copy behind.
+
+    Asked of the heading rather than the number, so a chapter inserted above it
+    moves the reference instead of breaking it.
+    """
+    heading = re.search(r"^## (\d+)\. Wat bij Stijn ligt", TEXT, re.MULTILINE)
+    assert heading, "the chapter of open decisions is no longer called 'Wat bij Stijn ligt'"
+    number = heading.group(1)
+    chapter = TEXT.split(f"## {number}. Wat bij Stijn ligt", 1)[1]
+    count = len(re.findall(r"^\d+\. \*\*", chapter, re.MULTILINE))
+    assert count in _DUTCH_NUMERALS, f"chapter {number} lists {count} decisions"
+    expected = f"{_DUTCH_NUMERALS[count]} dingen zijn"
+    assert expected in TEXT, (
+        f"chapter 0 does not open the count as {expected!r}, and chapter {number} lists "
+        f"{count} decisions"
+    )
+    assert f"staan in hoofdstuk {number}" in re.sub(r"\s+", " ", TEXT), (
+        f"chapter 0 does not point at hoofdstuk {number}, which is where the decisions are"
+    )
