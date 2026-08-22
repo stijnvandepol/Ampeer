@@ -704,6 +704,9 @@ GATE_FRAGMENTS = {
     "uv run mypy ampeer_sim ampeer_advice backend tests tools": (
         "uv run mypy ampeer_sim ampeer_advice backend tests tools"
     ),
+    "uv run shellcheck --severity=style --format=gcc $(git ls-files '*.sh')": (
+        "uv run shellcheck --severity=style --format=gcc"
+    ),
     "uv run python backend/manage.py check --deploy --fail-level WARNING": (
         "uv run python backend/manage.py check --deploy --fail-level WARNING"
     ),

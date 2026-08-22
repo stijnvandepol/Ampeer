@@ -42,6 +42,7 @@ dev = [
     "django-stubs[compatible-mypy]>=6.1.0",
     "djangorestframework-stubs>=3.18.0",
     "semgrep>=1.174",
+    "shellcheck-py>=0.11.0.1",
 ]
 
 [build-system]

@@ -43,7 +43,14 @@
 
 set -uo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+# A failed cd would leave every gate below reporting on whatever directory the
+# caller happened to be in. `set -e` is deliberately off here so that one red
+# gate does not stop the rest, which means this has to say so itself.
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || {
+  printf 'cannot enter the repository root from %s
+' "${BASH_SOURCE[0]}" >&2
+  exit 1
+}
 
 PASSED=(); FAILED=(); SKIPPED=()
 
@@ -152,6 +159,17 @@ gate sync uv sync --locked --group dev --group backend
 gate ruff        uv run ruff check ampeer_sim ampeer_advice backend tests tools
 gate ruff-format uv run ruff format --check ampeer_sim ampeer_advice backend tests tools
 gate mypy        uv run mypy ampeer_sim ampeer_advice backend tests tools
+
+# Every tracked shell script, derived rather than listed, so one added later is
+# covered without anybody remembering to widen this line. Read into an array so
+# that a path is passed whole and so that this invocation does not trip the very
+# check it is running.
+mapfile -t SHELL_SCRIPTS < <(git ls-files "*.sh")
+if [ "${#SHELL_SCRIPTS[@]}" -gt 0 ]; then
+  gate shellcheck uv run shellcheck --severity=style --format=gcc "${SHELL_SCRIPTS[@]}"
+else
+  skip shellcheck "git ls-files found no shell script; an empty list is nothing to check, not a pass"
+fi
 
 # The deployment checklist under production settings. prod.py refuses to import
 # without these, and the values are generated here for the same reason ci.yml

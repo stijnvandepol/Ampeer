@@ -48,6 +48,11 @@ jobs:
       - run: uv run ruff check ampeer_sim ampeer_advice backend tests tools
       - run: uv run ruff format --check ampeer_sim ampeer_advice backend tests tools
       - run: uv run mypy ampeer_sim ampeer_advice backend tests tools
+      # Shell is the one language here with no type checker and no test suite,
+      # and scripts/gates.sh is the instrument that decides whether the rest of
+      # this pipeline can be trusted locally. The file list comes from git so a
+      # script added later is covered without editing this line.
+      - run: uv run shellcheck --severity=style --format=gcc $(git ls-files '*.sh')
       # Django's own deployment checklist, against the settings module wsgi.py
       # names, with warnings fatal. At the default fail level a warning about a
       # missing HSTS header or an absent CSRF middleware prints and exits zero,
