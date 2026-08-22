@@ -118,6 +118,115 @@ def test_every_action_is_pinned_to_a_commit_sha() -> None:
     assert not unpinned, f"unpinned actions: {unpinned}"
 
 
+#: A `uses:` line, taken apart: the action, the SHA it is pinned to, and the
+#: version the comment claims that SHA is.
+#:
+#: The comment is optional in this pattern on purpose. A line that has no
+#: comment has to be reported by name rather than silently skipped, and a
+#: pattern that required one would simply not match it.
+_USES = re.compile(r"uses:\s*([^@\s]+)@([0-9a-f]{40})\s*(?:#\s*(\S+))?")
+
+
+def _pinned_actions() -> list[tuple[str, str, str, str | None]]:
+    """Every action the workflows use, as (where, action, sha, version)."""
+    found: list[tuple[str, str, str, str | None]] = []
+    for path in sorted(WORKFLOW_DIR.glob("*.yml")):
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if "uses:" not in line:
+                continue
+            match = _USES.search(line)
+            if match is None:
+                continue  # the test above is what reports a line with no SHA
+            action, sha, version = match.groups()
+            found.append((f"{path.name}:{number}", action, sha, version))
+    return found
+
+
+def test_every_pinned_action_says_which_version_its_sha_is() -> None:
+    """The other half of the rule, and the half that makes the first readable.
+
+    CLAUDE.md asks for a commit SHA "met de versie als comment erachter". The
+    test above enforces the SHA. Nothing enforced the comment, and without it
+    the pin is forty characters that no reviewer can place: there is no way to
+    tell whether 3d3c42e5 is checkout v7 or checkout v2, so a bump cannot be
+    reviewed and a downgrade looks the same as an upgrade.
+    """
+    naked = [
+        f"{where}: {action}@{sha[:8]}"
+        for where, action, sha, version in _pinned_actions()
+        if version is None
+    ]
+    assert not naked, (
+        "these actions are pinned to a SHA with no version beside it:\n  "
+        + "\n  ".join(naked)
+        + "\nAdd the tag it points at as a trailing comment, which is what makes "
+        "the next bump reviewable."
+    )
+
+
+def test_one_sha_never_carries_two_version_numbers() -> None:
+    """A stale comment is worse than a missing one, and this is how it happens.
+
+    Bumping an action means changing two things on one line. Change the SHA and
+    leave the comment and the line now states a version it is not, confidently,
+    in a file nobody rereads. The same SHA appears in several workflows here, so
+    updating four of five occurrences leaves the fifth contradicting the rest,
+    and that contradiction is decidable without asking GitHub anything.
+
+    What cannot be decided here is whether the comment is right about the SHA at
+    all. That needs the tag list from the API, and this project does not reach
+    outward from a test.
+    """
+    versions: dict[str, set[str]] = {}
+    where: dict[str, list[str]] = {}
+    for place, action, sha, version in _pinned_actions():
+        if version is None:
+            continue
+        versions.setdefault(sha, set()).add(version)
+        where.setdefault(sha, []).append(f"{place} {action} {version}")
+    disagreeing = {sha: sorted(seen) for sha, seen in versions.items() if len(seen) > 1}
+    assert not disagreeing, "one commit is described as two versions:\n  " + "\n  ".join(
+        f"{sha[:8]} is called {sorted(versions[sha])}: {where[sha]}" for sha in disagreeing
+    )
+
+
+def test_one_version_of_an_action_never_carries_two_shas() -> None:
+    """The same contradiction from the other side.
+
+    Half-finishing a bump leaves the old SHA under the new version number
+    somewhere, which reads as though two commits are both v7.0.1. It is the
+    likelier direction, because the comment is the part a person edits by hand.
+    """
+    shas: dict[tuple[str, str], set[str]] = {}
+    for _, action, sha, version in _pinned_actions():
+        if version is None:
+            continue
+        shas.setdefault((action, version), set()).add(sha)
+    split = {key: sorted(seen) for key, seen in shas.items() if len(seen) > 1}
+    assert not split, "one version is pinned to two different commits:\n  " + "\n  ".join(
+        f"{action}@{version} is pinned to {[sha[:8] for sha in seen]}"
+        for (action, version), seen in split.items()
+    )
+
+
+def test_the_action_scan_reads_the_workflows() -> None:
+    """The floor under the three above, all of which are statements about a set.
+
+    A pattern that stopped matching, a workflow directory that moved, or a
+    `uses:` written in another shape would leave every one of them green over an
+    empty list. Measured on 2026-08-22: 23 uses lines across three workflows,
+    naming 7 distinct actions.
+    """
+    pinned = _pinned_actions()
+    assert len(pinned) >= 20, f"only {len(pinned)} pinned actions found under {WORKFLOW_DIR}"
+    actions = {action for _, action, _, _ in pinned}
+    assert len(actions) >= 6, f"only these actions were parsed: {sorted(actions)}"
+    assert "actions/checkout" in actions, (
+        "no workflow checks out the repository, which would be a larger change than "
+        "anything this test is written for"
+    )
+
+
 #: The one job allowed on the self-hosted runner, as (workflow file, job name).
 #:
 #: Added 2026-08-21 with the deploy. The rule below is why no unreviewed code
