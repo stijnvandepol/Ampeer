@@ -623,6 +623,30 @@ POSTGRES_USER=ampeer POSTGRES_PASSWORD=devtest \
 part of a full local run. It refuses to guess a password, so without them it
 reports `pytest` as NOT RUN rather than passing over a tenth of the suite.
 
+### The same gates, on the operating system that decides them
+
+```sh
+POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5433 POSTGRES_DB=ampeer POSTGRES_USER=ampeer POSTGRES_PASSWORD=devtest   bash scripts/gates_linux.sh
+```
+
+Development happens on Windows and the pipeline runs on Linux, and a green run
+here is not a green run there. Three tests skip on this filesystem with "this
+filesystem does not carry POSIX modes": they are the ones asserting a dump is
+`0600` inside a `0700` directory, which is a claim `docs/dpia.md` makes about
+who can read a backup. Until 2026-08-22 they had never run anywhere.
+
+The script defines no gates of its own. It builds a container from the Python
+and uv versions this project already pins, puts the git index into it and runs
+`scripts/gates.sh` there, so there is one place that says what a gate is. It
+runs the Python half; the frontend half needs Node and its behaviour does not
+differ between the two systems, so that is left to CI.
+
+The index and not the working tree, because the checks that ask git what it
+tracks read the index. Running the gates before `git add` says nothing about
+what a commit will contain, which is how a red test reached the branch tip on
+2026-08-22. Without Docker the script reports NOT RUN and exits zero, the same
+answer `scripts/gates.sh` gives for a gate it cannot reach.
+
 With a database, a browser and gitleaks present, a full local run leaves nothing
 NOT RUN. That matters more than it sounds while GitHub Actions is unavailable,
 because the local run is then the only run there is. The browser comes from
