@@ -273,7 +273,7 @@ moment is de beoordeling waarschijnlijk wel verplicht.
 
 ## 10. Wat bij Stijn ligt
 
-Vier dingen kan dit document niet voor de verwerkingsverantwoordelijke
+Vijf dingen kan dit document niet voor de verwerkingsverantwoordelijke
 beslissen.
 
 1. **Of de conclusie in hoofdstuk 1 wordt overgenomen.** De feiten staan er; de

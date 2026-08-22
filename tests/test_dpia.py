@@ -314,3 +314,57 @@ def test_every_section_is_numbered_consecutively() -> None:
     """A renumbering that skips or repeats is a merge accident, not a choice."""
     numbers = [int(match) for match in re.findall(r"^## (\d+)\.", TEXT, re.MULTILINE)]
     assert numbers == list(range(len(numbers))), numbers
+
+
+#: Dutch for the counts a list in this document can plausibly reach.
+#:
+#: The chapter writes its total in words rather than digits, which is right for
+#: prose and is also why the drift below was invisible: a digit that disagreed
+#: with a list would catch a reader's eye, and "Vier" above five numbered items
+#: does not.
+_DUTCH_NUMERALS = {
+    1: "Een",
+    2: "Twee",
+    3: "Drie",
+    4: "Vier",
+    5: "Vijf",
+    6: "Zes",
+    7: "Zeven",
+    8: "Acht",
+    9: "Negen",
+    10: "Tien",
+}
+
+
+def test_the_chapter_of_open_decisions_states_how_many_there_are() -> None:
+    """Chapter 10 is the list of what the controller still has to decide.
+
+    It opened by saying four things and then listed five. The fifth, access to
+    the host and whether web2 becomes ephemeral, was added on 2026-08-21 and the
+    count above it was not. Nothing noticed, because a document cannot fail a
+    build and because the total is written in words.
+
+    That matters more here than in most places. This chapter is the one a
+    reader consults to find out what is still undecided, and a total that says
+    four is an invitation to stop reading at the fourth. Deciding four of five
+    open questions and believing the list is finished is the failure this
+    guards, not the arithmetic.
+
+    The count is derived from the list rather than repeated here, so the sixth
+    item is covered by the same assertion without anybody remembering.
+    """
+    chapter = TEXT.split("## 10. Wat bij Stijn ligt", 1)[1]
+    items = re.findall(r"^\d+\. \*\*", chapter, re.MULTILINE)
+    assert items, (
+        "chapter 10 has no numbered items, so this test is reading something other "
+        "than the list of open decisions"
+    )
+    assert len(items) in _DUTCH_NUMERALS, (
+        f"chapter 10 lists {len(items)} decisions and this test only knows the Dutch "
+        "word for one through ten; extend the table above rather than dropping the check"
+    )
+    stated = _DUTCH_NUMERALS[len(items)]
+    assert f"{stated} dingen kan dit document niet" in chapter, (
+        f"chapter 10 lists {len(items)} decisions, so it has to open with "
+        f"{stated!r}. A total that undercounts is how one of them gets left behind."
+    )
