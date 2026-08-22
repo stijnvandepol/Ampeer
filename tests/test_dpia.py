@@ -213,6 +213,105 @@ def test_the_audit_log_records_exactly_what_the_document_says_it_does() -> None:
     assert "precies een soort gebeurtenis" in TEXT
 
 
+SERVICE = REPO_ROOT / "backend" / "advice" / "service.py"
+
+#: Every field the audit line carries, and the words the document uses for it.
+#:
+#: Prose and not key names, because a privacy document is read by people who do
+#: not have the source open, and "engine_version" tells them nothing. The
+#: pairing is asserted in both directions below, so a sixth field cannot be
+#: added to the log without a sentence about it, and a sentence cannot survive
+#: the field it describes being removed.
+AUDIT_CONTEXT_PHRASES = {
+    "token_sha256": "sha256 van het token",
+    "postcode4": "viercijferige postcodegebied",
+    "confidence": "betrouwbaarheidsniveau",
+    "engine_version": "versienummers van de motor",
+    "advice_version": "de regeltabel",
+}
+
+
+def _audit_context_keys() -> list[str]:
+    """What the one AuditEvent.record call actually writes into the row.
+
+    Read from service.py rather than by making a request, so this says what the
+    code does rather than what one code path happened to produce.
+    """
+    tree = ast.parse(SERVICE.read_text(encoding="utf-8"))
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "record"
+    ]
+    assert len(calls) == 1, (
+        f"{len(calls)} calls to record() in service.py; this test assumes the audit "
+        "line is written in exactly one place and has to be rewritten if it is not"
+    )
+    return [keyword.arg for keyword in calls[0].keywords if keyword.arg]
+
+
+def test_the_document_names_everything_the_audit_line_carries() -> None:
+    """Chapter 2 listed two of the five fields, and got one of those wrong.
+
+    It said the log records "het token en de viercijferige postcode". The code
+    has written a sha256 since the log was built, and there is a test in
+    tests/test_advice_api.py asserting the plaintext token appears nowhere in
+    the row. So the document described a permanent, never expiring table full
+    of working links to advice that the ninety day purge was supposed to remove.
+
+    Wrong in the direction that matters. A privacy document that overstates
+    what is kept is not a cautious error: it is the document a reader would
+    hold the service to, and it was describing a worse service than the one
+    that runs. The other three fields it did not mention at all.
+
+    Both directions are asserted. A sixth field cannot join the audit line
+    without a sentence about it, and a sentence cannot outlive the field.
+    """
+    keys = set(_audit_context_keys())
+    assert keys == set(AUDIT_CONTEXT_PHRASES), (
+        f"the audit line carries {sorted(keys)} and this table describes "
+        f"{sorted(AUDIT_CONTEXT_PHRASES)}. Chapter 2 has to say what is written down."
+    )
+    flattened = re.sub(r"\s+", " ", TEXT)
+    unmentioned = {
+        key: phrase for key, phrase in AUDIT_CONTEXT_PHRASES.items() if phrase not in flattened
+    }
+    assert not unmentioned, (
+        "the audit line carries these and the document does not say so:\n  "
+        + "\n  ".join(f"{key}: expected {phrase!r}" for key, phrase in unmentioned.items())
+    )
+
+
+def test_the_document_is_right_that_the_token_itself_is_not_written_down() -> None:
+    """The claim and the code, held against each other.
+
+    The document now says in bold that the token itself is not in the log. That
+    is the sentence a reader would rely on, and it is worth exactly what
+    enforces it. Here it is enforced from the source: the row carries a digest
+    field and no plaintext one.
+
+    What this does not check is that the digest is a digest. That is
+    tests/test_advice_api.py, which hashes the token it was given and compares.
+    """
+    keys = _audit_context_keys()
+    assert "token" not in keys, (
+        "the audit line now carries the token itself, and chapter 2 of docs/dpia.md "
+        "says in bold that it does not. One of the two is wrong and it is not the "
+        "document that decides."
+    )
+    assert "token_sha256" in keys, (
+        "the audit line no longer carries a token digest at all, so a reader who holds "
+        "a link can no longer find their own line, which is what the document says the "
+        "digest is for"
+    )
+    assert "**Niet het token zelf.**" in TEXT, (
+        "chapter 2 no longer says the token itself is absent, which is the claim the "
+        "check above exists to keep true"
+    )
+
+
 def test_the_document_names_the_test_that_keeps_the_browser_honest() -> None:
     """A claim about outbound requests is worth what enforces it.
 

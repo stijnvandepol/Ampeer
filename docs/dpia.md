@@ -76,8 +76,18 @@ is geen model met een adresveld en geen logregel die er een bewaart.
 ### Het auditlogboek
 
 `AuditEvent` is append-only en legt vandaag precies een soort gebeurtenis vast:
-dat er een advies is gegenereerd, met het token en de viercijferige postcode
-erbij. De andere gebeurtenissen die dit project wil vastleggen, een inlog, een
+dat er een advies is gegenereerd. Wat er bij die regel staat is een sha256 van
+het token, het viercijferige postcodegebied, het betrouwbaarheidsniveau en de
+twee versienummers van de motor en de regeltabel.
+
+**Niet het token zelf.** Het token is geen verwijzing naar een advies, het is
+de enige sleutel die het opent, en deze tabel wordt nooit opgeruimd. Een token
+in platte tekst zou hier dus als permanente regel blijven staan met een
+werkende link naar een advies dat na negentig dagen weg had moeten zijn. De
+hash houdt waar het logboek voor is: wie de link legitiem heeft kan hem hashen
+en zijn eigen regel terugvinden.
+
+De andere gebeurtenissen die dit project wil vastleggen, een inlog, een
 koppeling, een gegeven of ingetrokken toestemming, een verstuurde lead, een
 export of een verwijdering, bestaan nog niet, omdat de handelingen zelf nog niet
 bestaan. Een logboek dat ze nu al noemde zou een verwerking beschrijven die er
@@ -85,8 +95,9 @@ niet is.
 
 Dat logboek heeft geen bewaartermijn, met opzet. Een auditlogboek dat verloopt
 is geen auditlogboek. Wat het draagt verliest wel zijn zeggingskracht: zodra het
-advies na negentig dagen weg is, wijst het token in het logboek nergens meer
-naar, en wat overblijft is een postcodegebied en een tijdstip.
+advies na negentig dagen weg is, wijst de hash in het logboek nergens meer
+naar, en wat overblijft is een postcodegebied, een tijdstip en twee
+versienummers.
 
 ## 3. Waarom, en waarom niet meer
 
