@@ -22,6 +22,7 @@ with the answer you hoped for.
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 from pathlib import Path
@@ -186,6 +187,151 @@ def test_no_shell_script_is_started_through_its_own_executable_bit(name: str) ->
     assert not direct, (
         f"{name} has an ExecStart pointing straight at {direct}, which needs an "
         "executable bit that the checkout does not provide"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The half of the case problem that has no file extension
+# ---------------------------------------------------------------------------
+
+FRONTEND = REPO_ROOT / "frontend"
+
+#: How TypeScript turns a module specifier into a file, in the order it tries.
+#:
+#: The check above cannot see any of this. It reads quoted paths that end in an
+#: extension, and an import does not have one: `@/components/band/HeadlineBand`
+#: is a path with five capitals in it and no `.tsx`. That is the shape the case
+#: bug takes in a Next.js project, where directories are lowercase and component
+#: files are not, and it is the expensive shape: it survives a build here and
+#: stops `next build` on the runner.
+_TS_CANDIDATES = ("", ".ts", ".tsx", "/index.ts", "/index.tsx")
+
+_IMPORT = re.compile(r"""(?:from|import)\s+["']([^"']+)["']""")
+
+
+def _tsconfig() -> dict[str, object]:
+    """frontend/tsconfig.json, with its comment lines dropped.
+
+    Only whole comment lines. A regex over `//` anywhere would cut a URL in
+    half, and being wrong about the config that decides where imports point is
+    worse than not reading it.
+    """
+    raw = (FRONTEND / "tsconfig.json").read_text(encoding="utf-8")
+    stripped = "\n".join(line for line in raw.splitlines() if not line.lstrip().startswith("//"))
+    parsed: dict[str, object] = json.loads(stripped)
+    return parsed
+
+
+def _alias_target() -> str:
+    """What `@/` means, taken from tsconfig rather than written down again."""
+    options = _tsconfig().get("compilerOptions", {})
+    assert isinstance(options, dict)
+    paths = options.get("paths", {})
+    assert isinstance(paths, dict), "tsconfig declares no paths, so @/ resolves to nothing"
+    target = paths.get("@/*")
+    assert isinstance(target, list) and target, f"@/* maps to {target!r}"
+    return str(target[0]).removeprefix("./").removesuffix("*").rstrip("/")
+
+
+def _internal_imports() -> list[tuple[str, str, str]]:
+    """Every import that names a file in this repository, already resolved.
+
+    Returns (importer, specifier, path from the repository root). A specifier
+    that is neither relative nor aliased is a package, and says nothing about
+    this tree.
+    """
+    alias = _alias_target()
+    found: list[tuple[str, str, str]] = []
+    for name in _tracked():
+        if not name.endswith((".ts", ".tsx")):
+            continue
+        source = REPO_ROOT / name
+        for specifier in sorted(set(_IMPORT.findall(source.read_text(encoding="utf-8")))):
+            if specifier.startswith("@/"):
+                target = f"frontend/{alias}/{specifier[2:]}"
+            elif specifier.startswith("."):
+                target = (source.parent / specifier).resolve().relative_to(REPO_ROOT).as_posix()
+            else:
+                continue
+            found.append((name, specifier, target))
+    return found
+
+
+def test_every_typescript_import_is_spelled_the_way_git_spells_it() -> None:
+    """A capital in an import works here and stops the build on the runner.
+
+    Measured on 2026-08-22: 124 internal imports across the frontend, all
+    spelled exactly. That is the answer expected of a tree that has only ever
+    been built on a filesystem which cannot tell the difference, and it is why
+    this is written before the first build somewhere that can.
+
+    An import resolving to nothing at all is not reported here. That is a
+    broken import, tsc says so already and says it better, and repeating a
+    stronger check with a weaker one is how a suite grows noise.
+    """
+    exact = set(_tracked())
+    by_lower = {name.lower(): name for name in exact}
+
+    wrong = []
+    for importer, specifier, target in _internal_imports():
+        if any(target + suffix in exact for suffix in _TS_CANDIDATES):
+            continue
+        near = [
+            by_lower[(target + suffix).lower()]
+            for suffix in _TS_CANDIDATES
+            if (target + suffix).lower() in by_lower
+        ]
+        if near:
+            wrong.append(f"{importer}: imports {specifier!r}, which git spells {near[0]!r}")
+    assert not wrong, "imports spelled with the wrong case:\n  " + "\n  ".join(wrong)
+
+
+def test_the_import_scan_resolves_something() -> None:
+    """The floor, since the check above is a statement about a set it builds.
+
+    An alias read wrongly, a pattern that stopped matching or a resolution that
+    landed outside the tree would all leave it green over nothing.
+    """
+    imports = _internal_imports()
+    assert len(imports) >= 100, f"only {len(imports)} internal imports resolved"
+    exact = set(_tracked())
+    resolved = [
+        target
+        for _, _, target in imports
+        if any(target + suffix in exact for suffix in _TS_CANDIDATES)
+    ]
+    assert len(resolved) == len(imports), (
+        f"{len(imports) - len(resolved)} imports resolve to no file at all, so either "
+        "the alias is being read wrongly or the frontend does not build"
+    )
+
+
+def test_the_alias_means_the_same_directory_everywhere_it_is_declared() -> None:
+    """`@/` is defined twice, in two languages, and both have to agree.
+
+    frontend/tsconfig.json decides where tsc and next look. frontend/
+    vitest.config.ts decides where the unit tests look, and it is a separate
+    declaration because vitest does not read tsconfig paths. If they drift, a
+    module resolves to one file under test and another in the build, and the
+    failure arrives as a type error in a file nobody edited.
+
+    Nothing compared them. This is the same shape as a threshold and the timer
+    it is measured against: two settings in two files, each with a comment, and
+    no assertion between them.
+    """
+    alias = _alias_target()
+    vitest = (FRONTEND / "vitest.config.ts").read_text(encoding="utf-8")
+    match = re.search(
+        r"""alias:\s*\{\s*["']@["']:\s*[^(]*\(\s*new URL\(\s*["']\./([^"']+)["']""", vitest
+    )
+    assert match, (
+        "frontend/vitest.config.ts no longer declares the @ alias in a shape this can "
+        "read; if it stopped declaring one at all, every aliased import in a test "
+        "resolves as a package"
+    )
+    assert match.group(1).rstrip("/") == alias, (
+        f"tsconfig maps @/ to {alias!r} and vitest maps it to {match.group(1)!r}, so a "
+        "module resolves to a different file under test than in the build"
     )
 
 
