@@ -274,7 +274,7 @@ ASSEMBLY = METHODOLOGY.parent.parent / "backend" / "advice" / "assembly.py"
 FILLED_IN_BY_US = {
     "profile_category": "huizen zonder zonnepanelen",
     "shiftable_block_kwh": "Verplaatsbaar verbruik per dag",
-    "install_year": "Hoe oud je panelen zijn",
+    "install_year": "Hoe oud uw panelen zijn",
     "system_loss_fraction": "systeemverlies",
 }
 
@@ -354,7 +354,7 @@ def test_the_document_says_the_ageing_correction_is_not_applied() -> None:
     if "install_year" not in _filled_in_by_us():
         pytest.skip("the API now supplies the install year, so the caveat no longer applies")
     assert degradation_factor(None, 2025) == 1.0, "an unknown install year no longer means new"
-    chapter = _chapter("De opwek van je dak")
+    chapter = _chapter("De opwek van uw dak")
     assert "gebruiken wij nu nooit" in chapter, (
         "chapter 6 no longer says the ageing correction is never applied"
     )
@@ -407,7 +407,7 @@ BUILT_MODELS = (
 ASSUMED_DEFAULTS = {
     ("Household", "profile_category"): ("E1A", "huizen zonder zonnepanelen"),
     ("Household", "shiftable_block_kwh"): (1.0, "Verplaatsbaar verbruik per dag"),
-    ("PVSystem", "install_year"): (None, "Hoe oud je panelen zijn"),
+    ("PVSystem", "install_year"): (None, "Hoe oud uw panelen zijn"),
     ("PVSystem", "system_loss_fraction"): (0.14, "systeemverlies"),
     ("EV", "annual_km"): (12_000, "12.000 kilometer"),
     ("EV", "kwh_per_100km"): (18.0, "18 kWh per 100"),
@@ -585,7 +585,7 @@ def test_the_document_says_precise_cannot_be_reached_yet() -> None:
     if supplied:
         pytest.skip("the API now supplies meter data, so PRECISE is reachable")
     chapter = _chapter("indicatief")
-    assert "kun je vandaag niet krijgen" in chapter, (
+    assert "kunt u vandaag niet krijgen" in chapter, (
         "nothing supplies meter data, so no answer can say PRECISE, and chapter 17 "
         "has to keep saying so"
     )
@@ -613,7 +613,7 @@ def test_the_document_describes_the_table_used_when_pvgis_is_unreachable() -> No
         watts * count * 24 / 1000.0
         for watts, count in zip(MONTHLY_MEAN_PRODUCTION_W_PER_KWP, days, strict=True)
     )
-    chapter = _chapter("De opwek van je dak")
+    chapter = _chapter("De opwek van uw dak")
     assert f"{round(annual)} kWh per" in chapter, (
         f"the fallback table totals {annual:.1f} kWh per kWp and chapter 6 quotes something else"
     )
@@ -804,8 +804,8 @@ def test_the_fallback_answers_every_postcode_with_the_same_series() -> None:
         "the fallback ignores the roof direction too, and chapter 6 says it applies it"
     )
 
-    chapter = _chapter("De opwek van je dak")
+    chapter = _chapter("De opwek van uw dak")
     assert "precies dezelfde reeks terug" in chapter
-    assert "Je\ndakrichting en je hellingshoek rekenen wij gewoon door" in chapter or (
-        "dakrichting en je hellingshoek rekenen wij gewoon door" in chapter
+    assert "Uw\ndakrichting en uw hellingshoek rekenen wij gewoon door" in chapter or (
+        "dakrichting en uw hellingshoek rekenen wij gewoon door" in chapter
     )

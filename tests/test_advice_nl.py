@@ -11,6 +11,7 @@ from ampeer_advice.rules import RULE_IDS
 from ampeer_advice.types import Confidence, Route
 
 NL = Path(__file__).resolve().parent.parent / "ampeer_advice" / "nl.py"
+METHODOLOGY = Path(__file__).resolve().parent.parent / "docs" / "methodologie.md"
 
 
 def test_every_rule_has_dutch_text() -> None:
@@ -125,8 +126,13 @@ def test_an_unknown_production_source_refuses_rather_than_falling_back() -> None
 #: It is written here rather than assumed anywhere, so switching the product to
 #: "je" is a change to this line plus the strings, and the test below then names
 #: every string still on the old form instead of leaving them to be found by a
-#: reader. `docs/methodologie.md` is on "je" today and the app on "u"; that gap
-#: is a decision for the owner and is not what this test is about.
+#: reader.
+#:
+#: It covers docs/methodologie.md too, since 2026-08-22. That document was on
+#: "je" while this package was on "u", and the two are not separate surfaces:
+#: frontend/src/lib/methodology.ts reads the file at build time and serves it
+#: as a page of the same site, so a visitor met both registers by following a
+#: link. Moving it was 165 edits; keeping it moved is the test below.
 ADVICE_REGISTER = "u"
 
 _SECOND_PERSON = {
@@ -186,4 +192,52 @@ def test_the_declared_form_of_address_is_the_one_actually_used() -> None:
     assert used > 0, (
         f"nothing in nl.py addresses the household as {ADVICE_REGISTER!r}, so that "
         "constant describes an intention rather than the file"
+    )
+
+
+def test_the_methodology_page_uses_the_same_form_of_address() -> None:
+    """The methodology is a page of this site, not a document beside it.
+
+    frontend/src/lib/methodology.ts reads docs/methodologie.md at build time and
+    renders it, deliberately, so that the published page and the file the Python
+    tests guard can never disagree. The consequence nobody had drawn is that the
+    register has to match too: until 2026-08-22 a visitor read an answer written
+    in "u", followed the link under it, and was addressed as "je" for six
+    hundred lines.
+
+    That is the same defect the test above was written for, one page further
+    along. It went unnoticed for the same reason: both are Dutch, so the
+    language rule in this project had nothing to say about it, and no test asked
+    the question across a file boundary.
+
+    Moving the document took 165 edits and most of them were not substitutions.
+    Dutch drops the -t from a verb in inversion after "je" and keeps it after
+    "u", so "kun je" becomes "kunt u" and "Beantwoord je meer vragen" becomes
+    "Beantwoordt u meer vragen", while a possessive "je dak" becomes "uw dak"
+    and a subject "je ziet" becomes "u ziet". This test is what keeps that work
+    from being undone a sentence at a time.
+    """
+    other = "je" if ADVICE_REGISTER == "u" else "u"
+    text = METHODOLOGY.read_text(encoding="utf-8")
+    offenders = [line.strip() for line in text.splitlines() if _SECOND_PERSON[other].search(line)]
+    assert not offenders, (
+        f"docs/methodologie.md addresses the reader as {other!r} on these lines, and the "
+        f"advice they arrived from is written in {ADVICE_REGISTER!r}:\n  "
+        + "\n  ".join(line[:90] for line in offenders[:12])
+    )
+
+
+def test_the_methodology_addresses_the_reader_at_all() -> None:
+    """The other half, for the same reason the nl.py pair has one.
+
+    A document with no second person in it satisfies the test above completely,
+    and so would a file that had been emptied or moved. The count is a floor
+    against the 165 places the register was changed in, not the number itself.
+    """
+    text = METHODOLOGY.read_text(encoding="utf-8")
+    used = len(_SECOND_PERSON[ADVICE_REGISTER].findall(text))
+    assert used >= 120, (
+        f"docs/methodologie.md addresses the reader as {ADVICE_REGISTER!r} {used} times, "
+        "which is far fewer than the document it should be, so this pair is reading "
+        "something other than the published methodology"
     )
