@@ -141,4 +141,10 @@ fail_under = 98
 show_missing = true
 
 [tool.bandit]
+# tests is excluded on purpose and not by oversight. Measured on 2026-08-22:
+# bandit reports 1210 B101 assert_used findings there, one per assertion,
+# plus 41 hardcoded password hits that are all fixture tokens. A scan whose
+# output is that noisy is one nobody reads, and this project needs sast to
+# stay worth reading. What the tests get instead is ruff, mypy --strict and
+# gitleaks, all three of which do cover them.
 exclude_dirs = ["tests", ".venv", "build"]
