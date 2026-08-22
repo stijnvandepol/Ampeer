@@ -417,3 +417,143 @@ def test_the_skip_scan_finds_the_skips_that_are_there() -> None:
         "the permission tests no longer name the reason they skip on Windows, which is "
         "the skip this whole check was written around"
     )
+
+
+# ---------------------------------------------------------------------------
+# What the site serves, and where its links go
+# ---------------------------------------------------------------------------
+
+PUBLIC = FRONTEND / "public"
+APP = FRONTEND / "src" / "app"
+
+#: An href to a path on this site, as written in a component.
+_INTERNAL_HREF = re.compile(r'href="(/[a-zA-Z0-9/_-]*)"')
+
+
+def _components() -> list[str]:
+    """Every component this repository tracks, from git rather than the tree.
+
+    A walk of frontend/ descends into node_modules before it can filter it out,
+    which cost seventeen seconds in one of these tests. Git already knows what
+    is ours, and this module says in its own opening that it decides from the
+    index; walking the working tree was the one place here that did not.
+    """
+    return [name for name in _tracked() if name.startswith("frontend/") and name.endswith(".tsx")]
+
+
+def _exported_routes() -> set[str]:
+    """Every route `next build` writes, derived from the app directory.
+
+    A directory holding a page.tsx is a route, and its path under app/ is the
+    URL. Read from the tree rather than listed, so a page added later is a
+    route this test knows about without anybody saying so. Directories starting
+    with an underscore are Next's private convention and produce no route.
+    """
+    prefix = "frontend/src/app/"
+    routes = set()
+    for name in _tracked():
+        if not (name.startswith(prefix) and name.endswith("/page.tsx")):
+            continue
+        relative = name[len(prefix) : -len("page.tsx")]
+        if any(part.startswith("_") for part in relative.split("/") if part):
+            continue
+        routes.add(f"/{relative}")
+    return routes
+
+
+def test_every_internal_link_goes_somewhere_this_site_exports() -> None:
+    """A static export answers a wrong path with a 404 and no other sign.
+
+    There is no server to log it, no route resolver to raise, and the page it
+    was written on renders perfectly. The only way to find out is to click it,
+    which is why a header link to a page that stopped existing can sit in a
+    build for a long time.
+
+    Dynamic segments are not judged. /advies/ takes a token, and the link to
+    an advice is built from a token in code rather than written as an href, so
+    it does not appear here at all.
+    """
+    routes = _exported_routes()
+    assert routes, f"no page.tsx found under {APP}, so this test read nothing"
+
+    dangling = []
+    for name in _components():
+        text = (REPO_ROOT / name).read_text(encoding="utf-8")
+        for href in sorted(set(_INTERNAL_HREF.findall(text))):
+            if href not in routes:
+                dangling.append(f"{name}: {href}")
+    assert not dangling, (
+        "these links point at paths this site does not export:\n  "
+        + "\n  ".join(dangling)
+        + f"\nExported: {sorted(routes)}"
+    )
+
+
+def test_the_route_scan_finds_the_pages_that_are_there() -> None:
+    """The floor under the check above, which compares against a derived set.
+
+    An empty route set would make every link dangling, so that direction fails
+    loudly. The quiet direction is a set so large that nothing can dangle, or a
+    scan that reads no component at all and finds no links to judge.
+    """
+    routes = _exported_routes()
+    assert {"/", "/berekenen/", "/advies/", "/methodologie/"} <= routes, (
+        f"the site no longer exports the four pages it was built around: {sorted(routes)}"
+    )
+    hrefs = {
+        href
+        for name in _components()
+        for href in _INTERNAL_HREF.findall((REPO_ROOT / name).read_text(encoding="utf-8"))
+    }
+    assert len(hrefs) >= 3, f"only {sorted(hrefs)} found, so the comparison judges almost nothing"
+
+
+def _unreferenced(served: list[str], haystack: str) -> list[str]:
+    """Which of these files nothing asks for, by the name the site serves it at.
+
+    A function over its inputs rather than a body inside the test, because the
+    directory it judges does not exist today. A test that returned early on
+    that would be a check nobody has ever seen work, and this file already
+    holds one rule extracted for the same reason.
+    """
+    return [name for name in served if f"/{name}" not in haystack]
+
+
+def test_the_rule_finds_a_file_nothing_asks_for() -> None:
+    """Both branches, run rather than reasoned about."""
+    assert _unreferenced(["vercel.svg", "logo.png"], 'src="/logo.png"') == ["vercel.svg"]
+    assert _unreferenced(["logo.png"], 'src="/logo.png"') == []
+    assert _unreferenced([], "") == []
+
+
+def test_nothing_is_served_that_nothing_asks_for() -> None:
+    """frontend/public is copied into the export exactly as it stands.
+
+    It arrived from the Next.js template holding five SVGs. Four were
+    decoration and two were somebody else's mark: next.svg and vercel.svg were
+    fetchable at ampeer.nl and nothing in this repository ever referenced
+    them. A product whose whole claim is that it is not selling anybody's
+    product should not be serving another company's logo by accident.
+
+    They are gone and the directory with them, since git does not keep an empty
+    one and Next does not need it. What this keeps out is the next template
+    leftover: anything put back has to be asked for by name.
+    """
+    served = [
+        name[len("frontend/public/") :]
+        for name in _tracked()
+        if name.startswith("frontend/public/")
+    ]
+    haystack = "\n".join(
+        (REPO_ROOT / name).read_text(encoding="utf-8", errors="ignore")
+        for name in _tracked()
+        if name.startswith("frontend/")
+        and not name.startswith("frontend/public/")
+        and name.endswith((".tsx", ".ts", ".css", ".json", ".html"))
+    )
+    unused = _unreferenced(served, haystack)
+    assert not unused, (
+        "these files are copied into the export and nothing references them:\n  "
+        + "\n  ".join(unused)
+        + "\nEither use them or delete them; a static export serves whatever is here."
+    )
