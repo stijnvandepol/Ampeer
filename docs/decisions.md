@@ -216,6 +216,53 @@ prices, and a floor that the dropped term is worth refusing over.
 implement the branch. Deleting the raise without doing that puts the silent
 number back.
 
+### 12. The monthly calibration ceiling is 0.03, and it was fitted rather than copied
+
+**Decided:** `MAX_MONTHLY_GAP` in `tests/test_calibration.py` moves from 0.05 to
+0.03. `MAX_HOURLY_GAP` stays at 0.05.
+
+**Because:** both stood at 0.05 and only one of them was ever fitted to
+anything. Measured on 2026-08-23 against the reference household: the worst
+monthly bucket is July at 0.0230 and the worst hourly one is 17:00 at 0.0490. So
+the hourly ceiling sat a fifth of a percentage point above the disagreement it
+measures, and the monthly one sat at more than twice it, which is a ceiling a
+regression does not have to get past. Shown rather than argued: modelling July
+at 185 W per kWp instead of 197 pushes the worst monthly bucket to 0.0321, which
+the new ceiling refuses and the old one waved through.
+
+The file's own comment already says these may be tightened and must never be
+widened, so the direction is the one it invites. 0.03 is the measured 0.0230
+with room for ordinary movement and not much more.
+
+**Lives in:** `tests/test_calibration.py`.
+
+**To reverse:** raise the constant, which the comment above it forbids without
+a reason recorded here.
+
+### 13. The evening calibration test watches the worst bucket, not one chosen hour
+
+**Decided:** `test_the_modelled_export_stops_earlier_in_the_day_than_the_country
+_does` asserts over every hour from 15:00 onward and pins the worst of them,
+instead of asserting on 18:00 alone.
+
+**Because:** the test is named for the model's afternoon collapse and its
+docstring says it is pinned so that a growing gap is found by a red test rather
+than by a reader. It watched 18:00, where the gap is 0.0295 against a ceiling of
+0.05. The decline peaks an hour earlier, at 17:00 and 0.0490. So the named test
+had 41 percent of headroom while the same disagreement ran within two percent of
+the ceiling in the bucket next door.
+
+Shown rather than argued: shortening the fallback daylight window from twelve
+hours to ten moves the worst afternoon bucket to 16:00 at 0.0852. The new form
+is red on that and the old form is green.
+
+No threshold moved. This only changes which bucket the threshold is applied to.
+
+**Lives in:** `tests/test_calibration.py`.
+
+**To reverse:** narrow the slice back to one hour, and accept that the test no
+longer watches the peak of what it is named for.
+
 ## What was not decided here
 
 Five belong to the controller and are written up with their trade-offs in
@@ -255,6 +302,19 @@ Four sit outside that document.
   household used to, at 9.69 years, and left it when the capacity curve stopped
   being priced on consumption the free routes had already claimed. Changing
   what a household is told is not mine to take.
+- **What to do about the hourly calibration running at two percent of its
+  ceiling.** The worst hourly bucket is 17:00 at 0.0490 against a
+  `MAX_HOURLY_GAP` of 0.05. The model exports nothing at all after 17:00 while
+  the country still exports 0.0295 at 18:00 and 0.0120 at 19:00, partly because
+  the offline fallback spreads its day over a fixed twelve hour half sine and
+  partly because the tails of that shape fall below the household's own baseline
+  draw, so nothing is left to export. Widening the ceiling is forbidden by the
+  file and would be the wrong repair anyway. The right one is a better evening
+  tail, which is a modelling change on a path a visitor reaches whenever PVGIS
+  is down, and it is worth knowing that the next unrelated improvement may turn
+  this red first. Written down here because a near miss nobody has looked at
+  reads exactly like a comfortable pass.
+
 - **What a northeast or northwest roof is worth when PVGIS is unreachable.**
   `ORIENTATION_FACTORS` in `ampeer_sim/production/fallback_yield.py` holds six
   planes and neither of those two is among them. Both sit 45 degrees from east

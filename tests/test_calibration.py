@@ -46,11 +46,25 @@ RAW_PROFILES = nedu_profile_path(2025)
 GRID = YearGrid.for_year(2025)
 WEATHER_YEAR = 2025
 
-#: Measured on 2026-08-21 against the reference household. These are ceilings on
-#: a known disagreement, not targets: they may be tightened when the model gets
-#: closer and must never be widened to make a change pass.
-MAX_MONTHLY_GAP = 0.05
+#: Ceilings on a known disagreement, not targets: they may be tightened when the
+#: model gets closer and must never be widened to make a change pass.
+#:
+#: Both stood at 0.05 until 2026-08-23, and only one of them was fitted. Measured
+#: again on that date against the reference household: the worst monthly bucket
+#: is July at 0.0230 and the worst hourly one is 17:00 at 0.0490. So the hourly
+#: ceiling sat a fifth of a percentage point above the thing it measures and the
+#: monthly one sat at more than twice it, doing nothing a regression would have
+#: to get past. The monthly ceiling is now 0.03, which is the measured 0.0230
+#: with room for ordinary movement and not much more.
+MAX_MONTHLY_GAP = 0.03
 MAX_HOURLY_GAP = 0.05
+
+#: How close the hourly comparison runs to its own ceiling, recorded because a
+#: near miss that nobody has looked at reads exactly like a comfortable pass.
+#: 0.0490 against 0.05 is two percent of headroom. The repair is not a wider
+#: ceiling, which this file forbids, but the model's evening tail: it exports
+#: nothing at all after 17:00 while the country still exports 0.0295 at 18:00.
+#: See docs/decisions.md under what was not decided here.
 
 
 def _reference_export() -> np.ndarray:
@@ -153,17 +167,46 @@ def test_the_modelled_export_stops_earlier_in_the_day_than_the_country_does() ->
     comparison = compare_export_profile(
         _reference_export(), GRID, MEASURED_MONTHLY, MEASURED_HOURLY
     )
-    evening = next(bucket for bucket in comparison.hourly if bucket.label == "18:00")
-    assert evening.measured > 0.02, "the country does export at six in the evening"
-    assert evening.modelled < evening.measured, "the model should be the narrower one"
-    assert abs(evening.gap) <= MAX_HOURLY_GAP, f"the daily gap grew: {evening.gap:+.3f}"
+    afternoon = [bucket for bucket in comparison.hourly if bucket.label >= "15:00"]
+    six = next(bucket for bucket in afternoon if bucket.label == "18:00")
+    assert six.measured > 0.02, "the country does export at six in the evening"
+
+    for bucket in afternoon:
+        assert bucket.modelled <= bucket.measured, (
+            f"at {bucket.label} the model exports more than the country does, and this test "
+            "exists because it exports less"
+        )
+
+    # The worst bucket rather than one chosen hour. Until 2026-08-23 this
+    # asserted on 18:00 alone, where the gap is 0.0295 against a ceiling of
+    # 0.05. The decline it is named for peaks an hour earlier, at 17:00 and
+    # 0.0490, so the test watched a bucket with room to spare while the same
+    # disagreement ran within two percent of the ceiling next door.
+    worst = max(afternoon, key=lambda bucket: abs(bucket.gap))
+    assert abs(worst.gap) <= MAX_HOURLY_GAP, (
+        f"the daily gap grew at {worst.label}: {worst.gap:+.3f}"
+    )
 
 
 def test_no_bucket_disagrees_by_more_than_the_recorded_ceiling() -> None:
+    """Each family against its own ceiling.
+
+    This compared both against ``max`` of the two until 2026-08-23, which was
+    the same figure while both were 0.05 and stops being it the moment either
+    is tightened. A ceiling that only counts while it is the loosest one is not
+    a ceiling.
+    """
     comparison = compare_export_profile(
         _reference_export(), GRID, MEASURED_MONTHLY, MEASURED_HOURLY
     )
-    assert comparison.worst_gap <= max(MAX_MONTHLY_GAP, MAX_HOURLY_GAP)
+    for buckets, ceiling, family in (
+        (comparison.monthly, MAX_MONTHLY_GAP, "monthly"),
+        (comparison.hourly, MAX_HOURLY_GAP, "hourly"),
+    ):
+        worst = max(buckets, key=lambda bucket: abs(bucket.gap))
+        assert abs(worst.gap) <= ceiling, (
+            f"the worst {family} bucket is {worst.label} at {worst.gap:+.4f}, over {ceiling}"
+        )
 
 
 @pytest.mark.skipif(not RAW_PROFILES.exists(), reason="run tools/ingest_profiles.py first")
