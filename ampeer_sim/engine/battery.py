@@ -38,6 +38,11 @@ class Battery:
         self._usable_capacity_kwh = spec.usable_capacity_kwh
         self.soc_kwh = 0.0
         self.throughput_kwh = 0.0
+        # Which quarter the budgets below belong to. -1 is before the first, so
+        # the first call of any quarter opens it.
+        self._quarter = -1
+        self._charged_this_quarter = 0.0
+        self._discharged_this_quarter = 0.0
 
     @property
     def spec(self) -> BatterySpec:
@@ -47,21 +52,54 @@ class Battery:
     def headroom_kwh(self) -> float:
         return self._usable_capacity_kwh - self.soc_kwh
 
-    def charge(self, offered_kwh: float) -> float:
-        """Take energy from a source. Returns the energy actually taken."""
+    def _open(self, quarter: int) -> None:
+        """Start a quarter, if this is not the one already open.
+
+        The power limits are per quarter and the loop calls in twice: once for
+        the household's own surplus and once for a price-driven plan. Until
+        2026-08-23 each call carried its own limit, so a battery rated at 2 kW
+        moved 4 kW in a quarter whenever both fired, which is the shape of
+        mistake the module docstring above warns about.
+        """
+        if quarter != self._quarter:
+            self._quarter = quarter
+            self._charged_this_quarter = 0.0
+            self._discharged_this_quarter = 0.0
+
+    def charge(self, offered_kwh: float, quarter: int) -> float:
+        """Take energy from a source. Returns the energy actually taken.
+
+        ``quarter`` says which quarter this is, and has no default. A default
+        would mean one quarter open forever, so every existing caller would
+        quietly start sharing an allowance, and a caller that meant to step
+        would look like one that did not. Required, so the answer is stated.
+        """
+        self._open(quarter)
         if offered_kwh <= 0.0:
             return 0.0
+        allowance = self._charge_limit_per_quarter - self._charged_this_quarter
+        if allowance <= 0.0:
+            return 0.0
         capacity_limit = (self._usable_capacity_kwh - self.soc_kwh) / self._one_way_efficiency
-        taken = min(offered_kwh, self._charge_limit_per_quarter, capacity_limit)
+        taken = min(offered_kwh, allowance, capacity_limit)
         self.soc_kwh += taken * self._one_way_efficiency
+        self._charged_this_quarter += taken
         return taken
 
-    def discharge(self, wanted_kwh: float) -> float:
-        """Deliver energy to the household. Returns the energy actually delivered."""
+    def discharge(self, wanted_kwh: float, quarter: int) -> float:
+        """Deliver energy to the household. Returns the energy actually delivered.
+
+        ``quarter`` as above, and for the same reason: the loop asks twice.
+        """
+        self._open(quarter)
         if wanted_kwh <= 0.0:
             return 0.0
+        allowance = self._discharge_limit_per_quarter - self._discharged_this_quarter
+        if allowance <= 0.0:
+            return 0.0
         stored_limit = self.soc_kwh * self._one_way_efficiency
-        delivered = min(wanted_kwh, self._discharge_limit_per_quarter, stored_limit)
+        delivered = min(wanted_kwh, allowance, stored_limit)
         self.soc_kwh -= delivered / self._one_way_efficiency
         self.throughput_kwh += delivered
+        self._discharged_this_quarter += delivered
         return delivered
