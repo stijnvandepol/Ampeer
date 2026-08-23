@@ -17,6 +17,7 @@ it by triggering only on a tag and waiting for a review.
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import os
 import re
@@ -1235,4 +1236,116 @@ def test_the_purge_timer_is_the_shape_the_retention_promise_assumes() -> None:
     """
     assert _timer_period_hours("ampeer-purge.timer") == 24, (
         "the purge no longer runs daily, and docs/dpia.md chapter 4 calls it 'een dagelijkse taak'"
+    )
+
+
+# --------------------------------------------------------------------------
+# The purge timer and the check that watches for its silence.
+#
+# Three properties, each argued at length in the unit file and none of them
+# asserted anywhere until 2026-08-23. Every one was measured to leave the whole
+# suite green when reversed.
+# --------------------------------------------------------------------------
+
+PURGE_COMMAND = (
+    REPO_ROOT / "backend" / "advice" / "management" / "commands" / "purge_expired_advice.py"
+)
+
+
+def _python_int(path: Path, name: str) -> int:
+    """A module level integer constant, read without importing the module.
+
+    Importing it would need Django configured, and the question here is what the
+    source says, which is also what a reviewer reads.
+    """
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    found = [
+        node.value.value
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, int)
+        for target in node.targets
+        if isinstance(target, ast.Name) and target.id == name
+    ]
+    assert len(found) == 1, f"{path.name} defines {name} {len(found)} times"
+    return int(found[0])
+
+
+def test_the_purge_grace_clears_the_timer_it_is_measured_against() -> None:
+    """GRACE_DAYS and the timer period decide each other, in two files.
+
+    The unit file says it in as many words: the check mode allows exactly
+    GRACE_DAYS of slack, so the period there and this constant are one number
+    seen from two sides, and changing one means moving the other. Two comments
+    agreeing is not a check. The same pairing already exists for the backup
+    timer and MAX_AGE_HOURS, one file over, and this one was missing.
+
+    Both bounds, and they are the same two the backup pairing uses. At least the
+    period, or a healthy stack is red in the minutes before every run, and a
+    check that is red every morning is one somebody turns off. Under twice the
+    period, or a whole missed run passes as healthy, which is the failure the
+    check exists for.
+
+    The lower bound is met exactly, by design rather than by luck. A row expires
+    at most one run before it is deleted, so the worst case sits just under the
+    period, and AccuracySec is the entire margin. That is why the two tests
+    below are not decoration.
+    """
+    grace_hours = _python_int(PURGE_COMMAND, "GRACE_DAYS") * 24
+    period = _timer_period_hours("ampeer-purge.timer")
+
+    assert grace_hours >= period, (
+        f"--check calls the timer dead after {grace_hours} hours and the timer only runs "
+        f"every {period}, so a working host is reported broken before every run"
+    )
+    assert grace_hours < 2 * period, (
+        f"--check tolerates {grace_hours} hours against a timer that runs every {period}, so "
+        "a whole missed run passes as healthy, and a check that survives the failure it is "
+        "for is not a check"
+    )
+
+
+#: Both units, because both carry the same two sentences and the backup one
+#: says so explicitly: it has no RandomizedDelaySec "for the same reason
+#: ampeer-purge.timer" has none.
+TIMERS = ("ampeer-purge.timer", "ampeer-backup.timer")
+
+
+def _timer_directives(name: str) -> list[str]:
+    text = (REPO_ROOT / "infra" / "systemd" / name).read_text(encoding="utf-8")
+    return [line.strip() for line in text.splitlines() if not line.lstrip().startswith("#")]
+
+
+@pytest.mark.parametrize("timer", TIMERS)
+def test_the_timer_adds_no_jitter_to_a_window_that_has_none_to_give(timer: str) -> None:
+    """RandomizedDelaySec is absent on purpose and nothing said so.
+
+    The unit explains it: the grace above is met exactly, so any delay added
+    here pushes the worst case past the window and turns a healthy stack red for
+    the length of the jitter. Adding an hour of it was measured to leave the
+    whole suite green.
+    """
+    jitter = [line for line in _timer_directives(timer) if line.startswith("RandomizedDelaySec=")]
+    assert not jitter, (
+        f"{timer} declares {jitter}, which widens the worst case past the window its own "
+        "--check allows, so a working host would be reported as broken"
+    )
+
+
+@pytest.mark.parametrize("timer", TIMERS)
+def test_the_timer_catches_up_on_a_day_the_host_was_off(timer: str) -> None:
+    """Persistent=true, and the unit says what its absence costs.
+
+    Without it systemd skips a missed run rather than running it after the next
+    boot, so a weekend of downtime extends the retention window by two days and,
+    in the unit's own words, nothing anywhere says so. That was true of this
+    sentence too: setting it to false left the whole suite green.
+
+    docs/dpia.md promises deletion on a schedule. A promise that quietly waits
+    for the host to be awake is a different promise.
+    """
+    assert "Persistent=true" in _timer_directives(timer), (
+        f"{timer} no longer catches up after downtime, so a day the host was off silently "
+        "extends the window its own check measures"
     )
