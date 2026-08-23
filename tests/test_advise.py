@@ -24,6 +24,7 @@ import numpy as np
 import pytest
 
 import ampeer_advice as ADVICE_PACKAGE
+import ampeer_sim as SIM_PACKAGE
 from ampeer_advice import ADVICE_VERSION
 from ampeer_advice.advise import (
     FREE_ROUTE_ORDER,
@@ -70,6 +71,7 @@ from ampeer_sim.types import (
     Result,
 )
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
 GOLDEN_DIR = Path(__file__).parent / "golden"
 HOUSEHOLDS: dict[str, dict[str, Any]] = json.loads(
     (GOLDEN_DIR / "households.json").read_text(encoding="utf-8")
@@ -205,6 +207,22 @@ def test_the_two_golden_files_describe_the_same_households() -> None:
     assert set(EXPECTED) == set(HOUSEHOLDS)
 
 
+#: The one file outside nl.py that holds Dutch, and why it is still here.
+#:
+#: Keyed on the path rather than on the words, so a second file cannot inherit
+#: the excuse. This is the shape tests/test_sensitivity.py had to move to after
+#: an exception keyed on a number alone let every file that stated the grid size
+#: drift to the wrong one.
+DUTCH_OUTSIDE_NL = {
+    "backend/advice/serializers.py": (
+        "the API's own validation messages, which reach a visitor through DRF "
+        "rather than through the advice layer. Whether they move into a language "
+        "layer is recorded in docs/decisions.md under what was not decided here, "
+        "because moving them changes what a visitor reads."
+    ),
+}
+
+
 def test_no_dutch_text_lives_outside_the_text_module() -> None:
     """The language boundary, enforced rather than agreed.
 
@@ -221,13 +239,39 @@ def test_no_dutch_text_lives_outside_the_text_module() -> None:
         r"|kosten|bedrag|prijs|meeste|grote|volgens|omdat|maar|ook|nog)\b",
         re.IGNORECASE,
     )
-    package = Path(ADVICE_PACKAGE.__file__ or "").parent
+    scanned = [
+        path
+        for root in (
+            Path(ADVICE_PACKAGE.__file__ or "").parent,
+            Path(SIM_PACKAGE.__file__ or "").parent,
+            REPO_ROOT / "backend",
+            REPO_ROOT / "tools",
+        )
+        for path in sorted(root.rglob("*.py"))
+        if "__pycache__" not in path.parts and path.name != "nl.py"
+    ]
     offenders = {
-        path.name: sorted(set(dutch.findall(path.read_text(encoding="utf-8"))))
-        for path in sorted(package.rglob("*.py"))
-        if path.name != "nl.py" and dutch.search(path.read_text(encoding="utf-8"))
+        path.relative_to(REPO_ROOT).as_posix(): sorted(
+            set(dutch.findall(path.read_text(encoding="utf-8")))
+        )
+        for path in scanned
+        if dutch.search(path.read_text(encoding="utf-8"))
+        and path.relative_to(REPO_ROOT).as_posix() not in DUTCH_OUTSIDE_NL
     }
     assert offenders == {}, f"Dutch outside nl.py: {offenders}"
+
+    # The other direction. An exception that no longer describes anything is one
+    # standing ready to wave through a file nobody meant.
+    hit = {
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in scanned
+        if dutch.search(path.read_text(encoding="utf-8"))
+    }
+    assert set(DUTCH_OUTSIDE_NL) <= hit, (
+        f"these exceptions no longer describe anything: {sorted(set(DUTCH_OUTSIDE_NL) - hit)}"
+    )
+
+    assert len(scanned) >= 30, f"only {len(scanned)} files were read, so this scanned nothing"
 
 
 def test_the_advice_carries_both_versions() -> None:
