@@ -7,8 +7,18 @@ know we do not know.
 The variations are combined rather than applied one at a time. Moving a single
 assumption while holding the rest at their central value never reaches the
 corners, and a band that cannot reach its own corners is decoration. A full
-factorial over three levels of four assumptions is 81 runs, which at roughly
-six milliseconds each is affordable inside the two second budget.
+factorial over three levels of the five assumptions below is 243 cells.
+
+It said four assumptions and 81 runs until 2026-08-23. The fifth,
+``feed_in_cost_per_kwh``, was added because leaving it out made the band
+silent about the most uncertain term in the answer, and this paragraph did
+not follow it. Six other places in the tree say 243 and were right; the file
+that builds the grid was the one that was wrong.
+
+243 cells is not 243 simulations. Two of the five move no energy at all, so
+the grid holds 3^3 = 27 distinct simulations priced 243 ways.
+``ampeer_sim/simulate.py`` explains that where it does it and carries the
+measurement of what it saves, which is why there is no second figure here.
 """
 
 from __future__ import annotations
