@@ -25,11 +25,23 @@ import pytest
 
 import ampeer_advice as ADVICE_PACKAGE
 from ampeer_advice import ADVICE_VERSION
-from ampeer_advice.advise import _storage_verdict, advise, recommended_route
+from ampeer_advice.advise import (
+    FREE_ROUTE_ORDER,
+    FreeRouteOutcome,
+    _annual_costs,
+    _measure_free_routes,
+    _storage_verdict,
+    advise,
+    recommended_route,
+)
 from ampeer_advice.battery import CAPACITIES, MAX_ACCEPTABLE_PAYBACK_YEARS, battery_advice
 from ampeer_advice.nl import RULE_TEXTS
 from ampeer_advice.rules import RULES
-from ampeer_advice.tariffs import baseline_tariffs, scenario_2027_tariffs
+from ampeer_advice.tariffs import (
+    baseline_tariffs,
+    scenario_2027_levels,
+    scenario_2027_tariffs,
+)
 from ampeer_advice.types import (
     Advice,
     AdviceContext,
@@ -971,3 +983,105 @@ def test_enough_of_the_golden_households_reach_a_capacity_curve() -> None:
     """
     with_curve = [name for name in HOUSEHOLDS if _golden_advice(name).battery is not None]
     assert len(with_curve) >= 3, f"only {sorted(with_curve)} still reach a capacity curve"
+
+
+# ---------------------------------------------------------------------------
+# The chain the free route figures are measured along
+# ---------------------------------------------------------------------------
+
+
+@cache
+def _free_routes(name: str) -> tuple[Decimal, FreeRouteOutcome, np.ndarray]:
+    """Run _measure_free_routes the way advise() runs it, plus the starting cost.
+
+    Built here rather than read off the Advice because the Advice carries the
+    savings and not the two endpoints they are supposed to span.
+    """
+    case = HOUSEHOLDS[name]
+    household = _household(case)
+    system = PVSystem(peak_power_wp=case["peak_power_wp"], azimuth_deg=0.0, tilt_deg=35.0)
+    hourly, temperature, _ = FallbackProvider(WEATHER_YEAR).hourly_series(
+        household.postcode4, system.azimuth_deg, system.tilt_deg
+    )
+    production = production_series(hourly, system, GRID, weather_year=WEATHER_YEAR)
+    fractions = FlatProfiles().fractions(GRID.year, household.profile_category)
+    levels = dataclasses.replace(scenario_2027_levels(dynamic=False), mid=scenario_2027_tariffs())
+    alternative = dataclasses.replace(
+        scenario_2027_levels(dynamic=True), mid=scenario_2027_tariffs(dynamic=True)
+    )
+    free_ids = frozenset(
+        fired.rule_id for fired in _golden_advice(name).fired if fired.route is not Route.STORAGE
+    )
+    consumption = compose_consumption(
+        household,
+        GRID,
+        fractions,
+        temperature,
+        weather_year=WEATHER_YEAR,
+        production_kwh=production,
+    )
+    started_at = _annual_costs(simulate(consumption, production), levels)[1]
+    outcome = _measure_free_routes(
+        household=household,
+        grid=GRID,
+        fractions=fractions,
+        temperature=temperature,
+        production=production,
+        scenario=levels,
+        dynamic_scenario=alternative,
+        fired_ids=free_ids,
+        battery_spec=None,
+        weather_year=WEATHER_YEAR,
+    )
+    return started_at, outcome, production
+
+
+@pytest.mark.parametrize(
+    "name", ["rob_fixed_contract", "large_array_small_use", "marloes_ev_at_night"]
+)
+def test_the_free_route_savings_span_exactly_the_two_ends_they_claim_to(name: str) -> None:
+    """Each step measured from where the last one left off, to the cent.
+
+    The comment above FREE_ROUTE_ORDER says the figures are additive by
+    construction, and FreeRouteOutcome's own docstring calls the failure this
+    prevents the most expensive defect this package has had: the same kilowatt
+    hours sold twice, once as a free saving and again as a reason to buy a
+    battery. Additive by construction means the three savings telescope, so
+    their total is the distance between the household that did nothing and the
+    household that did everything.
+
+    The existing invariant is an upper bound, that the total cannot exceed the
+    headline. That is necessary and it is not this. Measured on 2026-08-23:
+    dropping one of the running_cost assignments, so a step is measured from the
+    original household again instead of from the previous step, leaves the upper
+    bound satisfied and the whole suite green except one frontend fixture
+    comparison, which says a number moved and not which claim broke.
+    """
+    started_at, outcome, production = _free_routes(name)
+    assert outcome.savings, f"{name} took no free routes, so there is no chain to check"
+
+    total = sum(band.mid for band in outcome.savings.values())
+    ended_at = _annual_costs(simulate(outcome.consumption, production), outcome.scenario)[1]
+    assert total == started_at - ended_at, (
+        f"{name}: the three savings add up to {total} while the household moved from "
+        f"{started_at} to {ended_at}, a distance of {started_at - ended_at}"
+    )
+
+
+def test_the_measured_free_routes_are_the_ones_the_module_lists() -> None:
+    """FREE_ROUTE_ORDER is read by nothing, so it is a second copy of an order.
+
+    _measure_free_routes applies its three routes in hand written if blocks. The
+    tuple above it names the same three in the same order and no code consults
+    it, which means a reordering or a fourth route can leave the two disagreeing
+    with nothing to say so. The order is not decoration: each step is measured
+    on top of the last, so which one runs first decides how the same total is
+    split between them.
+    """
+    import inspect as _inspect
+
+    body = _inspect.getsource(_measure_free_routes)
+    guarded = re.findall(r'"([A-Z_]+)" in fired_ids', body)
+    assert guarded == list(FREE_ROUTE_ORDER), (
+        f"the function applies {guarded}, which is not what FREE_ROUTE_ORDER says"
+    )
