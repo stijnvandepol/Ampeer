@@ -302,6 +302,30 @@ Four sit outside that document.
   household used to, at 9.69 years, and left it when the capacity curve stopped
   being priced on consumption the free routes had already claimed. Changing
   what a household is told is not mine to take.
+- **Whether the run count beside the band should report cells or distinct
+  outcomes.** `HeadlineBand.tsx` shows the visitor "{band.runs} doorrekeningen"
+  and the screen reader text says the midpoint comes "uit 243 doorrekeningen".
+  For a household on a dynamic contract that figure is three times what the
+  band rests on. `scenario_2027_tariffs(dynamic=True)` sets
+  `feed_in_cost_per_kwh` to zero, because on that contract the compensation is
+  already net of charges, and `_apply_variations` moves that assumption by
+  multiplying it. Zero times either factor is zero, so the fifth dimension of
+  the grid is constant and each answer is computed three times.
+
+  Measured on 2026-08-23 on the reference household: 243 cells, 81 distinct
+  outcomes, every one appearing exactly three times. The percentiles are
+  identical either way, so the band itself is right and only the count beside
+  it overstates.
+
+  Both readings are defensible, which is why this is not mine. 243 is honestly
+  the number of combinations priced. 81 is honestly the number of different
+  answers they gave. `scenario_2027_levels` in `ampeer_advice/tariffs.py`
+  already takes the second position for the other band, in as many words:
+  naming an input that does not actually differ would make the band claim a
+  width it does not have. Applying that here changes a number a visitor reads.
+  Pinned in `tests/test_sensitivity.py` so it cannot drift while the question
+  is open.
+
 - **What to do about a visitor entering the figure from their annual bill.**
   "Verbruik per jaar" is asked in round one. Whether the household has a car or
   a heat pump is asked in round two, and the model adds those on top of the

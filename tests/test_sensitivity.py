@@ -10,9 +10,11 @@ import pytest
 
 from ampeer_sim.economics.sensitivity import VARIATIONS, band_from_differences, variation_grid
 from ampeer_sim.production.pvgis import FallbackProvider
-from ampeer_sim.simulate import run_advice
+from ampeer_sim.simulate import _apply_variations, run_advice
 from ampeer_sim.timebase import YearGrid
 from ampeer_sim.types import (
+    BatterySpec,
+    EnergyFlows,
     Household,
     ProductionSource,
     ProfileCategory,
@@ -243,3 +245,164 @@ def test_the_scan_reads_the_places_that_state_it() -> None:
         "drift this guards against happened"
     )
     assert len(files) >= 4, f"only {sorted(files)} state it, and it is spread wider than that"
+
+
+# ---------------------------------------------------------------------------
+# The cache that turns 243 runs into 27, and the argument it rests on
+# ---------------------------------------------------------------------------
+
+
+def _energy_variations() -> list[str]:
+    """The variations that move energy, decided by asking _apply_variations.
+
+    Derived rather than listed. A list here would be a second copy of the
+    knowledge in _apply_variations, kept in step by hand, and the whole point of
+    the check below is that hand-kept copies of exactly this fact are what goes
+    wrong.
+    """
+    household = Household(postcode4="5401", annual_consumption_kwh=3_500.0)
+    system = PVSystem(peak_power_wp=3_500, azimuth_deg=0, tilt_deg=35)
+    moves = []
+    for variation in VARIATIONS:
+        run_household, run_system, _ = _apply_variations(
+            household, system, SCENARIO, {variation.name: variation.low}
+        )
+        if (run_household, run_system) != (household, system):
+            moves.append(variation.name)
+    return moves
+
+
+def test_every_variation_moves_the_answer_on_a_fixed_contract() -> None:
+    """A dimension that changes nothing is a band claiming a width it lacks.
+
+    The grid is a full factorial over five assumptions, and a variation wired
+    to the wrong object, or applied multiplicatively to a value that happens to
+    be zero, still produces its three cells and still counts towards the 243.
+    It simply produces the same answer three times.
+
+    The tariff set here is the one the product builds rather than this file's
+    own fixture, because whether a variation is inert depends on the value it
+    is handed. On a fixed contract all five move. On a dynamic one they do not,
+    which is the test below.
+    """
+    from ampeer_advice.tariffs import baseline_tariffs, scenario_2027_tariffs
+
+    household = Household(postcode4="5401", annual_consumption_kwh=3_500.0)
+    system = PVSystem(peak_power_wp=3_500, azimuth_deg=0, tilt_deg=35)
+    fixed = scenario_2027_tariffs(dynamic=False)
+    central = _advice(baseline=baseline_tariffs(), scenario=fixed)
+
+    inert = []
+    for variation in VARIATIONS:
+        moved = set()
+        for factor in (variation.low, variation.high):
+            run_household, run_system, run_scenario = _apply_variations(
+                household, system, fixed, {variation.name: factor}
+            )
+            moved.add(
+                _advice(
+                    household=run_household,
+                    pv_system=run_system,
+                    baseline=baseline_tariffs(),
+                    scenario=run_scenario,
+                ).band.p50_eur
+            )
+        if moved == {central.band.p50_eur}:
+            inert.append(variation.name)
+    assert not inert, (
+        f"{inert} produce their three cells and the same answer in all of them, so the band "
+        "rests on fewer assumptions than it counts"
+    )
+
+
+def test_a_dynamic_contract_leaves_one_of_the_five_inert() -> None:
+    """A known and measured overstatement, pinned so it cannot grow or vanish quietly.
+
+    ``scenario_2027_tariffs(dynamic=True)`` sets ``feed_in_cost_per_kwh`` to
+    zero and says why: on a dynamic contract the compensation is already net of
+    charges. ``_apply_variations`` moves that assumption by multiplying it, and
+    zero times either factor is zero, so the fifth dimension of the grid is
+    constant for every household that ticks the dynamic contract box.
+
+    Measured on 2026-08-23 on the reference household: the 243 cells produce 81
+    distinct outcomes, each appearing exactly three times. The percentiles are
+    unaffected, so the band itself is right. What is wrong is the count beside
+    it: ``band.runs`` says 243 and ``HeadlineBand.tsx`` shows that figure to the
+    visitor as "doorrekeningen".
+
+    ``scenario_2027_levels`` in ampeer_advice already refuses to make this claim
+    for the other band, in as many words: naming an input that does not actually
+    differ would make the band claim a width it does not have. The same argument
+    has not been applied here, and whether it should is recorded in
+    docs/decisions.md rather than decided in a test.
+    """
+    from ampeer_advice.tariffs import baseline_tariffs, scenario_2027_tariffs
+
+    dynamic = scenario_2027_tariffs(dynamic=True)
+    assert dynamic.feed_in_cost_per_kwh == Decimal("0"), (
+        "the dynamic scenario now carries a feed-in charge, so this whole pinning is stale"
+    )
+
+    result = _advice(baseline=baseline_tariffs(), scenario=dynamic)
+    assert result.band.runs == 3 ** len(VARIATIONS), (
+        "the run count no longer reports every cell, which is the thing recorded here"
+    )
+
+    household = Household(postcode4="5401", annual_consumption_kwh=3_500.0)
+    system = PVSystem(peak_power_wp=3_500, azimuth_deg=0, tilt_deg=35)
+    inert = next(v for v in VARIATIONS if v.name == "feed_in_cost_per_kwh")
+    for factor in (inert.low, inert.high):
+        _, _, moved = _apply_variations(household, system, dynamic, {inert.name: factor})
+        assert moved == dynamic, (
+            f"{inert.name} at {factor} now changes the dynamic tariff set, so the count beside "
+            "the band is no longer three times what it rests on"
+        )
+
+
+def test_the_grid_simulates_once_per_distinct_pair_and_prices_the_rest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The saving the comment claims, counted rather than asserted in prose.
+
+    Two of the varied assumptions are prices, so the 243 cells of the grid hold
+    3 to the power of the number that move energy, and the rest are repricings
+    of a series already computed. The comment records 8.70 seconds before this
+    optimisation and 1.06 after, on the battery path where the loop is Python.
+
+    Counted here because a cache is the kind of thing that stops working
+    silently. Widening the key to include the tariffs would put all 243
+    simulations back, cost nothing in correctness, and show up nowhere except a
+    stopwatch that only one test looks at.
+    """
+    import ampeer_sim.simulate as composition_root
+    from ampeer_sim.engine.run import simulate as real_simulate
+
+    calls = 0
+
+    # The signature is written out rather than forwarded through *args, so the
+    # day it changes this stops type checking instead of quietly counting
+    # something else.
+    def counting(
+        consumption: np.ndarray,
+        production: np.ndarray,
+        battery_spec: BatterySpec | None = None,
+        charge_plan: np.ndarray | None = None,
+        discharge_plan: np.ndarray | None = None,
+    ) -> EnergyFlows:
+        nonlocal calls
+        calls += 1
+        return real_simulate(consumption, production, battery_spec, charge_plan, discharge_plan)
+
+    monkeypatch.setattr(composition_root, "simulate", counting)
+    result = _advice()
+
+    expected = 3 ** len(_energy_variations())
+    assert calls == expected, (
+        f"the grid ran {calls} simulations where {expected} distinct input pairs exist; "
+        "the flows cache is not doing what simulate.py says it does"
+    )
+    assert result.band.runs == 3 ** len(VARIATIONS), (
+        f"the band is built from {result.band.runs} pricings, and the grid holds "
+        f"{3 ** len(VARIATIONS)}"
+    )
+    assert calls < result.band.runs, "nothing was saved, so there is no cache to speak of"
