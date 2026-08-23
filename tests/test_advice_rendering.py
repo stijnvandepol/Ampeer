@@ -21,7 +21,7 @@ from decimal import Decimal
 
 import pytest
 
-from advice.rendering import money, render
+from advice.rendering import ROUTE_ORDER, money, render
 from ampeer_advice.nl import SIZING_BASIS_TEXTS
 from ampeer_advice.types import (
     Advice,
@@ -493,3 +493,33 @@ def test_the_whole_response_survives_json_serialisation() -> None:
     production."""
     payload = render(_advice_with_battery(("CONSIDER_BATTERY",)), RESULT, token="abc123")
     assert json.loads(json.dumps(payload)) == payload
+
+
+def test_the_order_the_rules_fire_in_is_the_order_the_reader_is_shown() -> None:
+    """Two notions of route order, and nothing tied them together.
+
+    `evaluate` sorts the fired rules on `Route.value`. `_routes` builds the
+    blocks a reader sees by walking `ROUTE_ORDER`, a tuple written out by hand
+    in this module. They agree today because the enum happens to carry 1, 2 and
+    3 in the same sequence that tuple lists.
+
+    Nothing said they had to. Changing `Route.STORAGE` to 0 leaves the rendered
+    blocks in their old order while the fired list, and therefore
+    `recommended_route`, puts storage first. The reader would then be shown the
+    free routes at the top of the page and told a battery is the first thing to
+    do.
+
+    Derived from both sides rather than written out a third time. The literal
+    order already has a test above; this one is about the two agreeing.
+    """
+    from ampeer_advice.rules import RULES
+    from ampeer_advice.types import Route
+
+    by_value = sorted(Route, key=lambda route: route.value)
+    assert by_value == list(ROUTE_ORDER), (
+        f"evaluate would present {[route.name for route in by_value]} and this module "
+        f"renders {[route.name for route in ROUTE_ORDER]}"
+    )
+    assert {rule.route for rule in RULES} <= set(ROUTE_ORDER), (
+        "a rule now names a route the renderer never walks, so its advice reaches nobody"
+    )

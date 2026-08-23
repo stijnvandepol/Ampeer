@@ -222,10 +222,46 @@ def test_battery_does_not_pay_back_never_fires_from_the_table_alone() -> None:
         assert "BATTERY_DOES_NOT_PAY_BACK" not in _fired_ids(context)
 
 
-def test_free_routes_are_always_ordered_before_storage() -> None:
+#: The one route that costs the household money. Everything else is free, and
+#: naming the paid one rather than listing the free ones keeps this to a single
+#: fact: a fourth free route would need no edit here.
+PAID_ROUTE = Route.STORAGE
+
+
+def test_a_free_route_is_never_presented_after_storage() -> None:
+    """The rule CLAUDE.md states, asserted rather than assumed.
+
+    This used to read the routes out of ``evaluate`` and check they came back in
+    ascending order of ``Route.value``, which ``evaluate`` guarantees by sorting
+    on exactly that key. It could not fail. Measured on 2026-08-23: giving
+    ``Route.STORAGE`` the value 0, so that storage sorts first, left this test
+    green, left the whole of tests/test_advice_rules.py green and left the whole
+    of tests/test_advice_rendering.py green.
+
+    Six tests in the suite did notice, all of them golden household recordings,
+    and they noticed the way a golden file notices anything: the sequence they
+    had written down stopped matching. Three of the six did not, because their
+    fired rules do not span both a free route and storage.
+
+    What rests on this is ``recommended_route``, whose docstring says the first
+    fired rule is by construction the cheapest route that has anything to say.
+    With storage sorting first that sentence becomes false and a household with
+    a free route available is recommended a battery.
+    """
+    mixed = 0
     for context in _every_context():
-        routes = [fired.route.value for fired in evaluate(context)]
-        assert routes == sorted(routes), context
+        routes = [fired.route for fired in evaluate(context)]
+        free = [index for index, route in enumerate(routes) if route is not PAID_ROUTE]
+        paid = [index for index, route in enumerate(routes) if route is PAID_ROUTE]
+        if not free or not paid:
+            continue
+        mixed += 1
+        assert max(free) < min(paid), (
+            f"{[route.name for route in routes]} puts a free route after {PAID_ROUTE.name}"
+        )
+    assert mixed > 0, (
+        "no context fires both a free rule and a storage rule, so this test compared nothing"
+    )
 
 
 def test_the_rule_table_never_estimates_a_saving() -> None:
