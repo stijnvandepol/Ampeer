@@ -184,6 +184,38 @@ every file the plans name is in the tree, and that is what the note points at.
 **To reverse:** tick them, and accept that the ticks assert more than anything
 can check.
 
+### 11. A tariff set that says two things is refused, not read halfway
+
+**Decided:** `annual_cost` raises when a `TariffSet` carries both `dynamic` and
+`net_metering`, instead of taking the dynamic branch and dropping the netting
+the way its if/elif did until 2026-08-23.
+
+**Because:** the combination is not a caller's mistake. Saldering applies
+whatever the contract until 1 January 2027, so for a 2026 household on a
+dynamic contract it is the accurate description, and the flag was accepted and
+then ignored without a word. The term is not small: measured on a household
+taking 3500 kWh and feeding in 2600, exporting around midday and taking off in
+the evening peak, the two readings of that one tariff set are 870 euro apart,
+and the silent one is the higher, which is the direction that inflates the very
+shock this product exists to quantify. Choosing the other branch instead would
+be inventing an answer, because netting settles a volume over a year and the
+dynamic path settles 35040 quarters, and which of those prices the netted
+residual is worth is written in a supplier's terms rather than derivable here.
+
+Nothing reaches this today. `backend/advice/assembly.py` keeps
+`TariffSet.dynamic` False on every set it builds and models a dynamic contract
+by its average net price, so no household is affected either way. It matters
+because ENTSO-E is on the allowlist and pricing against a real series is the
+obvious next use of this function.
+
+**Lives in:** `ampeer_sim/economics/tariffs.py`, with three tests in
+`tests/test_tariffs.py`: the refusal, a floor that each flag alone still
+prices, and a floor that the dropped term is worth refusing over.
+
+**To reverse:** decide which price settles the netted residual, cite it, and
+implement the branch. Deleting the raise without doing that puts the silent
+number back.
+
 ## What was not decided here
 
 Five belong to the controller and are written up with their trade-offs in
