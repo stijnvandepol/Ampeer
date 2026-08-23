@@ -246,3 +246,54 @@ def test_the_profile_name_is_derived_from_the_tool_that_writes_it() -> None:
         f"{name!r} is not what {INGEST.name} builds; the derivation has drifted from "
         "the source it is supposed to be reading"
     )
+
+
+# ---------------------------------------------------------------------------
+# A series that does not belong to the grid it is bucketed against
+# ---------------------------------------------------------------------------
+
+LEAP_GRID = YearGrid.for_year(2024)
+
+
+def test_a_series_from_another_year_is_refused_by_both_share_functions() -> None:
+    """One of the two used to answer, and its answer looked healthy.
+
+    ``hourly_share`` selects with a boolean mask the grid's own length, so numpy
+    refused a mismatched series for it. ``monthly_share`` walks month boundaries
+    by index, and a slice that runs past the end of a numpy array is clipped
+    rather than refused. Measured on 2026-08-23 against a 365 day grid: a leap
+    year series came back with shares summing to 0.997268, and a series 30000
+    values long came back summing to exactly 1.000000 with January at 0.0992
+    where it should be 0.0849.
+
+    The second is why this is a raise. A total of one is what a correct
+    distribution looks like, so there was nothing in the output to notice, and
+    this module is the one that decides whether the model resembles the country.
+
+    Reachable rather than theoretical: ``NeduFileProvider`` returns whatever
+    rows the ingested file holds, skipping any with an empty cell, and 2024 is
+    a leap year with 35136 quarters against the 35040 of this grid.
+    """
+    for label, series in (
+        ("leap year", np.ones(LEAP_GRID.quarters)),
+        ("truncated", np.ones(30_000)),
+    ):
+        for function in (monthly_share, hourly_share):
+            with pytest.raises(ValueError, match="quarters and this series carries"):
+                function(series, GRID)
+            assert series.size != GRID.quarters, f"the {label} case is not a mismatch at all"
+
+
+def test_the_refusal_does_not_catch_a_series_that_does_belong() -> None:
+    """The floor, since a guard on the wrong comparison refuses everything.
+
+    Both functions still answer for a series of the grid's own length, and for
+    a leap year grid with the leap year length, so the check is on the pair and
+    not on one hard coded number.
+    """
+    assert sum(monthly_share(np.ones(GRID.quarters), GRID)) == pytest.approx(1.0)
+    assert sum(hourly_share(np.ones(GRID.quarters), GRID)) == pytest.approx(1.0)
+    assert sum(monthly_share(np.ones(LEAP_GRID.quarters), LEAP_GRID)) == pytest.approx(1.0)
+    assert monthly_share(np.ones(LEAP_GRID.quarters), LEAP_GRID)[1] == pytest.approx(
+        29 / 366, rel=1e-6
+    ), "February 2024 has 29 days and the leap grid should say so"
