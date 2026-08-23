@@ -70,8 +70,15 @@ def find_knee(curve: Sequence[tuple[float, Decimal]]) -> float:
     reference is the marginal saving per extra kWh of the first step, that is
     the step from no battery at all up to the smallest capacity offered. A
     following step counts as worthwhile when the extra saving it brings is at
-    least half of that reference, and the first step that fails ends the search:
-    the curve only flattens, so nothing beyond that point can recover.
+    least half of that reference, and the first step that fails ends the search.
+
+    Stopping there rests on the curve not recovering. It very nearly does not:
+    measured on 2026-08-23 over the golden capacity curves, the marginal saving
+    is non-increasing except for rises of at most 0.0005 euro per kWh, against
+    thresholds of tens of euro per kWh. Near enough is not the same as true, so
+    the weaker property the break actually needs, that the steps clearing the
+    threshold form an unbroken run from the start, is asserted in
+    ``tests/test_advise.py`` rather than assumed here.
 
     When no step ever falls below the threshold the answer is the largest
     capacity in ``curve``, which means the search ran out of curve rather than

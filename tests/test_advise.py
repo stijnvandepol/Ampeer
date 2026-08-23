@@ -14,6 +14,7 @@ import inspect
 import json
 import re
 import time
+from collections.abc import Sequence
 from decimal import Decimal
 from functools import cache
 from pathlib import Path
@@ -899,3 +900,74 @@ def test_the_payback_tolerance_stays_small_against_the_figure_it_guards() -> Non
             f"{name} allows {share:.1%} of its own payback as slack, which is wide "
             "enough to hide a change in the sentence a household acts on"
         )
+
+
+# ---------------------------------------------------------------------------
+# What find_knee's early break rests on
+# ---------------------------------------------------------------------------
+
+
+def _marginal_savings(points: Sequence[tuple[float, Decimal]]) -> list[Decimal]:
+    """Euro per extra kWh for each step, the first one measured from no battery."""
+    out: list[Decimal] = []
+    previous_capacity, previous_saving = 0.0, Decimal("0")
+    for capacity, saving in points:
+        out.append((saving - previous_saving) / Decimal(str(capacity - previous_capacity)))
+        previous_capacity, previous_saving = capacity, saving
+    return out
+
+
+def test_a_step_below_the_knee_threshold_is_never_followed_by_one_above_it() -> None:
+    """The assumption that lets find_knee stop at the first failing step.
+
+    Its docstring says the curve only flattens, so nothing beyond the first
+    failing step can recover. Measured on 2026-08-23 that is not exactly true:
+    on large_array_small_use the marginal saving rises again, by up to 0.0005
+    euro per kWh. That cannot move a knee, because the thresholds in play are
+    tens of euro per kWh, but a claim that is nearly true is not one to keep
+    resting a battery recommendation on without checking.
+
+    What the early break actually needs is weaker and exactly this: the steps
+    that clear the threshold form an unbroken run from the start. A curve with a
+    second knee would size a household's battery on the first of them and never
+    look at the rest, and the direction of that mistake depends on the curve,
+    which is worse than a mistake with a known direction.
+
+    Read off the advice rather than recomputed, so it costs no simulation and so
+    it judges the curve the product actually builds: advise.py prices capacity
+    against the consumption left after the free routes, which is not the curve a
+    direct call to _capacity_curve produces.
+    """
+    checked, mixed = 0, 0
+    for name in sorted(HOUSEHOLDS):
+        battery = _golden_advice(name).battery
+        if battery is None:
+            continue
+        for level in ("low", "mid", "high"):
+            points = [(capacity, getattr(band, level)) for capacity, band in battery.curve]
+            marginal = _marginal_savings(points)
+            threshold = marginal[0] / 2
+            above = [step >= threshold for step in marginal]
+            checked += 1
+            if any(above) and not all(above):
+                mixed += 1
+            assert above == sorted(above, reverse=True), (
+                f"{name} at {level}: steps clearing the threshold are {above}, so the curve "
+                "recovers after falling and find_knee stops too early"
+            )
+    assert checked >= 9, f"only {checked} curve levels were judged"
+    assert mixed > 0, (
+        "every curve was entirely above or entirely below its own threshold, so nothing here "
+        "exercised the ordering this test is about"
+    )
+
+
+def test_enough_of_the_golden_households_reach_a_capacity_curve() -> None:
+    """The floor under the test above, which walks whatever curves exist.
+
+    Three of the six households get no battery advice at all, which is the
+    product working as intended. If the other three stopped getting one the test
+    above would pass over an empty set and say nothing.
+    """
+    with_curve = [name for name in HOUSEHOLDS if _golden_advice(name).battery is not None]
+    assert len(with_curve) >= 3, f"only {sorted(with_curve)} still reach a capacity curve"
