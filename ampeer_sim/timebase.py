@@ -116,10 +116,30 @@ class YearGrid:
         Production is not weekday dependent, so aligning on date rather than on
         weekday is correct and leaves the profile year in charge of the weekday
         structure.
+
+        ``weather_year`` is the caller's claim about where the series came
+        from. Until 2026-08-24 it sat in the signature and appeared nowhere in
+        the body: leapness was read off the length alone.
+
+        That was not a misalignment, and the first version of this paragraph
+        said it was. Measured: a series of 8760 values aligned onto a leap grid
+        puts a copy of 28 February on the 29th and every later day lands on its
+        own date. The dates were right.
+
+        What passed silently is the disagreement itself. A provider that
+        returns 8760 values for a leap year is a day of weather short, and the
+        model then runs a February day twice without anybody being told. That
+        is a fact about the data rather than about this function, which is
+        exactly the kind this package cannot report later, so the claim is
+        checked here instead of trusted.
         """
-        if hourly.shape[0] not in (8_760, 8_784):
-            raise ValueError(f"expected 8760 or 8784 hourly values, got {hourly.shape[0]}")
-        source_is_leap = hourly.shape[0] == 8_784
+        expected = 8_784 if calendar.isleap(weather_year) else 8_760
+        if hourly.shape[0] != expected:
+            raise ValueError(
+                f"weather year {weather_year} has {expected} hourly values and this "
+                f"series carries {hourly.shape[0]}"
+            )
+        source_is_leap = calendar.isleap(weather_year)
         if source_is_leap == self.is_leap:
             return hourly.astype(float, copy=False)
 

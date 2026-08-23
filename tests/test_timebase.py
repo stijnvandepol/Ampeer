@@ -94,5 +94,28 @@ def test_align_hourly_year_leaves_a_matching_year_alone() -> None:
 
 def test_align_hourly_year_rejects_a_wrong_length_series() -> None:
     grid = YearGrid.for_year(2025)
-    with pytest.raises(ValueError, match="8760 or 8784"):
+    with pytest.raises(ValueError, match="8760 hourly values"):
         grid.align_hourly_year(np.zeros(100), weather_year=2025)
+
+
+def test_align_hourly_year_rejects_a_series_that_is_not_the_year_it_claims() -> None:
+    """The check the weather year exists for.
+
+    Until 2026-08-24 that argument was in the signature and nowhere in the
+    body: leapness came off the length alone.
+
+    The dates were not wrong, and I wrote that they were before measuring it.
+    A series of 8760 values on a leap grid puts a copy of 28 February on the
+    29th and every later day lands on its own date. What went unreported is
+    the disagreement: a provider that returns 8760 values for a leap year is a
+    day of weather short, and the model runs a February day twice instead of
+    saying so.
+
+    Both directions, because a provider can be wrong either way: a leap year
+    that arrived short, and a common year that arrived long.
+    """
+    grid = YearGrid.for_year(2025)
+    with pytest.raises(ValueError, match="2024 has 8784"):
+        grid.align_hourly_year(np.zeros(8_760), weather_year=2024)
+    with pytest.raises(ValueError, match="2023 has 8760"):
+        grid.align_hourly_year(np.zeros(8_784), weather_year=2023)
