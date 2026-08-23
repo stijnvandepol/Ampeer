@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import pathlib
+import string
 from urllib.parse import urlsplit
 
 import ampeer_advice
@@ -20,6 +21,11 @@ FORBIDDEN_IN_PURE_PACKAGES = {"django", "rest_framework", "backend", "advice", "
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 BACKEND_ROOT = REPO_ROOT / "backend"
+
+#: Developer tooling. In scope for coverage in pyproject.toml and, until
+#: 2026-08-23, out of scope here, while the failure message below said the
+#: rule allows one file "and nothing else". It allows two.
+TOOLS_ROOT = REPO_ROOT / "tools"
 
 
 def _imported_module_names(path: pathlib.Path) -> set[str]:
@@ -106,15 +112,48 @@ NETWORK_CLIENTS = frozenset(
 #: exactly one caller reads is a layer that hides where the value comes from.
 #: A second source is what makes that question real, and adding one means
 #: adding it here on purpose.
-OUTBOUND_MODULE = "ampeer_sim/production/pvgis.py"
-ALLOWED_HOSTS = frozenset({"re.jrc.ec.europa.eu"})
+#: Every module allowed to open an outbound connection, and where each may go.
+#:
+#: Two, and the second was invisible here until 2026-08-23 because the scan
+#: walked the packages and backend/ only. tools/ingest_profiles.py downloads the
+#: NEDU standard profiles, whose licence forbids committing them, so a fetch is
+#: the only way they arrive.
+#:
+#: Its host is not one of the three CLAUDE.md names. That is worth reading
+#: rather than waving through, and it is recorded in docs/decisions.md under
+#: what was not decided here: the rule there is written about the backend, which
+#: never fetches, and this is a build time command somebody runs by hand. The
+#: allowlist in that document naming three sources while the repository reaches
+#: a fourth is Stijn's line to move, not mine.
+OUTBOUND_MODULES: dict[str, frozenset[str]] = {
+    "ampeer_sim/production/pvgis.py": frozenset({"re.jrc.ec.europa.eu"}),
+    "tools/ingest_profiles.py": frozenset({"energiedatawijzer.nl"}),
+}
+
+#: The module whose destination must be a bare constant at the call site.
+#:
+#: Only one, and the distinction is real rather than a convenience. pvgis.py is
+#: reached by a web request, so its destination has to be fixed where a reviewer
+#: sees it. ingest_profiles.py hands its URL down through two functions before
+#: requests sees it, which the check below cannot follow, so that file is held
+#: to a different and separately stated argument.
+STRICT_DESTINATION_MODULE = "ampeer_sim/production/pvgis.py"
+
+#: The one network client either of them may import.
+#:
+#: Named so the assertion below can compare the whole mapping rather than
+#: only its keys. Comparing keys was tried on 2026-08-23 and is weaker than
+#: what it replaced: adding `import socket` to a module that already imports
+#: requests left the set of files unchanged and the test green, while that
+#: module gained the ability to open a raw connection.
+ALLOWED_CLIENT = "requests"
 
 
 def _python_sources() -> list[pathlib.Path]:
     """Every Python file in the two pure packages and in the Django project."""
     return sorted(
         path
-        for root in (*PACKAGE_ROOTS, BACKEND_ROOT)
+        for root in (*PACKAGE_ROOTS, BACKEND_ROOT, TOOLS_ROOT)
         for path in root.rglob("*.py")
         if "__pycache__" not in path.parts
     )
@@ -134,7 +173,7 @@ def _is_url_literal(node: ast.AST | None) -> bool:
     )
 
 
-def test_only_one_module_can_reach_outside_this_machine() -> None:
+def test_only_these_modules_can_reach_outside_this_machine() -> None:
     """The SSRF rule is categorical, so the guard has to be too.
 
     CLAUDE.md forbids outbound HTTP to a user supplied URL and allows exactly
@@ -161,12 +200,14 @@ def test_only_one_module_can_reach_outside_this_machine() -> None:
         for path in _python_sources()
         if _imported_module_names(path) & NETWORK_CLIENTS
     }
-    assert reaching == {OUTBOUND_MODULE: ["requests"]}, (
+    expected = {module: [ALLOWED_CLIENT] for module in OUTBOUND_MODULES}
+    assert reaching == expected, (
         "the set of modules that can open an outbound connection has changed:\n"
         + "\n".join(f"  {name}: {clients}" for name, clients in sorted(reaching.items()))
-        + f"\nThe project rule allows {OUTBOUND_MODULE} and nothing else. Meter data "
-        "arrives by push so the backend never fetches, and that is what rules SSRF "
-        "out as a category rather than case by case."
+        + f"\nThe project rule allows {sorted(OUTBOUND_MODULES)} and nothing else, "
+        f"each with {ALLOWED_CLIENT} and no other client. Meter data arrives by push "
+        "so the backend never fetches, and that is what rules SSRF out as a category "
+        "rather than case by case."
     )
 
 
@@ -193,7 +234,8 @@ def test_the_module_that_speaks_http_never_assembles_its_url() -> None:
     timeout and without a literal. That residue is one file wide, and the test
     above is what keeps it one file wide.
     """
-    path = REPO_ROOT / OUTBOUND_MODULE
+    module = STRICT_DESTINATION_MODULE
+    path = REPO_ROOT / module
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 
     constants = {
@@ -209,13 +251,14 @@ def test_the_module_that_speaks_http_never_assembles_its_url() -> None:
         for node in ast.walk(tree)
         if isinstance(node, ast.Constant) and isinstance(node.value, str) and _is_url_literal(node)
     ]
-    assert literals, f"no URL literal found in {OUTBOUND_MODULE}; this test read nothing"
+    assert literals, f"no URL literal found in {module}; this test read nothing"
     for url in literals:
         assert url.startswith("https://"), f"{url} is not https"
         host = urlsplit(url).hostname
-        assert host in ALLOWED_HOSTS, (
-            f"{OUTBOUND_MODULE} points at {host}, which is not on the allowlist "
-            f"{sorted(ALLOWED_HOSTS)}. CLAUDE.md fixes the external sources in config; "
+        allowed = OUTBOUND_MODULES[module]
+        assert host in allowed, (
+            f"{module} points at {host}, which is not on the allowlist "
+            f"{sorted(allowed)}. CLAUDE.md fixes the external sources in config; "
             "a new one is a decision, not a URL edit."
         )
 
@@ -244,7 +287,7 @@ def test_the_module_that_speaks_http_never_assembles_its_url() -> None:
         if isinstance(node, ast.Call) and any(kw.arg == "timeout" for kw in node.keywords)
     ]
     assert outbound, (
-        f"no call in {OUTBOUND_MODULE} carries a timeout, so either the request left "
+        f"no call in {module} carries a timeout, so either the request left "
         "or this test stopped recognising it"
     )
     for call in outbound:
@@ -255,3 +298,86 @@ def test_the_module_that_speaks_http_never_assembles_its_url() -> None:
             "a module level constant. The destination of an outbound call has to be "
             "fixed in the source where a reviewer can see it."
         )
+
+
+TOOLS_OUTBOUND = "tools/ingest_profiles.py"
+
+
+def test_the_ingest_tool_points_at_one_host_and_substitutes_only_a_year() -> None:
+    """The second outbound module, held to an argument the other test cannot make.
+
+    test_the_module_that_speaks_http_never_assembles_its_url requires the
+    destination to be a bare module constant where requests sees it. This file
+    cannot satisfy that and is not wrong for it: the URL is formatted once and
+    handed down through two functions before requests is called, which an AST
+    walk over one expression cannot follow.
+
+    So the safety argument is made here instead, in four parts, and every part
+    is checked rather than asserted in prose.
+
+    The URL is one https literal on a one host allowlist. Nothing grows a URL
+    out of a value by f-string or by concatenation. The single placeholder in it
+    is the year. And argparse declares that year as an int, which is the part
+    that carries the weight: a string from the command line could otherwise be
+    substituted into the path, and the project rule is that user input supplies
+    validated parameters and never pieces of the address.
+    """
+    path = REPO_ROOT / TOOLS_OUTBOUND
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+
+    literals = [
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and _is_url_literal(node)
+    ]
+    assert literals, f"no URL literal found in {TOOLS_OUTBOUND}; this test read nothing"
+    allowed = OUTBOUND_MODULES[TOOLS_OUTBOUND]
+    for url in literals:
+        assert url.startswith("https://"), f"{url} is not https"
+        assert urlsplit(url).hostname in allowed, (
+            f"{TOOLS_OUTBOUND} points at {urlsplit(url).hostname}, not on {sorted(allowed)}"
+        )
+
+    assembled = [
+        ast.unparse(node)
+        for node in ast.walk(tree)
+        if (
+            isinstance(node, ast.JoinedStr)
+            and bool(node.values)
+            and _is_url_literal(node.values[0])
+        )
+        or (
+            isinstance(node, ast.BinOp)
+            and isinstance(node.op, ast.Add)
+            and _is_url_literal(node.left)
+        )
+    ]
+    assert not assembled, f"a URL is being built rather than named: {assembled}"
+
+    fields = sorted(
+        {
+            name
+            for url in literals
+            for _, name, _, _ in string.Formatter().parse(url)
+            if name is not None
+        }
+    )
+    assert fields == ["year"], f"the URL substitutes {fields}, and only a year is argued for below"
+
+    typed = [
+        keyword.value.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "add_argument"
+        and any(
+            isinstance(argument, ast.Constant) and argument.value == "year"
+            for argument in node.args
+        )
+        for keyword in node.keywords
+        if keyword.arg == "type" and isinstance(keyword.value, ast.Name)
+    ]
+    assert typed == ["int"], (
+        f"the year argument is declared with type={typed}, and int is what keeps a string "
+        "from the command line out of the URL path"
+    )

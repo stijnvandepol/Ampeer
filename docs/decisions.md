@@ -70,7 +70,14 @@ instead of showing it. Two of the three permitted sources, ENTSO-E and KNMI, are
 not fetched at all today. A second real source is what makes the config question
 worth answering.
 
-**Lives in:** `tests/test_boundaries.py`, in `ALLOWED_HOSTS`.
+That second source turned up on 2026-08-23, and it did not change the answer.
+`tools/ingest_profiles.py` fetches the NEDU profiles from a fourth host, and it
+too holds its URL as a module constant beside the code that uses it. The
+allowlist in the test now maps each outbound module to the hosts it may reach,
+which keeps the value visible in both places rather than moving either into a
+settings layer that two callers would read.
+
+**Lives in:** `tests/test_boundaries.py`, in `OUTBOUND_MODULES`.
 
 **To reverse:** move the host into settings and have the test read it from
 there. The check itself does not change shape.
@@ -336,6 +343,24 @@ Four sit outside that document.
   household used to, at 9.69 years, and left it when the capacity curve stopped
   being priced on consumption the free routes had already claimed. Changing
   what a household is told is not mine to take.
+- **Whether the allowlist in CLAUDE.md should name a fourth source.** It names
+  PVGIS, ENTSO-E and KNMI as the external sources this project may reach. The
+  repository reaches a fourth: `tools/ingest_profiles.py` downloads the NEDU
+  standard profiles from energiedatawijzer.nl, which it has to, since their
+  licence forbids committing them.
+
+  Not a hole. The rule in that document is written about the backend, which
+  never fetches, and this is a build time command somebody runs by hand. Its URL
+  is one https constant, the only thing substituted into it is the CLI's year,
+  and argparse types that as an int, so nothing from the command line can reach
+  the host or the path as text. All four of those are now asserted in
+  `tests/test_boundaries.py`, and that file's scan reaches `tools/` as of
+  2026-08-23, having walked only the two packages and `backend/` before while
+  its failure message said the rule allows one file and nothing else.
+
+  What is left is a sentence in CLAUDE.md that lists three sources while the
+  repository uses four. Editing that document is not mine.
+
 - **Whether the run count beside the band should report cells or distinct
   outcomes.** `HeadlineBand.tsx` shows the visitor "{band.runs} doorrekeningen"
   and the screen reader text says the midpoint comes "uit 243 doorrekeningen".
