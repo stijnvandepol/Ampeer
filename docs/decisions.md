@@ -263,6 +263,40 @@ No threshold moved. This only changes which bucket the threshold is applied to.
 **To reverse:** narrow the slice back to one hour, and accept that the test no
 longer watches the peak of what it is named for.
 
+### 14. The validation CLI refuses a statement it cannot honour
+
+**Decided:** `load_statement` in `ampeer_sim/validate.py` raises on any field
+outside `REQUIRED_FIELDS`, and reports missing and unknown fields in one
+message. `main` prints on every run that it modelled a household with no
+electric car and no heat pump.
+
+**Because:** `check` has no way to model either, and every key it did not
+recognise used to be dropped without a word. So a statement saying
+`"heat_pump_kwh": 12000` produced a clean two line comparison against a
+household that is not the one on the statement, and a typo in a field name was
+indistinguishable from a field ignored by design: raising on the missing field
+alone named the absence and never the typo that caused it.
+
+It matters because of where it sends the reader. Measured on 2026-08-23 with a
+flat profile, on a household of 6969 kWh of which 3469 is a heat pump: offtake
+comes out 8.4 percent low and feed-in 23.2 percent low, against a default
+tolerance of 10 percent. The feed-in line reads OFF, and somebody then goes
+looking in the production model, which is not where the problem is. A validation
+tool that points at the wrong subsystem is worse than one that refuses to run.
+
+The note is printed unconditionally because the tool has no field to read. That
+is the whole point: a household with a heat pump cannot say so, so the only
+honest moment to mention it is always.
+
+**Lives in:** `ampeer_sim/validate.py`, with four tests in
+`tests/test_validate.py`.
+
+**To reverse:** drop the unknown check, and accept that a statement describing
+something the model ignores reads as a clean run. Anyone holding a statement
+file with extra keys in it will see an error where they saw a comparison; that
+is the intended effect and not a migration problem, since the comparison was
+about a different household.
+
 ## What was not decided here
 
 Five belong to the controller and are written up with their trade-offs in

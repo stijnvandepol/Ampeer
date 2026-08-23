@@ -5,6 +5,20 @@ whether the design matches reality, which is the only question a critic on a
 forum will actually ask. It is a one command script on purpose: something you
 run at every model change, not something you set aside an afternoon for.
 
+What a statement cannot say, and why that matters here. ``REQUIRED_FIELDS``
+has no place for an electric car or a heat pump, so ``check`` always models a
+household that owns neither. Run this against the statement of a household that
+does own one and the model spreads their consumption on the base shape, which
+puts winter kilowatt hours in summer hours and flatters self consumption.
+Measured on 2026-08-23 with a flat profile, on a household of 6969 kWh of which
+3469 is a heat pump: offtake comes out 8.4 percent low and feed-in 23.2 percent
+low, against a default tolerance of 10 percent. So the feed-in line reads OFF
+and the reason is not in the model.
+
+That is the worst kind of validation failure, because it points at the wrong
+subsystem. The CLI therefore says out loud what it assumed, the same way it
+already does about a flat profile.
+
 Usage::
 
     python -m ampeer_sim.validate statement.json --profiles data/nedu-profiles-2025.csv
@@ -90,10 +104,38 @@ class FlatProfileProvider:
 
 
 def load_statement(path: Path) -> Statement:
+    """Read a statement, refusing anything in it this tool would not use.
+
+    The unknown field check is not tidiness. A statement is a small file
+    somebody writes by hand for one run, and until 2026-08-23 every key outside
+    REQUIRED_FIELDS was dropped without a word. A typo in a field name was
+    therefore indistinguishable from a field ignored by design, and so was
+    ``"heat_pump": true``, which describes something the model would have used
+    if it could and which this tool has no way to honour. Both came back as a
+    clean comparison against a household that is not the one on the statement.
+
+    Missing and unknown are reported together. Raising on the missing field
+    alone named the absence and never the typo that caused it, which is the
+    less useful half of the answer.
+    """
     payload = json.loads(path.read_text(encoding="utf-8"))
     missing = [field for field in REQUIRED_FIELDS if field not in payload]
+    unknown = sorted(field for field in payload if field not in REQUIRED_FIELDS)
+
+    # Both halves in one message, and this is the point rather than a nicety.
+    # Raising on the missing field first named the absence and never the typo
+    # that caused it, so "measured_feedin_kwh" read as "measured_feed_in_kwh is
+    # missing" and the writer went looking for a field that was there.
+    problems = []
     if missing:
-        raise ValueError(f"statement is missing {', '.join(missing)}")
+        problems.append(f"missing {', '.join(missing)}")
+    if unknown:
+        problems.append(
+            f"holds {', '.join(unknown)}, which this tool does not use: it models a "
+            f"household with no electric car and no heat pump"
+        )
+    if problems:
+        raise ValueError(f"statement {' and '.join(problems)}")
     return Statement(**{field: payload[field] for field in REQUIRED_FIELDS})
 
 
@@ -174,6 +216,12 @@ def main(argv: list[str] | None = None) -> int:
         production_provider=production_provider,
         profile_year=args.profile_year,
         weather_year=args.weather_year,
+    )
+
+    print(
+        "note: this models a household with no electric car and no heat pump. "
+        "A statement from a household that has one will read OFF for a reason "
+        "that is not in the model."
     )
 
     tolerance = args.tolerance / 100.0
