@@ -72,6 +72,53 @@ def test_production_sets_the_transport_and_framing_headers(
     assert prod.CSRF_COOKIE_SECURE is True
     assert prod.SECURE_CONTENT_TYPE_NOSNIFF is True
     assert prod.X_FRAME_OPTIONS == "DENY"
+    # Added 2026-08-23. It was set beside the seven above and asserted by
+    # nothing: neither this file nor `manage.py check --deploy`, which only
+    # warns when the policy is unset and not when it is a permissive value.
+    # Measured: "unsafe-url" left the deploy check and the whole suite green.
+    assert prod.SECURE_REFERRER_POLICY == "same-origin"
+
+
+def test_django_trusts_the_forwarded_header_nginx_actually_sets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two files that have to agree, and only one of them was checked.
+
+    prod.py decides a request is secure by reading one header name out of
+    SECURE_PROXY_SSL_HEADER. infra/nginx/nginx.conf sets that header to a
+    constant, and tests/test_nginx_config.py asserts the nginx half: that it is
+    set rather than passed through, and that it is not $scheme. Nothing tied the
+    two together, so renaming or dropping the setting broke the pairing quietly.
+
+    Quietly is arguable in one direction and not the other. Dropping the setting
+    makes Django see every request as insecure and SECURE_SSL_REDIRECT answers
+    301 to the same URL, which the tunnel delivers back: a redirect loop that
+    shows up on the first request. Pointing it at a header the proxy does not
+    overwrite is the silent half, because then a caller can assert its own
+    request is secure.
+
+    The expected value is derived from the nginx file rather than written here,
+    so this fails when the two disagree rather than when either one moves.
+    """
+    import re as _re
+    from pathlib import Path as _Path
+
+    conf = (_Path(__file__).resolve().parent.parent / "infra" / "nginx" / "nginx.conf").read_text(
+        encoding="utf-8"
+    )
+    directives = chr(10).join(
+        line for line in conf.splitlines() if not line.lstrip().startswith("#")
+    )
+    sent = _re.findall(r"proxy_set_header\s+(\S+)\s+([^;]+);", directives)
+    proto = [(name, value.strip()) for name, value in sent if name == "X-Forwarded-Proto"]
+    assert proto, "nginx no longer sets X-Forwarded-Proto, so there is nothing to trust"
+
+    name, value = proto[0]
+    expected = (f"HTTP_{name.upper().replace('-', '_')}", value)
+    assert _load_prod(monkeypatch).SECURE_PROXY_SSL_HEADER == expected, (
+        f"nginx sets {name}: {value} and prod.py trusts "
+        f"{_load_prod(monkeypatch).SECURE_PROXY_SSL_HEADER}"
+    )
 
 
 def test_production_allows_only_the_hosts_it_was_given(

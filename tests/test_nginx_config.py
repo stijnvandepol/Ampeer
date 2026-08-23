@@ -375,3 +375,109 @@ def test_every_variable_upstream_carries_the_request_uri() -> None:
         assert target.endswith("$request_uri"), (
             f"{target} drops the path: every request would arrive as /"
         )
+
+
+# ---------------------------------------------------------------------------
+# The headers that protect the page, which Django never sees
+# ---------------------------------------------------------------------------
+
+
+def _headers() -> dict[str, str]:
+    """Every `add_header` in the file, by header name."""
+    found = {}
+    for name, value in re.findall(r'add_header\s+(\S+)\s+"([^"]*)"', DIRECTIVES):
+        found[name] = value
+    return found
+
+
+def _blocks(keyword: str) -> list[str]:
+    """The body of every block opened by ``keyword``, brace matched."""
+    bodies = []
+    for match in re.finditer(rf"^\s*{keyword}\s[^{{]*\{{", DIRECTIVES, re.MULTILINE):
+        depth, start = 0, match.end() - 1
+        for index in range(start, len(DIRECTIVES)):
+            if DIRECTIVES[index] == "{":
+                depth += 1
+            elif DIRECTIVES[index] == "}":
+                depth -= 1
+                if depth == 0:
+                    bodies.append(DIRECTIVES[start + 1 : index])
+                    break
+    return bodies
+
+
+def test_the_page_carries_the_headers_that_protect_its_own_url() -> None:
+    """Nothing read these until 2026-08-23, on either side of the boundary.
+
+    Django's equivalents are asserted in tests/test_backend_settings.py, and
+    Django serves the API. The page a household actually reads is the exported
+    Next.js build handed out by this server, so these four are the ones that
+    apply to it, and the comment above them says exactly that.
+
+    Referrer-Policy is the one with a name in this project. The advice lives at
+    /advies/<token>/ and that URL is a working, unauthenticated link to one
+    household's answers: postcode, consumption, roof. Under a permissive policy
+    the browser puts that whole URL in the Referer header of every request to
+    another host. The rest of this file goes to some length to keep the token
+    out of an access log; the same token in an outbound header would be the
+    same leak through a door nobody was watching.
+
+    Neither instrument saw it. `manage.py check --deploy` reads Django settings
+    and does not know this file exists, and setting Django's own
+    SECURE_REFERRER_POLICY to "unsafe-url" was measured to leave both the deploy
+    check and the whole test suite green.
+    """
+    headers = _headers()
+    assert headers.get("Referrer-Policy") == "same-origin", (
+        f"Referrer-Policy is {headers.get('Referrer-Policy')!r}, and /advies/<token>/ is a "
+        "working link to one household's answers"
+    )
+    assert headers.get("X-Content-Type-Options") == "nosniff"
+    assert headers.get("X-Frame-Options") == "DENY"
+
+    policy = headers.get("Content-Security-Policy", "")
+    for directive in ("default-src 'self'", "connect-src 'self'", "frame-ancestors 'none'"):
+        assert directive in policy, f"the policy no longer carries {directive!r}: {policy!r}"
+
+
+def test_every_one_of_those_headers_is_unconditional() -> None:
+    """Without `always` nginx drops them from any response that is not a 2xx.
+
+    A 404 and a 500 are responses a visitor's browser renders, and an error page
+    served without a frame policy is as framable as any other.
+    """
+    marked = re.findall(r"add_header\s+(\S+)\s+\"[^\"]*\"\s+always\s*;", DIRECTIVES)
+    assert set(marked) == set(_headers()), (
+        f"{sorted(set(_headers()) - set(marked))} are set without `always`"
+    )
+
+
+def test_no_location_block_sets_a_header_of_its_own() -> None:
+    """The rule this file states about itself, with nothing enforcing it.
+
+    nginx header inheritance is all or nothing: a location that sets one
+    add_header of its own loses every add_header from the block above it. The
+    comment over /_next/static/ knows this and says it chose `expires` for that
+    reason. A later location that adds a Cache-Control or a CORS header the
+    ordinary way would silently strip all four security headers from whatever it
+    serves, and the config would still be valid and still start.
+    """
+    offenders = [body.strip()[:60] for body in _blocks("location") if "add_header" in body]
+    assert not offenders, (
+        "a location sets its own add_header, which drops every security header set above it: "
+        + "; ".join(offenders)
+    )
+
+
+def test_the_header_block_and_the_location_scan_both_found_something() -> None:
+    """The floor under two checks that are statements over sets built here.
+
+    An empty header map agrees with an empty `always` list, and a location scan
+    that matches no block reports no offender.
+    """
+    assert len(_headers()) >= 4, f"only {sorted(_headers())} parsed out of the config"
+    locations = _blocks("location")
+    assert len(locations) >= 4, f"only {len(locations)} location blocks were found"
+    assert any("proxy_pass" in body for body in locations), (
+        "no location proxies anything, so the block matcher is not reading this file"
+    )
