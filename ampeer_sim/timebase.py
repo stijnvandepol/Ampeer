@@ -80,6 +80,33 @@ class YearGrid:
         """Local clock hour per quarter. Behaviour models use this, not UTC."""
         return ((self._local_minutes // 60) % HOURS_PER_DAY).astype(np.int8)
 
+    def window_mask(self, window: tuple[int, int]) -> np.ndarray:
+        """Quarters whose local clock hour falls inside ``window``.
+
+        One implementation, because there were three and they were not the
+        same. ``ampeer_sim.profiles.assets`` and ``ampeer_advice.facts`` each
+        carried a private copy with the branch below, pointing at each other in
+        comments, and ``ampeer_sim.profiles.presence`` carried one without it.
+
+        The branch is what a window like (23, 7) needs: a start later than its
+        end runs past midnight and wants the union rather than the
+        intersection. Without it such a window selects nothing, and selecting
+        nothing is not an error anywhere it was used. In presence.py it would
+        have made the shiftable block stay where it was, on every day of the
+        year, while every guard in that function reported a day with nowhere to
+        put its energy.
+
+        Nothing exercised that on 2026-08-23: the suite is red on the edit that
+        would trigger it, because the windows in use all read forwards. This is
+        about not resting on that.
+        """
+        start, end = window
+        if start < end:
+            inside: np.ndarray = (self.local_hour >= start) & (self.local_hour < end)
+            return inside
+        wrapped: np.ndarray = (self.local_hour >= start) | (self.local_hour < end)
+        return wrapped
+
     @cached_property
     def weekday(self) -> np.ndarray:
         """Monday is 0, Sunday is 6, in local time."""

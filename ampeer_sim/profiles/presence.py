@@ -15,11 +15,6 @@ MIDDAY_WINDOW = (11, 15)
 EVENING_WINDOW = (17, 21)
 
 
-def _mask(grid: YearGrid, window: tuple[int, int]) -> np.ndarray:
-    start, end = window
-    return (grid.local_hour >= start) & (grid.local_hour < end)
-
-
 def apply_presence(
     series: np.ndarray, grid: YearGrid, block_kwh: float, daytime_occupancy: bool
 ) -> np.ndarray:
@@ -30,8 +25,8 @@ def apply_presence(
     source_window, target_window = (
         (EVENING_WINDOW, MIDDAY_WINDOW) if daytime_occupancy else (MIDDAY_WINDOW, EVENING_WINDOW)
     )
-    source = _mask(grid, source_window).reshape(grid.days, QUARTERS_PER_DAY)
-    target = _mask(grid, target_window).reshape(grid.days, QUARTERS_PER_DAY)
+    source = grid.window_mask(source_window).reshape(grid.days, QUARTERS_PER_DAY)
+    target = grid.window_mask(target_window).reshape(grid.days, QUARTERS_PER_DAY)
 
     shifted = series.copy().reshape(grid.days, QUARTERS_PER_DAY)
 

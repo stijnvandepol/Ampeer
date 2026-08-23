@@ -119,3 +119,62 @@ def test_align_hourly_year_rejects_a_series_that_is_not_the_year_it_claims() -> 
         grid.align_hourly_year(np.zeros(8_760), weather_year=2024)
     with pytest.raises(ValueError, match="2023 has 8760"):
         grid.align_hourly_year(np.zeros(8_784), weather_year=2023)
+
+
+# ---------------------------------------------------------------------------
+# One window mask, and the branch two of the three copies used to be missing
+# ---------------------------------------------------------------------------
+
+
+def test_a_window_that_runs_past_midnight_selects_both_ends_of_the_day() -> None:
+    """The branch that was in two of the three copies and not in the third.
+
+    Until 2026-08-23 there were three implementations of this: private ones in
+    ``ampeer_sim.profiles.assets`` and ``ampeer_advice.facts`` with the branch,
+    and one in ``ampeer_sim.profiles.presence`` without it, all three pointing
+    at each other in comments. A window whose start is later than its end runs
+    past midnight and wants the union, and the version without the branch
+    selects nothing at all for one.
+
+    Selecting nothing is not an error anywhere it was used, which is what makes
+    it worth a test rather than a comment. In presence.py the shiftable block
+    would have stayed where it was on every day of the year, and every guard in
+    that function would have reported a day with nowhere to put its energy.
+    """
+    grid = YearGrid.for_year(2025)
+    night = grid.window_mask((23, 7))
+    hours = set(grid.local_hour[night].tolist())
+    assert hours == {23, 0, 1, 2, 3, 4, 5, 6}, f"the night window selected hours {sorted(hours)}"
+    assert int(night.sum()) == 8 * 4 * grid.days, (
+        f"eight hours a day over {grid.days} days is {8 * 4 * grid.days} quarters, not "
+        f"{int(night.sum())}"
+    )
+
+
+def test_a_forward_window_selects_exactly_its_own_hours() -> None:
+    """The floor, since the check above is about one of two branches.
+
+    A mask that took the union for every window would pass the test above and
+    select twenty of the twenty four hours here.
+    """
+    grid = YearGrid.for_year(2025)
+    midday = grid.window_mask((11, 15))
+    hours = set(grid.local_hour[midday].tolist())
+    assert hours == {11, 12, 13, 14}, f"the midday window selected hours {sorted(hours)}"
+
+
+def test_the_two_packages_measure_the_same_midday() -> None:
+    """A claim ampeer_advice.facts makes in prose about another package.
+
+    Its comment says its MIDDAY_WINDOW is the one presence.py uses, so a load
+    the presence model moves into midday lands in the surplus facts measures.
+    Two constants in two packages, and nothing compared them: the rule that
+    fires on midday surplus would have judged a window the shift never filled.
+    """
+    from ampeer_advice.facts import MIDDAY_WINDOW as JUDGED
+    from ampeer_sim.profiles.presence import MIDDAY_WINDOW as SHIFTED_INTO
+
+    assert JUDGED == SHIFTED_INTO, (
+        f"the presence model moves load into {SHIFTED_INTO} and the rules judge surplus in "
+        f"{JUDGED}, so a household is measured on a window nothing filled"
+    )

@@ -19,13 +19,6 @@ ARRIVAL_WINDOW = (17, 21)
 MIN_COP = 1.0
 
 
-def _window_mask(grid: YearGrid, window: tuple[int, int]) -> np.ndarray:
-    start, end = window
-    if start < end:
-        return (grid.local_hour >= start) & (grid.local_hour < end)
-    return (grid.local_hour >= start) | (grid.local_hour < end)
-
-
 def _charging_priority(in_window: np.ndarray) -> np.ndarray:
     """Rank the quarters of one day: inside the window first, then nearest to it.
 
@@ -49,7 +42,7 @@ def _allocate_daily(
             f"charging {daily_need.max():.1f} kWh a day needs more than charge_power_kw="
             f"{cap * QUARTERS_PER_HOUR}"
         )
-    in_window = _window_mask(grid, window).reshape(grid.days, QUARTERS_PER_DAY)
+    in_window = grid.window_mask(window).reshape(grid.days, QUARTERS_PER_DAY)
     series = np.zeros((grid.days, QUARTERS_PER_DAY))
     for day in range(grid.days):
         remaining = float(daily_need[day])
