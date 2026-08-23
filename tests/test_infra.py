@@ -449,3 +449,96 @@ def test_the_build_uses_the_interpreter_the_image_already_carries() -> None:
     assert all(base.startswith(f"FROM python:{version}-") for base in bases), (
         f"UV_PYTHON names python{version} and the stages build on {bases}"
     )
+
+
+# ---------------------------------------------------------------------------
+# The gunicorn command line, which the entry point argues for and nothing read
+# ---------------------------------------------------------------------------
+
+ENTRYPOINT = INFRA / "entrypoint-api.sh"
+
+
+def _gunicorn_command() -> str:
+    """The exec line that serves, with its continuations joined and comments out."""
+    lines = [
+        line.strip()
+        for line in ENTRYPOINT.read_text(encoding="utf-8").splitlines()
+        if not line.lstrip().startswith("#")
+    ]
+    joined = " ".join(lines).replace(r"\ ", " ")
+    marker = "exec gunicorn"
+    assert marker in joined, f"{ENTRYPOINT.name} no longer execs gunicorn"
+    return joined[joined.index(marker) :]
+
+
+def test_the_server_writes_no_access_log() -> None:
+    """The other half of a promise the nginx config is held to in detail.
+
+    gunicorn's access log writes the request line, and the request line for a
+    shared advice is /api/advice/<token>/. tests/test_nginx_config.py spends
+    four tests keeping exactly that pairing out of the access log, and the same
+    path through gunicorn was a comment.
+
+    Where it would land makes it worse rather than better. The container log
+    goes to Docker's json-file driver, so the token would sit beside a client
+    address in a file that survives every deploy, and the default gunicorn
+    format carries both. Errors still reach stderr, where they belong and where
+    they carry no token.
+
+    Measured on 2026-08-24: adding --access-logfile left the whole suite green.
+    """
+    command = _gunicorn_command()
+    for flag in ("--access-logfile", "--access-logformat"):
+        assert flag not in command, (
+            f"{flag} puts /api/advice/<token>/ into the container log, which is what "
+            "infra/nginx/nginx.conf goes out of its way not to write"
+        )
+
+
+def test_the_request_timeout_outlasts_the_one_call_a_request_can_make() -> None:
+    """Two timeouts in two packages, and the outer one has to be the larger.
+
+    A request that misses the production cache fetches from PVGIS inside the
+    worker. ResilientProductionProvider exists to fall back to the offline table
+    when that call times out, and it can only do that if the process is still
+    alive to catch requests.Timeout. A gunicorn timeout under the PVGIS one
+    kills the worker mid-fetch, so the fallback never runs and the visitor gets
+    nothing rather than a coarser answer.
+
+    The inner number is read from the provider rather than repeated, so raising
+    it without raising this one is what fails.
+    """
+    import inspect
+
+    from ampeer_sim.production.pvgis import PvgisProvider
+
+    inner = inspect.signature(PvgisProvider).parameters["timeout_s"].default
+    declared = re.findall(r"--timeout (\d+)", _gunicorn_command())
+    assert len(declared) == 1, f"the server declares {declared} timeouts"
+    outer = int(declared[0])
+
+    assert outer > inner, (
+        f"gunicorn kills a worker after {outer}s and one PVGIS call may take {inner}s, so "
+        "the fallback that exists for exactly that case never gets to run"
+    )
+    # The upper side is a judgement rather than a measurement: the frontend has
+    # no client-side abort, so this number is the only thing that ends a hung
+    # request, and "well below a visitor's patience" is not a figure anything
+    # here measured. Pinned so raising it is a commit that says why.
+    assert outer == 30, (
+        f"the request timeout is now {outer}s. Nothing measured that number; it is the "
+        "only thing that ends a hung request while the frontend has no abort, so a change "
+        "belongs in a commit that argues for it"
+    )
+
+
+def test_the_server_runs_more_than_one_worker() -> None:
+    """A computation is CPU bound for about half a second, says the file.
+
+    One worker serialises every request behind that, so two visitors arriving
+    together make the second wait for the first. The upper bound is the box's
+    cores and is not something this file can check.
+    """
+    workers = re.findall(r"--workers (\d+)", _gunicorn_command())
+    assert len(workers) == 1, f"the server declares {workers} worker counts"
+    assert int(workers[0]) > 1, "one worker serialises every advice behind the one before it"
