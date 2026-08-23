@@ -810,3 +810,141 @@ def test_the_fallback_answers_every_postcode_with_the_same_series() -> None:
     assert "Uw\ndakrichting en uw hellingshoek rekenen wij gewoon door" in chapter or (
         "dakrichting en uw hellingshoek rekenen wij gewoon door" in chapter
     )
+
+
+# ---------------------------------------------------------------------------
+# What the figure a visitor types is supposed to leave out
+# ---------------------------------------------------------------------------
+
+
+def _reference_shock(annual_consumption_kwh: float, ev: object | None = None) -> Decimal:
+    """The end of net metering priced for the reference household of chapter 17.
+
+    3.5 kWp facing south at 35 degrees in postcode 5401, on the offline
+    provider so this never needs the network. The same household chapter 17
+    quotes 634 euro for.
+    """
+    import numpy as np
+
+    from ampeer_advice.tariffs import baseline_tariffs, scenario_2027_tariffs
+    from ampeer_sim.economics.tariffs import annual_cost
+    from ampeer_sim.engine.run import simulate
+    from ampeer_sim.production.model import production_series
+    from ampeer_sim.production.pvgis import FallbackProvider
+    from ampeer_sim.profiles.compose import compose_consumption
+    from ampeer_sim.timebase import YearGrid
+    from ampeer_sim.types import Household, PVSystem
+
+    grid = YearGrid.for_year(2025)
+    system = PVSystem(peak_power_wp=3_500, azimuth_deg=0.0, tilt_deg=35.0)
+    hourly, temperature, _ = FallbackProvider(2025).hourly_series("5401", 0.0, 35.0)
+    production = production_series(hourly, system, grid, weather_year=2025)
+    household = Household(
+        postcode4="5401",
+        annual_consumption_kwh=annual_consumption_kwh,
+        ev=ev,  # type: ignore[arg-type]
+    )
+    consumption = compose_consumption(
+        household,
+        grid,
+        np.full(grid.quarters, 1.0 / grid.quarters),
+        temperature,
+        weather_year=2025,
+        production_kwh=production,
+    )
+    flows = simulate(consumption, production)
+    return annual_cost(flows, scenario_2027_tariffs(dynamic=False)) - annual_cost(
+        flows, baseline_tariffs()
+    )
+
+
+def test_the_document_says_the_car_is_added_to_the_figure_you_type() -> None:
+    """The question means something different than a visitor will read it as.
+
+    "Verbruik per jaar" is asked in round one. Whether the household has a car
+    is asked in round two, and the model adds the car's 2160 kWh on top of the
+    answer to the first question. So the figure being asked for is consumption
+    without the car, and until 2026-08-23 nothing said so anywhere: not at the
+    question, not in this document.
+
+    A visitor who charges at home and reads the total off their annual bill has
+    the car in that number already, and the model then counts it twice. Their
+    daytime consumption comes out too high, their self consumption looks better
+    than it is, and the figure at the top comes out too low. Measured on the
+    reference household: 456 euro instead of 634, which is 28 percent of the
+    answer.
+
+    Both figures are recomputed here rather than read from the chapter, so a
+    model change cannot leave the document quoting the old ones. They do not
+    pin the addition itself, and that is not an oversight: a car charging at
+    night draws nothing while the sun is up, so adding it moves no euro at all
+    on this household. The whole 178 comes from scaling the base profile to
+    5660 instead of 3500, which raises consumption in every hour including the
+    ones with production. The addition has its own test below.
+    """
+    from ampeer_sim.types import EV, EVChargingBehaviour
+
+    car = EV(behaviour=EVChargingBehaviour.NIGHT)
+    intended = _reference_shock(3_500.0, ev=car)
+    off_the_bill = _reference_shock(3_500.0 + car.annual_kwh, ev=car)
+
+    # Matched against the chapter with its line breaks collapsed. The document
+    # is hard wrapped, so any phrase long enough to be worth asserting on can
+    # have a newline in the middle of it, and an assertion that fails on a
+    # rewrap is one somebody loosens rather than fixes.
+    chapter = " ".join(_chapter("De elektrische auto").split())
+    assert f"in plaats van {round(intended)}" in chapter, (
+        f"the reference household now loses {intended} euro and chapter 4 quotes something else"
+    )
+    assert f"{round(off_the_bill)} euro" in chapter, (
+        f"entering the bill total now gives {off_the_bill} euro and chapter 4 quotes something else"
+    )
+    assert "tellen wij op bij het jaarverbruik dat u invult" in chapter, (
+        "chapter 4 no longer says the car's energy is added to the figure the visitor types"
+    )
+    assert "zonder het laden van de auto" in chapter, (
+        "chapter 4 no longer says which figure is being asked for"
+    )
+
+
+def test_the_car_really_is_added_on_top_rather_than_carved_out() -> None:
+    """The floor under the chapter, read off the code instead of the prose.
+
+    If the model ever starts subtracting the car from the figure a visitor
+    types, the chapter above becomes wrong in the more dangerous direction: it
+    would be telling people to leave out something the model already leaves out,
+    and they would enter a number that is short by 2160 kWh.
+    """
+    import numpy as np
+
+    from ampeer_sim.profiles.compose import compose_consumption
+    from ampeer_sim.timebase import YearGrid
+    from ampeer_sim.types import EV, EVChargingBehaviour, Household
+
+    grid = YearGrid.for_year(2025)
+    car = EV(behaviour=EVChargingBehaviour.NIGHT)
+    household = Household(postcode4="5401", annual_consumption_kwh=3_500.0, ev=car)
+    series = compose_consumption(
+        household,
+        grid,
+        np.full(grid.quarters, 1.0 / grid.quarters),
+        np.full(grid.hours, 20.0),
+        weather_year=2025,
+    )
+    assert float(series.sum()) == pytest.approx(3_500.0 + car.annual_kwh), (
+        "the car is no longer simply added to the figure the visitor types, and chapter 4 "
+        "says it is"
+    )
+
+
+def test_the_heat_pump_chapter_says_the_same_thing_about_its_own_figure() -> None:
+    """Same mechanism, and deliberately without a second euro figure.
+
+    How much the double count costs depends on the heat demand the visitor
+    enters, and unlike the car there is no assumed value to measure it against.
+    Chapter 17 makes the same argument about not putting a number beside
+    something it cannot place on the same footing.
+    """
+    chapter = " ".join(_chapter("De warmtepomp").split())
+    assert "tellen wij net als bij de auto op bij het jaarverbruik" in chapter
+    assert "zonder de pomp" in chapter, "chapter 5 no longer says which figure is being asked for"

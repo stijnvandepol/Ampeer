@@ -302,6 +302,30 @@ Four sit outside that document.
   household used to, at 9.69 years, and left it when the capacity curve stopped
   being priced on consumption the free routes had already claimed. Changing
   what a household is told is not mine to take.
+- **What to do about a visitor entering the figure from their annual bill.**
+  "Verbruik per jaar" is asked in round one. Whether the household has a car or
+  a heat pump is asked in round two, and the model adds those on top of the
+  answer to the first question. So the figure being asked for is consumption
+  without them, and nothing at the question says so. A visitor who charges at
+  home reads the total off their bill, the car is already in it, and the model
+  counts it twice.
+
+  Measured on 2026-08-23 on the reference household of chapter 17, comparing
+  what the visitor is told against what the model itself would say for the same
+  household described correctly: a car charging at night gives 456 euro instead
+  of 634, a heat pump with a 12000 kWh heat demand gives 291 instead of 479, and
+  a car charging on its own surplus gives 97 instead of 212. Between 28 and 54
+  percent of the answer, always understating the shock.
+
+  Two repairs and they are different products. Say at the question which figure
+  is wanted, which is honest but asks for a number many people cannot produce:
+  somebody with a heat pump usually has one meter and one total. Or read the
+  answer as the total and carve the modelled asset out of it, which needs a rule
+  for what happens when the carve-out leaves too little and changes what every
+  such household is told. Not mine to pick. docs/methodologie.md chapters 4, 5
+  and 19 now describe the behaviour, and two pairings in
+  `tests/test_methodology.py` hold the description against the model.
+
 - **What to do about the hourly calibration running at two percent of its
   ceiling.** The worst hourly bucket is 17:00 at 0.0490 against a
   `MAX_HOURLY_GAP` of 0.05. The model exports nothing at all after 17:00 while

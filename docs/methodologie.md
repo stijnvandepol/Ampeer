@@ -99,6 +99,16 @@ uit een meting en wij vragen ze niet uit. Rijdt u veel meer of veel minder dan 1
 kilometer, dan klopt het deel van het antwoord dat over uw auto gaat navenant minder, en
 wij hebben geen manier om dat te merken.
 
+**Waar dat verbruik bij opgeteld wordt, en waarom dat u kan raken.** Die 2160 kWh
+tellen wij op bij het jaarverbruik dat u invult. Wij halen het er niet vanaf. Het getal
+dat wij van u vragen is dus uw verbruik zonder het laden van de auto, en dat staat op dit
+moment niet bij de vraag. Vult u het getal van uw jaarnota in en laadt u thuis, dan zit
+het laden er al in en rekenen wij het een tweede keer mee. Uw verbruik overdag komt dan
+te hoog uit, u lijkt meer van uw eigen opwek te gebruiken dan u doet, en het bedrag
+bovenaan valt lager uit dan het bij u is. Gemeten op 23 augustus 2026, op het
+referentiehuishouden uit hoofdstuk 17 met een auto die 's nachts laadt: 456 euro in
+plaats van 634. Wij vragen dit nu niet uit en kunnen het niet aan uw antwoorden zien.
+
 **De beperking:** deze drie gedragingen zijn stereotypen die wij zelf hebben opgesteld.
 Ze komen niet uit een meting van hoe Nederlanders werkelijk laden. En in de eerste versie
 van de rekenmachine vragen wij niet naar een auto: dan rekenen wij alsof u er geen hebt.
@@ -116,6 +126,13 @@ De getallen erachter: wij rekenen met een rendement van 3,5 bij 7 graden buiten,
 graad kouder met 0,06 daalt. Ook dat zijn aannames van ons en geen meting aan uw pomp.
 Een pomp die daar bovenzit verbruikt minder dan wij tonen, een oudere pomp meer, en wij
 vragen niet naar het merk of het bouwjaar.
+
+Het stroomverbruik van de pomp tellen wij net als bij de auto op bij het jaarverbruik dat
+u invult. Ook hier vragen wij dus om uw verbruik zonder de pomp, en ook hier staat dat nog
+niet bij de vraag. Zit uw pomp al in het getal op uw nota, dan telt hij twee keer mee en
+valt het bedrag bovenaan te laag uit. Wij zetten er met opzet geen tweede bedrag bij: hoe
+groot dat verschil is hangt af van de warmtevraag die u invult, en anders dan bij de auto
+hebben wij daar geen vast getal voor waarnaast wij het eerlijk kunnen leggen.
 
 De buitentemperatuur komt uit dezelfde bron als de instraling, dus voor uw locatie en
 dezelfde uren.
@@ -639,6 +656,10 @@ Voor de volledigheid, op een rij:
 - Wij rekenen op een historisch jaar aan weer en verbruik, en volgend jaar is anders.
 - Ons basisprofiel is dat van huizen zonder zonnepanelen.
 - De omvang van het verplaatsbare blok is aangenomen.
+- Wij vragen uw jaarverbruik zonder het laden van een elektrische auto en zonder een
+  warmtepomp, en wij zeggen dat nog niet bij de vraag. Zegt u dat u er een hebt en hebt u
+  het getal van uw jaarnota ingevuld, dan tellen wij dat verbruik twee keer mee en valt
+  het bedrag bovenaan te laag uit. Zie hoofdstuk 4 en 5.
 - Wij weten niet hoe oud uw panelen zijn en vragen er niet naar, dus rekenen wij ze als
   nieuw. Bij oudere panelen is het bedrag bovenaan hoger dan het bij u is.
 - Als u maar vier vragen beantwoordt, weten wij niet of er overdag iemand thuis is, of u
