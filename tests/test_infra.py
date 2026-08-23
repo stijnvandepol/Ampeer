@@ -325,3 +325,84 @@ def test_every_manage_py_call_resolves_inside_the_image() -> None:
                     f"{final}, which resolves to {resolved}"
                 )
     assert seen >= 2, f"found only {seen} manage.py call sites; the check found nothing to check"
+
+
+# ---------------------------------------------------------------------------
+# The log ceiling, which the file argues for at length and nothing read
+# ---------------------------------------------------------------------------
+
+
+def _log_options(spec: dict[str, Any]) -> dict[str, str]:
+    logging = spec.get("logging")
+    assert isinstance(logging, dict), f"no logging block: {logging!r}"
+    assert logging.get("driver") == "json-file", f"driver is {logging.get('driver')!r}"
+    options = logging.get("options")
+    assert isinstance(options, dict), f"no logging options: {options!r}"
+    return {str(key): str(value) for key, value in options.items()}
+
+
+def test_every_service_caps_how_much_log_it_can_keep() -> None:
+    """The property the compose file says was missing, and then never checked.
+
+    Its own comment: everything in this stack writes to stdout, Docker's
+    json-file driver keeps every byte until the container is removed, and
+    `restart: unless-stopped` means these containers are not removed, so
+    "until it is removed" is "for as long as the machine lives". The two
+    options were added so that no log on this host can grow without bound.
+
+    A fifth service added without `logging: *logging` would be exactly the case
+    that argument is about, and nothing said so. The anchor makes it one edit to
+    get right and one omission to get wrong, which is why this asks every
+    service rather than the anchor.
+    """
+    for name, spec in compose()["services"].items():
+        options = _log_options(spec)
+        assert "max-size" in options and "max-file" in options, f"{name}: {options}"
+
+
+def test_the_log_ceiling_is_the_one_the_file_works_out() -> None:
+    """The arithmetic in the comment, held against the values under it.
+
+    The comment derives two figures from max-size and max-file: fifty megabytes
+    per service and two hundred for the whole stack. Both depend on the number
+    of services as well as on the options, so a fifth service would make the
+    second sentence wrong while every option stayed correct.
+
+    max-file above one is the other half and it is argued for in the same
+    paragraph: rotation has to discard a fifth at a time instead of everything,
+    which is what keeps the oldest file readable while the newest is written. A
+    single file turns every rotation into a full loss.
+    """
+    services = compose()["services"]
+    options = {name: _log_options(spec) for name, spec in services.items()}
+    sizes = {options[name]["max-size"] for name in options}
+    counts = {int(options[name]["max-file"]) for name in options}
+    assert len(sizes) == 1 and len(counts) == 1, (
+        f"the services no longer share one ceiling: {options}"
+    )
+
+    size_mb = int(sizes.pop().removesuffix("m"))
+    count = counts.pop()
+    assert count > 1, (
+        f"max-file is {count}, so a rotation discards everything rather than a fraction"
+    )
+
+    # The comment is hard wrapped and prefixed, so "200 MB" can sit at the end
+    # of one line with "for the whole stack" starting the next. Matched against
+    # the prose with its hashes and line breaks taken out, because an assertion
+    # that fails on a rewrap is one somebody loosens rather than fixes. The
+    # first version of this test failed on exactly that.
+    prose = " ".join(
+        line.lstrip().lstrip("#").strip()
+        for line in COMPOSE.read_text(encoding="utf-8").splitlines()
+        if line.lstrip().startswith("#")
+    )
+    per_service = size_mb * count
+    whole_stack = per_service * len(services)
+    assert f"{per_service} MB per service" in prose, (
+        f"the options come to {per_service} MB per service and the comment says otherwise"
+    )
+    assert f"{whole_stack} MB for the whole stack" in prose, (
+        f"{len(services)} services at {per_service} MB is {whole_stack} MB and the comment "
+        "says otherwise"
+    )
