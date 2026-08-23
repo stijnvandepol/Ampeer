@@ -44,6 +44,7 @@ from ampeer_sim.production.pvgis import (
 from ampeer_sim.profiles.compose import compose_consumption
 from ampeer_sim.profiles.nedu import NeduFileProvider
 from ampeer_sim.providers import ProductionProvider, ProfileProvider
+from ampeer_sim.simulate import DEFAULT_WEATHER_YEAR
 from ampeer_sim.timebase import YearGrid
 from ampeer_sim.types import Household, ProfileCategory, PVSystem
 
@@ -60,7 +61,12 @@ REQUIRED_FIELDS = (
 
 DEFAULT_TOLERANCE_PERCENT = 10.0
 DEFAULT_PROFILE_YEAR = 2025
-DEFAULT_WEATHER_YEAR = 2023
+
+#: Borrowed rather than repeated. A second copy here would let this tool check
+#: one weather year while the product runs another, and the answer would look
+#: like a model that had drifted from reality rather than two years being
+#: compared. That is the failure this module was given a note about on
+#: 2026-08-23: a validation tool pointing at the wrong subsystem.
 
 
 @dataclass(frozen=True)

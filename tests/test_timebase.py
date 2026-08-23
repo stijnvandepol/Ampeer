@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import ast
+from pathlib import Path
+
 import numpy as np
 import pytest
 
+import ampeer_advice.facts
 from ampeer_sim.timebase import YearGrid
 
 
@@ -163,18 +167,43 @@ def test_a_forward_window_selects_exactly_its_own_hours() -> None:
     assert hours == {11, 12, 13, 14}, f"the midday window selected hours {sorted(hours)}"
 
 
-def test_the_two_packages_measure_the_same_midday() -> None:
-    """A claim ampeer_advice.facts makes in prose about another package.
+def test_the_advice_layer_borrows_the_midday_window_it_judges() -> None:
+    """One constant, and this asserts that rather than comparing two.
 
-    Its comment says its MIDDAY_WINDOW is the one presence.py uses, so a load
-    the presence model moves into midday lands in the surplus facts measures.
-    Two constants in two packages, and nothing compared them: the rule that
-    fires on midday surplus would have judged a window the shift never filled.
+    ampeer_advice.facts said in prose that its MIDDAY_WINDOW was the one
+    presence.py uses, so a load the presence model moves into midday lands in
+    the surplus facts measures. Two constants in two packages, and nothing
+    compared them, so on 2026-08-23 this file paired them.
+
+    The pairing is gone because the duplication is. facts.py imports the
+    constant now, which is what its own docstring asks for: one definition of
+    what a window means, since a second module with its own idea of it gives no
+    error and two advices that disagree.
+
+    Read off the source rather than through the module, because importing a name
+    a module re-exports is what mypy's strict mode refuses, and rightly: the
+    question here is where facts.py gets the value, not what the value is.
     """
-    from ampeer_advice.facts import MIDDAY_WINDOW as JUDGED
-    from ampeer_sim.profiles.presence import MIDDAY_WINDOW as SHIFTED_INTO
-
-    assert JUDGED == SHIFTED_INTO, (
-        f"the presence model moves load into {SHIFTED_INTO} and the rules judge surplus in "
-        f"{JUDGED}, so a household is measured on a window nothing filled"
+    tree = ast.parse(
+        (Path(ampeer_advice.facts.__file__ or "").read_text(encoding="utf-8")),
+        filename="facts.py",
     )
+    borrowed = [
+        node.module
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+        and any(alias.name == "MIDDAY_WINDOW" for alias in node.names)
+    ]
+    assert borrowed == ["ampeer_sim.profiles.presence"], (
+        f"facts.py takes MIDDAY_WINDOW from {borrowed}, and the module that fills that "
+        "window is ampeer_sim.profiles.presence"
+    )
+
+    assigned = [
+        target.id
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        for target in node.targets
+        if isinstance(target, ast.Name) and target.id == "MIDDAY_WINDOW"
+    ]
+    assert not assigned, "facts.py defines its own MIDDAY_WINDOW again"

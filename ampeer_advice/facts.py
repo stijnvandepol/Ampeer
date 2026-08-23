@@ -15,6 +15,7 @@ from __future__ import annotations
 import numpy as np
 
 from ampeer_advice.types import AdviceContext, Confidence
+from ampeer_sim.profiles.presence import MIDDAY_WINDOW
 from ampeer_sim.timebase import YearGrid
 from ampeer_sim.types import BatterySpec, EnergyFlows, EVChargingBehaviour, Household, Result
 
@@ -23,11 +24,11 @@ from ampeer_sim.types import BatterySpec, EnergyFlows, EVChargingBehaviour, Hous
 #: has to serve: demand while the sun is gone.
 EVENING_NIGHT_WINDOW = (17, 7)
 
-#: Midday is 11:00 up to 15:00 local time, the same window
-#: ``ampeer_sim.profiles.presence.MIDDAY_WINDOW`` uses, so a load that the
-#: presence model moves into the midday window lands in the surplus this module
-#: measures.
-MIDDAY_WINDOW = (11, 15)
+#: Imported rather than restated. The comment here used to say this was the same
+#: window ``presence.MIDDAY_WINDOW`` holds, which was true and which nothing
+#: could contradict, and this module's own docstring asks for one definition of
+#: what a window means. A load the presence model moves into midday has to land
+#: in the surplus this module measures, and one constant is how that is settled.
 
 
 def build_context(

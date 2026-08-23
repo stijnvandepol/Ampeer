@@ -789,10 +789,26 @@ def test_no_constant_is_defined_twice_in_the_package() -> None:
     saying twelve. Nothing pointed at the duplication, so this does.
 
     Uppercase module level names only, which is what a constant looks like here.
+
+    Both packages, not one. This walked ampeer_advice alone until 2026-08-23,
+    and two constants were duplicated across the boundary it could not see:
+    MIDDAY_WINDOW in presence.py and facts.py, and DEFAULT_WEATHER_YEAR in
+    simulate.py and validate.py. Both are now imported rather than restated.
+    Django's settings modules stay out of scope on purpose: redefining a setting
+    per environment is what they are for.
     """
     definitions: dict[str, list[str]] = {}
-    package = Path(ADVICE_PACKAGE.__file__ or "").parent
-    for path in sorted(package.rglob("*.py")):
+    packages = [
+        Path(ADVICE_PACKAGE.__file__ or "").parent,
+        Path(SIM_PACKAGE.__file__ or "").parent,
+    ]
+    scanned = [
+        path
+        for package in packages
+        for path in sorted(package.rglob("*.py"))
+        if "__pycache__" not in path.parts
+    ]
+    for path in scanned:
         for node in ast.parse(path.read_text(encoding="utf-8")).body:
             targets: list[str] = []
             if isinstance(node, ast.Assign):
@@ -801,9 +817,10 @@ def test_no_constant_is_defined_twice_in_the_package() -> None:
                 targets = [node.target.id]
             for name in targets:
                 if name.isupper():
-                    definitions.setdefault(name, []).append(path.name)
+                    definitions.setdefault(name, []).append(path.relative_to(REPO_ROOT).as_posix())
     duplicated = {name: files for name, files in definitions.items() if len(files) > 1}
     assert duplicated == {}, f"defined in more than one module: {duplicated}"
+    assert len(scanned) >= 20, f"only {len(scanned)} modules were read, so this scanned nothing"
 
 
 def test_every_measured_saving_arrives_as_a_band_that_names_its_own_limits() -> None:

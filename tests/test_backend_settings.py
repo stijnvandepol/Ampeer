@@ -766,3 +766,32 @@ def test_authentication_never_arrives_without_its_defences() -> None:
         "this service has accounts and CLAUDE.md asks for these before it does:\n  "
         + "\n  ".join(missing)
     )
+
+
+def test_the_deployment_computes_the_weather_year_the_model_was_validated_on() -> None:
+    """One year, and until 2026-08-23 it was written down three times.
+
+    ampeer_sim/simulate.py holds it as the weather year the model relies on,
+    ampeer_sim/validate.py held its own copy as the default for the validation
+    CLI, and base.py held a third as the year every request is computed for.
+    Raising one alone was measured to leave the whole suite green.
+
+    That is the shape this repository has been bitten by before. The product
+    would compute one year while `python -m ampeer_sim.validate` checked
+    another, and the difference would read as a model that had drifted from
+    reality rather than as two years being compared. A validation tool pointing
+    at the wrong subsystem is the failure that module already carries a note
+    about.
+
+    The other two copies are gone: both now import the kernel constant. This is
+    what keeps a fourth from being written here as a literal, which the import
+    alone cannot prevent. A deployment that genuinely needs another year changes
+    this test in the same commit, and that is the point.
+    """
+    from ampeer.settings import base
+    from ampeer_sim.simulate import DEFAULT_WEATHER_YEAR
+
+    assert base.AMPEER_WEATHER_YEAR == DEFAULT_WEATHER_YEAR, (
+        f"the deployment computes {base.AMPEER_WEATHER_YEAR} and the model relies on "
+        f"{DEFAULT_WEATHER_YEAR}"
+    )
