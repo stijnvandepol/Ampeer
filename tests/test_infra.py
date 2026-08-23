@@ -406,3 +406,46 @@ def test_the_log_ceiling_is_the_one_the_file_works_out() -> None:
         f"{len(services)} services at {per_service} MB is {whole_stack} MB and the comment "
         "says otherwise"
     )
+
+
+def test_the_build_uses_the_interpreter_the_image_already_carries() -> None:
+    """Two settings api.Dockerfile calls load bearing, and nothing read them.
+
+    Left to itself uv downloads a managed CPython into the build stage's home
+    directory and writes that path into .venv/pyvenv.cfg. The second stage does
+    not have that directory, so every process in the final image would fail to
+    start on a path that exists only in a layer that was thrown away.
+
+    That is a build that succeeds and an image that cannot run, which is the
+    worst place for it: the failure arrives on the host. Measured on
+    2026-08-24, setting UV_PYTHON_DOWNLOADS to automatic left the whole suite
+    green.
+
+    UV_PYTHON is asserted with it because the pair is what makes the promise.
+    Forbidding the download while naming no interpreter leaves uv with nothing
+    to use.
+    """
+    dockerfile = (INFRA / "api.Dockerfile").read_text(encoding="utf-8")
+    directives = [
+        line.strip() for line in dockerfile.splitlines() if not line.lstrip().startswith("#")
+    ]
+    joined = " ".join(directives)
+    assert "UV_PYTHON_DOWNLOADS=never" in joined, (
+        "uv may fetch its own interpreter again, and the path it writes into the venv "
+        "does not survive into the final stage"
+    )
+    interpreter = re.findall(r"UV_PYTHON=(\S+)", joined)
+    assert interpreter == ["/usr/local/bin/python3.12"], (
+        f"UV_PYTHON names {interpreter}, and with downloads off uv needs an interpreter "
+        "this image actually carries"
+    )
+    # The version in that path has to be the one the base images carry. With
+    # downloads off, naming an interpreter this image does not have is a build
+    # that fails, and naming the wrong version is a venv built against one
+    # interpreter and run on another.
+    version = interpreter[0].rsplit("python", 1)[1]
+    bases = [line for line in directives if line.startswith("FROM python:")]
+    assert bases, "no FROM names a python base image; this test read nothing"
+    assert all(base.startswith(f"FROM python:{version}-") for base in bases), (
+        f"UV_PYTHON names python{version} and the stages build on {bases}"
+    )

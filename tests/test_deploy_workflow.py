@@ -1349,3 +1349,74 @@ def test_the_timer_catches_up_on_a_day_the_host_was_off(timer: str) -> None:
         f"{timer} no longer catches up after downtime, so a day the host was off silently "
         "extends the window its own check measures"
     )
+
+
+# --------------------------------------------------------------------------
+# What the two units say about their own command lines.
+#
+# Both were measured on 2026-08-24 and both left the suite green when reversed.
+# --------------------------------------------------------------------------
+
+UNITS = REPO_ROOT / "infra" / "systemd"
+
+
+def _unit_directives(name: str) -> list[str]:
+    text = (UNITS / name).read_text(encoding="utf-8")
+    return [line.strip() for line in text.splitlines() if not line.lstrip().startswith("#")]
+
+
+def test_the_purge_overrides_the_entrypoint_it_would_otherwise_inherit() -> None:
+    """Without this the unit starts a web server and deletes nothing.
+
+    The api image's entrypoint execs gunicorn and ignores its arguments, so
+    `compose run --rm api backend/manage.py purge_expired_advice` runs a server
+    rather than a management command. Overriding the entrypoint is what makes
+    this a purge at all, and the unit says so.
+
+    Both invocations, because ExecStartPost runs the same image the same way to
+    ask whether anything is still past its date. A check that inherited the
+    entrypoint would answer a question nobody asked.
+
+    --env-file with them, from the same paragraph: docker-compose.yml
+    interpolates nine variables and gives none of them a default, so without
+    the file the unit fails while resolving it instead of connecting somewhere
+    unintended, which is the right way round.
+    """
+    calls = [
+        line
+        for line in _unit_directives("ampeer-purge.service")
+        if line.startswith(("ExecStart=", "ExecStartPost="))
+    ]
+    assert len(calls) == 2, f"the unit declares {len(calls)} commands, not the pair this reads"
+    for call in calls:
+        assert "--entrypoint python" in call, (
+            f"{call.split('=', 1)[0]} inherits the image's entrypoint, which execs gunicorn "
+            "and ignores its arguments"
+        )
+        assert "--env-file /srv/ampeer/.env" in call, (
+            f"{call.split('=', 1)[0]} resolves compose without the env file, and nothing in "
+            "that file has a default"
+        )
+
+
+@pytest.mark.parametrize("unit", ["ampeer-purge.service", "ampeer-backup.service"])
+def test_no_unit_puts_a_credential_where_the_host_can_read_it(unit: str) -> None:
+    """The backup unit says it sets no environment on purpose, and neither does.
+
+    Its own note: pg_dump runs inside the db container through `sh -c`, so
+    POSTGRES_USER and POSTGRES_DB expand there and never appear on a command
+    line on this host. systemd hands a unit a clean environment, which is what
+    makes that true, and an Environment= line here would undo it: systemd unit
+    files are world readable and `systemctl show` prints their values.
+
+    Adding Environment=POSTGRES_PASSWORD to the backup unit was measured to
+    leave the whole suite green.
+    """
+    directives = _unit_directives(unit)
+    carried = [line for line in directives if line.startswith(("Environment=", "EnvironmentFile="))]
+    assert not carried, (
+        f"{unit} carries {carried}; the credentials this stack uses expand inside the db "
+        "container and are not meant to reach the host's process table or systemctl show"
+    )
+    passwords = [line for line in directives if "PASSWORD" in line or "SECRET" in line]
+    assert not passwords, f"{unit} names a secret on a directive line: {passwords}"
