@@ -211,10 +211,42 @@ class FallbackProvider:
         )
 
     @staticmethod
+    def _azimuth_gap(one: float, other: float) -> float:
+        """Degrees between two compass directions, the short way round.
+
+        A plain subtraction calls 180 and -180 opposites when they are the same
+        direction, and the API declares both legal: MIN_AZIMUTH_DEG is -180 and
+        MAX_AZIMUTH_DEG is 180.
+        """
+        return abs((one - other + 180.0) % 360.0 - 180.0)
+
+    @staticmethod
     def _orientation_factor(azimuth_deg: float, tilt_deg: float) -> float:
+        """The nearest entry in the table, with azimuth measured on the circle.
+
+        Until 2026-08-23 the azimuth term was a plain difference, so the table's
+        north entry at 180 sat 355 degrees away from a roof at -175 and could
+        never win. Everything from -180 to -136, which is north through
+        north-north-east, took the east factor of 0.85 instead of the north one
+        of 0.62: a yield overstated by 37 percent, and overstating yield
+        overstates both the export a household loses in 2027 and what a battery
+        is worth to them.
+
+        Nothing the form emits moved. ``COMPASS_AZIMUTH_DEG`` in RoofPicker.tsx
+        writes north as 180 rather than -180 and says why, so all eight
+        directions it can send return what they returned before. This was
+        reachable by anything else that posts to the API, which is a public
+        endpoint and not the form's private back door.
+
+        Ties are still broken by the order of ``ORIENTATION_FACTORS``, which in
+        this table means the higher factor wins. That is not endorsed here; see
+        ``tests/test_pvgis_provider.py`` and docs/decisions.md.
+        """
         nearest = min(
             ORIENTATION_FACTORS,
-            key=lambda key: abs(key[0] - azimuth_deg) + abs(key[1] - tilt_deg),
+            key=lambda key: (
+                FallbackProvider._azimuth_gap(key[0], azimuth_deg) + abs(key[1] - tilt_deg)
+            ),
         )
         return ORIENTATION_FACTORS[nearest]
 

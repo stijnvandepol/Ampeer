@@ -255,6 +255,23 @@ Four sit outside that document.
   household used to, at 9.69 years, and left it when the capacity curve stopped
   being priced on consumption the free routes had already claimed. Changing
   what a household is told is not mine to take.
+- **What a northeast or northwest roof is worth when PVGIS is unreachable.**
+  `ORIENTATION_FACTORS` in `ampeer_sim/production/fallback_yield.py` holds six
+  planes and neither of those two is among them. Both sit 45 degrees from east
+  or west and 45 from north, so the nearest-entry search lands on a tie, and the
+  tie is broken by the order the table is written in, which in this table hands
+  them the higher of the two: 0.85 rather than 0.62. Neither figure is right. A
+  plane at 35 degrees facing northeast is not as good as one facing east, and it
+  is not as bad as one facing north.
+
+  Left as it is, deliberately. Moving it changes what a real household with that
+  roof is told by 27 percent, on a judgement call rather than on a measurement,
+  and this is a path a visitor reaches whenever PVGIS is down. The honest repair
+  is not a better tie-break but two more table entries, derived from the same
+  PVGIS SARAH3 call over 2015 through 2023 that the rest of the table came from,
+  which is a measurement somebody has to take. Today's outcome is pinned in
+  `tests/test_pvgis_provider.py` so it cannot drift while the question is open.
+
 - **The order the two open pull requests are merged in.** #23 carries this
   branch into `dev` and #22 carries `dev` into `main`, so #23 goes first and #22
   is rerun afterwards.
