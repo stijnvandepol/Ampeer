@@ -4,7 +4,7 @@ Dit document beschrijft precies hoe wij aan ons antwoord komen, inclusief alles 
 naast kunnen zitten. Wij vragen u iets te geloven over uw eigen huis, dus u mag weten
 waarop dat berust. Reken het na en laat het ons weten als u een fout vindt.
 
-Motorversie waarop dit document slaat: 0.1.0.
+Motorversie waarop dit document slaat: 0.2.0.
 
 ## Kort samengevat
 
@@ -106,8 +106,8 @@ moment niet bij de vraag. Vult u het getal van uw jaarnota in en laadt u thuis, 
 het laden er al in en rekenen wij het een tweede keer mee. Uw verbruik overdag komt dan
 te hoog uit, u lijkt meer van uw eigen opwek te gebruiken dan u doet, en het bedrag
 bovenaan valt lager uit dan het bij u is. Gemeten op 23 augustus 2026, op het
-referentiehuishouden uit hoofdstuk 17 met een auto die 's nachts laadt: 456 euro in
-plaats van 634. Wij vragen dit nu niet uit en kunnen het niet aan uw antwoorden zien.
+referentiehuishouden uit hoofdstuk 17 met een auto die 's nachts laadt: 447 euro in
+plaats van 623. Wij vragen dit nu niet uit en kunnen het niet aan uw antwoorden zien.
 
 **De beperking:** deze drie gedragingen zijn stereotypen die wij zelf hebben opgesteld.
 Ze komen niet uit een meting van hoe Nederlanders werkelijk laden. En in de eerste versie
@@ -377,8 +377,8 @@ af van wat de kilowattuur die u niet meer teruglevert had opgebracht. Dat waren 
 augustus 2026 alleen de batterijprijzen. De gunstige kant van die oude band betekende
 "terugverdientijd bij de goedkoopste offerte in de markt, met tarieven die precies
 uitkomen zoals wij aannemen", en dat is de kant die de batterij mooier maakt. Bij ons
-referentiehuishouden liep die band van 11,2 tot 22,4 jaar en nu van 9,7 tot 26,3. Het
-midden, 16,8 jaar, veranderde niet en er is dus ook geen advies van omgeslagen.
+referentiehuishouden liep die band van 11,2 tot 22,4 jaar en nu van 9,7 tot 26,2. Het
+midden, 16,7 jaar, veranderde niet en er is dus ook geen advies van omgeslagen.
 
 Twaalf jaar is onze grens, omdat er doorgaans tien jaar garantie op een batterij zit:
 verdient u hem pas daarna terug, dan gokt u erop dat hij langer meegaat dan de garantie
@@ -453,7 +453,7 @@ mag leggen, en dan mag het geen zekerheid voorwenden die het niet heeft.
 Wat dat oplevert, mag u weten: van de zes huishoudens die wij als voorbeeld doorrekenen,
 krijgt er niet één een onvoorwaardelijk "koop er een". Daarvoor zou de omslagprijs ook bij
 het ongunstigste tariefniveau boven de 900 euro per kWh moeten liggen. Het huishouden dat
-er het dichtst bij komt zit daar op 572 euro, en op 672 euro in het midden. Bij de prijzen
+er het dichtst bij komt zit daar op 601 euro, en op 707 euro in het midden. Bij de prijzen
 van vandaag en de tarieven die leveranciers voor 2027 hebben gepubliceerd, is een batterij
 die onmiskenbaar de moeite waard is dus zeldzaam.
 
@@ -497,11 +497,19 @@ niet gebeurt: dezelfde kilowatturen werden twee keer verkocht, een keer als grat
 besparing en daarna nog een keer als reden om een batterij te kopen.
 
 Wat dat scheelde, op ons eigen referentiehuishouden: een batterij van 7,0 kWh met een
-terugverdientijd van 11,6 jaar werd 5,0 kWh met 16,8 jaar, en de prijs waaronder het uit
-kan zakte van 697 naar 482 euro per geinstalleerde kWh. Het oordeel klapte van "het hangt
+terugverdientijd van 11,6 jaar werd 5,0 kWh met 16,7 jaar, en de prijs waaronder het uit
+kan zakte van 697 naar 485 euro per geinstalleerde kWh. Het oordeel klapte van "het hangt
 van de prijs af" naar "dit verdient zich niet terug". Bij alle zes de huishoudens waarmee
 wij het model vastleggen ging het dezelfde kant op: de batterij werd minder aantrekkelijk,
-en geen van de zes krijgt nu nog het advies er een te kopen.
+en geen van de zes kreeg nog het advies er een te kopen.
+
+Op 26 augustus 2026 is een van die zes teruggekomen bij "het hangt van de prijs af". Dat
+is niet omdat wij de dubbeltelling half hebben teruggedraaid, maar omdat wij een fout in
+onze opwekcurve hebben gerepareerd die hieronder in hoofdstuk 16 staat. Het huishouden in
+kwestie heeft veel panelen en weinig verbruik, en zijn terugverdientijd kwam van 12,1 jaar
+op 11,5 uit, net binnen de twaalf jaar die wij aanhouden. Wij vertellen dat huishouden nu
+dat het van de offerte afhangt, met een marge van 6,7 tot 18,0 jaar erbij. Niemand krijgt
+te horen dat een batterij zich zeker terugverdient.
 
 Wij zetten dit erbij omdat het de kant op ging die ons ongelegen komt. Een fout die het
 antwoord toevallig gunstiger maakt voor de partij die hem maakt, is precies de fout waarvan
@@ -524,9 +532,10 @@ een duidelijk verschil:
 
 | uur | landelijk gemeten | ons model |
 |---|---|---|
-| 12:00 | 13,6 % | 16,2 % |
-| 16:00 | 8,9 % | 5,2 % |
-| 18:00 | 3,0 % | vrijwel niets |
+| 12:00 | 13,6 % | 16,7 % |
+| 16:00 | 8,9 % | 7,8 % |
+| 17:00 | 5,5 % | 2,3 % |
+| 18:00 | 3,0 % | 0,1 % |
 
 Ons model levert 's avonds vrijwel niets meer terug, terwijl Nederlandse huishoudens dat
 gemiddeld wel doen. De verklaring is dat het landelijk gemiddelde alle dakoriëntaties
@@ -546,6 +555,17 @@ is. Die was afgeleid uit één weerjaar, en dat jaar legde de zonnigste maand op
 Nederland in juni piekt, en maakte november helderder dan oktober. Allebei waar voor dat
 ene jaar en geen van beide waar voor Nederland. De tabel is nu een gemiddelde over negen
 jaar.
+
+Op 26 augustus 2026 heeft dezelfde vergelijking er een tweede fout in gevonden. De
+dagvorm van die terugvaltabel liep van 06:00 tot 18:00, terwijl de zon in Uden om 12:38
+op zijn hoogst staat. Onze hele gemodelleerde dag lag dus 38 minuten te vroeg. Dat is het
+grootste deel van het verschil in de tabel hierboven: om 17:00 leverde ons model 0,6 %
+van zijn jaaropbrengst terug waar het land 5,5 % teruglevert, en dat is nu 2,3 %. Wij
+hebben de dag niet langer gemaakt om de rest van dat gat te dichten, hoewel dat elke
+vergelijking op deze bladzijde mooier had gemaakt. De landelijke curve is breed omdat hij
+alle dakrichtingen bij elkaar optelt, en ons model beschrijft een dak. Meten tegen de
+opwek van datzelfde ene dak, in plaats van tegen het landelijk gemiddelde, wijst een
+langere dag juist af.
 
 ## 17. Wat wij aannemen als wij het niet vragen
 
@@ -573,16 +593,16 @@ hieronder, omdat hij niet aan of uit is maar geleidelijk: elk jaar ouder is een 
 procent minder opwek, tot maximaal twintig procent. Wij zetten hier met opzet geen bedrag
 bij. De tabel hieronder is op een huishouden gemeten, en een tweede getal dat wij er niet
 op dezelfde manier naast kunnen leggen zou meer zekerheid suggereren dan wij hebben. Dat is de kant die ons uitkomt. Op ons referentiehuishouden, 3,5 kWp en 3500 kWh in
-postcode 5401, kost het einde van saldering met deze aannames 634 euro per jaar. Verandert
+postcode 5401, kost het einde van saldering met deze aannames 623 euro per jaar. Verandert
 u er één, dan wordt dat bedrag lager:
 
 | Als dit wel zo is | Dan wordt het bedrag bovenaan |
 |---|---|
-| Overdag iemand thuis | 492 euro, dus 142 lager |
-| Auto die overdag op eigen overschot laadt | 212 euro, dus 422 lager |
-| Warmtepomp | 510 euro, dus 123 lager |
-| Thuisbatterij van 5 kWh | 276 euro, dus 357 lager |
-| Dynamisch contract | 492 euro, dus 142 lager |
+| Overdag iemand thuis | 500 euro, dus 124 lager |
+| Auto die overdag op eigen overschot laadt | 202 euro, dus 421 lager |
+| Warmtepomp | 502 euro, dus 122 lager |
+| Thuisbatterij van 5 kWh | 267 euro, dus 357 lager |
+| Dynamisch contract | 484 euro, dus 139 lager |
 
 Alleen een auto die 's nachts laadt verandert het bedrag niet, en dat is geen toeval: zolang
 u meer van het net haalt dan u teruglevert, valt extra nachtverbruik onder saldering

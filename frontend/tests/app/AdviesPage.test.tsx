@@ -164,16 +164,24 @@ describe("the advice page", () => {
     expect(scenario).toHaveLength(expected);
   });
 
-  it("keeps the battery block shut when the model said it does not pay back", async () => {
+  it("keeps the battery block shut when the model is not recommending one", async () => {
     // Measured on the built page at 1280x900 before this: the headline band was
     // 345px, the two free routes 313px each, and "De batterij, doorgerekend"
     // 1365px, which is 38.5% of the page and 2.2 times the two free routes
-    // together, on a household whose verdict is BATTERY_DOES_NOT_PAY_BACK and
-    // whose rule text says "niet de moeite waard". It passed all five rules,
-    // because "free routes first" was implemented as DOM order, and order is
-    // the weakest form of precedence there is. Reading the page, it said no and
-    // then handed over a sizing menu with prices in it.
-    expect(fixture.battery.verdict).toBe("BATTERY_DOES_NOT_PAY_BACK");
+    // together, on a household the model was not recommending a battery to. It
+    // passed all five rules, because "free routes first" was implemented as DOM
+    // order, and order is the weakest form of precedence there is. Reading the
+    // page, it said no and then handed over a sizing menu with prices in it.
+    //
+    // The guard is on the property and not on one id. It read
+    // BATTERY_DOES_NOT_PAY_BACK until 2026-08-26, when the fixture household
+    // crossed the twelve year line and became BATTERY_DEPENDS_ON_PRICE. That is
+    // still not a recommendation, so the behaviour under test is unchanged and
+    // only the guard had to be, which is the sign it was written one id too
+    // narrow. An empty or unknown verdict still fails it.
+    expect(["BATTERY_DOES_NOT_PAY_BACK", "BATTERY_DEPENDS_ON_PRICE"]).toContain(
+      fixture.battery.verdict,
+    );
     vi.stubGlobal("fetch", respondWith(fixture));
     const { container } = render(<AdviesPage />);
     await screen.findByText(fixture.confidence_label);
@@ -340,9 +348,16 @@ describe("the advice page", () => {
     render(<AdviesPage />);
     await screen.findByText(fixture.confidence_label);
     expect(screen.getByText("Motorversie")).toBeInTheDocument();
-    // Two versions that happen to be the same string today, which is why this
-    // counts them rather than looking one up.
-    expect(screen.getAllByText(fixture.engine_version)).toHaveLength(2);
+    // One assertion per version, each on its own value. This counted both at
+    // once until 2026-08-26, when the engine moved to 0.2.0 and the advice
+    // version stayed at 0.1.0. The comment here used to say the two "happen to
+    // be the same string today", which was true and was the whole reason a
+    // count could stand in for two lookups; the day that stopped being true,
+    // the page was showing both correctly and the test was the thing that
+    // failed. Looked up separately, a page that dropped one of them fails too.
+    expect(screen.getByText(fixture.engine_version)).toBeInTheDocument();
+    expect(screen.getByText(fixture.advice_version)).toBeInTheDocument();
+    expect(fixture.engine_version).not.toBe(fixture.advice_version);
     expect(screen.getByText(String(fixture.weather_year))).toBeInTheDocument();
     // The Dutch sentence, never the enum. "FALLBACK" in front of a reader is
     // the language boundary being crossed by the frontend, and which of the two

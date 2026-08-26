@@ -43,3 +43,51 @@ The old table was found to be wrong by the calibration against the measured
 national feed-in profile: it put the annual peak in May, where the country peaks
 in June, and made November brighter than October. Both were properties of 2020
 rather than of the Netherlands.
+
+## Revised on 2026-08-26, engine 0.2.0
+
+Every self consumption rate moved. Five went up by between 0.001 and 0.009 and
+`sander_heat_pump` went down by 0.006. Neither the households nor the engine's
+rules changed: the offline production model did, in two ways, and the sizes
+below say which of the two each household felt.
+
+The daily shape used to run 06:00 to 18:00 in continuous winter time while
+solar noon at the location the yield table was measured at is 12:38, so the
+whole modelled day sat 38 minutes early. It is now centred on solar noon.
+Separately, the shape's peak was scaled by a closed form that integrated a sine
+and then sampled it at twelve points, which ran 0.29 percent above the table it
+is built from; each hour is now an exact integral and the scaling divides by
+what the shape actually sums to.
+
+The two were measured apart rather than attributed by eye, holding the household
+fixed and moving the centre back to 12:00:
+
+| household | 0.1.0 | normalisation only | and centred |
+|---|---|---|---|
+| hand_checkable | 0.9381 | 0.9390 | 0.9391 |
+| large_array_small_use | 0.1134 | 0.1136 | 0.1194 |
+| marloes_ev_at_night | 0.2557 | 0.2562 | 0.2647 |
+| marloes_ev_on_solar | 0.7572 | 0.7587 | 0.7661 |
+| rob_fixed_contract | 0.3320 | 0.3327 | 0.3410 |
+| sander_heat_pump | 0.5032 | 0.5041 | 0.4977 |
+
+That splits cleanly and the split is the check on it. `hand_checkable` is the
+only household with a perfectly flat demand, and it is the only one the centring
+barely touches: a flat consumer cannot care what time the sun peaks, so its
+whole move is the normalisation, and 0.29 percent less production against an
+unchanged absorbed amount is a slightly higher rate. Every household with a
+shape to its demand moves on the centring instead, by ten to thirty times as
+much as the normalisation gave it.
+
+`sander_heat_pump` is the one that goes the other way, and it is the one worth
+reading rather than accepting. He is the only household home during the day, and
+his heat pump draws on temperature, which lags sunrise by less than production
+does. His demand therefore peaks before solar noon, so moving production 38
+minutes later moves it away from him. The direction is the opposite of the other
+five for a reason that is a property of the household and not of the change.
+
+The gap between the two `marloes` rows is 0.5014 against 0.5015 before. That
+pair is the one this file says must not collapse, and a tenth of a percentage
+point is not a collapse: both rows moved up by almost exactly the same amount,
+which is what a change to the production model rather than to the advice should
+do to two households that differ only in when they charge.

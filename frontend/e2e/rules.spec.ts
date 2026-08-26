@@ -477,14 +477,21 @@ test("no route pushes the page sideways at 360px or at 400% zoom", async ({
 test("the paid route never outweighs the free ones the model put first", async ({
   page,
 }) => {
-  // The fixture's verdict is BATTERY_DOES_NOT_PAY_BACK and its rule text says
-  // "niet de moeite waard". Measured at 1280x900 before this: headline 345px,
-  // the two free routes 313px each, the storage route 219px, and the battery
-  // block 1365px, which is 38.5% of the page and 2.2x the free routes together,
-  // with a five-capacity table of what each size earns inside it. It passed all
-  // five rules above, because "free routes first" was DOM order and order is the
-  // weakest form of precedence there is.
-  expect(fixture.battery.verdict).toBe("BATTERY_DOES_NOT_PAY_BACK");
+  // The fixture's verdict is one the model does not recommend on. Measured at
+  // 1280x900 before this: headline 345px, the two free routes 313px each, the
+  // storage route 219px, and the battery block 1365px, which is 38.5% of the
+  // page and 2.2x the free routes together, with a five-capacity table of what
+  // each size earns inside it. It passed all five rules above, because "free
+  // routes first" was DOM order and order is the weakest form of precedence
+  // there is.
+  //
+  // On the property rather than on one id, for the reason
+  // tests/app/AdviesPage.test.tsx gives beside the same guard: the fixture
+  // household moved from BATTERY_DOES_NOT_PAY_BACK to BATTERY_DEPENDS_ON_PRICE
+  // on 2026-08-26 without the page's behaviour moving at all.
+  expect(["BATTERY_DOES_NOT_PAY_BACK", "BATTERY_DEPENDS_ON_PRICE"]).toContain(
+    fixture.battery.verdict,
+  );
   await page.setViewportSize({ width: 1280, height: 900 });
   await openAdvice(page);
 

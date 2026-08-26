@@ -51,6 +51,7 @@ from ampeer_advice.types import (
     Route,
     ScenarioBand,
 )
+from ampeer_sim import ENGINE_VERSION
 from ampeer_sim.economics.tariffs import annual_cost
 from ampeer_sim.engine.run import simulate
 from ampeer_sim.production.model import production_series
@@ -115,7 +116,11 @@ def _stub_result() -> Result:
     below does run the real thing, to prove the two compose.
     """
     return Result(
-        engine_version="0.1.0",
+        # The real one. A stub that carried a different string would make
+        # test_the_advice_carries_both_versions below pass on a literal nobody
+        # would notice going stale, which is what it did until 2026-08-26: it
+        # asserted "0.1.0" against this line rather than against the engine.
+        engine_version=ENGINE_VERSION,
         band=Band(Decimal("500"), Decimal("600"), Decimal("700"), runs=81),
         self_consumption_rate=0.3,
         production_source=ProductionSource.FALLBACK,
@@ -282,7 +287,7 @@ def test_the_advice_carries_both_versions() -> None:
     can change without the simulation changing a single kWh.
     """
     advice = _golden_advice("rob_fixed_contract")
-    assert advice.engine_version == "0.1.0"
+    assert advice.engine_version == "0.2.0"
     assert advice.advice_version == ADVICE_VERSION
 
 
@@ -488,13 +493,29 @@ def test_the_verdict_has_three_states_and_each_one_is_reachable() -> None:
 
 
 def test_no_reference_household_is_told_to_buy_a_battery() -> None:
-    """The state of the answer after the double count was removed.
+    """The property in the name, and beside it a record of today's verdicts.
 
-    This is not a rule and it must not become one. It is a record of what the
-    corrected model says today about six households: for every one of them that
-    exports enough to be shown a battery at all, storage does not earn itself
-    back inside its warranty. If a change ever makes one of them a yes, this
-    test fails and somebody has to look at why, which is the point.
+    The property is the half that is a rule: CONSIDER_BATTERY, the unconditional
+    yes, may not be what any reference household hears. That is the sentence
+    this product should be most reluctant to say, and the assertion on it is
+    unconditional.
+
+    The recorded set is the other half and it is not a rule. Until 2026-08-26 the
+    two were one assertion, an equality against `{BATTERY_DOES_NOT_PAY_BACK}`,
+    which made a household moving into the middle state read as a household
+    being sold a battery. It is not the same event and it happened: centring the
+    offline production model on solar noon brought `large_array_small_use` from
+    12.05 years to 11.46, back across the twelve year limit it had left, and its
+    verdict went from BATTERY_DOES_NOT_PAY_BACK to BATTERY_DEPENDS_ON_PRICE.
+    Nobody is told to buy anything; that household is told the answer depends on
+    the quote, which is what a band from 6.65 to 17.97 years supports.
+
+    So the equality stays, because a verdict moving is still something somebody
+    has to look at, and it now fails with the set in the message rather than
+    with a yes and a no collapsed into one another. Whether the middle state
+    should be reachable at all, when refusing on the middle of a band alone is
+    what keeps every other household out of it, is open in docs/decisions.md and
+    this is the household that question is about.
     """
     verdicts = {}
     for name in EXPECTED:
@@ -503,7 +524,14 @@ def test_no_reference_household_is_told_to_buy_a_battery() -> None:
         if storage:
             verdicts[name] = storage[0]
     assert verdicts, "no golden household reaches the storage route at all"
-    assert set(verdicts.values()) == {"BATTERY_DOES_NOT_PAY_BACK"}, verdicts
+    assert "CONSIDER_BATTERY" not in set(verdicts.values()), (
+        f"a reference household is being told to buy a battery outright: {verdicts}"
+    )
+    assert verdicts == {
+        "large_array_small_use": "BATTERY_DEPENDS_ON_PRICE",
+        "rob_fixed_contract": "BATTERY_DOES_NOT_PAY_BACK",
+        "sander_heat_pump": "BATTERY_DOES_NOT_PAY_BACK",
+    }, verdicts
 
 
 def test_an_unambiguous_buy_needs_the_whole_band_inside_the_limit() -> None:

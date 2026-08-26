@@ -189,7 +189,7 @@ def test_the_document_says_which_way_those_assumptions_push() -> None:
     chapter = TEXT.split("Wat wij aannemen als wij het niet vragen", 1)[1]
     assert "Voorzichtig in de richting die ons goed uitkomt is niet voorzichtig" in chapter
     assert "conservatief" in chapter, "the chapter no longer says what word was wrong"
-    assert "634 euro" in chapter, "the chapter no longer quotes what it measured"
+    assert "623 euro" in chapter, "the chapter no longer quotes what it measured"
 
 
 def test_the_document_does_not_claim_the_payback_band_moves_the_price_alone() -> None:
@@ -822,7 +822,7 @@ def _reference_shock(annual_consumption_kwh: float, ev: object | None = None) ->
 
     3.5 kWp facing south at 35 degrees in postcode 5401, on the offline
     provider so this never needs the network. The same household chapter 17
-    quotes 634 euro for.
+    quotes 623 euro for.
     """
     import numpy as np
 
@@ -871,14 +871,14 @@ def test_the_document_says_the_car_is_added_to_the_figure_you_type() -> None:
     the car in that number already, and the model then counts it twice. Their
     daytime consumption comes out too high, their self consumption looks better
     than it is, and the figure at the top comes out too low. Measured on the
-    reference household: 456 euro instead of 634, which is 28 percent of the
+    reference household: 447 euro instead of 623, which is 28 percent of the
     answer.
 
     Both figures are recomputed here rather than read from the chapter, so a
     model change cannot leave the document quoting the old ones. They do not
     pin the addition itself, and that is not an oversight: a car charging at
     night draws nothing while the sun is up, so adding it moves no euro at all
-    on this household. The whole 178 comes from scaling the base profile to
+    on this household. The whole 176 comes from scaling the base profile to
     5660 instead of 3500, which raises consumption in every hour including the
     ones with production. The addition has its own test below.
     """

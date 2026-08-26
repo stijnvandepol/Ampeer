@@ -243,7 +243,36 @@ def test_the_model_constants_are_pinned_to_the_engine_version() -> None:
             ("ampeer_sim.types.TariffSet.feed_in_fixed_cost_year", "Decimal('0')"),
             ("ampeer_sim.types.TariffSet.net_metering", "False"),
             ("ampeer_sim.types.TariffSet.standing_charge_year", "Decimal('0')"),
-        )
+        ),
+        # 0.2.0 moved the offline production model, not a dataclass default, so
+        # this row is 0.1.0's unchanged. That is the honest reading of the pin:
+        # it says which constants an engine version computes with, and a version
+        # that changed the arithmetic around them still has to name them.
+        "0.2.0": (
+            ("ampeer_sim.types.BatterySpec.allow_grid_charging", "False"),
+            ("ampeer_sim.types.BatterySpec.round_trip_efficiency", "0.9"),
+            ("ampeer_sim.types.BatterySpec.usable_dod", "0.9"),
+            ("ampeer_sim.types.EV.annual_km", "12000"),
+            ("ampeer_sim.types.EV.charge_power_kw", "3.7"),
+            ("ampeer_sim.types.EV.kwh_per_100km", "18.0"),
+            ("ampeer_sim.types.EnergyFlows.grid_charge", "None"),
+            ("ampeer_sim.types.EnergyFlows.grid_discharge", "None"),
+            ("ampeer_sim.types.HeatPump.base_temperature_c", "15.0"),
+            ("ampeer_sim.types.HeatPump.cop_at_7c", "3.5"),
+            ("ampeer_sim.types.HeatPump.cop_slope_per_c", "0.06"),
+            ("ampeer_sim.types.Household.daytime_occupancy", "False"),
+            ("ampeer_sim.types.Household.ev", "None"),
+            ("ampeer_sim.types.Household.heat_pump", "None"),
+            ("ampeer_sim.types.Household.profile_category", "ProfileCategory.E1A"),
+            ("ampeer_sim.types.Household.shiftable_block_kwh", "1.0"),
+            ("ampeer_sim.types.PVSystem.install_year", "None"),
+            ("ampeer_sim.types.PVSystem.system_loss_fraction", "0.14"),
+            ("ampeer_sim.types.TariffSet.dynamic", "False"),
+            ("ampeer_sim.types.TariffSet.feed_in_cost_per_kwh", "Decimal('0')"),
+            ("ampeer_sim.types.TariffSet.feed_in_fixed_cost_year", "Decimal('0')"),
+            ("ampeer_sim.types.TariffSet.net_metering", "False"),
+            ("ampeer_sim.types.TariffSet.standing_charge_year", "Decimal('0')"),
+        ),
     }
     assert ENGINE_VERSION in snapshot, (
         f"ENGINE_VERSION is {ENGINE_VERSION!r} and this table has no row for it. "
@@ -286,7 +315,27 @@ def test_the_golden_answers_are_pinned_to_the_engine_version() -> None:
             ("rob_fixed_contract.expected_self_consumption_rate", 0.332),
             ("sander_heat_pump.expected_consumption_kwh", 6802.0),
             ("sander_heat_pump.expected_self_consumption_rate", 0.5032),
-        )
+        ),
+        # 0.2.0 centred the offline daily shape on solar noon and stopped
+        # normalising it against a closed form that was 0.29 percent high. Five
+        # of the six rates moved up between 0.001 and 0.009 and sander's moved
+        # down by 0.006; tests/golden/README.md says why each went the way it
+        # did. No tolerance moved, and no household's postcode, array or demand
+        # moved either, so every difference below is the engine and nothing else.
+        "0.2.0": (
+            ("hand_checkable.expected_consumption_kwh", 3650.0),
+            ("hand_checkable.expected_self_consumption_rate", 0.9391),
+            ("large_array_small_use.expected_consumption_kwh", 2200.0),
+            ("large_array_small_use.expected_self_consumption_rate", 0.1194),
+            ("marloes_ev_at_night.expected_consumption_kwh", 5700.0),
+            ("marloes_ev_at_night.expected_self_consumption_rate", 0.2647),
+            ("marloes_ev_on_solar.expected_consumption_kwh", 5700.0),
+            ("marloes_ev_on_solar.expected_self_consumption_rate", 0.7661),
+            ("rob_fixed_contract.expected_consumption_kwh", 3500.0),
+            ("rob_fixed_contract.expected_self_consumption_rate", 0.341),
+            ("sander_heat_pump.expected_consumption_kwh", 6802.0),
+            ("sander_heat_pump.expected_self_consumption_rate", 0.4977),
+        ),
     }
     assert ENGINE_VERSION in snapshot, (
         f"ENGINE_VERSION is {ENGINE_VERSION!r} and no golden answers are recorded for it"

@@ -54,17 +54,39 @@ WEATHER_YEAR = 2025
 #: is July at 0.0230 and the worst hourly one is 17:00 at 0.0490. So the hourly
 #: ceiling sat a fifth of a percentage point above the thing it measures and the
 #: monthly one sat at more than twice it, doing nothing a regression would have
-#: to get past. The monthly ceiling is now 0.03, which is the measured 0.0230
-#: with room for ordinary movement and not much more.
+#: to get past. The monthly ceiling is 0.03, which is the measured 0.0230 with
+#: room for ordinary movement and not much more.
+#:
+#: The hourly one came down to 0.04 on 2026-08-26, when the evening the entry in
+#: docs/decisions.md asked about was repaired. The fallback's daily shape now
+#: sits on solar noon at the location the yield table was measured at, 12:38 in
+#: winter time, rather than on 12:00. Measured on the same reference household,
+#: before and after:
+#:
+#:     worst hourly    17:00  0.0490   ->   11:00  0.0333
+#:     worst monthly   July   0.0230   ->   July   0.0233
+#:     export at 17:00 0.0061 -> 0.0234, at 18:00 0.0000 -> 0.0010
+#:
+#: 0.04 leaves the measured 0.0333 less room than the monthly ceiling has, and
+#: it is the tightening that matters: it refuses the shape that was here before,
+#: whose 0.0490 passed under 0.05 for a year.
 MAX_MONTHLY_GAP = 0.03
-MAX_HOURLY_GAP = 0.05
+MAX_HOURLY_GAP = 0.04
 
-#: How close the hourly comparison runs to its own ceiling, recorded because a
-#: near miss that nobody has looked at reads exactly like a comfortable pass.
-#: 0.0490 against 0.05 is two percent of headroom. The repair is not a wider
-#: ceiling, which this file forbids, but the model's evening tail: it exports
-#: nothing at all after 17:00 while the country still exports 0.0295 at 18:00.
-#: See docs/decisions.md under what was not decided here.
+#: Two disagreements this file cannot close and should not be read as closing.
+#:
+#: The model still exports nothing at 19:00, where the country puts 0.0120 of
+#: its year, and almost nothing at 18:00. Reaching those hours needs a longer
+#: summer day, and every way of lengthening the day was measured on 2026-08-26
+#: and refused: they fit this profile better and PVGIS's own hour of the day
+#: worse, and the national profile is wide because it averages every roof
+#: orientation in the country while this household faces south. The numbers are
+#: above FALLBACK_DAYLIGHT_HOURS in ampeer_sim/production/pvgis.py.
+#:
+#: And the larger one, which is not the fallback's at all: PVGIS stamps its
+#: hours in UTC, the grid runs in winter time, and nothing shifts the series
+#: between them, so the path a visitor normally gets is an hour early. This
+#: comparison never sees it, because it runs on the fallback on purpose.
 
 
 def _reference_export() -> np.ndarray:
@@ -178,13 +200,38 @@ def test_the_modelled_export_stops_earlier_in_the_day_than_the_country_does() ->
         )
 
     # The worst bucket rather than one chosen hour. Until 2026-08-23 this
-    # asserted on 18:00 alone, where the gap is 0.0295 against a ceiling of
-    # 0.05. The decline it is named for peaks an hour earlier, at 17:00 and
+    # asserted on 18:00 alone, where the gap was 0.0295 against a ceiling of
+    # 0.05. The decline it is named for peaked an hour earlier, at 17:00 and
     # 0.0490, so the test watched a bucket with room to spare while the same
     # disagreement ran within two percent of the ceiling next door.
     worst = max(afternoon, key=lambda bucket: abs(bucket.gap))
     assert abs(worst.gap) <= MAX_HOURLY_GAP, (
         f"the daily gap grew at {worst.label}: {worst.gap:+.3f}"
+    )
+
+
+def test_the_model_still_exports_in_the_early_evening() -> None:
+    """A floor under the repair of 2026-08-26, not another ceiling.
+
+    The ceiling above says the disagreement may not grow. It does not say the
+    evening exists. A shape that collapsed back to a day centred on 12:00 puts
+    0.0061 of the year at 17:00, a quarter of what it puts there now, and it is
+    caught above only because MAX_HOURLY_GAP came down to 0.04 in the same
+    change; at the 0.05 it stood at for a year, that model passed.
+
+    One hour and not two. 18:00 went from nothing to 0.0010, which is a real
+    improvement and far too small to hold anything to. The floor sits below the
+    measured 0.0234 because that is a share of an export total any unrelated
+    model change moves a little. What it refuses is a model whose day is over at
+    five.
+    """
+    comparison = compare_export_profile(
+        _reference_export(), GRID, MEASURED_MONTHLY, MEASURED_HOURLY
+    )
+    hours = {bucket.label: bucket for bucket in comparison.hourly}
+    assert hours["17:00"].modelled > 0.02, (
+        f"the model puts {hours['17:00'].modelled:.4f} of its export at 17:00 and the country "
+        f"puts {hours['17:00'].measured:.4f} there"
     )
 
 

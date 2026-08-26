@@ -21,6 +21,7 @@ from ampeer_sim.production.fallback_yield import (
     MONTHLY_MEAN_PRODUCTION_W_PER_KWP,
     MONTHLY_MEAN_TEMPERATURE,
     ORIENTATION_FACTORS,
+    TABLE_LONGITUDE,
 )
 from ampeer_sim.providers import ProductionProvider
 from ampeer_sim.timebase import HOURS_PER_DAY
@@ -33,9 +34,72 @@ RADIATION_DATABASE = "PVGIS-SARAH3"
 REFERENCE_PEAK_POWER_KW = 1.0
 REFERENCE_LOSS_PERCENT = 0.0
 
-#: Hours of daylight the crude fallback shape spreads its energy over.
-FALLBACK_DAYLIGHT_HOURS = 12
-FALLBACK_SUNRISE_HOUR = 6
+#: Solar noon at the table's location, on the continuous winter time the grid
+#: runs in. Winter time is UTC plus one hour and true solar noon is 12:00 minus
+#: four minutes per degree of eastward longitude, so Uden's is 12:38.
+#:
+#: The fallback shape was centred on 12:00 until 2026-08-26, which put its whole
+#: day 38 minutes early. That is most of the evening problem recorded in
+#: docs/decisions.md: the model exported nothing after 17:00 while the country
+#: still exported 0.0295 of its year at 18:00.
+#:
+#: One thing this does not repair, and it is larger. PVGIS stamps its hours in
+#: UTC and ``YearGrid`` runs in continuous winter time, which is UTC plus one,
+#: and ``align_hourly_year`` places the series by index without shifting it. So
+#: the PVGIS path, which is the one a visitor normally gets, puts every kilowatt
+#: hour a full hour early. Measured on 2026-08-26 over the nine years of the
+#: yield table: PVGIS's own peak hour is 11:00 UTC, which is 12:00 winter time
+#: and where solar noon at 11:38 UTC belongs, and the model reads it as 11:00.
+#: That is in ampeer_sim/production/model.py and ampeer_sim/timebase.py rather
+#: than here, so it is written up rather than fixed; it also explains why the
+#: old fallback shape agreed with the PVGIS path so well. They shared the error.
+#:
+#: The equation of time is not modelled. It moves solar noon by at most a
+#: quarter of an hour either way over the year and averages to nothing, which is
+#: below what a table of monthly means can resolve.
+FALLBACK_SOLAR_NOON_HOUR = 13.0 - TABLE_LONGITUDE / 15.0
+
+
+#: Hours of daylight the crude fallback shape spreads its energy over. It is
+#: also the plain mean of the 365 day lengths at this latitude, which is where
+#: the number came from.
+#:
+#: Not moved on 2026-08-26, and the measurement that kept it is worth more than
+#: the one that would have moved it. A longer window is tempting, because the
+#: national feed-in profile is wider than this shape and lengthening it closes
+#: the gap on both families at once. Measured on the reference household of
+#: tests/test_calibration.py, worst hourly and worst monthly bucket:
+#:
+#:     12.00 h centred on 12:00   0.0490 at 17:00     0.0230 in July
+#:     12.00 h centred on noon    0.0333 at 11:00     0.0233 in July
+#:     13.28 h centred on noon    0.0299 at 11:00     0.0218 in July
+#:
+#: 13.28 is the mean day length weighted by the energy each day carries, which
+#: is a defensible derivation and still the wrong answer. The national profile
+#: is wide because it averages every roof orientation in the country, which
+#: tests/test_calibration.py says in as many words, and this shape describes one
+#: south facing plane. Asking the thing it stands in for gives the opposite
+#: verdict. Against PVGIS's own hour of the day for that plane, nine years, as
+#: the sum of the absolute difference over the 24 hours and the worst single
+#: hour:
+#:
+#:     12.00 h centred on 12:00   0.2291   0.0352
+#:     13.28 h centred on noon    0.1576   0.0253
+#:     12.00 h centred on noon    0.0759   0.0172
+#:     11.57 h centred on noon    0.0677   0.0142   the best fitting length
+#:
+#: So the centring is worth a factor of three, 0.2291 down to 0.0759, and the
+#: lengthening would have handed back more than half of it. A half sine over the
+#: real day length, which varies with the
+#: season, was measured too: it scores 0.0337 hourly and 0.0389 monthly against
+#: the country, and the second is over its ceiling. Widening to fit an aggregate
+#: of orientations this model does not have would have made the fallback agree
+#: with a curve it is not describing.
+#:
+#: The best fitting 11.57 is not adopted either. It buys a tenth of the
+#: remaining disagreement by making the evening shorter, which is the direction
+#: this shape is already wrong in, and 12 has a meaning where 11.57 has a fit.
+FALLBACK_DAYLIGHT_HOURS = 12.0
 
 #: Coarse centroid per postcode century, good enough because irradiance barely
 #: varies over a few kilometres. Keys are the first two digits of the postcode.
@@ -183,9 +247,18 @@ class PvgisProvider:
 class FallbackProvider:
     """Build an hourly series from monthly means, with no network access.
 
-    The daily shape is a half sine between sunrise and sunset, scaled so the
-    monthly mean matches the table. This is deliberately crude; its only job is
-    to keep the advice available when PVGIS is not.
+    The daily shape is a half sine centred on solar noon at the table's
+    location, scaled so the monthly mean matches the table. This is deliberately
+    crude; its only job is to keep the advice available when PVGIS is not.
+
+    The shape is the reference plane's, south at 35 degrees, whatever roof it is
+    asked about; the orientation only scales it. That is wrong for a west roof,
+    whose real day runs later, and it is the price of a table with one shape in
+    it. Deriving the shape from the roof's own plane was measured on 2026-08-26
+    and does not work here: a beam cosine on a north facing plane at 35 degrees
+    is zero all winter, because the sun never comes round to it, and the month
+    would then have no shape to scale. Getting that right needs a diffuse term,
+    which is a sky model, which is what PVGIS is for.
     """
 
     def __init__(self, weather_year: int) -> None:
@@ -238,9 +311,12 @@ class FallbackProvider:
         reachable by anything else that posts to the API, which is a public
         endpoint and not the form's private back door.
 
-        Ties are still broken by the order of ``ORIENTATION_FACTORS``, which in
-        this table means the higher factor wins. That is not endorsed here; see
-        ``tests/test_pvgis_provider.py`` and docs/decisions.md.
+        Ties are still broken by the order of ``ORIENTATION_FACTORS``, and as of
+        2026-08-26 no whole azimuth can reach one at 35 degrees: the table has a
+        row for all eight compass directions, so a tie needs a roof at exactly
+        22.5, 67.5, 112.5 or 157.5 degrees and the API rounds azimuth to whole
+        degrees on the way in. Tilt can still tie. A roof at 25 degrees sits ten
+        from both 15 and 35 and takes 35, which is the more generous of the two.
         """
         nearest = min(
             ORIENTATION_FACTORS,
@@ -252,13 +328,41 @@ class FallbackProvider:
 
     @staticmethod
     def _day_shape(mean_power: float) -> list[float]:
-        """A half sine over the daylight hours, averaging to ``mean_power``."""
-        peak = mean_power * HOURS_PER_DAY / FALLBACK_DAYLIGHT_HOURS * (math.pi / 2)
-        values = [0.0] * HOURS_PER_DAY
-        for offset in range(FALLBACK_DAYLIGHT_HOURS):
-            phase = (offset + 0.5) / FALLBACK_DAYLIGHT_HOURS * math.pi
-            values[FALLBACK_SUNRISE_HOUR + offset] = peak * math.sin(phase)
-        return values
+        """A half sine centred on solar noon, averaging to ``mean_power``.
+
+        Each hour holds the half sine's mean over that hour, integrated rather
+        than sampled at the midpoint. The window no longer starts on an hour
+        boundary, so a midpoint sample would drop the part of the first and last
+        hour that falls inside it and pick up nothing in exchange.
+
+        The scaling is a division by what the shape actually sums to, not a
+        closed form for what it should sum to. The closed form was there until
+        2026-08-26 and it was 0.29 percent high, because it integrated the sine
+        and then evaluated it at twelve points: the annual total came out at
+        1224.09 kWh per kWp where the table says 1220.60, and the docstring of
+        fallback_yield.py says 1221.
+        """
+        start = FALLBACK_SOLAR_NOON_HOUR - FALLBACK_DAYLIGHT_HOURS / 2.0
+        end = start + FALLBACK_DAYLIGHT_HOURS
+        if start < 0.0 or end > HOURS_PER_DAY:
+            raise ValueError(
+                f"a {FALLBACK_DAYLIGHT_HOURS:.2f} hour window centred on "
+                f"{FALLBACK_SOLAR_NOON_HOUR:.2f} runs outside the day, so part of the "
+                "month's energy would be dropped and the rest silently scaled up"
+            )
+        scale = FALLBACK_DAYLIGHT_HOURS / math.pi
+
+        def swept(until: float) -> float:
+            return -scale * math.cos((until - start) / FALLBACK_DAYLIGHT_HOURS * math.pi)
+
+        values = [
+            swept(min(hour + 1.0, end)) - swept(max(float(hour), start))
+            if hour + 1.0 > start and hour < end
+            else 0.0
+            for hour in range(HOURS_PER_DAY)
+        ]
+        total = sum(values)
+        return [value * mean_power * HOURS_PER_DAY / total for value in values]
 
 
 class ResilientProductionProvider:
