@@ -581,6 +581,24 @@ Four sit outside that document.
   and 19 now describe the behaviour, and two pairings in
   `tests/test_methodology.py` hold the description against the model.
 
+  The numbers under the choice are in
+  `docs/analysis/2026-08-24-double-counting.md`, measured on 2026-08-26 over the
+  six golden households and the reference household of chapter 17, and
+  remeasured against the production model decisions 16 and 17 shipped. Three
+  findings decide most of it. The two repairs produce the same figure to the
+  cent on every household, so this is a choice about who does the subtraction
+  and not about accuracy. The double count also removes advice rather than only
+  shrinking a euro figure: four of six households lose a fired rule and every
+  rule lost is one that sells nothing, including the mandatory "nu geen
+  batterij". And the carve-out's floor is derivable rather than a worry: 2550
+  kWh of residual base, the point at which `apply_presence` can no longer move
+  its whole block, with the model's own band on it running 1275 to 5101.
+
+  The figures in the paragraph above this one are the ones the document
+  supersedes: on the shipping model the same three shapes are 447 against 623,
+  285 against 470, and 89 against 202, which is 26.5 to 59.2 percent rather than
+  28 to 54. The shape of the finding did not move and the euros did.
+
 - **The order the two open pull requests are merged in.** #23 carries this
   branch into `dev` and #22 carries `dev` into `main`, so #23 goes first and #22
   is rerun afterwards.
