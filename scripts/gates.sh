@@ -209,15 +209,32 @@ gate pre-commit uv run pre-commit run --all-files --show-diff-on-failure
 #
 # The other four have defaults because a host, a port, a database name and a
 # user name are not secrets and getting one of them wrong fails loudly.
+#
+# Two invocations rather than one. The `perf` marker carries the wall clock
+# budgets, and coverage makes the code about three times slower, so measuring
+# them under instrumentation tests the promise divided by the profiler.
+# Measured on 2026-08-24 over the whole suite: 0.58s uninstrumented against
+# 1.62s under coverage, for a budget of 1.0s, which is why that check used to
+# flip between runs on one commit.
+#
+# Both are reported in every branch below. A run that named one and stayed
+# silent about the other would be the defect at the top of this file, one
+# layer up.
 if [ -z "${POSTGRES_PASSWORD:-}" ]; then
   skip pytest "POSTGRES_PASSWORD is not set, so there is no way to tell a scratch database from someone else's. infra/README.md section 7 has the two commands that start one and run against it"
+  skip perf "POSTGRES_PASSWORD is not set; the wall clock budgets run against the same database"
 elif something_listening_on_postgres; then
   gate pytest env POSTGRES_HOST="${POSTGRES_HOST:-127.0.0.1}" POSTGRES_PORT="${POSTGRES_PORT:-5432}" \
     POSTGRES_DB="${POSTGRES_DB:-ampeer}" POSTGRES_USER="${POSTGRES_USER:-ampeer}" \
     POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
-    uv run pytest --cov --cov-report=term-missing
+    uv run pytest -m "not perf" --cov --cov-report=term-missing
+  gate perf env POSTGRES_HOST="${POSTGRES_HOST:-127.0.0.1}" POSTGRES_PORT="${POSTGRES_PORT:-5432}" \
+    POSTGRES_DB="${POSTGRES_DB:-ampeer}" POSTGRES_USER="${POSTGRES_USER:-ampeer}" \
+    POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
+    uv run pytest -m perf
 else
   skip pytest "nothing is listening on ${POSTGRES_HOST:-127.0.0.1}:${POSTGRES_PORT:-5432}; the database tests and the coverage gate cannot run"
+  skip perf "nothing is listening on ${POSTGRES_HOST:-127.0.0.1}:${POSTGRES_PORT:-5432}; the wall clock budgets cannot run"
 fi
 
 # --- sast --------------------------------------------------------------------

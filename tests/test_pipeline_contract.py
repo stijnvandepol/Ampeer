@@ -831,7 +831,10 @@ GATE_FRAGMENTS = {
     "uv run pre-commit run --all-files --show-diff-on-failure": (
         "uv run pre-commit run --all-files --show-diff-on-failure"
     ),
-    "uv run pytest --cov --cov-report=term-missing": "uv run pytest --cov --cov-report=term-missing",
+    'uv run pytest -m "not perf" --cov --cov-report=term-missing': (
+        'uv run pytest -m "not perf" --cov --cov-report=term-missing'
+    ),
+    "uv run pytest -m perf": "uv run pytest -m perf",
     "uv run bandit -c pyproject.toml -r ampeer_sim ampeer_advice backend tools": (
         "uv run bandit -c pyproject.toml -r ampeer_sim ampeer_advice backend tools"
     ),

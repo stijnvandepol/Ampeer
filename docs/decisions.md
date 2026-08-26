@@ -304,6 +304,46 @@ file with extra keys in it will see an error where they saw a comparison; that
 is the intended effect and not a migration problem, since the comparison was
 about a different household.
 
+### 15. The wall clock budgets run outside the coverage invocation
+
+**Decided:** `test_an_advice_arrives_within_a_second_once_production_is_cached`
+carries a `perf` marker. `scripts/gates.sh` and the `test` job in
+`.github/workflows/ci.yml` now run `pytest -m "not perf" --cov` and then
+`pytest -m perf` with no coverage, and both report in every branch. The budget
+itself is untouched at one second.
+
+**Because:** it measured the promise divided by the profiler. Measured on
+2026-08-24 over the whole suite, that request takes 0.58s uninstrumented and
+1.62s under coverage, against a budget of 1.0s. So the check sat on its own
+boundary and flipped: 1.129s and red on one run, green on the next, on the same
+commit and the same machine. In isolation it passed every time either way,
+which is why it read as noise rather than as a check measuring the wrong thing.
+
+Two reasons that is worth a change rather than a retry. The budget is a promise
+about what a visitor experiences and a visitor does not run coverage, so
+instrumented it was roughly three times stricter than the sentence it
+documents. And a gate that changes verdict while the code stands still teaches
+people to re-run until green, which is the one habit that makes every other
+gate here worthless.
+
+Relaxing the budget was never a candidate: the file says it may be measured but
+never relaxed, and a slower promise is a different product. Splitting the run
+cost nothing measurable either, since coverage stayed at 98.88 percent against
+a floor of 98, the perf test having exercised no line the rest of the suite
+does not.
+
+**Lives in:** `tests/test_advice_api.py` for the marker,
+`scripts/gates.sh` and `.github/workflows/ci.yml` for the two invocations,
+`pyproject.toml` for the marker's registration and the measurement behind it,
+and `tests/test_pipeline_contract.py`, which holds the runner and the workflow
+to the same two commands.
+
+**To reverse:** drop the marker, merge the two invocations back into one in
+both the runner and the workflow, and replace the two `GATE_FRAGMENTS` entries
+with the single one they came from. The flake comes back with it, and on a
+slower runner than this one it will be the common case rather than the
+occasional one.
+
 ## What was not decided here
 
 Five belong to the controller and are written up with their trade-offs in

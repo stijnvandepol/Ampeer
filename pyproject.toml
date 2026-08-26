@@ -111,6 +111,15 @@ testpaths = ["tests"]
 pythonpath = ["backend"]
 DJANGO_SETTINGS_MODULE = "ampeer.settings.test"
 filterwarnings = ["ignore::DeprecationWarning:pytest_asyncio.*"]
+# Wall clock budgets from the definition of done, run outside the coverage
+# invocation. Measured on 2026-08-24 over the whole suite: the cached advice
+# test takes 0.58s uninstrumented and 1.62s under coverage, against a budget of
+# 1.0s. Under coverage the check therefore tested the promise divided by the
+# profiler, sat on its own boundary, and flipped between runs on the same
+# commit. A gate that changes verdict without the code changing teaches people
+# to re-run until green, which is the one habit that makes every other gate
+# worthless.
+markers = ["perf: a wall clock budget; excluded from the coverage run, see the note above"]
 
 [tool.coverage.run]
 source = ["ampeer_sim", "ampeer_advice", "tools", "backend"]

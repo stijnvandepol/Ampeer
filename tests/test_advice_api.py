@@ -254,9 +254,17 @@ def test_no_endpoint_sets_a_cookie() -> None:
     assert not response.cookies
 
 
+@pytest.mark.perf
 def test_an_advice_arrives_within_a_second_once_production_is_cached() -> None:
     """Definition of done. The first request pays for the production series;
-    every one after it is what a visitor actually experiences."""
+    every one after it is what a visitor actually experiences.
+
+    Marked `perf`, so it runs in its own uninstrumented invocation rather than
+    inside the coverage run. Coverage makes this request about three times
+    slower, which measured the budget against the profiler instead of against
+    the promise, and left the check flipping between runs on one commit. The
+    budget itself is unchanged: relaxing it was never the repair.
+    """
     client = APIClient()
     client.post(reverse("advice-estimate"), ESTIMATE, format="json")
     started = time.perf_counter()
