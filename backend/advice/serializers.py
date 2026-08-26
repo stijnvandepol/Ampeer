@@ -6,9 +6,12 @@ address forever and believe it was stored, and a typo in a real field name reads
 as an omission. And every number is bounded on both sides, because an unbounded
 number is not a wrong answer but a way to make the server compute.
 
-The Dutch strings here are validation messages, not advice. Advice sentences
-live only in ``ampeer_advice.nl``, keyed by rule id, because that package must
-not know an HTTP form exists.
+No Dutch is written here. The messages this module refuses with are validation
+messages rather than advice, so they cannot live in ``ampeer_advice.nl``, which
+must not know an HTTP form exists; they live in ``advice.nl`` instead, keyed by
+an English id, and this file names the id. Until 2026-08-26 they were typed out
+below, which put nine sentences a stranger reads inside the rules that decide
+what is refused. tests/test_advice_serializers.py fails if one comes back.
 """
 
 from __future__ import annotations
@@ -18,6 +21,7 @@ from typing import Any, ClassVar
 from rest_framework import serializers
 from rest_framework.settings import api_settings
 
+from advice.nl import message_for
 from ampeer_sim.types import EVChargingBehaviour
 
 # The four maxima below are safety bounds and nothing else: wide enough that no
@@ -89,7 +93,8 @@ class StrictSerializer(serializers.Serializer[dict[str, Any]]):
             unknown = sorted(set(data) - set(self.fields))
             if unknown:
                 errors: dict[str, Any] = {
-                    name: "onbekend veld" for name in unknown[:MAX_REPORTED_UNKNOWN_FIELDS]
+                    name: message_for("UNKNOWN_FIELD")
+                    for name in unknown[:MAX_REPORTED_UNKNOWN_FIELDS]
                 }
                 remaining = len(unknown) - MAX_REPORTED_UNKNOWN_FIELDS
                 if remaining > 0:
@@ -97,7 +102,7 @@ class StrictSerializer(serializers.Serializer[dict[str, Any]]):
                     # rather than to one field, so a client that walks the
                     # response per field never mistakes the count for one.
                     errors[api_settings.NON_FIELD_ERRORS_KEY] = [
-                        f"en nog {remaining} onbekende velden"
+                        message_for("MORE_UNKNOWN_FIELDS", count=remaining)
                     ]
                 raise serializers.ValidationError(errors)
         validated: dict[str, Any] = super().to_internal_value(data)
@@ -132,7 +137,7 @@ class EstimateInputSerializer(StrictSerializer):
     def validate_postcode4(self, value: str) -> str:
         """Refuse a four digit string that is not a Dutch postcode."""
         if not MIN_POSTCODE4 <= int(value) <= MAX_POSTCODE4:
-            raise serializers.ValidationError("geen Nederlandse postcode")
+            raise serializers.ValidationError(message_for("POSTCODE4_NOT_DUTCH"))
         return value
 
     def to_internal_value(self, data: Any) -> dict[str, Any]:
@@ -192,31 +197,35 @@ class RefineInputSerializer(EstimateInputSerializer):
         round trip teaches people to guess.
         """
         errors: dict[str, str] = {}
-        for flag, detail, required_message, forbidden_message in (
+        # Four English names per row and no sentence in sight. The table says
+        # which flag governs which detail; advice.nl says what the household
+        # reads when it is wrong. Read it as a rule table, because that is what
+        # it has to stay for a second language to cost one file.
+        for flag, detail, required_message_id, forbidden_message_id in (
             (
                 "has_ev",
                 "ev_behaviour",
-                "verplicht wanneer er een elektrische auto is",
-                "alleen toegestaan met een elektrische auto",
+                "EV_BEHAVIOUR_REQUIRED",
+                "EV_BEHAVIOUR_FORBIDDEN",
             ),
             (
                 "has_heat_pump",
                 "heat_demand_kwh",
-                "verplicht wanneer er een warmtepomp is",
-                "alleen toegestaan met een warmtepomp",
+                "HEAT_DEMAND_REQUIRED",
+                "HEAT_DEMAND_FORBIDDEN",
             ),
             (
                 "has_battery",
                 "battery_capacity_kwh",
-                "verplicht wanneer er een thuisbatterij is",
-                "alleen toegestaan met een thuisbatterij",
+                "BATTERY_CAPACITY_REQUIRED",
+                "BATTERY_CAPACITY_FORBIDDEN",
             ),
         ):
             present = attrs.get(detail) is not None
             if attrs[flag] and not present:
-                errors[detail] = required_message
+                errors[detail] = message_for(required_message_id)
             elif not attrs[flag] and present:
-                errors[detail] = forbidden_message
+                errors[detail] = message_for(forbidden_message_id)
         if errors:
             raise serializers.ValidationError(errors)
         return attrs

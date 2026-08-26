@@ -212,20 +212,20 @@ def test_the_two_golden_files_describe_the_same_households() -> None:
     assert set(EXPECTED) == set(HOUSEHOLDS)
 
 
-#: The one file outside nl.py that holds Dutch, and why it is still here.
+#: Files outside nl.py that hold Dutch, and why each is still there.
+#:
+#: Empty as of 2026-08-26, when the API's validation messages moved into
+#: backend/advice/nl.py and the last entry stopped describing anything. Kept as
+#: a dict rather than deleted because the second assertion below is what caught
+#: that: an exception that no longer describes a file is one standing ready to
+#: wave through a file nobody meant, and an empty mapping is the only state in
+#: which that assertion is trivially satisfied for the right reason.
 #:
 #: Keyed on the path rather than on the words, so a second file cannot inherit
-#: the excuse. This is the shape tests/test_sensitivity.py had to move to after
-#: an exception keyed on a number alone let every file that stated the grid size
-#: drift to the wrong one.
-DUTCH_OUTSIDE_NL = {
-    "backend/advice/serializers.py": (
-        "the API's own validation messages, which reach a visitor through DRF "
-        "rather than through the advice layer. Whether they move into a language "
-        "layer is recorded in docs/decisions.md under what was not decided here, "
-        "because moving them changes what a visitor reads."
-    ),
-}
+#: an excuse written for the first. This is the shape tests/test_sensitivity.py
+#: had to move to after an exception keyed on a number alone let every file that
+#: stated the grid size drift to the wrong one.
+DUTCH_OUTSIDE_NL: dict[str, str] = {}
 
 
 def test_no_dutch_text_lives_outside_the_text_module() -> None:

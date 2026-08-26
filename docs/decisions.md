@@ -434,6 +434,42 @@ places rather than one, which is the intent: the calibration ceiling, the
 afternoon bucket, the evening floor and four checks in the provider tests all
 name it.
 
+### 18. The API's validation messages moved into a language layer of their own
+
+**Decided:** the nine Dutch validation messages in
+`backend/advice/serializers.py` move to a new `backend/advice/nl.py`, keyed by
+an English id, and the serializers name the id. Not one of them was reworded.
+
+**Because:** CLAUDE.md says Dutch text never sits hardcoded in the logic and
+that what a reader sees lives in a layer keyed by an English id, so the rule
+table stays language free. Six of these sentences sat in the same tuples as the
+field names they govern, which made the table that decides what a form refuses
+also the copy deck: a reword and a change of behaviour were edits to the same
+lines. `ampeer_advice/nl.py` cannot take them, since that package must not know
+an HTTP form exists and "onbekend veld" means nothing without the request that
+carried the field. That is why this is a second language layer and not a move
+into the first.
+
+This was left open in the previous round because changing what a visitor reads
+is not a delegate's call. Relocating is not changing, and that distinction is
+checkable rather than promised: every message is byte for byte the string the
+API answered before, three of them asserted verbatim in `frontend/tests` and
+one in `tests/test_advice_api.py`, with the other five read back out of the
+serializer the way a client reads them.
+
+What is gained beyond tidiness is a check where there was none. The repo-wide
+Dutch scan skips any file named nl.py and carried this one file as its named
+exception, so the rule was agreed for it and enforced nowhere. That exception is
+gone and `DUTCH_OUTSIDE_NL` in `tests/test_advise.py` is now empty.
+
+**Lives in:** `backend/advice/nl.py`, in `VALIDATION_MESSAGES`, with the two
+scans over the serializer source in `tests/test_advice_serializers.py`.
+
+**To reverse:** type the strings back at their call sites, delete the module
+and the scans, and put the exception back in `tests/test_advise.py`. The
+messages themselves survive either way, which was the condition for making the
+move at all.
+
 ## What was not decided here
 
 Five belong to the controller and are written up with their trade-offs in
@@ -450,13 +486,6 @@ Four sit outside that document.
   passages that explain why the security workflow does not run on a feature
   push. That explanation is bound up with the runner question, so it is not
   mine to settle.
-- **Whether the Dutch validation messages in `backend/advice/serializers.py`
-  move to a language layer.** The project rule says Dutch text never sits
-  hardcoded in the logic, and ten messages do. `ampeer_advice/nl.py` is the
-  wrong home, since that package must not know about the API, so the fix needs a
-  new module on the Django side. That is a change to code that ships, with no
-  test to gain, and the register decision above already went further into
-  user-facing text than I would want to go twice without a word back.
 - **Whether a battery verdict may be refused on the middle of its band alone.**
   `_storage_verdict` in `ampeer_advice/advise.py` recommends only when the
   whole payback band clears twelve years, and refuses as soon as the middle

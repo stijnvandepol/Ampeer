@@ -12,10 +12,16 @@ for no extra evidence.
 
 from __future__ import annotations
 
+import ast
+import re
+from pathlib import Path
 from typing import Any
 
 import pytest
 
+import advice.nl
+import advice.serializers
+from advice.nl import TEMPLATED_MESSAGES, VALIDATION_MESSAGES, message_for
 from advice.serializers import EstimateInputSerializer, RefineInputSerializer
 
 VALID_ESTIMATE: dict[str, Any] = {
@@ -289,3 +295,342 @@ def test_a_payload_that_is_not_an_object_is_refused() -> None:
     field loop, and it must not crash on one either."""
     serializer = EstimateInputSerializer(data=["5401"])
     assert not serializer.is_valid()
+
+
+# ---------------------------------------------------------------------------
+# The Dutch lives in advice/nl.py, and the serializers name it in English
+# ---------------------------------------------------------------------------
+
+SERIALIZERS_SOURCE = Path(advice.serializers.__file__)
+NL_SOURCE = Path(advice.nl.__file__)
+
+#: Dutch words that are not also English words.
+#:
+#: A heuristic, and honest about it: a list of words cannot decide what language
+#: a string is in, and the message this project would most like to catch is the
+#: one written next year in vocabulary nobody thought of. That is what
+#: test_the_serializer_module_names_only_ids_fields_and_one_pattern is for. This
+#: list exists because it names what it found, which is the difference between a
+#: reader fixing the string and a reader going looking for it.
+#:
+#: Every entry is checked against the English docstrings in the same module,
+#: which the scan below reads too: Dutch in a docstring is not a string a
+#: visitor reads, but it is the same rule in CLAUDE.md and one grep is cheaper
+#: than two. Words that exist in both languages are left out on purpose, "of"
+#: and "die" and "met" among them, because a false positive here would be a red
+#: build over an English sentence.
+DUTCH_MARKERS = frozenset(
+    {
+        "alleen",
+        "deze",
+        "dit",
+        "een",
+        "elke",
+        "geen",
+        "het",
+        "hier",
+        "jij",
+        "jouw",
+        "kies",
+        "kunt",
+        "mag",
+        "moet",
+        "niet",
+        "nog",
+        "onbekend",
+        "onbekende",
+        "ongeldig",
+        "ongeldige",
+        "toegestaan",
+        "uw",
+        "veld",
+        "velden",
+        "verplicht",
+        "vul",
+        "waarde",
+        "wanneer",
+        "wij",
+        "zijn",
+    }
+)
+
+_WORDS = re.compile(r"[A-Za-zÀ-ÿ]+")
+
+
+def _docstring_node_ids(tree: ast.Module) -> set[int]:
+    """The identity of every docstring node, so the scans can tell one apart.
+
+    By identity rather than by value, because a docstring and a message can be
+    the same characters and only one of them is a defect.
+    """
+    holders = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+    found: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, holders) or not node.body:
+            continue
+        first = node.body[0]
+        if (
+            isinstance(first, ast.Expr)
+            and isinstance(first.value, ast.Constant)
+            and isinstance(first.value.value, str)
+        ):
+            found.add(id(first.value))
+    return found
+
+
+def _string_literals(tree: ast.Module, *, with_docstrings: bool) -> list[str]:
+    skip = set() if with_docstrings else _docstring_node_ids(tree)
+    return [
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in skip
+    ]
+
+
+def _dutch_literals(tree: ast.Module) -> list[str]:
+    """Every string literal in a module that reads as Dutch."""
+    return [
+        text
+        for text in _string_literals(tree, with_docstrings=True)
+        if DUTCH_MARKERS & {word.lower() for word in _WORDS.findall(text)}
+    ]
+
+
+def _recognised_literals() -> set[str]:
+    """The strings advice/serializers.py is allowed to contain.
+
+    Three kinds and no fourth: a message id from advice.nl, the name of a field
+    on one of the two serializers, and the postcode pattern. Read from those
+    places rather than typed out, so adding a field does not make this red.
+    """
+    fields = set(EstimateInputSerializer().fields) | set(RefineInputSerializer().fields)
+    return set(VALIDATION_MESSAGES) | fields | {advice.serializers.POSTCODE4_PATTERN}
+
+
+def _unrecognised_literals(tree: ast.Module) -> list[str]:
+    return [
+        text
+        for text in _string_literals(tree, with_docstrings=False)
+        if text not in _recognised_literals()
+    ]
+
+
+def test_no_dutch_prose_is_left_in_the_serializer_module() -> None:
+    """CLAUDE.md: Dutch text never sits hardcoded in the logic.
+
+    Nine messages sat in advice/serializers.py until 2026-08-26, which is
+    recorded in docs/decisions.md under what was not decided. They read to a
+    stranger who posted a form, so they are as user-facing as an advice
+    sentence, and they were interleaved with the rules that decide what is
+    refused: the table of three flag-and-detail pairs carried six Dutch
+    sentences in the same tuples as the field names.
+
+    Nothing enforced the rule for this file. ampeer_advice/nl.py has
+    tests/test_advice_nl.py holding its texts and its register, and that suite
+    reads exactly one file by path, so it had nothing to say about a second
+    language layer or about the absence of one.
+    """
+    offenders = _dutch_literals(ast.parse(SERIALIZERS_SOURCE.read_text(encoding="utf-8")))
+    assert not offenders, (
+        "advice/serializers.py contains Dutch, which belongs in advice/nl.py behind an "
+        "English id:\n  " + "\n  ".join(repr(text[:90]) for text in offenders)
+    )
+
+
+def test_the_serializer_module_names_only_ids_fields_and_one_pattern() -> None:
+    """The categorical half, because a wordlist is a guess about vocabulary.
+
+    Every string literal outside a docstring has to be a message id, a field
+    name or the postcode pattern. A message in any language fails this,
+    including a one word one that no list of Dutch markers would carry, and so
+    does an English sentence being passed to a caller as text.
+
+    The cost is that a genuinely new kind of literal makes this red and has to
+    be argued for in `_recognised_literals`. That is the intended price: this
+    module turns a stranger's JSON into something the model may see, and a
+    string appearing in it without a reason is worth one line of diff.
+    """
+    offenders = _unrecognised_literals(ast.parse(SERIALIZERS_SOURCE.read_text(encoding="utf-8")))
+    assert not offenders, (
+        "advice/serializers.py holds a string that is not a message id, a field name or "
+        "the postcode pattern:\n  " + "\n  ".join(repr(text[:90]) for text in offenders)
+    )
+
+
+def test_both_scans_go_red_on_what_they_were_written_for() -> None:
+    """A guard that has never failed is a guard nobody has tested.
+
+    The first source below is the heat pump message exactly as it stood in
+    serializers.py before the move, so this asserts the scan would have caught
+    the state this test was written to end. The second is why there are two
+    scans: "onjuist" is Dutch, is one word, and is not in the marker list,
+    which is the shape of message a list of words will always miss. The
+    wordlist reports nothing on it and the categorical scan names it.
+    """
+    moved_back = ast.parse('errors["heat_demand_kwh"] = "verplicht wanneer er een warmtepomp is"')
+    assert _dutch_literals(moved_back) == ["verplicht wanneer er een warmtepomp is"]
+
+    smuggled = ast.parse('raise serializers.ValidationError("onjuist")')
+    assert _dutch_literals(smuggled) == []
+    assert _unrecognised_literals(smuggled) == ["onjuist"]
+
+
+def test_every_message_id_the_serializers_name_has_dutch_and_the_other_way_round() -> None:
+    """The pairing that makes the id table checkable, in both directions.
+
+    An id named in the logic with no entry in advice/nl.py raises KeyError while
+    answering a request, which reaches a visitor as a 500 where they asked for a
+    validation error. An entry nothing names is Dutch nobody reads, which is the
+    state a language layer decays into.
+
+    The ids are read out of the source rather than listed here, because six of
+    the nine reach `message_for` through a loop variable and a scan for
+    `message_for("...")` call sites would silently cover three.
+    """
+    tree = ast.parse(SERIALIZERS_SOURCE.read_text(encoding="utf-8"))
+    named = {
+        text
+        for text in _string_literals(tree, with_docstrings=False)
+        if text.isidentifier() and text.isupper()
+    }
+    assert named == set(VALIDATION_MESSAGES), (
+        "advice/serializers.py names "
+        f"{sorted(named - set(VALIDATION_MESSAGES))} without a Dutch message, and "
+        f"advice/nl.py holds {sorted(set(VALIDATION_MESSAGES) - named)} that nothing names"
+    )
+
+
+def test_an_unknown_message_id_refuses_rather_than_falling_back() -> None:
+    """A fallback to the id would answer a stranger with an English constant in
+    a field where the frontend prints Dutch, and nothing would report it."""
+    with pytest.raises(KeyError, match="no Dutch validation message"):
+        message_for("NO_SUCH_MESSAGE")
+
+
+def test_only_the_declared_message_carries_a_value() -> None:
+    """`message_for` formats, so a placeholder is a promise the caller must keep.
+
+    A template whose caller forgets its value raises inside str.format while a
+    request is being answered, so the failure lands on a visitor rather than on
+    a build. Pinning the set of templates against the placeholders actually
+    written in the table is what keeps that from being introduced by a reword.
+    """
+    templated = {
+        message_id
+        for message_id, text in VALIDATION_MESSAGES.items()
+        if re.search(r"\{[a-z_]*\}", text)
+    }
+    assert templated == set(TEMPLATED_MESSAGES)
+    assert message_for("MORE_UNKNOWN_FIELDS", count=40) == "en nog 40 onbekende velden"
+
+
+def test_no_validation_message_addresses_the_household() -> None:
+    """The register decision does not reach this file, so this holds the line.
+
+    docs/decisions.md entry 1 fixes the product on "u", and the scan that keeps
+    it that way lives in tests/test_advice_nl.py and reads ampeer_advice/nl.py
+    by path. It does not see advice/nl.py, so a validation message written in
+    "je" would be green there and would sit next to an advice written in "u".
+
+    None of these messages speaks to anybody: they name a field and say what is
+    wrong with it. Keeping it that way is cheaper than keeping a second copy of
+    the register constant in step with the first, and it fails loudly on the
+    first message that does address a reader, which is the moment somebody has
+    to decide whether this file joins that decision.
+    """
+    tree = ast.parse(NL_SOURCE.read_text(encoding="utf-8"))
+    second_person = re.compile(r"(?<![A-Za-zÀ-ÿ])(u|uw|uzelf|je|jij|jouw|jezelf)(?![A-Za-zÀ-ÿ])")
+    offenders = [text for text in VALIDATION_MESSAGES.values() if second_person.search(text)]
+    assert not offenders, (
+        "a validation message addresses the household:\n  "
+        + "\n  ".join(repr(text) for text in offenders)
+        + "\nThat makes it part of the register decision in docs/decisions.md, which "
+        "tests/test_advice_nl.py enforces on ampeer_advice/nl.py only."
+    )
+    assert VALIDATION_MESSAGES, "the table is empty, so the assertion above read nothing"
+    assert set(VALIDATION_MESSAGES.values()) <= set(
+        _string_literals(tree, with_docstrings=False)
+    ), "advice/nl.py holds messages this test cannot see in its source"
+
+
+def _message(errors: dict[str, Any], field: str) -> str:
+    """One error as the client receives it, whether DRF wrapped it in a list."""
+    value = errors[field]
+    return str(value[0] if isinstance(value, list) else value)
+
+
+@pytest.mark.parametrize(
+    ("payload", "field", "expected"),
+    [
+        (VALID_ESTIMATE | {"postcode4": "0999"}, "postcode4", "geen Nederlandse postcode"),
+        (VALID_ESTIMATE | {"colour": "groen"}, "colour", "onbekend veld"),
+        (
+            VALID_REFINE | {"has_ev": True, "ev_behaviour": None},
+            "ev_behaviour",
+            "verplicht wanneer er een elektrische auto is",
+        ),
+        (
+            VALID_REFINE | {"has_ev": False, "ev_behaviour": "NIGHT"},
+            "ev_behaviour",
+            "alleen toegestaan met een elektrische auto",
+        ),
+        (
+            VALID_REFINE | {"has_heat_pump": True, "heat_demand_kwh": None},
+            "heat_demand_kwh",
+            "verplicht wanneer er een warmtepomp is",
+        ),
+        (
+            VALID_REFINE | {"has_heat_pump": False, "heat_demand_kwh": 8_000.0},
+            "heat_demand_kwh",
+            "alleen toegestaan met een warmtepomp",
+        ),
+        (
+            VALID_REFINE | {"has_battery": True, "battery_capacity_kwh": None},
+            "battery_capacity_kwh",
+            "verplicht wanneer er een thuisbatterij is",
+        ),
+        (
+            VALID_REFINE | {"has_battery": False, "battery_capacity_kwh": 10.0},
+            "battery_capacity_kwh",
+            "alleen toegestaan met een thuisbatterij",
+        ),
+    ],
+)
+def test_the_words_a_visitor_reads_survived_the_move(
+    payload: dict[str, Any], field: str, expected: str
+) -> None:
+    """Byte for byte, through the serializer rather than out of the table.
+
+    Moving text is only safe if it arrives unchanged, and the table on its own
+    cannot show that: an id typed wrongly at one call site swaps two messages
+    while both tables stay correct. So this reads the error the way a client
+    does. Three of these strings are asserted verbatim in frontend/tests and
+    one more in tests/test_advice_api.py, which is the other half of the same
+    guarantee.
+    """
+    serializer: EstimateInputSerializer
+    serializer = (
+        RefineInputSerializer(data=payload)
+        if "has_ev" in payload
+        else EstimateInputSerializer(data=payload)
+    )
+    assert not serializer.is_valid()
+    assert _message(dict(serializer.errors), field) == expected
+
+
+def test_the_overflow_count_is_still_a_sentence_with_a_number_in_it() -> None:
+    """The one message that carries a value, checked where it is assembled.
+
+    tests/test_advice_api.py pins this string at 40 unknown fields over HTTP.
+    Here it is pinned at the serializer, because the number is now substituted
+    in advice/nl.py and the call site passes it by keyword, so a rename of that
+    keyword would fail in front of a visitor with a KeyError from str.format.
+    """
+    from rest_framework.settings import api_settings
+
+    unknown = {f"field_{index}": index for index in range(15)}
+    serializer = EstimateInputSerializer(data=VALID_ESTIMATE | unknown)
+    assert not serializer.is_valid()
+    assert _message(dict(serializer.errors), api_settings.NON_FIELD_ERRORS_KEY) == (
+        "en nog 5 onbekende velden"
+    )
