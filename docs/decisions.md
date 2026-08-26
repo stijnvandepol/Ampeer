@@ -479,7 +479,7 @@ arrives before phase 1, and access to the host including whether `web2` becomes
 ephemeral. They are not repeated here, because two lists of the same open
 questions is how one of them gets answered twice and the other not at all.
 
-Four sit outside that document.
+Seven sit outside that document.
 
 - **Whether `feat/**` stays in the push trigger of `.github/workflows/ci.yml`.**
   Removing it roughly halves the minutes a branch costs, and rewrites five
@@ -598,6 +598,28 @@ Four sit outside that document.
   supersedes: on the shipping model the same three shapes are 447 against 623,
   285 against 470, and 89 against 202, which is 26.5 to 59.2 percent rather than
   28 to 54. The shape of the finding did not move and the euros did.
+
+- **Whether the 2029 sentence in CLAUDE.md is corrected.** It says "een
+  tijdsafhankelijk nettarief bij met vier prijsniveaus en vijf tijdsblokken".
+  Read from the source on 2026-08-26, the proposal (Netbeheer Nederland
+  BR-2026-2242, 1 May 2026, annex 5, fifth and sixth members) fixes **five**
+  weighting factors in the code text, 0,0 / 0,3 / 0,5 / 0,7 / 1,0, and says four
+  is a maximum per day: "maximaal vier tariefhoogten gedurende een dag".
+  Measured from the table: a summer day uses four distinct levels and a winter
+  day uses three. Five blocks per day holds only if the winter 23:00 to 01:00
+  block is read as one block wrapping midnight, which is why a scan for
+  contiguous runs finds six.
+
+  Not a hole in the sentence's intent. It describes the regime accurately enough
+  for a document that sets direction, and the module it points at does not
+  exist. It matters because a model built literally on four levels cannot
+  express the year, and because the sentence states 1 January 2029 as fact where
+  the document states it as a request carrying two written escape hatches to
+  1 January 2030, one of which falls due on 1 December 2026.
+
+  The full reading, with the block tables, the offtake-only finding and eight
+  named gaps, is `docs/analysis/2026-08-24-tou-tariff-2029.md`. Editing CLAUDE.md
+  is not mine.
 
 - **The order the two open pull requests are merged in.** #23 carries this
   branch into `dev` and #22 carries `dev` into `main`, so #23 goes first and #22
