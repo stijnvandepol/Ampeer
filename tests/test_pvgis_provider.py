@@ -16,6 +16,7 @@ from ampeer_sim.production.fallback_yield import (
     ORIENTATION_FACTORS,
     TABLE_LONGITUDE,
 )
+from ampeer_sim.production.model import production_series
 from ampeer_sim.production.pvgis import (
     FALLBACK_DAYLIGHT_HOURS,
     FALLBACK_SOLAR_NOON_HOUR,
@@ -25,8 +26,13 @@ from ampeer_sim.production.pvgis import (
     ResilientProductionProvider,
     postcode4_to_latlon,
 )
-from ampeer_sim.timebase import HOURS_PER_DAY
-from ampeer_sim.types import ProductionSource
+from ampeer_sim.timebase import (
+    HOURS_PER_DAY,
+    MINUTES_PER_QUARTER,
+    QUARTERS_PER_DAY,
+    YearGrid,
+)
+from ampeer_sim.types import ProductionSource, PVSystem
 
 
 class _FakeResponse:
@@ -172,6 +178,37 @@ PVGIS_HOUR_OF_DAY_WINTER_TIME = (
     0.0710, 0.0402, 0.0144, 0.0033, 0.0003, 0.0000, 0.0000, 0.0000,
 )  # fmt: skip
 
+#: Ceilings on the summed absolute difference from the table above, over its 24
+#: hours, with both sides normalised. One rule and not two round numbers: each
+#: is the distance measured on 2026-08-27 rounded up to the next hundredth. They
+#: may be tightened when a model gets closer and never widened to make a change
+#: pass, which is the rule the calibration file already states for its own two.
+#:
+#: Until 2026-08-27 there were two ceilings on this quantity, a factor of two
+#: apart, and neither could be defended against the other: 0.05 in
+#: tests/test_calibration.py on the PVGIS path, measuring 0.0171, and 0.10 here
+#: on the offline shape, measuring 0.0759. Only the first was ever fitted to
+#: anything, and the second sat a third above its own measurement.
+#:
+#: One number could not replace both, and finding that out is what settled it.
+#: At 0.10 the calibration check stops refusing a drift of a quarter of an hour,
+#: which measures 0.0680 and is the whole reason that ceiling exists. At 0.05
+#: the offline shape is red at 0.0759, and it should not be: it is a half sine
+#: standing in for a sky model when PVGIS is unreachable and it has never
+#: claimed to reproduce that call. So they were never one ceiling on one
+#: quantity; they were one distance measured on two subjects, and the fix is to
+#: name the subject in each and derive both from the same rule.
+#:
+#: The PVGIS-path number is now 0.02 rather than 0.05, which is that rule
+#: applied. It costs nothing in stability: that path is measured on a canned
+#: response, so the figure can only move when the code does.
+#:
+#: What the tightening on this side buys, shown rather than argued: a fallback
+#: day shortened from twelve hours to eleven measures 0.0898, which 0.08 refuses
+#: and the 0.10 that stood here waved through.
+MAX_HOUR_OF_DAY_GAP = 0.02
+MAX_FALLBACK_DAY_SHAPE_GAP = 0.08
+
 
 def _hour_of_day(shape: list[float]) -> list[float]:
     return [value / sum(shape) for value in shape]
@@ -205,11 +242,16 @@ def test_the_shape_moved_towards_pvgis_and_not_only_towards_the_country() -> Non
     So the widening would have moved the shape away from what it stands in for
     while every test in the suite went greener. This asserts the direction, not
     the figure, because the figure moves with the table it is normalised from.
+
+    The ceiling was 0.10 until 2026-08-27, which was a round number above the
+    measurement rather than a figure fitted to it. It is now the same rule the
+    PVGIS path's ceiling follows, and the argument for having two numbers under
+    one rule is above MAX_FALLBACK_DAY_SHAPE_GAP.
     """
     shipped = _distance(FallbackProvider._day_shape(100.0))
-    assert shipped < 0.10, (
-        f"the fallback's day is {shipped:.4f} away from PVGIS's own, and it was 0.0759 when "
-        "this was measured"
+    assert shipped <= MAX_FALLBACK_DAY_SHAPE_GAP, (
+        f"the fallback's day is {shipped:.4f} away from PVGIS's own, over "
+        f"{MAX_FALLBACK_DAY_SHAPE_GAP}, and it was 0.0759 when this was measured"
     )
 
     peak = max(range(HOURS_PER_DAY), key=lambda hour: PVGIS_HOUR_OF_DAY_WINTER_TIME[hour])
@@ -321,6 +363,128 @@ def _shaped_payload(hour_of_day: tuple[float, ...], days: int = 365) -> dict[str
     }
 
 
+#: Minutes past the hour that PVGIS stamps a row with. Read off a live SARAH3
+#: response on 2026-08-27: 8760 rows for 2023 at Uden, the first stamped
+#: 20230101:0010 and the last 20231231:2310. The payloads below carry the same
+#: stamps and the tests read them rather than assuming them.
+PVGIS_STAMP_MINUTES_PAST_HOUR = 10
+
+#: Winter time is UTC plus one hour, all year, because the grid is continuous
+#: winter time by construction. Written here as the fact about the country that
+#: it is, so that the placement tests below do not check the engine against a
+#: constant the engine also supplies.
+WINTER_TIME_MINUS_UTC_HOURS = 1.0
+
+PLACEMENT_YEAR = 2023
+PLACEMENT_SYSTEM = PVSystem(peak_power_wp=3_500, azimuth_deg=0.0, tilt_deg=35.0)
+
+
+def _sun_above_horizon(year: int, latitude: float, longitude: float) -> tuple[float, ...]:
+    """A year of the sine of the sun's elevation, hourly, sampled where PVGIS samples.
+
+    The independent source these placement tests are built from. Until
+    2026-08-27 the payload was ``np.roll(PVGIS_HOUR_OF_DAY_WINTER_TIME, -1)``,
+    which is the table the same test then asserted against, put through the
+    inverse of the rotation under test. That passes by construction for any
+    provider whose rotation matches the test's roll, and it cannot say whether
+    either of them is right.
+
+    This owes nothing to the engine or to any table in this file. Cooper's
+    declination and the hour angle are textbook solar geometry, the location
+    comes from the postcode the call is made for, and the result is symmetric
+    about solar noon by construction, which is the property that makes it
+    usable as a reference: it is a shape whose own centre is known without
+    measuring it.
+
+    The equation of time is left out, exactly as FALLBACK_SOLAR_NOON_HOUR
+    leaves it out, and for the same reason: it moves solar noon by at most a
+    quarter of an hour either way over the year and averages to nothing. The
+    tests below compare against this series' own weighted centre rather than
+    against 12:00, so anything it does get wrong is subtracted out.
+    """
+    days = 366 if calendar.isleap(year) else 365
+    phi = math.radians(latitude)
+    values: list[float] = []
+    for day in range(days):
+        declination = math.radians(23.45) * math.sin(2.0 * math.pi * (284 + day + 1) / 365.0)
+        for hour in range(HOURS_PER_DAY):
+            stamped_utc = hour + PVGIS_STAMP_MINUTES_PAST_HOUR / 60.0
+            hour_angle = math.radians(15.0 * (stamped_utc + longitude / 15.0 - 12.0))
+            elevation = math.sin(phi) * math.sin(declination) + math.cos(phi) * math.cos(
+                declination
+            ) * math.cos(hour_angle)
+            values.append(max(0.0, elevation) * 1_000.0)
+    return tuple(values)
+
+
+def _stamped_payload(year: int, hourly: tuple[float, ...]) -> dict[str, Any]:
+    """``hourly`` written into the rows and stamps a PVGIS response carries."""
+    start = date(year, 1, 1)
+    return {
+        "outputs": {
+            "hourly": [
+                {
+                    "time": (
+                        f"{start + timedelta(days=index // HOURS_PER_DAY):%Y%m%d}:"
+                        f"{index % HOURS_PER_DAY:02d}{PVGIS_STAMP_MINUTES_PAST_HOUR:02d}"
+                    ),
+                    "P": watts,
+                    "G(i)": watts,
+                    "T2m": 10.0,
+                }
+                for index, watts in enumerate(hourly)
+            ]
+        }
+    }
+
+
+def _hour_of_day_from_stamps(payload: dict[str, Any]) -> float:
+    """Where the payload's own timestamps put its energy, in UTC hours.
+
+    Parsed out of the rows, not taken from whatever built them. That is the
+    whole point: the reference for where a series belongs is what the response
+    says about itself.
+    """
+    weighted = 0.0
+    total = 0.0
+    for row in payload["outputs"]["hourly"]:
+        clock = row["time"].split(":")[1]
+        stamped = int(clock[:2]) + int(clock[2:]) / 60.0
+        weighted += row["P"] * stamped
+        total += row["P"]
+    return weighted / total
+
+
+def _grid_anchor_minutes(grid: YearGrid) -> float:
+    """How far past the start of its hour the grid places an hourly value.
+
+    Measured rather than restated. A lone hourly spike goes through
+    ``hourly_to_quarters`` and the centre of what comes out is the anchor, so
+    this reads the convention out of the code that applies it instead of
+    repeating the 1.5 that appears in its body.
+    """
+    hourly = np.zeros(grid.hours)
+    hourly[11] = 1.0
+    quarters = grid.hourly_to_quarters(hourly)
+    positions = np.arange(quarters.size, dtype=float)
+    centre = float((positions * quarters).sum() / quarters.sum())
+    return (centre + 0.5) * MINUTES_PER_QUARTER - 11 * 60.0
+
+
+def _modelled_hour_of_day(payload: dict[str, Any], grid: YearGrid) -> float:
+    """Where the whole path puts the payload's energy, in winter time hours."""
+    session = _FakeSession(payload=payload)
+    hourly, _, _ = PvgisProvider(
+        weather_year=PLACEMENT_YEAR,
+        session=session,  # type: ignore[arg-type]
+    ).hourly_series("5401", 0.0, 35.0)
+    quarters = production_series(hourly, PLACEMENT_SYSTEM, grid, weather_year=PLACEMENT_YEAR)
+    minute_of_day = (
+        np.arange(grid.quarters) % QUARTERS_PER_DAY
+    ) * MINUTES_PER_QUARTER + MINUTES_PER_QUARTER / 2.0
+    return float((quarters * (minute_of_day / 60.0)).sum() / quarters.sum())
+
+
 def test_a_pvgis_series_arrives_on_the_grids_time_base_and_not_on_utc() -> None:
     """The defect this file's fallback section already described, on the live path.
 
@@ -329,32 +493,79 @@ def test_a_pvgis_series_arrives_on_the_grids_time_base_and_not_on_utc() -> None:
     them, so hour i of the response was placed at hour i of the grid and every
     kilowatt hour a visitor was shown sat an hour early.
 
-    Asserted against PVGIS's own hour of the day rather than against the
-    constant. The payload below is the measured nine year distribution above,
-    written back into the UTC stamps PVGIS would have delivered it in, so what
-    this pins is that the shape comes back out where PVGIS put it. A provider
-    that stopped converting returns the same 24 numbers rotated one place, and
-    the peak lands at 11:00 where solar noon at this longitude is 12:38.
+    Built from solar geometry and read against the payload's own stamps, so
+    neither side of the comparison comes from the engine. The quantity is the
+    hour of the day the modelled year's energy sits at, which is what a
+    displacement moves and what nothing else in the path touches.
     """
-    as_pvgis_sends_it = tuple(np.roll(np.array(PVGIS_HOUR_OF_DAY_WINTER_TIME), -1))
-    session = _FakeSession(payload=_shaped_payload(as_pvgis_sends_it))
-    production, _, _ = _provider(session).hourly_series("5401", 0.0, 35.0)
-
-    by_hour = production.reshape(365, HOURS_PER_DAY).sum(axis=0)
-    shares = by_hour / by_hour.sum()
-    # Both sides normalised, because the 24 shares above are rounded to four
-    # places and sum to 0.9999 rather than to 1. Comparing a distribution
-    # against the raw table would fail on that rounding at 1.4e-5 and say
-    # nothing about which hour anything landed on.
-    measured = np.array(PVGIS_HOUR_OF_DAY_WINTER_TIME)
-    assert shares == pytest.approx(measured / measured.sum(), abs=1e-9), (
-        "the provider returns PVGIS's day at hours PVGIS did not put it at"
+    grid = YearGrid.for_year(PLACEMENT_YEAR)
+    latitude, longitude = postcode4_to_latlon("5401")
+    payload = _stamped_payload(
+        PLACEMENT_YEAR, _sun_above_horizon(PLACEMENT_YEAR, latitude, longitude)
     )
 
-    peak = int(np.argmax(shares))
-    assert peak == int(FALLBACK_SOLAR_NOON_HOUR), (
-        f"the fullest hour of the returned year is {peak}:00 and solar noon at this "
-        f"longitude is {FALLBACK_SOLAR_NOON_HOUR:.2f} in winter time"
+    stamped = _hour_of_day_from_stamps(payload)
+    modelled = _modelled_hour_of_day(payload, grid)
+    # To the hour, and the tolerance says so: it admits the twenty minute stamp
+    # residual the test below owns and refuses anything nearing half an hour.
+    assert modelled - stamped == pytest.approx(WINTER_TIME_MINUS_UTC_HOURS, abs=0.45), (
+        f"the payload's stamps put its energy at {stamped:.4f} UTC and the model puts it at "
+        f"{modelled:.4f} on a clock that is UTC plus {WINTER_TIME_MINUS_UTC_HOURS:.0f}, which "
+        f"is {(modelled - stamped - WINTER_TIME_MINUS_UTC_HOURS) * 60:+.1f} minutes out"
+    )
+
+    solar_noon_winter_time = 12.0 + WINTER_TIME_MINUS_UTC_HOURS - longitude / 15.0
+    assert stamped + WINTER_TIME_MINUS_UTC_HOURS == pytest.approx(
+        solar_noon_winter_time, abs=0.02
+    ), "the reference series is not centred on solar noon, so it cannot say where anything belongs"
+
+
+def test_the_pvgis_series_is_twenty_minutes_late_and_no_whole_rotation_helps() -> None:
+    """The residual the rotation cannot reach, pinned so it cannot become something else.
+
+    PVGIS stamps ten past the hour and the grid anchors an hourly value half
+    past, so a PVGIS series sits twenty minutes late whatever whole rotation is
+    applied to it: rotating by n leaves (n - 1) * 60 + 20 minutes, and n = 1 is
+    the smallest of those. What it costs, why it is stated here rather than
+    resampled away, and where the repair belongs are all above
+    UTC_TO_WINTER_TIME_HOURS.
+
+    This is the residual measured end to end, and it fails in both directions.
+    It goes red if somebody moves the series onto its stamps without saying so,
+    which is the change that should be made and is not this file's to make; and
+    it goes red if the displacement grows, which is the change nobody wants.
+    Neither number is written down twice: the stamp is parsed out of the
+    payload, the anchor is measured through hourly_to_quarters, and the lag is
+    the difference.
+    """
+    grid = YearGrid.for_year(PLACEMENT_YEAR)
+    latitude, longitude = postcode4_to_latlon("5401")
+    payload = _stamped_payload(
+        PLACEMENT_YEAR, _sun_above_horizon(PLACEMENT_YEAR, latitude, longitude)
+    )
+
+    anchor = _grid_anchor_minutes(grid)
+    assert anchor == pytest.approx(30.0, abs=1e-9), (
+        f"the grid anchors an hourly value {anchor:.2f} minutes past its hour, and this file's "
+        "account of the residual is written for the half past that hourly_to_quarters documents"
+    )
+
+    expected_lag = anchor - PVGIS_STAMP_MINUTES_PAST_HOUR
+    stamped = _hour_of_day_from_stamps(payload)
+    modelled = _modelled_hour_of_day(payload, grid)
+    lag = (modelled - stamped - WINTER_TIME_MINUS_UTC_HOURS) * 60.0
+    assert lag == pytest.approx(expected_lag, abs=1.0), (
+        f"the modelled year sits {lag:+.1f} minutes after where PVGIS stamped it, and the "
+        f"stamp at {PVGIS_STAMP_MINUTES_PAST_HOUR} past against an anchor at {anchor:.0f} past "
+        f"accounts for {expected_lag:+.1f}. Either the placement moved, which is the repair "
+        "described above UTC_TO_WINTER_TIME_HOURS and wants this test rewritten, or something "
+        "else has started moving the series in time"
+    )
+
+    best = min(abs((rotation - 1) * 60.0 + expected_lag) for rotation in range(-2, 3))
+    assert abs(expected_lag) == pytest.approx(best, abs=1e-9), (
+        f"a whole rotation can now leave less than {abs(expected_lag):.0f} minutes, so "
+        "UTC_TO_WINTER_TIME_HOURS is no longer the best available placement"
     )
 
 
@@ -406,6 +617,75 @@ def test_the_conversion_neither_loses_energy_nor_makes_any() -> None:
     assert production[0] == pytest.approx(shape[-1]), (
         "the grid's first hour does not hold the last hour of the response, so the wrap "
         "is not the one described above UTC_TO_WINTER_TIME_HOURS"
+    )
+
+
+#: Annual yield of an east facing and a west facing plane at 35 degrees, kWh per
+#: kWp, from the same PVGIS SARAH3 call over 2015 through 2023 that
+#: PVGIS_HOUR_OF_DAY_WINTER_TIME and ORIENTATION_FACTORS come from. The two
+#: figures are in the comment above ORIENTATION_FACTORS with their provenance;
+#: the table itself carries their mean, 0.79, because it is symmetric by
+#: construction, so they cannot be read back out of the code.
+PVGIS_EAST_KWH_PER_KWP = 979.35
+PVGIS_WEST_KWH_PER_KWP = 948.91
+
+
+def test_the_two_pvgis_tables_agree_about_which_half_of_the_day_is_sunnier() -> None:
+    """What decides whether the ten past is real, and it is not a preference.
+
+    An hourly row can be read two ways. If the stamp names where the value
+    sits, PVGIS's day is centred twenty minutes before the grid puts it. If the
+    value is instead the mean of the whole hour that starts on the hour, it is
+    already in the right place and there is no residual at all. The whole
+    account above UTC_TO_WINTER_TIME_HOURS rests on the first reading, so it is
+    worth a check that does not come from the same sentence.
+
+    The check is that one call cannot say two things. The nine year distribution
+    above and the orientation yields below it were read from the same PVGIS
+    call, and an east plane out-yielding a west plane by 3.2 percent means the
+    morning half of the day carries more energy than the afternoon half at that
+    location over those years.
+
+    Measured on 2026-08-27, splitting the table at solar noon:
+
+        the stamp names where the value sits   morning / afternoon  1.065
+        the value is the mean of its hour      morning / afternoon  0.889
+
+    The second reading says the afternoon is eleven percent the sunnier half
+    while the yield table from the same call says the morning is three percent
+    the sunnier. Only the first reading is consistent with it, and it is the
+    smaller correction of the two, so this is not a case of picking the answer
+    that flatters anything.
+    """
+    assert PVGIS_EAST_KWH_PER_KWP > PVGIS_WEST_KWH_PER_KWP, (
+        "the yield table now says the afternoon is the sunnier half, so the reading of the "
+        "hourly stamp that this file rests on has lost its corroboration"
+    )
+
+    solar_noon = FALLBACK_SOLAR_NOON_HOUR
+    shares = PVGIS_HOUR_OF_DAY_WINTER_TIME
+
+    def morning_ratio(offset_hours: float) -> float:
+        """Energy before solar noon over energy after it, for one reading."""
+        before = 0.0
+        for hour, share in enumerate(shares):
+            low = hour + offset_hours - 0.5
+            high = low + 1.0
+            if high <= solar_noon:
+                before += share
+            elif low < solar_noon:
+                before += share * (solar_noon - low)
+        return before / (sum(shares) - before)
+
+    stamped = morning_ratio(PVGIS_STAMP_MINUTES_PAST_HOUR / 60.0)
+    as_hour_mean = morning_ratio(0.5)
+    assert stamped > 1.0, (
+        f"read at the stamp, PVGIS's day puts {stamped:.3f} as much energy before solar noon "
+        f"as after, and the same call's east and west yields say more than one"
+    )
+    assert as_hour_mean < 1.0 < stamped, (
+        f"the two readings of the hourly row no longer disagree ({as_hour_mean:.3f} against "
+        f"{stamped:.3f}), so this test has stopped telling them apart"
     )
 
 

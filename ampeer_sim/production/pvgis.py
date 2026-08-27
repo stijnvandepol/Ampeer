@@ -16,6 +16,13 @@ out of the UTC that PVGIS stamps its rows with. Everything after a provider is
 index against index, so a series that arrives on the wrong time base is never
 noticed again, and the price of getting it wrong is in
 ``UTC_TO_WINTER_TIME_HOURS`` below.
+
+One provider keeps that contract to the hour and not to the minute, and the
+gap is stated rather than left to be found. PVGIS stamps its rows ten minutes
+past the hour and the grid anchors an hourly value half past, so the PVGIS
+series sits twenty minutes late however it is rotated. What that is worth, why
+it is not repaired here, and where the repair belongs are all in the second
+half of the comment above ``UTC_TO_WINTER_TIME_HOURS``.
 """
 
 from __future__ import annotations
@@ -84,6 +91,62 @@ REFERENCE_LOSS_PERCENT = 0.0
 #: whatever the weather did. The temperature it carries is 8.45 C against the
 #: 15.76 C of 1 January 00:00 UTC, one hour in 8760, and the only consumer of
 #: the temperature series spreads a year of heat demand across all of them.
+#:
+#: What a whole hour cannot reach, stated here rather than left to be found.
+#: PVGIS stamps a row ten minutes past the hour, which the response says itself:
+#: a live call on 2026-08-27 returned 8760 rows for 2023, the first stamped
+#: 20230101:0010 and the last 20231231:2310. ``YearGrid.hourly_to_quarters``
+#: anchors hourly value k half past grid hour k, because an hourly value is read
+#: there as the mean of its hour. So the value PVGIS puts at k:10 UTC, which is
+#: (k+1):10 in winter time, is placed at (k+1):30 and arrives twenty minutes
+#: late. No whole rotation does better: rotating by n leaves (n - 1) * 60 + 20
+#: minutes, so n = 1 is the smallest displacement available and n = 0 would be
+#: forty minutes early.
+#:
+#: Measured on 2026-08-27 against a live PVGIS SARAH3 call for Uden at 51.66 and
+#: 5.61 east, 2023, one kWp, zero loss, 35 degrees facing south, 1194.66 kWh per
+#: kWp, carried through the reference household of tests/test_calibration.py:
+#: 3500 kWh and 3.5 kWp in postcode 5401, profile year 2025, flat consumption.
+#: The last column is the energy centroid of the modelled year over the hour of
+#: the day, in winter time:
+#:
+#:     hour i at hour i, before 0.3.0   28.16%   2583   2487   665.21   11.8885
+#:     one whole hour, shipping         29.13%   2548   2452   656.20   12.8885
+#:     on PVGIS's own stamps            28.71%   2564   2468   660.12   12.5551
+#:
+#: So the residual is worth 0.42 points of self consumption and 3.92 euro, and
+#: it understates the shock where the hour above overstated it. Twenty minutes
+#: is not negligible on a south facing array, because the crossover where
+#: production overtakes a household's demand is steep and moving the day across
+#: it moves more than a third of a percent of the year.
+#:
+#: It is a stated offset and not a smaller rotation, and that was measured
+#: rather than preferred. Moving a series by a fraction of an index means
+#: interpolating between hourly values, and the model then interpolates a second
+#: time on its way to quarters. Measured the same day on the same household,
+#: against the 660.12 euro correct placement gives:
+#:
+#:     shipping, twenty minutes late           29.13%   656.20   off by 3.92
+#:     resampled linearly onto the half past   29.73%   650.71   off by 9.41
+#:     resampled with a Catmull-Rom kernel     28.93%   658.12   off by 1.92
+#:
+#: The linear resample lands two and a half times further from the truth than
+#: the defect it removes, because a second low pass over an hourly series
+#: flattens the midday peak and a flattened peak is self consumed. The cubic one
+#: keeps the peak, still misses by half the defect, and puts 904 of 8760 hours
+#: below zero, down to -32.2 W per kWp, which is not a quantity of sunlight.
+#:
+#: Where it belongs is the anchor: one interpolation, from PVGIS's own stamps
+#: straight onto the quarter grid, which is the 28.71 percent row above and
+#: costs nothing in smoothing because it replaces the interpolation the model
+#: already performs rather than adding one. That is a parameter on
+#: ``YearGrid.hourly_to_quarters`` and on its two call sites,
+#: ampeer_sim/production/model.py and ampeer_sim/profiles/assets.py, with
+#: tests/test_production_model.py pinning the anchor as it stands. It also asks
+#: what the offline shape's anchor is, since that one is built as hour means and
+#: is right at half past. None of that is a change this file can make alone,
+#: which is why the twenty minutes is written down with its price instead of
+#: being repaired badly.
 UTC_TO_WINTER_TIME_HOURS = 1
 
 #: Solar noon at the table's location, on the continuous winter time the grid
@@ -264,6 +327,12 @@ class PvgisProvider:
     The series comes back on the grid's continuous winter time, not on the UTC
     PVGIS answers in. The conversion is one rotation and its whole argument,
     including what the wrapped hour costs, is above UTC_TO_WINTER_TIME_HOURS.
+
+    It is right to the hour and twenty minutes late to the minute, because
+    PVGIS stamps ten past and the grid anchors half past. That residual is
+    measured, priced and refused a bad repair in the second half of the same
+    comment; nothing here hides it, and tests/test_pvgis_provider.py pins it at
+    exactly twenty minutes so it cannot quietly become something else.
     """
 
     def __init__(

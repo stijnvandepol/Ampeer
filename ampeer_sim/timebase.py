@@ -127,8 +127,33 @@ class YearGrid:
         """Interpolate an hourly series onto the quarter grid.
 
         The hourly value is treated as the average over its hour, so its
-        midpoint sits at quarter position ``hour * 4 + 1.5``. Values outside the
-        first and last midpoint are clamped rather than extrapolated.
+        midpoint sits at quarter position ``hour * 4 + 1.5``, which is half past
+        that hour. Values outside the first and last midpoint are clamped rather
+        than extrapolated.
+
+        That anchor is a convention about what an hourly value means and not a
+        property of the grid, and one series this model consumes does not follow
+        it. PVGIS stamps its rows ten minutes past the hour, so a PVGIS series
+        anchored here sits twenty minutes late however the caller rotates it: a
+        whole rotation cannot move a series by a third of an hour. Measured on
+        2026-08-27 on the reference household of tests/test_calibration.py, that
+        is 0.42 points of self consumption and 3.92 euro, and the argument with
+        the figures is above ``UTC_TO_WINTER_TIME_HOURS`` in
+        ``ampeer_sim.production.pvgis``.
+
+        The anchor is not a parameter yet, and that is a statement about scope
+        rather than about difficulty. It would be one argument here with the
+        default this docstring describes, passed by the two callers,
+        ``ampeer_sim.production.model`` and ``ampeer_sim.profiles.assets``, from
+        something the provider says about its own stamps. Both call sites and
+        the test that pins the present anchor,
+        ``tests/test_production_model.py``, would move with it.
+
+        A caller that rotates a series to compensate is not doing the same
+        thing and should not be told it is. Rotating fractionally means
+        interpolating twice, once into the rotation and once here, and the
+        second low pass costs more than the displacement it removes: 9.41 euro
+        on that household against the 3.92 it was correcting.
         """
         if hourly.shape != (self.hours,):
             raise ValueError(f"expected {self.hours} hourly values, got {hourly.shape}")

@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 import ampeer_advice.facts
-from ampeer_sim.timebase import YearGrid
+from ampeer_sim.timebase import MINUTES_PER_QUARTER, YearGrid
 
 
 def test_non_leap_year_has_35040_quarters() -> None:
@@ -55,6 +55,20 @@ def test_hourly_to_quarters_is_monotone_for_a_monotone_input() -> None:
 
 
 def test_hourly_to_quarters_peaks_around_the_hour_midpoint() -> None:
+    """Where an hourly value lands, which is a convention and not a given.
+
+    The anchor is half past, because an hourly value is read here as the mean of
+    its hour. That is right for every series built as hour means, which is what
+    the offline production shape is, and it is not right for PVGIS, which stamps
+    its rows ten minutes past the hour. The engine consequently places a PVGIS
+    series twenty minutes late, and the measurement of what that costs is above
+    ``UTC_TO_WINTER_TIME_HOURS`` in ``ampeer_sim.production.pvgis``.
+
+    So the anchor is asserted in minutes as well as in quarter positions, and
+    the second half of this is what tests/test_pvgis_provider.py measures the
+    twenty minutes against. Moving it is a change to where every hourly series
+    in the model sits, and it should cost a red test here first.
+    """
     grid = YearGrid.for_year(2025)
     hourly = np.zeros(grid.hours)
     hourly[11] = 4.0
@@ -63,6 +77,15 @@ def test_hourly_to_quarters_peaks_around_the_hour_midpoint() -> None:
     assert quarters[45] == pytest.approx(3.5)
     assert quarters[46] == pytest.approx(3.5)
     assert int(quarters.argmax()) in (45, 46)
+
+    positions = np.arange(quarters.size, dtype=float)
+    centre = float((positions * quarters).sum() / quarters.sum())
+    anchor_minutes = (centre + 0.5) * MINUTES_PER_QUARTER - 11 * 60.0
+    assert anchor_minutes == pytest.approx(30.0, abs=1e-9), (
+        f"an hourly value is now anchored {anchor_minutes:.2f} minutes past its hour rather "
+        "than half past, so every hourly series in the model has moved in time and the "
+        "twenty minute residual recorded for PVGIS is a different number"
+    )
 
 
 def test_hourly_to_quarters_rejects_a_wrong_length_series() -> None:
