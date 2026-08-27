@@ -418,10 +418,11 @@ The ceiling comes down because 0.04 refuses the shape that was here, whose
 consumption profile rather than the flat one the committed test composes, that
 shape scored 0.0518 and was already over.
 
-This entry and the one above it are why `ENGINE_VERSION` is 0.2.0. Decision 8
-says the version moves when the numbers do, and both moved them: every golden
-household's self consumption rate changed, five up and one down, and
-`tests/golden/README.md` separates the two causes household by household.
+This entry and the one above it are why `ENGINE_VERSION` moved to 0.2.0.
+Decision 8 says the version moves when the numbers do, and both moved them:
+every golden household's self consumption rate changed, five up and one down,
+and `tests/golden/README.md` separates the two causes household by household.
+It has since moved again, to 0.3.0, for the reason in decision 19.
 
 **Lives in:** `FALLBACK_SOLAR_NOON_HOUR` and `FALLBACK_DAYLIGHT_HOURS` in
 `ampeer_sim/production/pvgis.py`, with both measurements above them;
@@ -462,13 +463,144 @@ Dutch scan skips any file named nl.py and carried this one file as its named
 exception, so the rule was agreed for it and enforced nowhere. That exception is
 gone and `DUTCH_OUTSIDE_NL` in `tests/test_advise.py` is now empty.
 
+Updated on 2026-08-27, and every correction runs the same way: this entry
+claimed a property of the package and had checked one file.
+
+The move was ten messages and not nine. `backend/advice/parsers.py` held "de
+JSON is te diep genest" throughout, and it is now
+`VALIDATION_MESSAGES["TOO_DEEPLY_NESTED"]` with the parser naming the id. It was
+missed because the paragraph above is true of `serializers.py` and was read as
+true of `backend/advice`, which is the same substitution twice: the scan that
+was supposed to catch it read one named path.
+
+So the boundary is enforced by a walk of `backend/advice` as of 2026-08-27,
+twenty modules rather than one, and a third module joins by importing the
+language layer rather than by being added to a list. The categorical allowlist
+scan deliberately stayed on `serializers.py`: widened package-wide it would have
+to admit forty-five JSON keys, some SQL fragments and the English constraint
+messages, and an allowlist wide enough for those is wide enough for a Dutch
+sentence.
+
+And the empty `DUTCH_OUTSIDE_NL` was empty for two reasons, only one of which
+was the good one. Run over the whole package before the message moved, the
+widened scan still reported nothing, because its word list carried three of the
+four Dutch articles and not the fourth. "de" and "te" were added that day, and
+measured before adding they cost no false positive anywhere in the four scanned
+trees. The honest price is written where the list is: `\b` treats a hyphen as a
+word boundary, so an English "de-rate" written in those trees later is a false
+positive. That the widening alone would not have caught this is the part worth
+carrying forward, because "we widened the scan" is exactly what the previous
+round reported.
+
+The verbatim count in the paragraph above is also wrong and is left standing as
+written, with the counted figures here: on 2026-08-27 `frontend/tests` asserts
+two distinct messages and `tests/test_advice_api.py` asserts two, one of which
+is the same message counted in both. The old sentence double counted.
+
 **Lives in:** `backend/advice/nl.py`, in `VALIDATION_MESSAGES`, with the two
-scans over the serializer source in `tests/test_advice_serializers.py`.
+scans over the serializer source in `tests/test_advice_serializers.py`, whose
+`_advice_modules` is the walk that replaced the named path.
 
 **To reverse:** type the strings back at their call sites, delete the module
 and the scans, and put the exception back in `tests/test_advise.py`. The
 messages themselves survive either way, which was the condition for making the
 move at all.
+
+### 19. The PVGIS series is converted to winter time in the provider, not in the model
+
+**Decided:** `PvgisProvider.hourly_series` rotates both the production and the
+temperature column forward by `UTC_TO_WINTER_TIME_HOURS`, which is 1.
+`production_series` is untouched and still places hour i at hour i.
+`ENGINE_VERSION` moves to 0.3.0.
+
+**Because:** PVGIS timestamps its hourly rows in UTC and `YearGrid` runs in
+continuous winter time, which is UTC plus one, and nothing converted between
+them, so the path a visitor normally gets placed every kilowatt hour a full hour
+early. Measured on 2026-08-27 on the reference household of
+`tests/test_calibration.py`, 3500 kWh and 3.5 kWp facing south at 35 degrees in
+postcode 5401, weather year 2023: self consumption 28.16 percent against 29.13,
+export 2583 kWh against 2548, offtake 2487 against 2452, and 665.21 euro against
+656.20 for the end of net metering under the 2027 tariffs. Nine euro, and in the
+direction that flatters storage, which is the bias this product exists against.
+
+The provider and not the model, for three reasons that all point the same way.
+"PVGIS stamps in UTC" is a fact about PVGIS and this is the module that knows
+about PVGIS. `production_series` receives a bare array of watts per kWp with no
+idea which source produced it, so a shift there would have to be told, and being
+told means every call site carrying an answer that belongs to one provider. And
+it would move the offline shape too, which decision 17 centred on 12:38 winter
+time only the day before, putting it 38 minutes past solar noon instead of on
+it. So the contract is that every provider answers on the grid's time base, and
+only one of them has converting to do.
+
+The wrap was chosen over a fill and the reason is measurable. A rotation drops
+nothing and invents nothing, so PVGIS's annual total survives to the last digit;
+what it does is put 31 December 23:00 UTC, which is midnight winter time, at the
+grid's 1 January 00:00, strictly the following year's hour rather than this
+one's. Measured on the same call: PVGIS puts 0.0 W per kWp there and 0.0 W at
+the hour it displaces, because the sun is below the horizon at midwinter
+midnight whatever the weather did.
+
+None of the six golden households moved, and that is the finding rather than an
+omission: they run on `FallbackProvider` so the suite needs no network, and the
+fallback was already in winter time. That is exactly why the defect survived a
+year, and it is why the version bump below arrives with an identical golden row
+rather than a new one. `tests/test_calibration.py` now runs PVGIS's own measured
+hour of the day back through the provider offline, so the primary path has a
+check at last.
+
+What did move outside the engine, all of it re-derived on 2026-08-27 rather than
+assumed: `frontend/tests/fixtures/advice-response.json` was regenerated and one
+line changed in it, the version; chapters 6 and 7 of `docs/methodologie.md`; and
+nothing at all in `docs/analysis/2026-08-24-double-counting.md`, whose euro
+columns were recomputed on both sides of this change and came back identical to
+three decimals because they rest on `FallbackProvider`.
+
+**Lives in:** `UTC_TO_WINTER_TIME_HOURS` in `ampeer_sim/production/pvgis.py`,
+with the measurement above it; four tests in `tests/test_pvgis_provider.py`;
+`MAX_HOUR_OF_DAY_GAP` and two placement tests in `tests/test_calibration.py`;
+and `test_the_model_places_hour_i_at_hour_i_and_moves_nothing_in_time` in
+`tests/test_production_model.py`, which pins the half that stayed put.
+
+**To reverse:** set the constant to 0. Six tests go red and two of them print
+the distance from PVGIS's own day, 0.2698 against a ceiling of 0.05, and the
+hour the year peaks in, 11:00 against a solar noon of 12:38.
+
+### 20. Every module level constant in ampeer_sim is pinned to the engine version
+
+**Decided:** `tests/test_golden.py` gains
+`test_the_module_constants_are_pinned_to_the_engine_version`, which parses each
+`ampeer_sim` module's own source for module level upper case assignments and
+pins a digest of each value. It carries one row, 0.3.0.
+
+**Because:** a review on 2026-08-26 found decision 8's enforcement reads
+dataclass field defaults only, and the values that actually decide a household's
+answer mostly are not dataclass defaults. Measured on 2026-08-27: 44 module
+level constants were unpinned, among them `ORIENTATION_FACTORS`,
+`MONTHLY_MEAN_PRODUCTION_W_PER_KWP`, `FALLBACK_SOLAR_NOON_HOUR`,
+`DEGRADATION_PER_YEAR` and `_POSTCODE_CENTROIDS`. The size of the hole is
+visible in the pin itself: three engine versions now carry an identical
+dataclass row while the numbers underneath moved twice, at 0.2.0 and again at
+decision 19.
+
+Found by parsing each file rather than by walking `dir()`, because a `dir()`
+walk cannot tell a constant a module defines from one it imports and would make
+moving an import look like a constant moving. Pinned as a digest rather than as
+the value because four of the 44 are tables and `_POSTCODE_CENTROIDS` reprs to
+1873 characters; the failure message reads the live value back out of the
+module, so the half a reader needs is still named.
+
+One row and not three. The values these names held at 0.1.0 and 0.2.0 were
+never recorded, and reconstructing them from the history to fill the table in
+would be manufacturing a record of a check that did not run, which is the
+argument decision 10 already makes about the plan checkboxes.
+
+**Lives in:** `_engine_module_constants` and `_live_constant_values` in
+`tests/test_golden.py`.
+
+**To reverse:** delete the test. Moving a table, a threshold or a location in
+`ampeer_sim` then stops costing a version bump again, which is the friction
+decision 8 is for.
 
 ## What was not decided here
 
