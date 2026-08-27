@@ -155,6 +155,7 @@ def _advise(
     has_meter_data: bool = False,
     dynamic_contract: bool = False,
     battery_spec: BatterySpec | None = None,
+    result: Result | None = None,
 ) -> Advice:
     household = _household(case)
     return advise(
@@ -164,7 +165,7 @@ def _advise(
         grid=GRID,
         profile_provider=FlatProfiles(),
         production_provider=FallbackProvider(WEATHER_YEAR),
-        result=_stub_result(),
+        result=_stub_result() if result is None else result,
         filled_fields=filled_fields,
         has_meter_data=has_meter_data,
         dynamic_contract=dynamic_contract,
@@ -285,10 +286,34 @@ def test_the_advice_carries_both_versions() -> None:
     A recorded advice has to say which engine produced the numbers and which
     rule table judged them, because the two move independently: a rule threshold
     can change without the simulation changing a single kWh.
+
+    Both halves are read out of their own package rather than written down.
+    Until 2026-08-27 the engine half was the literal "0.2.0", so the engine
+    moving to 0.3.0 turned this red while the property the test is named for
+    held perfectly. That is the same defect ``_stub_result`` above records
+    against 2026-08-26, one line further along: the stub stopped carrying a
+    literal that day and the assertion comparing against one did not. Which
+    release the engine is on is pinned in ``tests/test_golden.py``, beside the
+    numbers that give a version its meaning, which is the only place a literal
+    version belongs.
     """
     advice = _golden_advice("rob_fixed_contract")
-    assert advice.engine_version == "0.2.0"
+    assert advice.engine_version == ENGINE_VERSION
     assert advice.advice_version == ADVICE_VERSION
+
+    # And the engine half has to be the version of the run that produced the
+    # numbers, not of the code rendering them. Those are the same string on
+    # every real call, and they would stay the same string if advise() read
+    # ENGINE_VERSION itself instead of the Result it was handed, so the only way
+    # to tell the two apart is to hand it a Result that disagrees. An advice
+    # recorded against an older engine has to keep saying which engine that was,
+    # or the version stops identifying the numbers and starts identifying the
+    # deploy that happened to re-render them.
+    older = dataclasses.replace(_stub_result(), engine_version="0.0.1-not-this-build")
+    assert (
+        _advise(HOUSEHOLDS["rob_fixed_contract"], result=older).engine_version
+        == "0.0.1-not-this-build"
+    )
 
 
 @pytest.mark.parametrize("name", sorted(HOUSEHOLDS))
