@@ -253,6 +253,26 @@ def test_no_dutch_text_lives_outside_the_text_module() -> None:
     nl.py. The one cost worth naming is that `\\b` treats a hyphen as a boundary,
     so an English "de-rate" or "de-duplicate" written here later would be a
     false positive; nothing in the four trees writes one today.
+
+    Adding those two words did not repair the method, and on 2026-08-27 a review
+    proved it in one line: ``SERVICE_UNAVAILABLE_MESSAGE = "Aanvraag mislukt,
+    probeer straks opnieuw"`` in backend/advice/views.py is green here, and would
+    be green under any list of Dutch words anybody sits down and writes, because
+    the list has to be finished before the sentence is written. So read a pass
+    here as "no word I thought of turned up", never as "there is no Dutch". What
+    carries the boundary for backend/advice is
+    ``test_no_dutch_prose_is_left_anywhere_in_the_advice_package`` in
+    tests/test_advice_serializers.py, which decides prose by shape and then holds
+    it to the vocabulary of the language that is allowed, so it does not have to
+    guess what will be written next.
+
+    That scan stops at backend/advice and this one does not, which is why this
+    one stays. ampeer_sim, ampeer_advice and tools hold far more English prose
+    than the advice package does, so the allowed vocabulary there would be a set
+    too large to audit, and until somebody has a better instrument those three
+    trees have a wordlist and nothing else. Extending the stronger shape to them
+    is the open work, and it is worth saying so here rather than leaving a
+    reader to infer from a green run that all four trees are equally guarded.
     """
     dutch = re.compile(
         r"\b(uw|jij|jouw|wij|niet|stroom|batterij|thuisbatterij|verbruik|opwek"

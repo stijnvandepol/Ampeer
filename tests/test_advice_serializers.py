@@ -21,6 +21,7 @@ import pytest
 
 import advice.nl
 import advice.serializers
+import ampeer_advice.nl
 from advice.nl import TEMPLATED_MESSAGES, VALIDATION_MESSAGES, message_for
 from advice.serializers import EstimateInputSerializer, RefineInputSerializer
 
@@ -397,6 +398,248 @@ DUTCH_MARKERS = frozenset(
 
 _WORDS = re.compile(r"[A-Za-zÀ-ÿ]+")
 
+#: What makes a string literal something a person reads.
+#:
+#: Quoted verbatim in the failure message of the scan below, because a guard
+#: whose failure nobody can act on gets deleted, and "this string is not English"
+#: is only actionable next to the definition of "this string".
+#:
+#: The two halves are separable on purpose. Whether a literal is prose is decided
+#: by its shape and needs no vocabulary at all. Whether prose is English is
+#: decided by ``ENGLISH_PROSE_WORDS``, which is a list of the language that is
+#: allowed rather than a list of the language that is not.
+PROSE_RULE = (
+    "A literal is prose when, after format placeholders are removed, two or more "
+    "of its whitespace separated chunks contain a word, where a word is a run of "
+    "two or more letters and a chunk holding an underscore or a digit is an "
+    "identifier rather than a word. Prose is the shape a person reads; anything "
+    "else is a token a machine reads, which is why a field name, a JSON key, a "
+    "message id, a URL fragment, a header name, a dotted import path and a regex "
+    "all pass without being listed anywhere. Prose outside advice/nl.py has to be "
+    "English, and English is decided by ENGLISH_PROSE_WORDS in "
+    "tests/test_advice_serializers.py: every word of it has to be in that set. "
+    "A Dutch sentence a visitor reads belongs in advice/nl.py behind an English "
+    "id. An English sentence an operator or a developer reads belongs where it "
+    "is, and costs the words it adds to that set."
+)
+
+#: The English the advice package is allowed to speak, word by word.
+#:
+#: This set is the repair to a guard that had been reported closed twice and
+#: falsified twice. On 2026-08-27 a review added
+#: ``SERVICE_UNAVAILABLE_MESSAGE = "Aanvraag mislukt, probeer straks opnieuw"``
+#: to advice/views.py, ran both scans that existed, and both passed. Two separate
+#: holes, and they are the same hole twice: ``DUTCH_MARKERS`` above held none of
+#: aanvraag, mislukt, probeer, straks or opnieuw, and it never could have, because
+#: a list of the words of the language you are excluding is a guess about what
+#: somebody will write next year; and the categorical scan read
+#: advice/serializers.py by name, so views.py was not read at all.
+#:
+#: Inverting the vocabulary is what fixes the shape rather than the instance. The
+#: language that is *allowed* in this package is closed and small, because
+#: CLAUDE.md sends everything a visitor reads to a language layer and leaves
+#: behind only what an operator or a developer reads. Measured on 2026-08-27 over
+#: backend/advice: 26 prose literals holding 110 distinct words, and every one of
+#: them is SQL, ``manage.py`` output, or an internal error message. A Dutch
+#: sentence fails this set whatever words it is written in, and so does an
+#: English sentence written for a visitor, which is the same defect wearing the
+#: other language.
+#:
+#: Twenty six of those words arrived while this was being written, from
+#: advice/series.py, a module a different branch added the same afternoon. That
+#: is the walk in ``_advice_modules`` doing its job and the price being paid in
+#: public: a new module is inside this check on the day it lands, and it costs
+#: whoever lands it the English it introduces.
+#:
+#: Derived by running the classifier over the package and then reading all 110,
+#: which is the part that keeps it from being circular. An allowlist of the
+#: literals found would prove only that the package equals itself, which is the
+#: mistake this file has already made twice in another form. An allowlist of
+#: words is auditable against a dictionary by anyone, line by line, without
+#: reference to this repository, and the test below named for the Dutch the
+#: product already speaks calibrates it against Dutch this file neither wrote nor
+#: chose: 34 strings out of the two language layers, of which it refuses 31 and
+#: reads none as English.
+#:
+#: The price is one line of diff per new English word, and it is deliberate. It
+#: is the same price ``_recognised_literals`` charges below, for the same reason:
+#: a string appearing in this package without a reason is worth a line in a
+#: review.
+ENGLISH_PROSE_WORDS = frozenset(
+    {
+        "advice",
+        "advices",
+        "ago",
+        "an",
+        "and",
+        "answer",
+        "append",
+        "as",
+        "assumes",
+        "at",
+        "audit",
+        "battery",
+        "be",
+        "been",
+        "both",
+        "cannot",
+        "consumption",
+        "container",
+        "day",
+        "delete",
+        "deleted",
+        "deleting",
+        "directions",
+        "drop",
+        "exactly",
+        "exists",
+        "exit",
+        "expected",
+        "expired",
+        "expires",
+        "expiry",
+        "file",
+        "from",
+        "got",
+        "has",
+        "have",
+        "healthcheck",
+        "here",
+        "hold",
+        "host",
+        "if",
+        "instead",
+        "invented",
+        "is",
+        "its",
+        "length",
+        "log",
+        "may",
+        "more",
+        "must",
+        "needs",
+        "no",
+        "non",
+        "not",
+        "of",
+        "oldest",
+        "on",
+        "once",
+        "one",
+        "only",
+        "or",
+        "over",
+        "overdue",
+        "packing",
+        "passed",
+        "past",
+        "period",
+        "private",
+        "profile",
+        "provenance",
+        "purge",
+        "purged",
+        "quarter",
+        "quarters",
+        "readable",
+        "refusing",
+        "report",
+        "retention",
+        "row",
+        "rows",
+        "running",
+        "same",
+        "series",
+        "served",
+        "set",
+        "shareable",
+        "shortfall",
+        "storage",
+        "store",
+        "stored",
+        "surplus",
+        "table",
+        "than",
+        "the",
+        "them",
+        "three",
+        "throttle",
+        "timer",
+        "to",
+        "token",
+        "unrecognised",
+        "updated",
+        "used",
+        "verdict",
+        "where",
+        "which",
+        "whose",
+        "with",
+        "year",
+        "zero",
+    }
+)
+
+#: ``{count}`` and ``%s`` are the caller's value, not the author's word.
+_PROSE_PLACEHOLDER = re.compile(r"\{[^{}]*\}|%[0-9.]*[a-z]")
+
+#: A word: two or more letters, in any alphabet, with no digit and no underscore.
+_PROSE_WORD = re.compile(r"[^\W\d_]{2,}")
+
+
+def _prose_words(text: str) -> list[str]:
+    """The words of a literal, or nothing at all if it is not prose.
+
+    ``PROSE_RULE`` above is the prose half of this function in words. Returning
+    an empty list for a token rather than raising or flagging is what lets the
+    scan below run over every literal in the package without an allowlist: the
+    forty-five JSON keys of rendering.py, the field names of the migrations and
+    the message ids of the serializers are all one chunk each and answer here
+    with nothing. That is the answer to the objection in docs/decisions.md
+    entry 18, which is why the categorical scan stayed on one file: an allowlist
+    wide enough for those was said to be wide enough for a Dutch sentence. True
+    of an allowlist of strings and false of a rule about shape, because a JSON
+    key is one chunk and a sentence is not.
+    """
+    chunks: list[list[str]] = []
+    for chunk in _PROSE_PLACEHOLDER.sub(" ", text).split():
+        if "_" in chunk or any(char.isdigit() for char in chunk):
+            continue
+        found = [word.lower() for word in _PROSE_WORD.findall(chunk)]
+        if found:
+            chunks.append(found)
+    if len(chunks) < 2:
+        return []
+    return [word for chunk in chunks for word in chunk]
+
+
+def _words_that_are_not_english(text: str) -> list[str]:
+    """The words of one literal that are not in ``ENGLISH_PROSE_WORDS``.
+
+    Empty for a token, since a token has no words. So this answers the whole
+    question in one place: a literal is a defect exactly when this is non-empty.
+    """
+    return sorted({word for word in _prose_words(text) if word not in ENGLISH_PROSE_WORDS})
+
+
+def _foreign_prose(tree: ast.Module) -> dict[str, list[str]]:
+    """Every literal that reads as prose and holds a word that is not English.
+
+    Docstrings are out of scope and the line is drawn where the rule is: a
+    docstring is prose a developer reads and is under the same CLAUDE.md rule,
+    but holding it to a closed vocabulary would mean listing the English of
+    every explanation in the package, which is thousands of words and a set
+    nobody could audit. Docstrings and comments are covered by the raw text scan
+    in tests/test_advise.py, which reads the file rather than the syntax tree.
+    What this function reads is the strings the program hands out.
+    """
+    offenders: dict[str, list[str]] = {}
+    for text in _string_literals(tree, with_docstrings=False):
+        unknown = _words_that_are_not_english(text)
+        if unknown:
+            offenders[text] = unknown
+    return offenders
+
 
 def _docstring_node_ids(tree: ast.Module) -> set[int]:
     """The identity of every docstring node, so the scans can tell one apart.
@@ -466,30 +709,54 @@ def test_no_dutch_prose_is_left_anywhere_in_the_advice_package() -> None:
     refused: the table of three flag-and-detail pairs carried six Dutch
     sentences in the same tuples as the field names.
 
-    Nothing enforced the rule for this file. ampeer_advice/nl.py has
-    tests/test_advice_nl.py holding its texts and its register, and that suite
-    reads exactly one file by path, so it had nothing to say about a second
-    language layer or about the absence of one.
+    Three shapes of this check have now been written and two of them were
+    falsified by a review within a day, so the history is the argument for the
+    third.
 
-    This test read one file by path too, which is why it is now named for a
-    package. A boundary enforced per named path is one the next module walks
-    straight through, and one already had: advice/parsers.py held
-    ``TOO_DEEPLY_NESTED`` from the day it was written and the move on 2026-08-26
-    closed a boundary around it while reporting the boundary closed. The list is
-    built by walking the directory, so a module added tomorrow is inside this
-    check on the day it is added rather than on the day somebody edits a list.
+    The first read advice/serializers.py by name and a commit claimed on that
+    evidence that the package held no Dutch; advice/parsers.py held
+    ``de JSON is te diep genest`` at the time. The second walked the package and
+    matched a list of Dutch words; a review added
+    ``SERVICE_UNAVAILABLE_MESSAGE = "Aanvraag mislukt, probeer straks opnieuw"``
+    to advice/views.py and it passed, because the list held none of those five
+    words and because the categorical half was still bound to one named module.
+
+    Both failures are the same mistake in two disguises: a check built out of a
+    guess about what somebody will write next. The third shape does not guess.
+    It asks what shape a literal has, and then holds the prose to the vocabulary
+    of the language that is *allowed* here, which is closed and countable where
+    the excluded one is neither. ``PROSE_RULE`` is that rule in words and the
+    failure below prints it, because a reader who trips this needs to know
+    whether they are being asked to move a string or to add a word.
+
+    The wordlist runs too and its result is reported second. It cannot refute
+    anything any more, since a hit is by definition also foreign prose; what it
+    still does is say the word "Dutch" out loud when it recognises one, which is
+    the difference between a reader fixing a string and a reader wondering what
+    the scan wants.
     """
     modules = _advice_modules()
-    offenders = {
-        path.relative_to(ADVICE_PACKAGE.parent).as_posix(): sorted(
-            set(_dutch_literals(ast.parse(path.read_text(encoding="utf-8"))))
-        )
-        for path in modules
-        if _dutch_literals(ast.parse(path.read_text(encoding="utf-8")))
+    sources = {path: ast.parse(path.read_text(encoding="utf-8")) for path in modules}
+
+    foreign = {
+        path.relative_to(ADVICE_PACKAGE.parent).as_posix(): _foreign_prose(tree)
+        for path, tree in sources.items()
+        if _foreign_prose(tree)
     }
-    assert not offenders, (
-        "Dutch in the advice package, which belongs in advice/nl.py behind an English id:\n  "
-        + "\n  ".join(f"{path}: {texts}" for path, texts in sorted(offenders.items()))
+    named_dutch = {
+        path.relative_to(ADVICE_PACKAGE.parent).as_posix(): sorted(set(_dutch_literals(tree)))
+        for path, tree in sources.items()
+        if _dutch_literals(tree)
+    }
+    assert not foreign and not named_dutch, (
+        "prose in the advice package that is not English:\n  "
+        + "\n  ".join(
+            f"{path}: {text!r} -> {', '.join(words)}"
+            for path, offenders in sorted(foreign.items())
+            for text, words in sorted(offenders.items())
+        )
+        + f"\n\nrecognised as Dutch by DUTCH_MARKERS: {named_dutch or 'none of it'}"
+        + f"\n\nThe rule: {PROSE_RULE}"
     )
 
     # A scan that reads nothing passes. The floor is well under the twenty
@@ -497,11 +764,75 @@ def test_no_dutch_prose_is_left_anywhere_in_the_advice_package() -> None:
     # well over zero so that a glob that stops matching is.
     assert len(modules) >= 15, f"only {len(modules)} modules were read, so this scanned nothing"
 
-    # Named because these two are the ones the boundary has actually been broken
-    # in, and because the exception has to stay exactly one file wide.
+    # Named because these three are the ones the boundary has actually been
+    # broken in, and because the exception has to stay exactly one file wide.
     names = {path.name for path in modules}
-    assert {"serializers.py", "parsers.py"} <= names, f"the scan missed a known module: {names}"
+    assert {"serializers.py", "parsers.py", "views.py"} <= names, (
+        f"the scan missed a known module: {names}"
+    )
     assert "nl.py" not in names, "the language layer itself is being scanned for Dutch"
+
+
+def _dutch_the_product_speaks() -> list[str]:
+    """Every Dutch string the two language layers hold, read out of them.
+
+    An independent corpus in the only sense that matters here: none of it was
+    written for this test, none of it was chosen by this test, and all of it is
+    Dutch that a household actually reads. ``ENGLISH_PROSE_WORDS`` was derived
+    from the modules it guards, so a check that ran only over those modules
+    would be the package agreeing with itself. This is the other side.
+    """
+    return [
+        str(text)
+        for table in (
+            ampeer_advice.nl.RULE_TEXTS,
+            ampeer_advice.nl.ROUTE_TITLES,
+            ampeer_advice.nl.SIZING_BASIS_TEXTS,
+            ampeer_advice.nl.CONFIDENCE_LABELS,
+            ampeer_advice.nl.INPUT_LABELS,
+            ampeer_advice.nl.PRODUCTION_SOURCE_TEXTS,
+            VALIDATION_MESSAGES,
+        )
+        for text in table.values()
+    ]
+
+
+def test_the_prose_rule_refuses_the_dutch_the_product_already_speaks() -> None:
+    """What the rule can do and where it stops, measured rather than claimed.
+
+    Run on 2026-08-27 over the 34 strings the two language layers hold: 31 are
+    refused as prose that is not English, none is read as English, and 3 are not
+    prose at all. Those three are ``Indicatief``, ``Goed`` and ``Precies``, the
+    confidence labels, and they are one word each.
+
+    That is the honest edge of ``PROSE_RULE`` and it is pinned here so it cannot
+    quietly widen. A single word is a token to this scan, because the package is
+    full of single words that have to be tokens: forty-five JSON keys, ten
+    message ids, every field name in the migrations. One real instance already
+    sits inside that edge. advice/apps.py holds ``verbose_name = "Advies"``, one
+    Dutch word, and this scan calls it a token. It reaches nobody today because
+    ``django.contrib.admin`` is not in ``INSTALLED_APPS``
+    (backend/ampeer/settings/base.py, which says so in a comment), so the only
+    thing that would render it is not installed. Named here rather than left for
+    the next reviewer to find, since an unnamed gap is what the previous two
+    rounds of this check were made of.
+    """
+    corpus = _dutch_the_product_speaks()
+    assert len(corpus) >= 30, f"only {len(corpus)} strings were read, so this measured nothing"
+
+    read_as_english = [
+        text for text in corpus if _prose_words(text) and not _words_that_are_not_english(text)
+    ]
+    assert read_as_english == [], (
+        "the vocabulary accepts Dutch the product speaks, so it has been widened past "
+        f"English: {read_as_english}"
+    )
+
+    not_prose = {text for text in corpus if not _prose_words(text)}
+    assert not_prose == {"Indicatief", "Goed", "Precies"}, (
+        "the set of Dutch strings this rule cannot see has changed. It is meant to be the "
+        f"three one word confidence labels and nothing else, and it is now {sorted(not_prose)}"
+    )
 
 
 def test_the_serializer_module_names_only_ids_fields_and_one_pattern() -> None:
@@ -558,6 +889,66 @@ def test_both_scans_go_red_on_what_they_were_written_for() -> None:
     # red, which is what stops the two words being tidied away as noise.
     walked_past = ast.parse('TOO_DEEPLY_NESTED = "de JSON is te diep genest"')
     assert _dutch_literals(walked_past) == ["de JSON is te diep genest"]
+
+
+def test_the_prose_scan_goes_red_on_the_sentence_that_falsified_the_last_two() -> None:
+    """The line a review added to advice/views.py on 2026-08-27, kept as evidence.
+
+    Both guards that existed passed on it, and neither did so by accident. The
+    wordlist held none of its five words, and no wordlist would have: they are
+    ordinary Dutch and there is no end to the supply. The categorical scan was
+    bound to advice/serializers.py, so views.py was outside it entirely.
+
+    Neither escape is available now, and the three lines below say which is
+    which. ``_dutch_literals`` is still blind to it, so this test also records
+    that the wordlist is not what closed the boundary. ``_unrecognised_literals``
+    is still bound to the serializer's contract and would never have read this
+    module. ``_words_that_are_not_english`` names all five, and names them
+    without anyone having had to think of them first, which is the whole
+    difference between this shape and the two it replaces.
+    """
+    escaped = "Aanvraag mislukt, probeer straks opnieuw"
+    added_to_views = ast.parse(f'SERVICE_UNAVAILABLE_MESSAGE = "{escaped}"')
+
+    assert _dutch_literals(added_to_views) == []
+    assert _words_that_are_not_english(escaped) == [
+        "aanvraag",
+        "mislukt",
+        "opnieuw",
+        "probeer",
+        "straks",
+    ]
+    assert _foreign_prose(added_to_views) == {
+        escaped: ["aanvraag", "mislukt", "opnieuw", "probeer", "straks"]
+    }
+
+    # The shapes the falsification round was asked to try, because one sentence
+    # is one sentence. A short imperative, a sentence carrying a number, and a
+    # two word noun phrase, sharing no word with each other or with the line
+    # above. All three were written into advice/views.py, advice/rendering.py
+    # and advice/service.py on 2026-08-27, the suite was run red on each, and
+    # each file was restored.
+    assert _words_that_are_not_english("Probeer straks opnieuw") == [
+        "opnieuw",
+        "probeer",
+        "straks",
+    ]
+    assert _words_that_are_not_english("Berekening duurt ongeveer 5 seconden") == [
+        "berekening",
+        "duurt",
+        "ongeveer",
+        "seconden",
+    ]
+    assert _words_that_are_not_english("Slimme laadpaal") == ["laadpaal", "slimme"]
+
+    # And the direction that has to stay quiet, or the guard is noise: the
+    # English the package already speaks passes, including the SQL and the
+    # operator output that decision 18 said an allowlist could never admit
+    # without admitting a Dutch sentence with them. Admitting words rather than
+    # strings is what makes that false.
+    assert _words_that_are_not_english("DROP TABLE IF EXISTS ") == []
+    assert _words_that_are_not_english(" day(s) past its expiry") == []
+    assert _words_that_are_not_english("a battery advice needs exactly one storage verdict") == []
 
 
 def _imports_the_language_layer(tree: ast.Module) -> bool:
