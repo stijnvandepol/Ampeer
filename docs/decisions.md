@@ -602,6 +602,192 @@ argument decision 10 already makes about the plan checkboxes.
 `ampeer_sim` then stops costing a version bump again, which is the friction
 decision 8 is for.
 
+### 21. The PVGIS series' last twenty minutes are stated, not rotated away
+
+**Decided:** `PvgisProvider` keeps its whole hour rotation. The twenty minutes
+it cannot reach is written above `UTC_TO_WINTER_TIME_HOURS` with what it costs,
+pinned end to end by
+`test_the_pvgis_series_is_twenty_minutes_late_and_no_whole_rotation_helps`, and
+stated to the reader in chapter 7 of `docs/methodologie.md`. `ENGINE_VERSION`
+does not move.
+
+**Because:** PVGIS stamps a row ten minutes past the hour and
+`YearGrid.hourly_to_quarters` anchors an hourly value half past, so the series
+sits twenty minutes late and no whole rotation can move it by a third of an
+hour; n=1 is already the smallest displacement available. Measured on
+2026-08-27 against a live SARAH3 call on the reference household: 29,13 percent
+self consumption and 656,20 euro against 28,71 and 660,12 correctly placed, so
+0,42 points and 3,92 euro, understating the shock.
+
+The ten past belongs in the anchor and nowhere else, and that was measured
+rather than reasoned. Resampling in the provider means interpolating twice, and
+the second low pass flattens the midday peak into self consumption, giving
+650,71 euro, off by 9,41 against the 3,92 it was correcting. A Catmull-Rom
+resample keeps the peak, still misses by 1,92, and puts 904 of 8760 hours below
+zero. Placing it at the anchor costs nothing in smoothing because it replaces
+the interpolation the model already performs, and it is one argument on
+`YearGrid.hourly_to_quarters` plus its two call sites in
+`ampeer_sim/production/model.py` and `ampeer_sim/profiles/assets.py`. Shipping a
+correction measurably further from the truth than the defect is the one thing
+this project's rules rule out, so the residual is written down with its price
+instead.
+
+Two things fell out of measuring it. The distance `tests/test_calibration.py`
+records is small for the wrong reason: its comment claimed all of it was the
+hour-to-quarter interpolation, and placing the same series on its own stamps
+turns 0,0171 into 0,0904, because the metric buckets on the hour while the
+reference rows carry ten past, so the lag cancels against it. Whoever repairs
+the placement has to re-found that comparison or it will call the repair a
+regression. And the reading the residual rests on is corroborated rather than
+asserted: split at solar noon, PVGIS's hour-of-day table gives morning over
+afternoon 1,065 read at the stamp and 0,889 read as an hour mean, while the same
+call gives east 979,35 against west 948,91 kWh per kWp. Only the stamp reading
+agrees with the yield table, and it is also the smaller of the two corrections.
+
+**Lives in:** the comment above `UTC_TO_WINTER_TIME_HOURS` in
+`ampeer_sim/production/pvgis.py`,
+`test_the_pvgis_series_is_twenty_minutes_late_and_no_whole_rotation_helps` in
+`tests/test_pvgis_provider.py`, and chapter 7 of `docs/methodologie.md`.
+
+**To reverse:** make the anchor a parameter and pass it from the provider. Three
+files outside `ampeer_sim/production/pvgis.py` move with it,
+`MAX_HOUR_OF_DAY_GAP` has to be re-founded on a reference resampled onto the
+grid's hours or it will call the repair a regression at 0,0904, and
+`ENGINE_VERSION` moves because every household's answer does.
+
+### 22. The Dutch boundary is enforced by listing the English, not by guessing the Dutch
+
+**Decided:** every non-docstring string literal in `backend/advice` except
+`nl.py` that reads as prose must consist entirely of words in
+`ENGLISH_PROSE_WORDS`. Whether a literal is prose is decided by shape, in
+`PROSE_RULE`, which the failure message prints verbatim.
+
+**Because:** decision 18 has now been corrected twice and falsified twice. The
+wordlist half could not work in principle: a list of the words of the language
+being excluded has to be finished before the next sentence is written. On
+2026-08-27 a review demonstrated it in one line, adding
+`SERVICE_UNAVAILABLE_MESSAGE = "Aanvraag mislukt, probeer straks opnieuw"` to
+`advice/views.py`; the wordlist held none of its five words and the categorical
+scan was still bound to `serializers.py` by name, so both guards passed.
+Inverting the vocabulary removes the guess. CLAUDE.md sends everything a visitor
+reads to a language layer, so what is left behind is only what an operator or a
+developer reads, and that is closed and small: measured on 2026-08-27, 26 prose
+literals holding 110 distinct words, all of them SQL, `manage.py` output, or an
+internal error message.
+
+Entry 18's argument for keeping the categorical scan on one file was that an
+allowlist wide enough for the 45 JSON keys of `rendering.py` would be wide
+enough for a Dutch sentence. That is true of an allowlist of strings and false
+of a rule about shape: a JSON key is one whitespace chunk and a sentence is not,
+so all 45 pass without being listed anywhere.
+
+Calibrated against Dutch the test did not write and did not choose, which is
+what keeps a vocabulary derived from the package under test from being
+circular: over the 34 strings in `ampeer_advice.nl`'s six tables and
+`advice.nl.VALIDATION_MESSAGES`, 31 are refused, none reads as English, and 3
+are invisible. Those 3 are "Indicatief", "Goed" and "Precies", one word each,
+and the honest edge of the rule is that a single word is a token. One real
+instance sits inside that edge: `advice/apps.py` holds
+`verbose_name = "Advies"`, which renders nowhere because
+`django.contrib.admin` is not installed.
+
+Shown failing rather than assumed to work: three sentences sharing no words were
+written into `views.py`, `rendering.py` and `service.py` on 2026-08-27 and each
+turned the suite red while the repo-wide wordlist in `tests/test_advise.py`
+stayed green on all three. All three files were restored and the restoration
+checked by digest.
+
+**Lives in:** `PROSE_RULE`, `ENGLISH_PROSE_WORDS`, `_prose_words` and
+`_words_that_are_not_english` in `tests/test_advice_serializers.py`.
+
+**To reverse:** delete the vocabulary and go back to matching Dutch words. The
+cost is that the boundary again holds only for sentences somebody thought of in
+advance, which is the state it was reported closed in twice.
+
+### 23. The year field carries its provenance, and the refusal was built before the data exists
+
+**Decided:** the optional `year` object in the advice payload carries a
+`provenance` of `SYNTHETIC` or `MEASURED`, and `year_field` refuses to build the
+object when a measured series is paired with a shareable token.
+`advice.series.EncodedYear` deliberately has no method that produces the wire
+dict, so that door is the only one.
+
+**Because:** in phase 0.5 the series is a national NEDU profile scaled to the
+annual figure a visitor typed, plus modelled assets, so it holds nothing about
+that household the household did not enter. In phase 2 the identical field
+carries a series off their own meter, and `docs/dpia.md` chapter 1 names
+quarter-hour consumption as the datum from which it can be derived when somebody
+is home. An advice is retrievable for ninety days through a bearer token with no
+account behind it and no way to tell who was given the link.
+
+Built now the control is three lines and costs nothing, because nothing can
+produce a measured series to be refused. Added when the first measured series
+exists it needs a migration over every stored advice, and between those two
+moments the rule lives in a document and is enforced nowhere. That gap is the
+entire argument.
+
+The refusal is a `ValueError` subclass and not a DRF validation error on
+purpose: nothing a stranger posts chooses a provenance, so if it ever fires it
+is server code and should read as a fault rather than as a 400 blaming a
+visitor's form.
+
+`shareable_token=False` is the phase 2 exit, for an advice reached through an
+account rather than through a forwardable link. Nothing passes it today and a
+test scans the package to keep that sentence true rather than remembered.
+
+Stated plainly because the entry would otherwise read as a shipped feature: as
+of this commit nothing emits the field. `advice/rendering.py` returns no `year`
+key, `ampeer_sim` returns no quarter-hour arrays for one to be built from, and
+the frontend has no decoder. What is decided here is the shape and the control,
+both of which exist and are tested; the wiring is open work, and
+`test_only_the_two_named_modules_reach_into_the_wire_format` is what keeps the
+door singular while somebody does it.
+
+**Lives in:** `SHAREABLE_PROVENANCE` in `backend/advice/series.py`,
+`YearSerializer` and `year_field` in `backend/advice/serializers.py`, chapter 6
+of `docs/dpia.md`, and
+`test_a_measured_series_is_never_served_on_the_token_route` in
+`tests/test_advice_series.py`.
+
+**To reverse:** delete the `provenance` key and the check. The field then
+becomes a shape that is safe today and unsafe on the day the meter coupling
+lands, with nothing in between to notice.
+
+### 24. The ceilings on the wire are maxima, and the clipping belongs to the renderer
+
+**Decided:** `encode_year` scales each series to its own maximum, and export and
+offtake carry separate ceilings rather than sharing one.
+
+**Because:** a percentile ceiling makes a prettier plate and throws the
+brightest quarters away irreversibly. Measured on 2026-08-27 on the reference
+household: at p99 that is 205 quarters of own use, 120 of export and 231 of
+offtake out of 35040. The wire carries data and the renderer makes it legible,
+so clipping belongs where it can be undone. Separate ceilings because export
+peaks roughly three times higher than offtake, so one shared ceiling would spend
+the meter byte's seven bits on export and leave offtake a third of the
+resolution it can have for free.
+
+The choice is checkable rather than argued: replacing the maxima with p99 turns
+five tests red, and the worst annual total drift goes from 0,008 percent to
+0,242 percent.
+
+Checked across two implementations rather than one, on 2026-08-27, because a
+format read back by the code that wrote it proves only that rounding twice is
+rounding once. A decoder written in JavaScript from the published contract alone
+returns all 35040 quarters of all three series bit-identical to
+`advice.series.decode_year`, with annual totals -0,00433, -0,00369 and -0,00812
+percent from the engine's own. The same exercise measures what the format's one
+trap costs: reading the meter byte as a whole byte over 255, which is what a
+reader ported from a three-array prototype would do, halves offtake to 1132,3
+kWh against 2273,8 and inflates export to 4007,8 against 2447,8, silently,
+because the direction flag is read as magnitude.
+
+**Lives in:** `encode_year` in `backend/advice/series.py`, with
+`MIN_WORST_QUARTER_RATIO` in `tests/test_advice_series.py`.
+
+**To reverse:** scale to a percentile and accept that the year's brightest
+quarters are gone from the payload rather than from the picture.
+
 ## What was not decided here
 
 Five belong to the controller and are written up with their trade-offs in
@@ -611,7 +797,7 @@ arrives before phase 1, and access to the host including whether `web2` becomes
 ephemeral. They are not repeated here, because two lists of the same open
 questions is how one of them gets answered twice and the other not at all.
 
-Seven sit outside that document.
+Eight sit outside that document.
 
 - **Whether `feat/**` stays in the push trigger of `.github/workflows/ci.yml`.**
   Removing it roughly halves the minutes a branch costs, and rewrites five
@@ -752,6 +938,31 @@ Seven sit outside that document.
   The full reading, with the block tables, the offtake-only finding and eight
   named gaps, is `docs/analysis/2026-08-24-tou-tariff-2029.md`. Editing CLAUDE.md
   is not mine.
+
+- **What the year carpet's colours are called, and whether it is built at all.**
+  Nothing of it exists. The lane that was to draw the plate wrote no file,
+  because three separate gates each need a file it was not given, and it proved
+  each one by making it go red from a file it did own rather than by reading it
+  and assuming. `frontend/tests/design/contrast.test.ts` requires every declared
+  `--colour-` name to appear in a hardcoded pair list inside that test, so adding
+  one token to `frontend/src/app/globals.css` turns four of its tests red and
+  three of those are fixable from the stylesheet. `frontend/e2e/language.spec.ts`
+  compares every user-visible string under `frontend/src/` against
+  `frontend/tests/ui-strings.txt` byte for byte in both directions. And vitest
+  collects only `frontend/tests/**`, while coverage measures `frontend/src/**`
+  with `all` on, so the unit tests for the pure decode cannot sit beside the
+  component; measured on 2026-08-27 the floors leave 0,03 points of branch
+  headroom and 0,04 of function headroom, which is at most 2 uncovered branches
+  in 30 and none of 20.
+
+  The open question is the naming, and it is open because the two cheaper
+  spellings are both the check being switched off. Calling them `--carpet-own`
+  puts them outside the pattern the contrast test parses, and declaring them in a
+  second bare `:root` block hides them from the same test, whose block regex is
+  not global and reads the first one only. Either leaves a green suite and three
+  unmeasured colours, on the one plate where the colour is the meaning. Recorded
+  here rather than as a decision because a decision has to name the file that
+  carries it, and there is not one.
 
 - **The order the two open pull requests are merged in.** #23 carries this
   branch into `dev` and #22 carries `dev` into `main`, so #23 goes first and #22
