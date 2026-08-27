@@ -132,3 +132,32 @@ next time is not here but in `tests/test_calibration.py`, which now runs PVGIS's
 own measured hour of the day back through the provider offline. And the golden
 answers pinned in `tests/test_golden.py` carry a 0.3.0 row identical to the
 0.2.0 one, which is the honest entry rather than a missing one.
+
+### 2026-08-27, the twenty minutes that hour did not reach, and why nothing here moved either
+
+A review that afternoon measured what the rotation above had left. PVGIS stamps
+its hourly rows ten minutes past the hour and `YearGrid.hourly_to_quarters`
+anchors an hourly value half past, so the PVGIS series still sits twenty minutes
+late: no whole rotation can move a series by a third of an hour. Measured on the
+same reference household, the same day, against a live PVGIS call: 28,71 percent
+self consumption and 660,12 euro where the shipping engine gives 29,13 and
+656,20. Almost four euro, and this one understates the shock where the hour
+overstated it.
+
+Not one figure in `households.json` moves with it, and this is the second time
+that is a finding rather than an omission. These six run on `FallbackProvider`,
+whose day is built in the grid's own winter time as hour means and is correctly
+anchored at half past, so the stamp offset is a fact about the other provider
+only. `ENGINE_VERSION` therefore stays at 0.3.0: decision 8 says the version
+moves when the numbers do, and no number in `ampeer_sim` moved. What changed is
+what the repository says about itself, which is comments, a chapter and four
+tests.
+
+That the goldens cannot see either half of this is the standing weakness of this
+file, and it now has a check of its own. `tests/test_calibration.py` holds the
+two providers against each other for the first time: they place the same roof's
+day 15,6 minutes apart, of which 20,0 is the stamp offset and 4,4 is a real
+disagreement running the other way, since the offline half sine is symmetric
+about solar noon and PVGIS's nine years are morning heavy. Before that pairing
+existed, one provider could drift a whole hour from the other with every test in
+the repository green, which is exactly what happened for a year.
