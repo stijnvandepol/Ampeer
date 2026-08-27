@@ -222,6 +222,13 @@ def test_the_two_golden_files_describe_the_same_households() -> None:
 #: wave through a file nobody meant, and an empty mapping is the only state in
 #: which that assertion is trivially satisfied for the right reason.
 #:
+#: Empty is not the same as clean, and on 2026-08-26 it was read as if it were.
+#: backend/advice/parsers.py held a Dutch message that day and this scan was
+#: green on it, because the word list below carried none of that sentence's
+#: words. It was found by a person reading the file. The list gained "de" and
+#: "te" on 2026-08-27 for that reason, which is a repair to one hole and not a
+#: reason to trust the rest of the list any further than before.
+#:
 #: Keyed on the path rather than on the words, so a second file cannot inherit
 #: an excuse written for the first. This is the shape tests/test_sensitivity.py
 #: had to move to after an exception keyed on a number alone let every file that
@@ -237,12 +244,22 @@ def test_no_dutch_text_lives_outside_the_text_module() -> None:
     second language a rewrite instead of a second file. The words below are ones
     that cannot plausibly appear in English prose about energy, so a hit is a
     sentence and not a false alarm.
+
+    "de" and "te" are the two the list was missing on 2026-08-26, and their
+    absence is what let "de JSON is te diep genest" sit in
+    backend/advice/parsers.py while this test was green: the list held three of
+    the four Dutch articles and not the most common one. Measured on 2026-08-27
+    over the sixty two modules this reads, both words match nothing outside
+    nl.py. The one cost worth naming is that `\\b` treats a hyphen as a boundary,
+    so an English "de-rate" or "de-duplicate" written here later would be a
+    false positive; nothing in the four trees writes one today.
     """
     dutch = re.compile(
         r"\b(uw|jij|jouw|wij|niet|stroom|batterij|thuisbatterij|verbruik|opwek"
         r"|zonnepanelen|zonnestroom|teruglevert|terugleverkosten|vaatwasser"
         r"|het|een|geen|deze|dat|wordt|worden|zijn|hebben|wettelijk|jaar"
-        r"|kosten|bedrag|prijs|meeste|grote|volgens|omdat|maar|ook|nog)\b",
+        r"|kosten|bedrag|prijs|meeste|grote|volgens|omdat|maar|ook|nog"
+        r"|de|te)\b",
         re.IGNORECASE,
     )
     scanned = [

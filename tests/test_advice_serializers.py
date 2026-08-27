@@ -298,11 +298,35 @@ def test_a_payload_that_is_not_an_object_is_refused() -> None:
 
 
 # ---------------------------------------------------------------------------
-# The Dutch lives in advice/nl.py, and the serializers name it in English
+# The Dutch lives in advice/nl.py, and the rest of the package names it in
+# English
 # ---------------------------------------------------------------------------
 
 SERIALIZERS_SOURCE = Path(advice.serializers.__file__)
 NL_SOURCE = Path(advice.nl.__file__)
+ADVICE_PACKAGE = NL_SOURCE.parent
+
+
+def _advice_modules() -> list[Path]:
+    """Every module in the advice package that may not hold Dutch.
+
+    Derived by walking the package rather than listed, which is the whole point
+    of this function. Until 2026-08-27 the scan below read one path by name and
+    a commit claimed on that evidence that the package held no Dutch. It held
+    one more message: ``advice/parsers.py`` refused an over-nested body with a
+    Dutch sentence written into the module, and a check reading one file had
+    nothing to say about it. A list would have had the same hole, one edit
+    later.
+
+    ``nl.py`` is the exception and the only one, because it is the layer the
+    Dutch is supposed to be in.
+    """
+    return [
+        path
+        for path in sorted(ADVICE_PACKAGE.rglob("*.py"))
+        if "__pycache__" not in path.parts and path.name != "nl.py"
+    ]
+
 
 #: Dutch words that are not also English words.
 #:
@@ -313,15 +337,31 @@ NL_SOURCE = Path(advice.nl.__file__)
 #: list exists because it names what it found, which is the difference between a
 #: reader fixing the string and a reader going looking for it.
 #:
-#: Every entry is checked against the English docstrings in the same module,
-#: which the scan below reads too: Dutch in a docstring is not a string a
+#: Every entry is checked against the English docstrings in the modules the
+#: scan below reads, docstrings included: Dutch in a docstring is not a string a
 #: visitor reads, but it is the same rule in CLAUDE.md and one grep is cheaper
 #: than two. Words that exist in both languages are left out on purpose, "of"
 #: and "die" and "met" among them, because a false positive here would be a red
 #: build over an English sentence.
+#:
+#: "de" and "te" were added on 2026-08-27 and the reason is worth writing down,
+#: because it is evidence about what this list is worth. The message that walked
+#: past the boundary, "de JSON is te diep genest", contains no word this list
+#: held: it has three of the four Dutch articles and not the fourth, so widening
+#: the scan to the whole package would have found nothing. Measured over the
+#: twenty modules the scan reads: with the two words added and parsers.py fixed,
+#: zero literals match, so neither word costs a false positive here today.
+#:
+#: That is a repair and not a proof of the method. A list of words cannot decide
+#: what language a string is in, and the next message to slip past will be
+#: written in vocabulary nobody thought of either. What the list is for is
+#: naming what it found, so a reader fixes a string instead of going looking for
+#: it; the categorical scan below is the half that does not depend on guessing
+#: vocabulary, and it reads one module.
 DUTCH_MARKERS = frozenset(
     {
         "alleen",
+        "de",
         "deze",
         "dit",
         "een",
@@ -341,6 +381,7 @@ DUTCH_MARKERS = frozenset(
         "onbekende",
         "ongeldig",
         "ongeldige",
+        "te",
         "toegestaan",
         "uw",
         "veld",
@@ -415,7 +456,7 @@ def _unrecognised_literals(tree: ast.Module) -> list[str]:
     ]
 
 
-def test_no_dutch_prose_is_left_in_the_serializer_module() -> None:
+def test_no_dutch_prose_is_left_anywhere_in_the_advice_package() -> None:
     """CLAUDE.md: Dutch text never sits hardcoded in the logic.
 
     Nine messages sat in advice/serializers.py until 2026-08-26, which is
@@ -429,12 +470,38 @@ def test_no_dutch_prose_is_left_in_the_serializer_module() -> None:
     tests/test_advice_nl.py holding its texts and its register, and that suite
     reads exactly one file by path, so it had nothing to say about a second
     language layer or about the absence of one.
+
+    This test read one file by path too, which is why it is now named for a
+    package. A boundary enforced per named path is one the next module walks
+    straight through, and one already had: advice/parsers.py held
+    ``TOO_DEEPLY_NESTED`` from the day it was written and the move on 2026-08-26
+    closed a boundary around it while reporting the boundary closed. The list is
+    built by walking the directory, so a module added tomorrow is inside this
+    check on the day it is added rather than on the day somebody edits a list.
     """
-    offenders = _dutch_literals(ast.parse(SERIALIZERS_SOURCE.read_text(encoding="utf-8")))
+    modules = _advice_modules()
+    offenders = {
+        path.relative_to(ADVICE_PACKAGE.parent).as_posix(): sorted(
+            set(_dutch_literals(ast.parse(path.read_text(encoding="utf-8"))))
+        )
+        for path in modules
+        if _dutch_literals(ast.parse(path.read_text(encoding="utf-8")))
+    }
     assert not offenders, (
-        "advice/serializers.py contains Dutch, which belongs in advice/nl.py behind an "
-        "English id:\n  " + "\n  ".join(repr(text[:90]) for text in offenders)
+        "Dutch in the advice package, which belongs in advice/nl.py behind an English id:\n  "
+        + "\n  ".join(f"{path}: {texts}" for path, texts in sorted(offenders.items()))
     )
+
+    # A scan that reads nothing passes. The floor is well under the twenty
+    # modules present on 2026-08-27 so that deleting one is not a red build, and
+    # well over zero so that a glob that stops matching is.
+    assert len(modules) >= 15, f"only {len(modules)} modules were read, so this scanned nothing"
+
+    # Named because these two are the ones the boundary has actually been broken
+    # in, and because the exception has to stay exactly one file wide.
+    names = {path.name for path in modules}
+    assert {"serializers.py", "parsers.py"} <= names, f"the scan missed a known module: {names}"
+    assert "nl.py" not in names, "the language layer itself is being scanned for Dutch"
 
 
 def test_the_serializer_module_names_only_ids_fields_and_one_pattern() -> None:
@@ -449,6 +516,15 @@ def test_the_serializer_module_names_only_ids_fields_and_one_pattern() -> None:
     be argued for in `_recognised_literals`. That is the intended price: this
     module turns a stranger's JSON into something the model may see, and a
     string appearing in it without a reason is worth one line of diff.
+
+    This one stays on one file while the wordlist scan above went package wide,
+    and the reason is that the allowlist is this module's contract rather than
+    the package's. Measured over the twenty modules on 2026-08-27: rendering.py
+    holds 45 literals that are JSON keys, purge_expired_advice.py holds SQL
+    fragments and English operator output, models.py holds two English database
+    constraint messages, and the migrations hold field names. An allowlist wide
+    enough to admit all of those would admit a Dutch sentence as well, so
+    widening it would trade a check for the appearance of one.
     """
     offenders = _unrecognised_literals(ast.parse(SERIALIZERS_SOURCE.read_text(encoding="utf-8")))
     assert not offenders, (
@@ -474,8 +550,27 @@ def test_both_scans_go_red_on_what_they_were_written_for() -> None:
     assert _dutch_literals(smuggled) == []
     assert _unrecognised_literals(smuggled) == ["onjuist"]
 
+    # The third source is the message that actually walked past, exactly as it
+    # stood in advice/parsers.py until 2026-08-27. It is here because it failed
+    # twice over: the scan never read that file, and the marker list held none
+    # of its words either, so widening the scan alone would still have reported
+    # a clean package. Removing "de" or "te" from DUTCH_MARKERS turns this line
+    # red, which is what stops the two words being tidied away as noise.
+    walked_past = ast.parse('TOO_DEEPLY_NESTED = "de JSON is te diep genest"')
+    assert _dutch_literals(walked_past) == ["de JSON is te diep genest"]
 
-def test_every_message_id_the_serializers_name_has_dutch_and_the_other_way_round() -> None:
+
+def _imports_the_language_layer(tree: ast.Module) -> bool:
+    """Whether a module reads advice.nl, judged on its imports."""
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "advice.nl":
+            return True
+        if isinstance(node, ast.Import) and any(alias.name == "advice.nl" for alias in node.names):
+            return True
+    return False
+
+
+def test_every_message_id_the_package_names_has_dutch_and_the_other_way_round() -> None:
     """The pairing that makes the id table checkable, in both directions.
 
     An id named in the logic with no entry in advice/nl.py raises KeyError while
@@ -484,17 +579,41 @@ def test_every_message_id_the_serializers_name_has_dutch_and_the_other_way_round
     state a language layer decays into.
 
     The ids are read out of the source rather than listed here, because six of
-    the nine reach `message_for` through a loop variable and a scan for
-    `message_for("...")` call sites would silently cover three.
+    the ten reach `message_for` through a loop variable and a scan for
+    `message_for("...")` call sites would silently cover four.
+
+    Which sources are read is decided by the imports, not by a path. Every
+    module that imports advice.nl is one whose upper case string literals have
+    to be message ids, so advice/parsers.py joined this test on 2026-08-27 by
+    importing the layer rather than by being named here, and a third module will
+    join it the same way. That is also what keeps the heuristic safe: the
+    package holds upper case literals that are not ids at all, "BATTERY_C_RATE"
+    in assembly.py and "ADVICE_GENERATED" in models.py among them, and neither
+    module reads the language layer.
     """
-    tree = ast.parse(SERIALIZERS_SOURCE.read_text(encoding="utf-8"))
+    sources = {
+        path: tree
+        for path, tree in (
+            (path, ast.parse(path.read_text(encoding="utf-8"))) for path in _advice_modules()
+        )
+        if _imports_the_language_layer(tree)
+    }
+    # A floor rather than an equality, so a third module joins by importing the
+    # layer and is held to the same rule on its first commit. A module dropping
+    # out is the direction worth refusing: it means ids are named somewhere this
+    # test no longer reads.
+    assert {"serializers.py", "parsers.py"} <= {path.name for path in sources}, (
+        f"a module stopped reading advice.nl: {sorted(path.name for path in sources)}"
+    )
+
     named = {
         text
+        for tree in sources.values()
         for text in _string_literals(tree, with_docstrings=False)
         if text.isidentifier() and text.isupper()
     }
     assert named == set(VALIDATION_MESSAGES), (
-        "advice/serializers.py names "
+        "the advice package names "
         f"{sorted(named - set(VALIDATION_MESSAGES))} without a Dutch message, and "
         f"advice/nl.py holds {sorted(set(VALIDATION_MESSAGES) - named)} that nothing names"
     )
@@ -616,6 +735,31 @@ def test_the_words_a_visitor_reads_survived_the_move(
     )
     assert not serializer.is_valid()
     assert _message(dict(serializer.errors), field) == expected
+
+
+def test_the_over_nested_body_still_reads_the_same_to_a_caller() -> None:
+    """The tenth message, pinned through the parser rather than the table.
+
+    advice/parsers.py held this sentence as a module constant until 2026-08-27.
+    The relocation is only safe if the sentence arrives unchanged, and reading
+    it back out of VALIDATION_MESSAGES would prove nothing about the call site:
+    an id typed wrongly there answers a caller with a different message while
+    both tables stay correct.
+
+    So this drives the parser the way DRF does and reads the detail the way a
+    client does. tests/test_advice_api.py asserts the same refusal over HTTP,
+    which is the other half: that one shows a visitor gets a 400, this one shows
+    which words the 400 carries.
+    """
+    from io import BytesIO
+
+    from rest_framework.exceptions import ParseError
+
+    from advice.parsers import BoundedJSONParser
+
+    with pytest.raises(ParseError) as raised:
+        BoundedJSONParser().parse(BytesIO(b"[" * 200_000))
+    assert str(raised.value.detail) == "de JSON is te diep genest"
 
 
 def test_the_overflow_count_is_still_a_sentence_with_a_number_in_it() -> None:
