@@ -180,6 +180,55 @@ levert alleen gevalideerde parameters, en de postcode gaat als tweecijferig
 gebied naar een middelpunt. Er is geen enkele plek waar de backend een door de
 gebruiker aangeleverde URL ophaalt.
 
+### Het jaar in kwartieren, en waarom dat hier staat
+
+Het antwoord kan een veld `year` dragen: uw hele jaar in kwartieren, zodat het
+scherm het als een plaat kan tekenen. Dat zijn twee reeksen van 35040 bytes,
+base64 gecodeerd, met drie plafonds in kWh per kwartier erbij en een telling
+van het aantal kwartieren. De eerste byte per kwartier zegt hoeveel van de
+eigen opwek u in dat kwartier zelf hebt gebruikt, de tweede is de meter, met de
+richting in de hoogste bit. Gemeten op 27 augustus 2026 op het
+referentiehuishouden van `tests/test_advice_series.py`: 91 kB, en ongeveer 43 kB
+zodra de verbinding het inpakt. Het veld is optioneel, en het is nu beschreven
+omdat de regel eronder goedkoper is om te bouwen dan om later toe te voegen.
+
+**Waarom dit vandaag geen nieuw persoonsgegeven is.** De reeks is synthetisch.
+Hij wordt opgebouwd uit een landelijk NEDU-standaardprofiel, geschaald naar het
+jaarverbruik dat u zelf hebt ingevuld, plus wat het model voor een auto of een
+warmtepomp optelt, en een opwekreeks voor het tweecijferige postcodegebied. Er
+staat niets in over dit huishouden dat dit huishouden niet zelf heeft
+ingetypt. Wie de reeks terugrekent, komt uit bij de antwoorden uit hoofdstuk 2
+en niet bij een dag thuis. Het is dus geen nieuwe verwerking maar een andere
+weergave van wat al achter dezelfde link stond.
+
+**De zin waarmee dat verandert.** Zodra hetzelfde veld een reeks draagt die van
+de meter van dit huishouden zelf komt, is het wel een persoonsgegeven. Het is
+bovendien precies het persoonsgegeven waarover hoofdstuk 1 zegt dat het de hele
+afweging omdraait: uit kwartierdata over verbruik is af te leiden wanneer
+iemand thuis is, wanneer iemand op vakantie gaat en wanneer een huishouden van
+samenstelling verandert. De vorm van het veld is dan gelijk, de resolutie is
+gelijk, en de gevoeligheid is dat niet.
+
+**Wat ertussen staat.** Het veld draagt zelf waar zijn getallen vandaan komen,
+in `provenance`, met twee mogelijke waarden: `SYNTHETIC` of `MEASURED`. De API
+weigert een antwoord samen te stellen dat een gemeten reeks combineert met een
+deelbaar token. Dat is de combinatie waar het om gaat, want een token is een
+sleutel zonder account erachter, negentig dagen geldig, en iedereen aan wie de
+link ooit is doorgestuurd kan lezen wat erachter staat.
+
+De weigering staat in `backend/advice/serializers.py`, in de enige functie die
+dit veld kan opbouwen, en `tests/test_advice_series.py` valt om zodra een
+gemeten reeks over de tokenroute te halen zou zijn. Voor fase 2 is er een
+uitgang, `shareable_token=False`, bedoeld voor een advies dat achter een
+account wordt opgehaald in plaats van achter een doorstuurbare link. Niets
+gebruikt die uitgang vandaag, en een test valt om zodra iets dat wel doet.
+
+Dat dit nu is gebouwd en niet in fase 2 is een keuze met een reden. Vandaag
+kost het drie regels. Op het moment dat de eerste gemeten reeks bestaat kost
+het een migratie over elk opgeslagen advies, en tussen die twee momenten zit
+een periode waarin deze regel in dit document staat en nergens wordt
+afgedwongen. Hoofdstuk 9 telt op wat er in die fase verder verandert.
+
 ## 7. Wat een bezoeker kan uitoefenen, en wat vandaag niet kan
 
 Een beoordeling die opsomt wat een dienst bewaart en niet zegt wat de betrokkene
@@ -263,6 +312,7 @@ is, en het is de reden dat dit hoofdstuk kort kan zijn.
 | Verwijderde gegevens leven voort in een back-up | Ten hoogste acht dagen, en de dagelijkse opruiming haalt herleefde rijen na een terugzetting weer weg |
 | De opruiming stopt zonder dat iemand het merkt | De deploy draait een controle die rood wordt zodra er iets over datum is, en de timer zelf faalt zichtbaar |
 | Een derde partij krijgt het surfgedrag van de bezoeker | Geen enkel verzoek buiten de eigen oorsprong, afgedwongen door een test |
+| Een gemeten kwartierreeks bereikt iemand aan wie de link is doorgestuurd | Het veld `year` draagt zijn herkomst mee, en de enige functie die het kan opbouwen weigert een gemeten reeks achter een deelbaar token. Vandaag bestaat er nog geen gemeten reeks |
 | Het advies wordt gestuurd door een commercieel belang | Geen advertenties, geen leads, geen eigen contract en geen hardwareverkoop. Elke regel die vuurt komt terug in het antwoord, dus een advies is na te lopen |
 
 **Wat hier niet tegen staat.** Er is geen kopie buiten de host, dus een storing
@@ -277,7 +327,10 @@ een meterkoppeling bestaat. Wat er dan bij komt:
 
 - **Kwartierdata uit de P1-poort.** Dat is de verwerking die dit document in
   hoofdstuk 1 als afwezig aanmerkt en die de afweging omdraait. Daaruit is af te
-  leiden wanneer iemand thuis is.
+  leiden wanneer iemand thuis is. Het veld waarin die reeks het antwoord zou
+  verlaten bestaat al, met de weigering erin die hoofdstuk 6 beschrijft, zodat
+  er geen periode is waarin de eerste gemeten reeks bestaat en de regel erover
+  nog niet.
 - **Accounts.** Een e-mailadres, een wachtwoord, inlogpogingen, en daarmee de
   gebeurtenissen die het auditlogboek vandaag nog niet kent.
 - **Twee aparte toestemmingen**, voor datakoppeling en voor leadgeneratie, geen
