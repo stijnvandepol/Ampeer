@@ -13,8 +13,39 @@ make that call takeable in one sitting.
 
 ## Read this before the numbers
 
-The filename carries the date the question was raised on this branch. Every
-figure below was measured on 2026-08-26 by driving the real engine.
+**Measured on:** 2026-08-26, by driving the real engine. The carve-out floor,
+the days-below table and the two threshold figures in "How often the carve-out
+leaves too little" were recomputed from scratch on 2026-08-27; every one of them
+reproduced except the 8000 named below, which was wrong.
+
+**Measured against:** `ampeer_sim/production/pvgis.py` at sha256
+`60096156523834a6...` and `ampeer_sim/production/fallback_yield.py` at
+`9d54ef6db8b8765e...`, the six households in `tests/golden/households.json`, and
+the NEDU E1A series in `data/nedu-profiles-2025.csv` for the floors. Those two
+digests are the file state this document's euro columns belong to: when either
+moves, the euro columns are a previous model's and this line is how a reader
+finds that out.
+
+The first digest moved on 2026-08-27, from `7b837b6bbe07cd85...`, and the euro
+columns did not. Both facts are here because the rule above is a whole-file
+digest and the euro columns rest on one class in that file. `PvgisProvider` was
+repaired that morning, which is decision 19: it now converts PVGIS's UTC stamps
+onto the grid's winter time instead of placing every kilowatt hour an hour
+early. `FallbackProvider` lives in the same file, is what every figure below is
+computed on, and was not touched, because it was already building its day in
+winter time. So the digest is doing what it was written to do, which is to make
+a reader stop, and this paragraph is the answer it should stop for.
+
+Re-derived rather than reasoned about, on 2026-08-27, by running the euro table
+twice from one script: once against this working tree and once against a
+worktree at the commit before the repair. All ten rows came back identical to
+three decimals, 16.457 / 623.497 / 678.868 / 795.027 / 252.899 / 1666.127 for
+the six golden households and 623.497 / 202.033 / 470.461 for the three
+reference shapes. That is the check the digest asks for, and it is the reason
+the columns below are still the shipping model's.
+
+The filename carries the date the question was raised on this branch, not the
+date anything was measured.
 
 Everything was measured three times, and none of the repeats was a formality.
 The first pass reproduced `docs/decisions.md` to the euro: 456 against 634 for
@@ -31,12 +62,10 @@ was remeasured in the same round and is decision 16. The second pass therefore
 describes a model that never shipped, and its figures have been replaced rather
 than kept.
 
-The tables below are the third pass, against the code that ships:
-`ampeer_sim/production/pvgis.py` at sha256 `7b837b6bbe07cd85...` and
-`ampeer_sim/production/fallback_yield.py` at `9d54ef6db8b8765e...`,
-in which 3.5 kWp facing south at 35 degrees yields 3674.0 kWh a year after
-losses and the reference household's shock is 623.50 where it was 633.73 before
-that work and 585.72 under the withdrawn window.
+The tables below are the third pass, against the code that ships at the two
+digests above, in which 3.5 kWp facing south at 35 degrees yields 3674.0 kWh a
+year after losses and the reference household's shock is 623.50 where it was
+633.73 before that work and 585.72 under the withdrawn window.
 
 Three passes on three materially different production models is more evidence
 about this document than any one of them is. Every euro figure moved every time,
@@ -44,13 +73,8 @@ and every structural conclusion held every time: repair 1 and repair 2 stayed
 identical to the cent, the same three of six bands stayed non-overlapping, the
 carve-out floor stayed at 2550 kWh, and the kilometre crossing stayed between
 6200 and 6400. The euro columns are worth what a model revision leaves them
-worth. The conclusions are worth more.
-
-What did not move between the two passes is the whole of the argument: repair 1
-and repair 2 stayed identical to the cent, the carve-out floor stayed at 2550
-kWh, the break-even stayed between 6200 and 6400 kilometres a year, and the
-same three households lost the same advice. So read the euro columns as a scale
-and the structure as the finding.
+worth. The conclusions are worth more. So read the euro columns as a scale and
+the structure as the finding.
 
 ## The three readings
 
@@ -82,7 +106,7 @@ contract. Euro per year, the cost of the end of net metering. The last column is
 the same gap read the other way round: what a household would see its figure do
 if either repair shipped.
 
-| household | base kWh | asset kWh | bill total kWh | today | repair 1 | repair 2 | gap of today | gap of today | rise if repaired |
+| household | base kWh | asset kWh | bill total kWh | today | repair 1 | repair 2 | gap of today, euro | gap of today, percent | rise if repaired |
 |---|---|---|---|---|---|---|---|---|---|
 | hand_checkable | 3650 | 0 | 3650.0 | 16.46 | 16.46 | 16.46 | 0.00 | 0.0% | 0.0% |
 | large_array_small_use | 2200 | 0 | 2200.0 | 1666.13 | 1666.13 | 1666.13 | 0.00 | 0.0% | 0.0% |
@@ -229,9 +253,10 @@ total must be at least the modelled asset plus 2550.
 
 Worth saying plainly, because it stops this reading as a new problem: the golden
 household `large_array_small_use` runs at 2200 kWh today with no asset at all,
-so it already sits 134 days a year below this floor. The floor is not created by
-repair 2. Repair 2 makes it reachable by households that are nowhere near it on
-their own.
+which is 350 kWh under this floor, and it carries the model's calibrated 1 kWh
+block, so its block already fails to move in full on 134 days of the year. The
+floor is not created by repair 2. Repair 2 makes it reachable by households that
+are nowhere near it on their own.
 
 ### How often the carve-out leaves too little
 
@@ -242,7 +267,7 @@ asks. Share of grid cells whose residual falls below the floor:
 
 | asset | modelled asset kWh | needs a bill total of | below 2550 | below 5101 | below 1, impossible |
 |---|---|---|---|---|---|
-| car only | 2160 | 4710 | 31.1% | 54.7% | 6.6% |
+| car only | 2160 | 4711 | 31.1% | 54.7% | 6.6% |
 | heat pump only | 1156 to 5781 | 3707 to 8332 | 43.1% | 67.2% | 19.2% |
 | car and heat pump | 3316 to 7941 | 5867 to 10492 | 63.5% | 86.4% | 39.4% |
 | all three combined | | | 53.0% | 76.5% | 29.0% |
@@ -251,12 +276,29 @@ The honest caveat on that 53 percent: the grid is uniform and Dutch households
 are not. A household that owns a car and a heat pump does not have a 1500 kWh
 bill, so the low corner is heavily over-represented and the true share is lower,
 probably much lower. The figure that does not depend on a distribution is the
-third column. A car alone needs a bill of 4710 kWh before the carve-out is safe.
-A car and a 12000 kWh heat pump need 8000. Those are the numbers to hold against
-your own sense of who fills this form in.
+third column, which is the modelled asset plus the 2550.3 floor, rounded **up**
+in every row: these are minima, so rounding down publishes a bill total that is
+not in fact safe.
 
-None of the nine households in the first table hits the floor. The smallest
-residual after carving is 3000 kWh.
+A car alone needs a bill of 4711 kWh before the carve-out is safe: 2160.0 plus
+2550.3 is 4710.3. A car and a 12000 kWh heat pump need **8179**: 2160.0 for the
+car plus 3468.7 for the pump plus 2550.3 is 8179.0, so 8179 up and 8180 if you
+prefer a round number, and never 8000. This sentence did read 8000 until
+2026-08-27, which is 179 kWh short of its own arithmetic and short in the
+direction that declares the carve-out safe for households it is not safe for.
+The sum is written out here rather than only its rounding, because that is what
+lets the next reader catch this the way it was caught. Recomputed on 2026-08-27
+by calling `heat_pump_profile` and `EV.annual_kwh` directly and by rerunning the
+bisection behind the floor; every other figure in the table above reproduced
+unchanged. Those are the numbers to hold against your own sense of who fills
+this form in.
+
+One of the nine rows in the first table is already below the floor, and it is
+the row with no asset at all: `large_array_small_use`, whose 2200 kWh is its
+whole bill, so carving subtracts nothing and it sits 350 kWh under the floor
+either way. That is the same household as the paragraph above, said from the
+other side. Across the other eight rows the smallest residual after carving is
+3000 kWh, which clears the floor by 450.
 
 ### Where repair 2 stops being better than doing nothing
 
@@ -426,6 +468,22 @@ Verification, in full.
   from.
 - The `ValueError` boundary was confirmed by calling `Household` directly rather
   than reasoned about.
+- Rechecked on 2026-08-27, in a script written from the shipping code rather
+  than from this document. All three rows of the floors table reproduced to the
+  tenth of a kWh, the flat row again matched `block x 365 x 6` exactly, the
+  days-below
+  table reproduced day for day, and `heat_pump_profile` again gave 1156.2,
+  3468.7 and 5781.2 kWh for heat demands of 4000, 12000 and 20000 kWh. One
+  figure did not reproduce: the bill total a car and a 12000 kWh heat pump need,
+  which read 8000 and is 8179.0. It is now quoted as 8179, and the third column
+  of that table now rounds up throughout, which also moved the car-only row from
+  4710 to 4711.
+- Two statements about `large_array_small_use` contradicted each other, one
+  saying it sits below the floor and one saying no household in the first table
+  does. The first is right: its annual consumption in
+  `tests/golden/households.json` is 2200 kWh against a floor of 2550.3, and it
+  carries a 1 kWh shiftable block, so the clamp bites on 134 days. Both passages
+  now say so.
 - `tests/test_portability.py`, `tests/test_decisions.py` and `tests/test_plans.py`
   were run after this file was written and pass. While the second pass was being
   written,
@@ -434,3 +492,16 @@ Verification, in full.
   was another lane's work and not caused by anything here. It is green again:
   chapter 4 now quotes 447 against 623, the figures the shipping model produces
   and the ones in the first table above.
+- This file is read by a suite as of 2026-08-27. `tests/test_analysis_docs.py`
+  holds every sheet in `docs/analysis/` to the paths it names, the dashes it may
+  not carry, and a header saying when its figures were taken and against what.
+  It cannot check a number, which is said there in as many words: the two
+  contradicting paragraphs above would have passed it. What it stops is the next
+  failure, which is this file quietly pointing at a file that has been renamed.
+- The euro table was re-derived on 2026-08-27 against both sides of the
+  `PvgisProvider` repair, because that repair changed the file whose digest this
+  document pins. One script, two trees, ten rows, identical to three decimals.
+  Nothing in this document rests on `PvgisProvider`; everything rests on
+  `FallbackProvider`, which the repair did not touch. Recorded because a digest
+  that moves and a figure that moves are two different events, and the header
+  above previously had no way to say that only one of them had happened.
