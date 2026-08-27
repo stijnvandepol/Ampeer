@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import ast
 import dataclasses
 import enum
+import hashlib
 import importlib
+import inspect
 import json
 import pkgutil
 from pathlib import Path
@@ -166,6 +169,73 @@ def _engine_constants() -> tuple[tuple[str, str], ...]:
     )
 
 
+#: Names that are module level constants of ampeer_sim and are not pinned below.
+#:
+#: One entry, and it is the version string itself. Pinning ENGINE_VERSION to the
+#: table keyed by ENGINE_VERSION says nothing at all, and leaving it in would
+#: make every version bump look like a constant that moved.
+_NOT_PINNED = frozenset({"ampeer_sim.ENGINE_VERSION"})
+
+
+def _engine_module_constants() -> tuple[tuple[str, str], ...]:
+    """Every module level constant the engine carries, found rather than listed.
+
+    The half of decision 8 that was missing. ``_engine_constants`` above reads
+    dataclass field defaults, which was the whole of the pin until a review on
+    2026-08-26 noticed the shape of the hole: the values that actually decide a
+    household's answer mostly are not dataclass defaults. ORIENTATION_FACTORS,
+    MONTHLY_MEAN_PRODUCTION_W_PER_KWP, FALLBACK_SOLAR_NOON_HOUR,
+    DEGRADATION_PER_YEAR and UTC_TO_WINTER_TIME_HOURS are module level constants
+    to a name, and every one of them could move while ENGINE_VERSION stood
+    still. Three engine versions in a row have now produced an identical
+    dataclass row while the numbers underneath moved twice, which is that hole
+    with a measurement on it.
+
+    Found by reading each module's own source rather than by walking ``dir()``.
+    A ``dir()`` walk cannot tell a constant a module defines from one it imports,
+    so MONTHLY_MEAN_PRODUCTION_W_PER_KWP would appear twice, under
+    fallback_yield and under pvgis, and moving an import would look like a
+    constant moving. The parse names exactly what each file assigns at module
+    level.
+
+    Pinned as a digest of the repr and not as the repr. Four of these are tables:
+    _POSTCODE_CENTROIDS reprs to 1873 characters, and a snapshot holding two of
+    those is not something anybody reads, while wrapping it across implicit
+    string concatenation would make a one character change to a coordinate show
+    up as a reflowed block. The failure message carries the live value instead,
+    which is the half a reader needs; the pinned half only has to be able to
+    differ.
+    """
+    modules = [ampeer_sim] + [
+        importlib.import_module(found_module.name)
+        for found_module in pkgutil.walk_packages(ampeer_sim.__path__, "ampeer_sim.")
+    ]
+    found: dict[str, object] = {}
+    for imported in modules:
+        for node in ast.parse(inspect.getsource(imported)).body:
+            targets: list[ast.expr] = (
+                [node.target]
+                if isinstance(node, ast.AnnAssign)
+                else list(getattr(node, "targets", []))
+            )
+            for target in targets:
+                if isinstance(target, ast.Name) and target.id.isupper():
+                    found[f"{imported.__name__}.{target.id}"] = getattr(imported, target.id)
+
+    arrays = sorted(name for name, value in found.items() if isinstance(value, np.ndarray))
+    assert not arrays, (
+        f"{arrays} are numpy arrays, whose repr elides its middle past a threshold set by "
+        "global print options, so a digest of it would silently stop distinguishing values"
+    )
+    return tuple(
+        sorted(
+            (name, hashlib.sha256(repr(value).encode("utf-8")).hexdigest()[:16])
+            for name, value in found.items()
+            if name not in _NOT_PINNED
+        )
+    )
+
+
 def _golden_answers() -> tuple[tuple[str, float], ...]:
     """The numbers the six golden households are asserted to produce.
 
@@ -194,6 +264,31 @@ def _difference(
         for name in sorted(set(found) | set(recorded))
         if found.get(name) != recorded.get(name)
     )
+
+
+def _live_constant_values(
+    actual: tuple[tuple[str, str], ...], pinned: tuple[tuple[str, str], ...]
+) -> str:
+    """The current value of every constant whose digest no longer matches.
+
+    A digest tells you that something moved and never what to. This reads the
+    value back out of the module so the failure names it, which is the whole
+    reason the pinned side is allowed to be a digest. Long tables are cut off
+    rather than printed in full: the point is to recognise the value, and the
+    diff of the module holding it is where it is read properly.
+    """
+    moved = sorted(set(dict(actual)) | set(dict(pinned)))
+    lines = []
+    for name in moved:
+        if dict(actual).get(name) == dict(pinned).get(name):
+            continue
+        module_name, _, attribute = name.rpartition(".")
+        try:
+            shown = repr(getattr(importlib.import_module(module_name), attribute))
+        except (ImportError, AttributeError):
+            shown = "gone: no such name in that module any more"
+        lines.append(f"  {name} = {shown[:200]}{'...' if len(shown) > 200 else ''}")
+    return "\n".join(lines)
 
 
 def test_the_model_constants_are_pinned_to_the_engine_version() -> None:
@@ -273,6 +368,37 @@ def test_the_model_constants_are_pinned_to_the_engine_version() -> None:
             ("ampeer_sim.types.TariffSet.net_metering", "False"),
             ("ampeer_sim.types.TariffSet.standing_charge_year", "Decimal('0')"),
         ),
+        # 0.3.0 converted PVGIS's UTC stamps onto the grid's winter time, which
+        # is a module level constant and a rotation rather than a dataclass
+        # default, so this row is 0.2.0's unchanged for the third time running.
+        # Three identical rows is the finding that produced
+        # test_the_module_constants_are_pinned_to_the_engine_version below: not
+        # one of the three engine versions moved a value this pin can see.
+        "0.3.0": (
+            ("ampeer_sim.types.BatterySpec.allow_grid_charging", "False"),
+            ("ampeer_sim.types.BatterySpec.round_trip_efficiency", "0.9"),
+            ("ampeer_sim.types.BatterySpec.usable_dod", "0.9"),
+            ("ampeer_sim.types.EV.annual_km", "12000"),
+            ("ampeer_sim.types.EV.charge_power_kw", "3.7"),
+            ("ampeer_sim.types.EV.kwh_per_100km", "18.0"),
+            ("ampeer_sim.types.EnergyFlows.grid_charge", "None"),
+            ("ampeer_sim.types.EnergyFlows.grid_discharge", "None"),
+            ("ampeer_sim.types.HeatPump.base_temperature_c", "15.0"),
+            ("ampeer_sim.types.HeatPump.cop_at_7c", "3.5"),
+            ("ampeer_sim.types.HeatPump.cop_slope_per_c", "0.06"),
+            ("ampeer_sim.types.Household.daytime_occupancy", "False"),
+            ("ampeer_sim.types.Household.ev", "None"),
+            ("ampeer_sim.types.Household.heat_pump", "None"),
+            ("ampeer_sim.types.Household.profile_category", "ProfileCategory.E1A"),
+            ("ampeer_sim.types.Household.shiftable_block_kwh", "1.0"),
+            ("ampeer_sim.types.PVSystem.install_year", "None"),
+            ("ampeer_sim.types.PVSystem.system_loss_fraction", "0.14"),
+            ("ampeer_sim.types.TariffSet.dynamic", "False"),
+            ("ampeer_sim.types.TariffSet.feed_in_cost_per_kwh", "Decimal('0')"),
+            ("ampeer_sim.types.TariffSet.feed_in_fixed_cost_year", "Decimal('0')"),
+            ("ampeer_sim.types.TariffSet.net_metering", "False"),
+            ("ampeer_sim.types.TariffSet.standing_charge_year", "Decimal('0')"),
+        ),
     }
     assert ENGINE_VERSION in snapshot, (
         f"ENGINE_VERSION is {ENGINE_VERSION!r} and this table has no row for it. "
@@ -286,6 +412,90 @@ def test_the_model_constants_are_pinned_to_the_engine_version() -> None:
         + f"\nEither restore the value or move ENGINE_VERSION past {ENGINE_VERSION} "
         "and add a row above. docs/methodologie.md holds the source for each of "
         "these, so a change here is a change there too."
+    )
+
+
+def test_the_module_constants_are_pinned_to_the_engine_version() -> None:
+    """The other half of decision 8, missing until 2026-08-27.
+
+    One row and not three. The dataclass table above carries 0.1.0 and 0.2.0
+    because those rows were written while those versions were current; the
+    values these names held then were never recorded, and reconstructing them
+    from the history to fill the table in would be manufacturing a record of a
+    check that did not run. This pin starts where it starts and says so.
+
+    What it costs is the same friction decision 8 already buys: moving a table,
+    a threshold or a location in ampeer_sim means moving ENGINE_VERSION and
+    adding a row here. What it buys is that 0.2.0 and 0.3.0 could not have
+    happened silently. 0.2.0 moved FALLBACK_SOLAR_NOON_HOUR and every entry of
+    ORIENTATION_FACTORS; 0.3.0 added UTC_TO_WINTER_TIME_HOURS. Neither is a
+    dataclass default, and neither would have made the pin above blink.
+    """
+    snapshot = {
+        "0.3.0": (
+            ("ampeer_sim.economics.sensitivity.CENTRAL_FACTOR", "d0ff5974b6aa52cf"),
+            ("ampeer_sim.economics.sensitivity.VARIATIONS", "4b3b6cc9ab933edf"),
+            ("ampeer_sim.economics.tariffs.EUR_PRECISION", "66341319baafc19a"),
+            ("ampeer_sim.economics.tariffs.KWH_PRECISION", "66341319baafc19a"),
+            ("ampeer_sim.engine.strategies.FORESIGHT_HORIZON_DAYS", "6b86b273ff34fce1"),
+            ("ampeer_sim.engine.strategies.HYBRID_SAFETY_MARGIN", "9f29a130438b8117"),
+            (
+                "ampeer_sim.production.fallback_yield.MONTHLY_MEAN_PRODUCTION_W_PER_KWP",
+                "0678f9f6b8831e49",
+            ),
+            ("ampeer_sim.production.fallback_yield.MONTHLY_MEAN_TEMPERATURE", "115c55510054006f"),
+            ("ampeer_sim.production.fallback_yield.ORIENTATION_FACTORS", "79fe2b88af8001d3"),
+            ("ampeer_sim.production.fallback_yield.TABLE_LONGITUDE", "4b9c27c3a3718066"),
+            ("ampeer_sim.production.model.DEGRADATION_PER_YEAR", "07e17407c7918077"),
+            ("ampeer_sim.production.model.MAX_DEGRADATION", "44896b09365746b5"),
+            ("ampeer_sim.production.pvgis.FALLBACK_DAYLIGHT_HOURS", "77c52f3feed5acdd"),
+            ("ampeer_sim.production.pvgis.FALLBACK_SOLAR_NOON_HOUR", "456baac0519e7bbe"),
+            ("ampeer_sim.production.pvgis.PVGIS_URL", "83e0554d696623d2"),
+            ("ampeer_sim.production.pvgis.RADIATION_DATABASE", "d4666808263aa56c"),
+            ("ampeer_sim.production.pvgis.REFERENCE_LOSS_PERCENT", "8aed642bf5118b9d"),
+            ("ampeer_sim.production.pvgis.REFERENCE_PEAK_POWER_KW", "d0ff5974b6aa52cf"),
+            ("ampeer_sim.production.pvgis.UTC_TO_WINTER_TIME_HOURS", "6b86b273ff34fce1"),
+            ("ampeer_sim.production.pvgis._DEFAULT_CENTROID", "45a1d875efbe8796"),
+            ("ampeer_sim.production.pvgis._POSTCODE_CENTROIDS", "7c3619d3e0959da1"),
+            ("ampeer_sim.profiles.assets.ARRIVAL_WINDOW", "e8c3a86ba10aea79"),
+            ("ampeer_sim.profiles.assets.MIN_COP", "d0ff5974b6aa52cf"),
+            ("ampeer_sim.profiles.assets.NIGHT_WINDOW", "7b5f404e02b3e494"),
+            ("ampeer_sim.profiles.nedu.BASE_SERIES_SUFFIX", "ef3d560c808a0096"),
+            ("ampeer_sim.profiles.nedu.FEED_IN_SERIES_SUFFIX", "6f8e0f7c337b21bd"),
+            ("ampeer_sim.profiles.nedu.FIRST_DATA_COLUMN", "4e07408562bedb8b"),
+            ("ampeer_sim.profiles.nedu.HEADER_ROWS", "7902699be42c8a8e"),
+            ("ampeer_sim.profiles.nedu.NAME_ROW", "5feceb66ffc86f38"),
+            ("ampeer_sim.profiles.nedu.SINGLE_REGISTER", "b1741201e5ef1384"),
+            ("ampeer_sim.profiles.nedu.SUM_TOLERANCE", "1187132475a4431d"),
+            ("ampeer_sim.profiles.nedu.YEAR_ROW", "6b86b273ff34fce1"),
+            ("ampeer_sim.profiles.presence.EVENING_WINDOW", "e8c3a86ba10aea79"),
+            ("ampeer_sim.profiles.presence.MIDDAY_WINDOW", "cbd2debb98ebecca"),
+            ("ampeer_sim.simulate.DEFAULT_WEATHER_YEAR", "d398b29d3dbbb9bf"),
+            ("ampeer_sim.timebase.DST_SWITCH_QUARTER", "2c624232cdd22177"),
+            ("ampeer_sim.timebase.HOURS_PER_DAY", "c2356069e9d1e79c"),
+            ("ampeer_sim.timebase.MINUTES_PER_DAY", "a4ff3ad278c7b057"),
+            ("ampeer_sim.timebase.MINUTES_PER_QUARTER", "e629fa6598d73276"),
+            ("ampeer_sim.timebase.QUARTERS_PER_DAY", "7b1a278f5abe8e9d"),
+            ("ampeer_sim.timebase.QUARTERS_PER_HOUR", "4b227777d4dd1fc6"),
+            ("ampeer_sim.validate.DEFAULT_PROFILE_YEAR", "b2b2f104d32c6389"),
+            ("ampeer_sim.validate.DEFAULT_TOLERANCE_PERCENT", "f1e42019aecc858f"),
+            ("ampeer_sim.validate.REQUIRED_FIELDS", "45b84058cdd90331"),
+        ),
+    }
+    assert ENGINE_VERSION in snapshot, (
+        f"ENGINE_VERSION is {ENGINE_VERSION!r} and this table has no row for it. "
+        "A module level constant is as much a part of what an engine computes with "
+        "as a dataclass default, and an advice stamped with a version whose "
+        "constants nobody wrote down cannot be reproduced either."
+    )
+    actual = _engine_module_constants()
+    assert actual == snapshot[ENGINE_VERSION], (
+        "the engine computes with different module level constants than the version says:\n"
+        + _difference(actual, snapshot[ENGINE_VERSION])
+        + "\nThe values behind those digests, as they stand now:\n"
+        + _live_constant_values(actual, snapshot[ENGINE_VERSION])
+        + f"\nEither restore the value or move ENGINE_VERSION past {ENGINE_VERSION} "
+        "and add a row above."
     )
 
 
@@ -323,6 +533,28 @@ def test_the_golden_answers_are_pinned_to_the_engine_version() -> None:
         # did. No tolerance moved, and no household's postcode, array or demand
         # moved either, so every difference below is the engine and nothing else.
         "0.2.0": (
+            ("hand_checkable.expected_consumption_kwh", 3650.0),
+            ("hand_checkable.expected_self_consumption_rate", 0.9391),
+            ("large_array_small_use.expected_consumption_kwh", 2200.0),
+            ("large_array_small_use.expected_self_consumption_rate", 0.1194),
+            ("marloes_ev_at_night.expected_consumption_kwh", 5700.0),
+            ("marloes_ev_at_night.expected_self_consumption_rate", 0.2647),
+            ("marloes_ev_on_solar.expected_consumption_kwh", 5700.0),
+            ("marloes_ev_on_solar.expected_self_consumption_rate", 0.7661),
+            ("rob_fixed_contract.expected_consumption_kwh", 3500.0),
+            ("rob_fixed_contract.expected_self_consumption_rate", 0.341),
+            ("sander_heat_pump.expected_consumption_kwh", 6802.0),
+            ("sander_heat_pump.expected_self_consumption_rate", 0.4977),
+        ),
+        # 0.3.0 moved the PVGIS path by an hour and left every figure below
+        # exactly where 0.2.0 put it. That is not a value going unrecorded: the
+        # six households above run on FallbackProvider, on purpose, so that the
+        # suite needs no network, and the fallback builds its day in the grid's
+        # winter time already. A row identical to the one above it is the honest
+        # entry for an engine version whose change this file cannot reach, and
+        # tests/golden/README.md says the same in prose with the numbers that did
+        # move. The check that did reach it is in tests/test_calibration.py.
+        "0.3.0": (
             ("hand_checkable.expected_consumption_kwh", 3650.0),
             ("hand_checkable.expected_self_consumption_rate", 0.9391),
             ("large_array_small_use.expected_consumption_kwh", 2200.0),

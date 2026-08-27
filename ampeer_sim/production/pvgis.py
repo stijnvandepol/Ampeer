@@ -7,6 +7,15 @@ parts of the URL itself. That is what keeps the project SSRF rule intact.
 PVGIS is asked to do the photovoltaic physics, for one kWp and with zero system
 loss. Everything we apply on top of that is linear, so a whole sensitivity
 analysis costs one call rather than one call per variation.
+
+Every provider here returns its series on the grid's time base, which is the
+continuous winter time ``ampeer_sim.timebase`` documents. That is the contract,
+not an accident of what each source happens to hand over: ``FallbackProvider``
+builds its day around solar noon in winter time and ``PvgisProvider`` converts
+out of the UTC that PVGIS stamps its rows with. Everything after a provider is
+index against index, so a series that arrives on the wrong time base is never
+noticed again, and the price of getting it wrong is in
+``UTC_TO_WINTER_TIME_HOURS`` below.
 """
 
 from __future__ import annotations
@@ -34,6 +43,49 @@ RADIATION_DATABASE = "PVGIS-SARAH3"
 REFERENCE_PEAK_POWER_KW = 1.0
 REFERENCE_LOSS_PERCENT = 0.0
 
+#: Hours a PVGIS stamp sits behind the grid's clock. PVGIS timestamps its rows in
+#: UTC and ``YearGrid`` runs in continuous winter time, which is UTC plus one, so
+#: the value PVGIS calls hour i belongs at hour i + 1 of the grid.
+#:
+#: Until 2026-08-27 nothing shifted, so hour i of the response was placed at hour
+#: i of the grid and the whole production series sat an hour early. Measured on
+#: 2026-08-27 on the reference household of tests/test_calibration.py, 3500 kWh
+#: and 3.5 kWp facing south at 35 degrees in postcode 5401, weather year 2023,
+#: profile year 2025, against a flat consumption shape:
+#:
+#:     self consumption   28.16 percent   ->   29.13 percent
+#:     export             2583 kWh        ->   2548 kWh
+#:     offtake            2487 kWh        ->   2452 kWh
+#:     end of net metering, 2027 tariffs   665.21 euro   ->   656.20 euro
+#:
+#: So the early series understated self consumption by about a point and
+#: overstated both meter directions, which under the 2027 tariffs overstates the
+#: shock by nine euro. That is the direction that flatters a battery, which is
+#: the bias this product exists against.
+#:
+#: Here and not in ampeer_sim/production/model.py, for three reasons. "PVGIS
+#: stamps in UTC" is a fact about PVGIS, and this is the module that knows about
+#: PVGIS. ``production_series`` receives a bare array with no idea which source
+#: produced it, so putting the shift there would mean threading the source
+#: through every call site to answer a question only this file can answer. And
+#: it would move the offline shape too, which is already in winter time by
+#: construction: FALLBACK_SOLAR_NOON_HOUR below centres it on 12:38 winter time,
+#: so a second hour would put it 38 minutes past solar noon instead of on it.
+#:
+#: The shift is a rotation rather than a shift with a fill, so nothing is dropped
+#: and nothing is invented, and the annual total PVGIS reports survives to the
+#: last digit. What it does is wrap one hour: the last row of the response is
+#: 31 December 23:00 UTC, which is midnight winter time, and it lands on the
+#: grid's 1 January 00:00. Strictly that is the following year's first hour
+#: rather than this one's, so the grid's first hour holds a midwinter midnight
+#: from the other end of the same year. It moves no energy: measured on the same
+#: call, PVGIS puts 0.0 W per kWp at that hour and 0.0 W at the hour it
+#: displaces, and the sun is below the horizon at midnight on both dates
+#: whatever the weather did. The temperature it carries is 8.45 C against the
+#: 15.76 C of 1 January 00:00 UTC, one hour in 8760, and the only consumer of
+#: the temperature series spreads a year of heat demand across all of them.
+UTC_TO_WINTER_TIME_HOURS = 1
+
 #: Solar noon at the table's location, on the continuous winter time the grid
 #: runs in. Winter time is UTC plus one hour and true solar noon is 12:00 minus
 #: four minutes per degree of eastward longitude, so Uden's is 12:38.
@@ -43,16 +95,16 @@ REFERENCE_LOSS_PERCENT = 0.0
 #: docs/decisions.md: the model exported nothing after 17:00 while the country
 #: still exported 0.0295 of its year at 18:00.
 #:
-#: One thing this does not repair, and it is larger. PVGIS stamps its hours in
-#: UTC and ``YearGrid`` runs in continuous winter time, which is UTC plus one,
-#: and ``align_hourly_year`` places the series by index without shifting it. So
-#: the PVGIS path, which is the one a visitor normally gets, puts every kilowatt
-#: hour a full hour early. Measured on 2026-08-26 over the nine years of the
-#: yield table: PVGIS's own peak hour is 11:00 UTC, which is 12:00 winter time
-#: and where solar noon at 11:38 UTC belongs, and the model reads it as 11:00.
-#: That is in ampeer_sim/production/model.py and ampeer_sim/timebase.py rather
-#: than here, so it is written up rather than fixed; it also explains why the
-#: old fallback shape agreed with the PVGIS path so well. They shared the error.
+#: The larger error this sat next to is repaired as of 2026-08-27, in
+#: UTC_TO_WINTER_TIME_HOURS above rather than here: the PVGIS path, which is the
+#: one a visitor normally gets, placed every kilowatt hour a full hour early
+#: because nothing converted PVGIS's UTC stamps onto the grid. Measured on
+#: 2026-08-26 over the nine years of the yield table: PVGIS's own peak hour is
+#: 11:00 UTC, which is 12:00 winter time and where solar noon at 11:38 UTC
+#: belongs, and the model read it as 11:00. That is also why the old fallback
+#: shape, centred on 12:00, agreed with the PVGIS path so well for a year. They
+#: shared the error, and correcting one of them without the other is what made
+#: the second correction findable.
 #:
 #: The equation of time is not modelled. It moves solar noon by at most a
 #: quarter of an hour either way over the year and averages to nothing, which is
@@ -207,7 +259,12 @@ def postcode4_to_latlon(postcode4: str) -> tuple[float, float]:
 
 
 class PvgisProvider:
-    """Fetch an hourly production and temperature series from PVGIS."""
+    """Fetch an hourly production and temperature series from PVGIS.
+
+    The series comes back on the grid's continuous winter time, not on the UTC
+    PVGIS answers in. The conversion is one rotation and its whole argument,
+    including what the wrapped hour costs, is above UTC_TO_WINTER_TIME_HOURS.
+    """
 
     def __init__(
         self,
@@ -241,7 +298,15 @@ class PvgisProvider:
         hourly = response.json()["outputs"]["hourly"]
         production = np.array([row["P"] for row in hourly], dtype=float)
         temperature = np.array([row["T2m"] for row in hourly], dtype=float)
-        return production, temperature, ProductionSource.PVGIS
+        # Both columns come off the same rows and carry the same UTC stamp, so
+        # both move together. Shifting the production alone would leave the
+        # outside temperature an hour early, which is a heat pump's demand curve
+        # an hour early, on the one household shape that has a temperature in it.
+        return (
+            np.roll(production, UTC_TO_WINTER_TIME_HOURS),
+            np.roll(temperature, UTC_TO_WINTER_TIME_HOURS),
+            ProductionSource.PVGIS,
+        )
 
 
 class FallbackProvider:
@@ -250,6 +315,11 @@ class FallbackProvider:
     The daily shape is a half sine centred on solar noon at the table's
     location, scaled so the monthly mean matches the table. This is deliberately
     crude; its only job is to keep the advice available when PVGIS is not.
+
+    Nothing here shifts, and that is not an omission. This shape is built in the
+    grid's own winter time already, which is what FALLBACK_SOLAR_NOON_HOUR is
+    measured in, so it is on the time base every provider promises before it
+    starts. Only PVGIS speaks UTC.
 
     The shape is the reference plane's, south at 35 degrees, whatever roof it is
     asked about; the orientation only scales it. That is wrong for a west roof,

@@ -4,6 +4,16 @@ The photovoltaic physics is not modelled here. PVGIS already accounts for
 module temperature, reflection and spectral response, and reimplementing that
 badly cost about ten percent when it was measured on 2026-08-20. What remains
 here is linear: array size, system losses and ageing.
+
+Nothing here moves a series in time either, and that is a decision rather than
+an oversight. Hour i of the argument is placed at hour i of the grid, so the
+argument must already be on the grid's continuous winter time. Providers are
+what put it there: ``ampeer_sim.production.pvgis`` converts PVGIS's UTC stamps
+and says what the conversion is worth, and the offline shape is built in winter
+time to begin with. This function is handed a bare array of watts per kWp with
+no idea where it came from, so it could not tell one case from the other
+without being told, and being told would mean every call site carrying an
+answer that belongs to one provider.
 """
 
 from __future__ import annotations

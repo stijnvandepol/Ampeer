@@ -3,6 +3,7 @@ from __future__ import annotations
 import calendar
 import math
 import re
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,7 @@ from ampeer_sim.production.fallback_yield import (
 from ampeer_sim.production.pvgis import (
     FALLBACK_DAYLIGHT_HOURS,
     FALLBACK_SOLAR_NOON_HOUR,
+    UTC_TO_WINTER_TIME_HOURS,
     FallbackProvider,
     PvgisProvider,
     ResilientProductionProvider,
@@ -288,6 +290,137 @@ def test_the_fallback_still_produces_after_the_old_window_had_closed() -> None:
     assert june[20] == 0.0 and june[4] == 0.0, (
         "the window now spans more than fifteen hours of the clock, which no fixed window "
         "here can be defended at: the shortest day of the year is eight"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The time base a PVGIS series arrives on
+# ---------------------------------------------------------------------------
+
+
+def _shaped_payload(hour_of_day: tuple[float, ...], days: int = 365) -> dict[str, Any]:
+    """A year whose every day repeats ``hour_of_day``, in PVGIS's own shape.
+
+    The rows carry the timestamps PVGIS writes, ten past each hour, so that a
+    reader can see which hour each value claims to be. Nothing reads them: the
+    provider places by index, which is the property these tests are about.
+    """
+    return {
+        "outputs": {
+            "hourly": [
+                {
+                    "time": f"{date(2023, 1, 1) + timedelta(days=day):%Y%m%d}:{hour:02d}10",
+                    "P": watts,
+                    "G(i)": watts,
+                    "T2m": float(hour),
+                }
+                for day in range(days)
+                for hour, watts in enumerate(hour_of_day)
+            ]
+        }
+    }
+
+
+def test_a_pvgis_series_arrives_on_the_grids_time_base_and_not_on_utc() -> None:
+    """The defect this file's fallback section already described, on the live path.
+
+    PVGIS stamps its hourly rows in UTC and the grid runs in continuous winter
+    time, which is UTC plus one. Until 2026-08-27 nothing converted between
+    them, so hour i of the response was placed at hour i of the grid and every
+    kilowatt hour a visitor was shown sat an hour early.
+
+    Asserted against PVGIS's own hour of the day rather than against the
+    constant. The payload below is the measured nine year distribution above,
+    written back into the UTC stamps PVGIS would have delivered it in, so what
+    this pins is that the shape comes back out where PVGIS put it. A provider
+    that stopped converting returns the same 24 numbers rotated one place, and
+    the peak lands at 11:00 where solar noon at this longitude is 12:38.
+    """
+    as_pvgis_sends_it = tuple(np.roll(np.array(PVGIS_HOUR_OF_DAY_WINTER_TIME), -1))
+    session = _FakeSession(payload=_shaped_payload(as_pvgis_sends_it))
+    production, _, _ = _provider(session).hourly_series("5401", 0.0, 35.0)
+
+    by_hour = production.reshape(365, HOURS_PER_DAY).sum(axis=0)
+    shares = by_hour / by_hour.sum()
+    # Both sides normalised, because the 24 shares above are rounded to four
+    # places and sum to 0.9999 rather than to 1. Comparing a distribution
+    # against the raw table would fail on that rounding at 1.4e-5 and say
+    # nothing about which hour anything landed on.
+    measured = np.array(PVGIS_HOUR_OF_DAY_WINTER_TIME)
+    assert shares == pytest.approx(measured / measured.sum(), abs=1e-9), (
+        "the provider returns PVGIS's day at hours PVGIS did not put it at"
+    )
+
+    peak = int(np.argmax(shares))
+    assert peak == int(FALLBACK_SOLAR_NOON_HOUR), (
+        f"the fullest hour of the returned year is {peak}:00 and solar noon at this "
+        f"longitude is {FALLBACK_SOLAR_NOON_HOUR:.2f} in winter time"
+    )
+
+
+def test_the_conversion_moves_the_temperature_with_the_production() -> None:
+    """Both columns come off the same rows, so both carry the same stamp.
+
+    Shifting the production alone would leave the outside temperature an hour
+    early, and the temperature series has exactly one consumer: the heat pump
+    demand curve. Its hour would then be the hour the defect was.
+
+    The payload writes the hour number into T2m, so what comes back names the
+    UTC hour each value was stamped with.
+    """
+    session = _FakeSession(payload=_shaped_payload(tuple(float(hour) for hour in range(24))))
+    production, temperature, _ = _provider(session).hourly_series("5401", 0.0, 35.0)
+    assert temperature[12] == pytest.approx(11.0), (
+        f"winter time 12:00 carries the reading PVGIS stamped {temperature[12]:.0f}:10 UTC, "
+        "and 11:10 UTC is the one that belongs there"
+    )
+    assert production[12] == pytest.approx(temperature[12]), (
+        "the two columns no longer move together, so they describe different hours"
+    )
+
+
+def test_the_conversion_neither_loses_energy_nor_makes_any() -> None:
+    """A rotation rather than a shift with a fill, and the floor under saying so.
+
+    Shifting with a fill would drop the last hour of the response and invent a
+    first one. This wraps instead: 31 December 23:00 UTC is midnight winter
+    time and lands on the grid's 1 January 00:00, which is the following year's
+    hour rather than this one's. It costs nothing because the sun is down at
+    midwinter midnight either way, and the annual total PVGIS reports therefore
+    survives to the last digit.
+
+    The payload's own last hour is non-zero on purpose. A real December
+    midnight is 0.0 W per kWp, measured on 2026-08-27 for 2023 at postcode
+    5401, and a test built on that could not tell a rotation from a fill.
+    """
+    shape = tuple(float(hour) for hour in range(24))
+    session = _FakeSession(payload=_shaped_payload(shape))
+    production, _, _ = _provider(session).hourly_series("5401", 0.0, 35.0)
+
+    assert production.sum() == pytest.approx(sum(shape) * 365, rel=0, abs=0), (
+        "the conversion moved energy, and every factor after it is a multiplication"
+    )
+    assert sorted(production.tolist()) == sorted(np.tile(shape, 365).tolist()), (
+        "the returned year is not a permutation of the one PVGIS sent"
+    )
+    assert production[0] == pytest.approx(shape[-1]), (
+        "the grid's first hour does not hold the last hour of the response, so the wrap "
+        "is not the one described above UTC_TO_WINTER_TIME_HOURS"
+    )
+
+
+def test_the_offset_is_the_one_winter_time_actually_is() -> None:
+    """Winter time is UTC plus one, and only that.
+
+    Not a restatement of the line above the constant: this is what refuses a
+    conversion that follows summer time for part of the year. The grid is
+    continuous winter time by construction, so the offset has no season, and a
+    two hour offset in July would be a whole extra defect wearing this repair's
+    name.
+    """
+    assert UTC_TO_WINTER_TIME_HOURS == 1, (
+        f"the conversion moves PVGIS by {UTC_TO_WINTER_TIME_HOURS} hours and continuous "
+        "winter time is UTC plus exactly one"
     )
 
 

@@ -15,18 +15,20 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
 from helpers.profiles import nedu_profile_path
+from test_pvgis_provider import PVGIS_HOUR_OF_DAY_WINTER_TIME
 
 from ampeer_sim.calibration import compare_export_profile, hourly_share, monthly_share
 from ampeer_sim.engine.run import simulate
 from ampeer_sim.production.model import production_series
-from ampeer_sim.production.pvgis import FallbackProvider
+from ampeer_sim.production.pvgis import FallbackProvider, PvgisProvider, postcode4_to_latlon
 from ampeer_sim.profiles.compose import compose_consumption
 from ampeer_sim.profiles.nedu import NeduFileProvider
-from ampeer_sim.timebase import YearGrid
+from ampeer_sim.timebase import HOURS_PER_DAY, QUARTERS_PER_HOUR, YearGrid
 from ampeer_sim.types import Household, ProfileCategory, PVSystem
 
 REFERENCE = json.loads(
@@ -73,7 +75,7 @@ WEATHER_YEAR = 2025
 MAX_MONTHLY_GAP = 0.03
 MAX_HOURLY_GAP = 0.04
 
-#: Two disagreements this file cannot close and should not be read as closing.
+#: One disagreement this file cannot close and should not be read as closing.
 #:
 #: The model still exports nothing at 19:00, where the country puts 0.0120 of
 #: its year, and almost nothing at 18:00. Reaching those hours needs a longer
@@ -83,10 +85,38 @@ MAX_HOURLY_GAP = 0.04
 #: orientation in the country while this household faces south. The numbers are
 #: above FALLBACK_DAYLIGHT_HOURS in ampeer_sim/production/pvgis.py.
 #:
-#: And the larger one, which is not the fallback's at all: PVGIS stamps its
-#: hours in UTC, the grid runs in winter time, and nothing shifts the series
-#: between them, so the path a visitor normally gets is an hour early. This
-#: comparison never sees it, because it runs on the fallback on purpose.
+#: The second one recorded here is gone as of 2026-08-27. PVGIS stamps its hours
+#: in UTC, the grid runs in winter time, and nothing shifted the series between
+#: them, so the path a visitor normally gets ran an hour early while everything
+#: above it ran on the fallback and never saw that. The repair is in
+#: UTC_TO_WINTER_TIME_HOURS and what it was worth is beside it; the section at
+#: the foot of this file is the check that the primary path is now placed where
+#: PVGIS put it, which is the half this file was missing.
+
+#: How far the modelled hour of the day may sit from PVGIS's own, summed over
+#: the 24 hours, once the series has been through the whole production path.
+#:
+#: A ceiling on a known and explained residual, not a target, and it follows the
+#: same rule as the two above: it may be tightened and never widened. Measured
+#: on 2026-08-27, feeding PVGIS's own measured day back in through the provider
+#: and production_series: 0.0171. All of it is the hour to quarter
+#: interpolation, which treats an hourly value as the mean of its hour and so
+#: blends each hour with its neighbours; nothing else in that path moves a
+#: series sideways.
+#:
+#: 0.05 is that 0.0171 with room for ordinary movement, and the point of writing
+#: it that tight is what it refuses. Measured the same day, moving the whole
+#: series by a lag rather than by a whole hour:
+#:
+#:     placed correctly              0.0171
+#:     a quarter of an hour late     0.0692
+#:     half an hour either way       0.1350 late, 0.1359 early
+#:     a whole hour early, as it was 0.2698
+#:
+#: So this refuses a drift of fifteen minutes, which is well under the hour that
+#: was actually wrong and under the twenty minute figure chapter 7 of
+#: docs/methodologie.md used to call negligible.
+MAX_HOUR_OF_DAY_GAP = 0.05
 
 
 def _reference_export() -> np.ndarray:
@@ -344,3 +374,116 @@ def test_the_refusal_does_not_catch_a_series_that_does_belong() -> None:
     assert monthly_share(np.ones(LEAP_GRID.quarters), LEAP_GRID)[1] == pytest.approx(
         29 / 366, rel=1e-6
     ), "February 2024 has 29 days and the leap grid should say so"
+
+
+# ---------------------------------------------------------------------------
+# The path a visitor actually gets, held against the hour PVGIS puts its energy
+# ---------------------------------------------------------------------------
+#
+# Everything above runs on the offline fallback, on purpose: a calibration test
+# that needs the network is a calibration test that gets skipped. The cost of
+# that was a whole year in which the primary path was an hour out and nothing
+# here could see it. What follows keeps the same principle and closes the hole:
+# PVGIS's own measured hour of the day is handed back to the provider in the
+# UTC stamps PVGIS delivers it in, and the assertion is that it comes out of the
+# production path at the hours PVGIS put it at. No network, and the reference is
+# a measurement rather than a shape this file invented.
+
+
+def _pvgis_year_as_delivered() -> dict[str, Any]:
+    """A PVGIS response whose every day repeats PVGIS's own hour of the day.
+
+    ``PVGIS_HOUR_OF_DAY_WINTER_TIME`` is the nine year distribution for this
+    plane written in winter time, so rolling it back one place is what PVGIS
+    would have sent over the wire. Imported rather than copied: two tables of
+    24 measured shares that are supposed to be the same table will not stay it.
+    """
+    as_utc = np.roll(np.array(PVGIS_HOUR_OF_DAY_WINTER_TIME), -1)
+    return {
+        "outputs": {
+            "hourly": [
+                {"P": float(watts), "T2m": 10.0} for _ in range(GRID.days) for watts in as_utc
+            ]
+        }
+    }
+
+
+class _OneCannedYear:
+    """The smallest thing PvgisProvider will accept in place of a session."""
+
+    def __init__(self, payload: dict[str, Any]) -> None:
+        self._payload = payload
+
+    def get(self, url: str, params: dict[str, Any], timeout: float) -> _OneCannedYear:
+        return self
+
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self) -> dict[str, Any]:
+        return self._payload
+
+
+def _modelled_hour_of_day() -> np.ndarray:
+    """The share of the modelled year's production falling in each grid hour.
+
+    Bucketed on the grid rather than on the local clock, which is why
+    ``hourly_share`` is not used here: it buckets by ``grid.local_hour``, which
+    follows summer time, and the reference this is compared against is a fixed
+    winter time distribution. Mixing the two would blur every summer hour into
+    the next one and hide exactly the kind of one hour error this exists for.
+    """
+    provider = PvgisProvider(
+        weather_year=WEATHER_YEAR,
+        session=_OneCannedYear(_pvgis_year_as_delivered()),  # type: ignore[arg-type]
+    )
+    hourly, _, _ = provider.hourly_series("5401", 0.0, 35.0)
+    system = PVSystem(peak_power_wp=3_500, azimuth_deg=0.0, tilt_deg=35.0)
+    quarters = production_series(hourly, system, GRID, weather_year=WEATHER_YEAR)
+    per_hour = quarters.reshape(GRID.hours, QUARTERS_PER_HOUR).sum(axis=1)
+    by_hour = per_hour.reshape(GRID.days, HOURS_PER_DAY).sum(axis=0)
+    return np.asarray(by_hour / by_hour.sum())
+
+
+def test_the_pvgis_path_puts_the_day_where_pvgis_put_it() -> None:
+    """The check the year of running this file on the fallback alone did not do.
+
+    Until 2026-08-27 the answer to this was 0.2698 against a ceiling of 0.05,
+    and no test in the repository asked. The primary path placed PVGIS's UTC
+    hour i at grid hour i, so a visitor's whole production series sat an hour
+    early: self consumption 28.16 percent instead of 29.13, export 2583 kWh
+    instead of 2548, and nine euro too much on the headline figure. The numbers
+    and the household are above UTC_TO_WINTER_TIME_HOURS.
+
+    Not a test of the constant. The reference is PVGIS's own measurement and the
+    quantity is where the energy lands, so this stays honest if somebody
+    reimplements the conversion, moves it to another module, or replaces the
+    rotation with something cleverer.
+    """
+    measured = np.array(PVGIS_HOUR_OF_DAY_WINTER_TIME)
+    gap = float(np.abs(_modelled_hour_of_day() - measured / measured.sum()).sum())
+    assert gap <= MAX_HOUR_OF_DAY_GAP, (
+        f"the modelled hour of the day is {gap:.4f} away from PVGIS's own, over "
+        f"{MAX_HOUR_OF_DAY_GAP}. It was 0.0171 when this was measured, and 0.2698 while "
+        "the series was placed an hour early"
+    )
+
+
+def test_the_modelled_peak_hour_is_the_one_solar_noon_falls_in() -> None:
+    """The same claim in the form a reader can check against a clock.
+
+    The gap above is a distance and a distance can be small for the wrong
+    reason. This says where the top of the day is: solar noon at 5.61 degrees
+    east is 12:38 in continuous winter time, so the fullest hour of the modelled
+    year is the one running from 12:00, and the hour is derived from the
+    longitude the postcode maps to rather than written down.
+
+    An hour early puts it at 11:00, which is what shipped until 2026-08-27.
+    """
+    longitude = postcode4_to_latlon("5401")[1]
+    solar_noon = 13.0 - longitude / 15.0
+    peak = int(np.argmax(_modelled_hour_of_day()))
+    assert peak == int(solar_noon), (
+        f"the modelled year is fullest at {peak}:00 in winter time and solar noon at "
+        f"{longitude} degrees east is {solar_noon:.2f}"
+    )

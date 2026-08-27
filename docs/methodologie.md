@@ -4,7 +4,7 @@ Dit document beschrijft precies hoe wij aan ons antwoord komen, inclusief alles 
 naast kunnen zitten. Wij vragen u iets te geloven over uw eigen huis, dus u mag weten
 waarop dat berust. Reken het na en laat het ons weten als u een fout vindt.
 
-Motorversie waarop dit document slaat: 0.2.0.
+Motorversie waarop dit document slaat: 0.3.0.
 
 ## Kort samengevat
 
@@ -172,14 +172,15 @@ dat is nu juist waar wij PVGIS voor gebruiken. Bovendien is de vorm van een dag 
 vaste halve sinus in plaats van de echte stand van de zon, dus winterdagen zijn er te lang
 en zomerdagen te kort.
 
-**Hoeveel dat scheelt.** Gemeten op 21 augustus 2026, op ons referentiehuishouden van
-hoofdstuk 17 met dezelfde verbruiksvorm, alleen de opwekbron verschillend:
+**Hoeveel dat scheelt.** Opnieuw gemeten op 27 augustus 2026, op ons referentiehuishouden
+van hoofdstuk 17 met dezelfde verbruiksvorm, weerjaar 2023, alleen de opwekbron
+verschillend:
 
 | Postcode | Met de tabel | Met PVGIS | Verschil |
 |---|---|---|---|
-| 5401, Uden | 632,05 | 668,66 | 5,5 procent lager |
-| 9711, Groningen | 632,05 | 651,24 | 2,9 procent lager |
-| 4331, Middelburg | 632,05 | 709,55 | 10,9 procent lager |
+| 5401, Uden | 623,50 | 656,20 | 5,0 procent lager |
+| 9711, Groningen | 623,50 | 639,07 | 2,4 procent lager |
+| 4331, Middelburg | 623,50 | 699,71 | 10,9 procent lager |
 
 Drie postcodes, door ons gekozen op afstand tot Uden, en geen steekproef. Wat er wel uit
 te lezen valt: de tabel geeft in alle drie de gevallen hetzelfde bedrag, want hij weet niet
@@ -191,6 +192,13 @@ Ook in Uden zelf scheelt het nog vijf procent, en dat is geen fout in de tabel m
 tweede verschil: de tabel middelt negen weerjaren en PVGIS is hier om een enkel jaar
 gevraagd. De tabel bestaat om u een antwoord te kunnen geven wanneer PVGIS eruit ligt, en
 voor niets anders. Vraag het advies later opnieuw op voor een scherper getal.
+
+Deze tabel stond hier tot 27 augustus 2026 met de meting van 21 augustus erin, en beide
+kolommen zijn sindsdien verschoven. De PVGIS-kolom omdat wij die reeks een uur te vroeg
+plaatsten, wat hoofdstuk 7 beschrijft. De kolom met onze eigen tabel omdat de vorm van een
+dag daarin sinds 26 augustus 2026 om het echte middaguur van die plek draait in plaats van
+om twaalf uur op de klok. Wat de drie rijen zeggen is niet veranderd, en dat is de reden
+dat de alinea's hierboven zijn blijven staan.
 
 **De beperking:** wij weten niets van uw schaduw. Een boom, een dakkapel of het huis
 van de buren kan zomaar tien procent schelen en daar vragen wij niet naar.
@@ -205,10 +213,33 @@ en dat volgt het profieljaar.
 
 Wij zetten er altijd bij welke jaren wij gebruikt hebben.
 
+**Op welke klok de opwek staat.** PVGIS zet zijn uurwaarden in UTC en ons model rekent op
+doorlopende wintertijd, en dat is UTC plus een uur. Wij schuiven de reeks dus een uur op
+voordat wij hem gebruiken.
+
+Tot 27 augustus 2026 deden wij dat niet, en dan stond uw hele opwekreeks een uur te vroeg:
+de zon piekte in ons model om 11:00 waar hij om 12:00 hoort te pieken. Dat is geen detail
+geweest. Gemeten op 27 augustus 2026 op ons referentiehuishouden van hoofdstuk 17, met
+weerjaar 2023, gebruikte het model 28,16 procent van de opwek zelf waar dat 29,13 procent
+hoort te zijn, leverde het 2583 kWh terug in plaats van 2548 en nam het 2487 kWh van het
+net in plaats van 2452. Het bedrag bovenaan viel daardoor 9 euro te hoog uit: 665,21 in
+plaats van 656,20. Dat is de kant op die een thuisbatterij aantrekkelijker laat lijken dan
+hij is, en dat is precies de kant waar dit product tegen bestaat.
+
+Bij dat opschuiven blijft er een uur over aan de rand van het jaar, en dat uur draaien wij
+rond: 31 december 23:00 UTC is middernacht in wintertijd en komt op 1 januari 00:00 te
+staan. Er raakt dus geen kilowattuur zoek en wij verzinnen er ook geen bij. Wat het kost
+hebben wij gemeten in plaats van aangenomen: PVGIS geeft voor dat uur 0,0 watt per kWp, net
+als voor het uur dat het vervangt, want om middernacht in de winter staat de zon onder de
+horizon.
+
 **Een detail voor wie het nauw neemt:** de opwek komt per uur binnen en ons model rekent
-per kwartier. Wij interpoleren daartussen. PVGIS zet zijn uurwaarde op tien over het uur
-en wij behandelen hem als het gemiddelde van dat uur, wat een verschuiving van twintig
-minuten geeft. Dat is verwaarloosbaar naast de andere onzekerheden, maar het staat hier.
+per kwartier. Wij interpoleren daartussen. PVGIS noemt zijn uurwaarden zelf uurgemiddelden
+en zet er een tijdstempel van tien over het uur bij; wij behandelen ze als het gemiddelde
+van dat hele uur, dus wat er overblijft is hooguit die tien minuten. Dat is verwaarloosbaar
+naast de andere onzekerheden. Hier stond tot 27 augustus 2026 dat het om twintig minuten
+ging en dat het verwaarloosbaar was, en dat eerste getal was het verkeerde getal: het uur
+hierboven stond niet in dit hoofdstuk.
 
 ## 8. Een batterij, en waarom onze getallen lager uitvallen
 

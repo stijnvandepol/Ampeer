@@ -948,3 +948,90 @@ def test_the_heat_pump_chapter_says_the_same_thing_about_its_own_figure() -> Non
     chapter = " ".join(_chapter("De warmtepomp").split())
     assert "tellen wij net als bij de auto op bij het jaarverbruik" in chapter
     assert "zonder de pomp" in chapter, "chapter 5 no longer says which figure is being asked for"
+
+
+# ---------------------------------------------------------------------------
+# The clock the production series is placed on
+# ---------------------------------------------------------------------------
+
+#: The offset chapter 7 can describe, spelled the way Dutch prose spells it.
+#:
+#: Two entries and not one. A single entry would make this a restatement of the
+#: constant; the second is what a reader would reach for if somebody decided the
+#: grid should follow summer time for part of the year, and it is here so that
+#: such a change fails on the sentence rather than on a KeyError.
+_OFFSET_IN_WORDS = {1: "een uur", 2: "twee uur"}
+
+
+def test_the_document_names_the_engine_version_it_actually_describes() -> None:
+    """A line seven of this document that nothing had ever read.
+
+    "Motorversie waarop dit document slaat" is the sentence that tells a reader
+    which engine every figure below belongs to, and it is the only claim in the
+    document that decision 8 already has machinery for. It was hand written and
+    unchecked: on 2026-08-27 it still said 0.2.0 while the shipping engine was
+    0.3.0, and the version had moved the day before that on the same file
+    without the line following.
+
+    That is worse than an ordinary stale figure. Every other number here can be
+    checked by recomputing it; this one is the label that says which recompute
+    to do, so a stale label makes the rest unfalsifiable rather than wrong.
+    """
+    from ampeer_sim import ENGINE_VERSION
+
+    assert f"Motorversie waarop dit document slaat: {ENGINE_VERSION}." in TEXT, (
+        f"the shipping engine is {ENGINE_VERSION} and the document does not say so"
+    )
+
+
+def test_the_document_says_the_pvgis_series_is_moved_onto_the_grids_clock() -> None:
+    """Chapter 7 described a twenty minute rounding and not the hour beside it.
+
+    Until 2026-08-27 the chapter's only word about time said PVGIS stamps at ten
+    past the hour, that we read it as the hour's mean, and that the resulting
+    twenty minutes is negligible. Both halves were wrong together: the real
+    displacement was a full hour, because nothing converted PVGIS's UTC onto the
+    grid's continuous winter time, and an hour on a south facing array is not
+    negligible.
+
+    The offset is read from the engine rather than repeated, so the chapter
+    cannot keep saying "een uur" after somebody changes what the code does.
+    """
+    from ampeer_sim.production.pvgis import UTC_TO_WINTER_TIME_HOURS
+
+    chapter = " ".join(_chapter("Het jaar waarop wij rekenen").split())
+    assert UTC_TO_WINTER_TIME_HOURS in _OFFSET_IN_WORDS, (
+        f"the engine shifts by {UTC_TO_WINTER_TIME_HOURS} hours and this test has no Dutch "
+        "wording for that, so the chapter cannot be held to it"
+    )
+    assert _OFFSET_IN_WORDS[UTC_TO_WINTER_TIME_HOURS] in chapter, (
+        f"the engine moves the PVGIS series by {UTC_TO_WINTER_TIME_HOURS} hour and chapter 7 "
+        "does not say so"
+    )
+    for word in ("UTC", "wintertijd"):
+        assert word in chapter, f"chapter 7 no longer names {word}, so it names one clock only"
+
+
+def test_the_document_quotes_the_figures_the_engine_recorded_for_that_hour() -> None:
+    """Two places hold this measurement and neither can be checked from here.
+
+    It was taken against a live PVGIS, which no test in this suite may need, so
+    what is checkable is that the chapter and the comment above
+    UTC_TO_WINTER_TIME_HOURS still say the same thing. The failure mode this
+    refuses is the ordinary one: somebody remeasures, updates the code comment,
+    and the published document keeps quoting the old numbers at readers.
+
+    Read out of the source rather than restated here, the same way the compass
+    test in tests/test_pvgis_provider.py reads the form.
+    """
+    figures = ("28,16", "29,13", "2583", "2548", "2487", "2452", "665,21", "656,20")
+    chapter = " ".join(_chapter("Het jaar waarop wij rekenen").split())
+    source = (REPO_ROOT / "ampeer_sim" / "production" / "pvgis.py").read_text(encoding="utf-8")
+
+    missing_here = [figure for figure in figures if figure not in chapter]
+    assert not missing_here, f"chapter 7 no longer quotes {missing_here}"
+    missing_there = [figure for figure in figures if figure.replace(",", ".") not in source]
+    assert not missing_there, (
+        f"{missing_there} appear in chapter 7 and no longer beside UTC_TO_WINTER_TIME_HOURS, "
+        "so the document is quoting a measurement the engine has stopped claiming"
+    )

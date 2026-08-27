@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from ampeer_sim.production.model import production_series
-from ampeer_sim.timebase import YearGrid
+from ampeer_sim.timebase import QUARTERS_PER_HOUR, YearGrid
 from ampeer_sim.types import PVSystem
 
 
@@ -72,6 +72,49 @@ def test_degradation_is_capped() -> None:
         / production_series(production, fresh, grid, weather_year=2025).sum()
     )
     assert ratio == pytest.approx(0.80)
+
+
+def test_the_model_places_hour_i_at_hour_i_and_moves_nothing_in_time() -> None:
+    """Where the time base repair of 2026-08-27 deliberately did not go.
+
+    PVGIS answers in UTC and the grid runs in continuous winter time, which is
+    UTC plus one, and until that date nothing converted between them. The
+    conversion went into the provider, because "PVGIS stamps in UTC" is a fact
+    about PVGIS and this function is handed a bare array with no idea where it
+    came from. A shift here would also have moved the offline shape, which is
+    built in winter time already.
+
+    So this pins the other half of that decision: whatever a provider hands
+    over arrives on the grid untouched in time. A single non-zero hour in an
+    otherwise dark year comes out centred on that same hour.
+
+    Its centre and not its four quarters, because interpolation is a thing this
+    function does on purpose. An hourly value is the mean of its hour, so a lone
+    spike is spread across the neighbouring hours too: three quarters of it stays
+    inside the hour and the rest leans into 10:00 and 12:00, symmetrically. What
+    a shift would move, and interpolation does not, is the centre.
+
+    The hour is 11:00, which is the one the defect moved things off, and 216 is
+    an arbitrary day chosen so that the check is not accidentally about the
+    first day of the year.
+    """
+    grid = YearGrid.for_year(2025)
+    system = PVSystem(peak_power_wp=1_000, azimuth_deg=0, tilt_deg=35, system_loss_fraction=0.0)
+    hourly = np.zeros(grid.hours)
+    hourly[216 * 24 + 11] = 1_000.0
+
+    series = production_series(hourly, system, grid, weather_year=2025)
+    day = series[216 * 96 : 217 * 96]
+    assert day.sum() == pytest.approx(series.sum(), rel=1e-12), (
+        "the model moved energy into another day"
+    )
+    centre = float((np.arange(day.size) * day).sum() / day.sum())
+    # A quarter names the quarter hour that starts at it, so the middle of the
+    # hour beginning at 11:00 sits at 11 * 4 + 1.5.
+    assert centre == pytest.approx(11 * QUARTERS_PER_HOUR + 1.5, abs=1e-9), (
+        f"the hour was handed over as 11:00 and arrived centred on quarter {centre:.2f}, "
+        f"which is {centre / QUARTERS_PER_HOUR:.2f} on the grid's clock"
+    )
 
 
 def test_an_unknown_install_year_means_no_degradation() -> None:
