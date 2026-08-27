@@ -233,13 +233,27 @@ hebben wij gemeten in plaats van aangenomen: PVGIS geeft voor dat uur 0,0 watt p
 als voor het uur dat het vervangt, want om middernacht in de winter staat de zon onder de
 horizon.
 
-**Een detail voor wie het nauw neemt:** de opwek komt per uur binnen en ons model rekent
-per kwartier. Wij interpoleren daartussen. PVGIS noemt zijn uurwaarden zelf uurgemiddelden
-en zet er een tijdstempel van tien over het uur bij; wij behandelen ze als het gemiddelde
-van dat hele uur, dus wat er overblijft is hooguit die tien minuten. Dat is verwaarloosbaar
-naast de andere onzekerheden. Hier stond tot 27 augustus 2026 dat het om twintig minuten
-ging en dat het verwaarloosbaar was, en dat eerste getal was het verkeerde getal: het uur
-hierboven stond niet in dit hoofdstuk.
+**Wat er na dat uur nog overblijft.** De opwek komt per uur binnen en ons model rekent per
+kwartier, dus wij interpoleren daartussen. PVGIS zet bij elke uurwaarde een tijdstempel van
+tien over het uur, en ons model legt een uurwaarde op het halve uur, omdat het die leest als
+het gemiddelde van dat hele uur. Na de verschuiving hierboven staat uw opwekreeks daardoor
+nog altijd twintig minuten te laat. Een verschuiving met een heel uur kan dat niet oplossen:
+die verplaatst per uur en niet per twintig minuten.
+
+Wat het kost, gemeten op 27 augustus 2026 op hetzelfde referentiehuishouden: het model
+gebruikt 29,13 procent van de opwek zelf waar dat op de tijdstempels van PVGIS 28,71 procent
+is, en het bedrag bovenaan komt uit op 656,20 euro in plaats van 660,12. Bijna vier euro, en
+deze keer de andere kant op dan het uur hierboven: het bedrag valt nu te laag uit in plaats
+van te hoog. Tot 27 augustus 2026 stond hier dat het om tien minuten ging en dat het
+verwaarloosbaar was. Geen van beide klopt.
+
+Wij hebben het niet weggewerkt, en dat is een keuze met een meting eronder. De reeks twintig
+minuten opschuiven betekent tussen de uurwaarden in interpoleren, en daarna interpoleert het
+model nog een keer naar kwartieren. Twee keer middelen vlakt de middagpiek af, en op
+hetzelfde huishouden komt het bedrag dan op 650,71 euro uit: verder van de 660,12 af dan de
+656,20 die er nu staat. De juiste plek voor deze correctie is de interpolatie zelf, in een
+stap in plaats van twee. Die verandering hebben wij nog niet gemaakt, en zolang dat zo is
+staat hij hier met zijn prijs erbij in plaats van dat u hem moet vinden.
 
 ## 8. Een batterij, en waarom onze getallen lager uitvallen
 

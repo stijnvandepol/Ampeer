@@ -1024,7 +1024,23 @@ def test_the_document_quotes_the_figures_the_engine_recorded_for_that_hour() -> 
     Read out of the source rather than restated here, the same way the compass
     test in tests/test_pvgis_provider.py reads the form.
     """
-    figures = ("28,16", "29,13", "2583", "2548", "2487", "2452", "665,21", "656,20")
+    figures = (
+        "28,16",
+        "29,13",
+        "2583",
+        "2548",
+        "2487",
+        "2452",
+        "665,21",
+        "656,20",
+        # The twenty minutes the hour above does not reach, added 2026-08-27
+        # when the chapter stopped calling it ten minutes and negligible: what
+        # correct placement gives, and what sliding the series there instead of
+        # repairing the interpolation would cost.
+        "28,71",
+        "660,12",
+        "650,71",
+    )
     chapter = " ".join(_chapter("Het jaar waarop wij rekenen").split())
     source = (REPO_ROOT / "ampeer_sim" / "production" / "pvgis.py").read_text(encoding="utf-8")
 
@@ -1035,3 +1051,42 @@ def test_the_document_quotes_the_figures_the_engine_recorded_for_that_hour() -> 
         f"{missing_there} appear in chapter 7 and no longer beside UTC_TO_WINTER_TIME_HOURS, "
         "so the document is quoting a measurement the engine has stopped claiming"
     )
+
+
+def test_the_document_states_the_residual_the_engine_still_carries() -> None:
+    """The chapter was rewritten on 2026-08-27 and put a wrong residual in.
+
+    It had said the leftover was twenty minutes and negligible. Both halves were
+    wrong together, because the hour beside it was missing from the chapter
+    entirely, and the rewrite that added the hour replaced the twenty minutes
+    with ten and kept "negligible". That threw away the half that was right.
+
+    PVGIS stamps ten past the hour and the model anchors an hourly value half
+    past, so what is left after a whole hour rotation is twenty minutes, not
+    ten, and it is worth almost four euro on the reference household. A
+    published document that tells a reader a real displacement is negligible is
+    worse than one that does not mention it, because it closes the question.
+
+    Held against the engine rather than against a remembered sentence: the
+    minutes are computed from the two facts the source states, and the chapter
+    has to name that many.
+    """
+    source = (REPO_ROOT / "ampeer_sim" / "production" / "pvgis.py").read_text(encoding="utf-8")
+    assert "twenty minutes late" in source, (
+        "the provider no longer says the series is twenty minutes late, so either the "
+        "placement moved or the account of it did, and this chapter follows it"
+    )
+
+    chapter = " ".join(_chapter("Het jaar waarop wij rekenen").split())
+    assert "twintig minuten te laat" in chapter, (
+        "chapter 7 does not say the series is still twenty minutes late"
+    )
+    assert "hooguit die tien minuten" not in chapter, (
+        "chapter 7 is quoting the ten minute residual again, which is the stamp and not the "
+        "displacement: the displacement is the stamp against the model's half past"
+    )
+    for claim in ("interpolatie", "650,71"):
+        assert claim in chapter, (
+            f"chapter 7 no longer says {claim!r}, so it states a residual without saying "
+            "where the repair belongs or what the easy repair would cost"
+        )
