@@ -12,16 +12,33 @@ must not know an HTTP form exists; they live in ``advice.nl`` instead, keyed by
 an English id, and this file names the id. Until 2026-08-26 they were typed out
 below, which put nine sentences a stranger reads inside the rules that decide
 what is refused. tests/test_advice_serializers.py fails if one comes back.
+
+One thing here runs the other way. ``year_field`` at the bottom validates what
+this service is about to send rather than what it just received, and it is the
+only function that turns an ``advice.series.EncodedYear`` into the object the
+response carries. It is a serializer and not a dict literal for two reasons:
+the published contract the frontend builds against is then declared in one
+place rather than described in a comment, and the rule that a measured
+quarter-hour series may not leave over a shareable token has somewhere to sit
+that every producer has to pass.
 """
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from typing import Any, ClassVar
 
 from rest_framework import serializers
 from rest_framework.settings import api_settings
 
 from advice.nl import message_for
+from advice.series import (
+    PROVENANCE,
+    PROVENANCE_KEY,
+    QUARTERS_PER_YEAR,
+    EncodedYear,
+    refuse_unless_shareable,
+)
 from ampeer_sim.types import EVChargingBehaviour
 
 # The four maxima below are safety bounds and nothing else: wide enough that no
@@ -229,3 +246,81 @@ class RefineInputSerializer(EstimateInputSerializer):
         if errors:
             raise serializers.ValidationError(errors)
         return attrs
+
+
+class YearCeilingsSerializer(StrictSerializer):
+    """What each byte of 255 or 127 stands for, in kWh per quarter.
+
+    Three floats and not one, because export and offtake carry their own
+    ceiling: sharing one would spend the meter byte's seven bits on export,
+    which peaks more than three times as high, and leave offtake with a third
+    of the resolution it could have had for free.
+
+    Energy in kWh is float here and everywhere, which is the rule in CLAUDE.md
+    rather than a shortcut. These are the ends of a measured range, and no
+    amount in euro appears anywhere in this object.
+    """
+
+    own = serializers.FloatField(min_value=0.0)
+    export = serializers.FloatField(min_value=0.0)
+    grid = serializers.FloatField(min_value=0.0)
+
+
+class YearSerializer(StrictSerializer):
+    """The optional ``year`` object, which is the published contract for it.
+
+    Declared as a serializer rather than assembled as a dict so that the shape
+    a browser is built against is stated once, in a form that refuses anything
+    else. ``StrictSerializer`` carries that over: an extra key here would be a
+    key the frontend never learns about and nothing would say so.
+
+    The provenance rule is the reason this class exists at all. A synthetic
+    series is a national profile scaled to a figure the visitor typed, so it
+    holds nothing they did not enter themselves. A measured one comes off their
+    meter and says when somebody is home, and every advice is retrievable for
+    ninety days by anyone holding its link. Refusing the pairing costs three
+    lines today; in phase 2 it costs a migration over every stored advice and
+    leaves a gap between the first measured series and the control over it.
+
+    ``shareable_token`` defaults to True because every advice this service
+    stores is reachable by exactly such a token, so the safe reading is the
+    one a caller gets by saying nothing.
+    """
+
+    own = serializers.CharField()
+    meter = serializers.CharField()
+    ceilings = YearCeilingsSerializer()
+    provenance = serializers.ChoiceField(choices=sorted(PROVENANCE))
+    quarters = serializers.ChoiceField(choices=sorted(QUARTERS_PER_YEAR))
+
+    def __init__(self, *args: Any, shareable_token: bool = True, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.shareable_token = shareable_token
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        """Refuse a measured series on a payload anybody with the link can open."""
+        if self.shareable_token:
+            refuse_unless_shareable(attrs[PROVENANCE_KEY])
+        return attrs
+
+
+def year_field(encoded: EncodedYear, *, shareable_token: bool = True) -> dict[str, Any]:
+    """The one door an encoded year passes through on its way to a browser.
+
+    One door on purpose, and ``advice.series.EncodedYear`` carries no method of
+    its own that produces this dict, because a convenience beside the data
+    would be a second exit with no check on it. tests/test_advice_series.py
+    pins the two modules that may import ``advice.series`` at all, this one and
+    ``advice.assembly``, which is what keeps the door singular as the field is
+    wired up: a third module reaching into the format could build the object
+    itself and the check below would never see it.
+
+    ``shareable_token=False`` is the phase 2 caller: an advice reached through
+    an account rather than through a link its holder can forward. Nothing
+    passes False today, and the argument exists so that the phase in which a
+    measured series becomes serveable is a decision at a call site rather than
+    the deletion of this check.
+    """
+    serializer = YearSerializer(data=asdict(encoded), shareable_token=shareable_token)
+    serializer.is_valid(raise_exception=True)
+    return dict(serializer.validated_data)
