@@ -120,6 +120,18 @@ filterwarnings = ["ignore::DeprecationWarning:pytest_asyncio.*"]
 # to re-run until green, which is the one habit that makes every other gate
 # worthless.
 markers = ["perf: a wall clock budget; excluded from the coverage run, see the note above"]
+# --strict-markers is what makes the split above hold. The two invocations select
+# on the spelling of one word, so without it a marker typed `perff` raises a
+# warning nobody reads, stays inside `-m "not perf"`, and is measured under the
+# profiler again: the exact defect the split was made to fix, reintroduced
+# silently by a typo. Shown rather than argued, on 2026-08-27, on a file written
+# outside this tree so that no mistyped marker lands in it: a test marked
+# `perff` and run under `-m "not perf"` against this config exits 2 and collects
+# nothing, with "'perff' not found in `markers` configuration option". Against
+# the same config with this line removed it is selected, runs, passes, and exits
+# 0 with a PytestUnknownMarkWarning, which is a warning inside a run whose whole
+# point is that the test is not in it.
+addopts = ["--strict-markers"]
 
 [tool.coverage.run]
 source = ["ampeer_sim", "ampeer_advice", "tools", "backend"]
