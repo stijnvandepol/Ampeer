@@ -4,7 +4,8 @@ import numpy as np
 import pytest
 
 from ampeer_sim.production.model import production_series
-from ampeer_sim.timebase import QUARTERS_PER_HOUR, YearGrid
+from ampeer_sim.production.pvgis import PVGIS_STAMP_MINUTES_PAST_HOUR
+from ampeer_sim.timebase import MINUTES_PER_QUARTER, QUARTERS_PER_HOUR, YearGrid
 from ampeer_sim.types import PVSystem
 
 
@@ -85,8 +86,11 @@ def test_the_model_places_hour_i_at_hour_i_and_moves_nothing_in_time() -> None:
     built in winter time already.
 
     So this pins the other half of that decision: whatever a provider hands
-    over arrives on the grid untouched in time. A single non-zero hour in an
-    otherwise dark year comes out centred on that same hour.
+    over arrives on the grid in the hour it was given in. A single non-zero
+    hour in an otherwise dark year stays inside that hour and does not lean
+    into its neighbours' hours; where inside it the value sits is the anchor's
+    business, and the assertion reads that from the same constant the model
+    does rather than repeating it.
 
     Its centre and not its four quarters, because interpolation is a thing this
     function does on purpose. An hourly value is the mean of its hour, so a lone
@@ -109,9 +113,19 @@ def test_the_model_places_hour_i_at_hour_i_and_moves_nothing_in_time() -> None:
         "the model moved energy into another day"
     )
     centre = float((np.arange(day.size) * day).sum() / day.sum())
-    # A quarter names the quarter hour that starts at it, so the middle of the
-    # hour beginning at 11:00 sits at 11 * 4 + 1.5.
-    assert centre == pytest.approx(11 * QUARTERS_PER_HOUR + 1.5, abs=1e-9), (
+    # Where inside its hour the value sits, in quarters. A quarter names the
+    # quarter hour that starts at it, so its own middle is 7.5 minutes along,
+    # and a value stamped `anchor` minutes past its hour lands that difference
+    # further on.
+    #
+    # This was written as a flat 1.5 until 2026-08-29, which is the middle of
+    # the hour and was right while every series was read as an hour mean. The
+    # anchor became an argument on 2026-08-27 and defaults to PVGIS's stamp, so
+    # the expected offset is now 0.1667 and not 1.5. Derived rather than
+    # restated, because the two have to move together: a test carrying its own
+    # copy of the convention is a test that passes after the convention changes.
+    offset = (PVGIS_STAMP_MINUTES_PAST_HOUR - MINUTES_PER_QUARTER / 2) / MINUTES_PER_QUARTER
+    assert centre == pytest.approx(11 * QUARTERS_PER_HOUR + offset, abs=1e-9), (
         f"the hour was handed over as 11:00 and arrived centred on quarter {centre:.2f}, "
         f"which is {centre / QUARTERS_PER_HOUR:.2f} on the grid's clock"
     )

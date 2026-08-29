@@ -150,9 +150,21 @@ def test_the_day_is_centred_on_solar_noon_and_not_on_the_clock() -> None:
     )
 
     shape = FallbackProvider._day_shape(100.0)
-    # The centre of mass of a symmetric shape is its centre, plus the half hour
-    # by which an index names the hour that starts there.
-    centre = sum(hour * value for hour, value in enumerate(shape)) / sum(shape) + 0.5
+    # The centre of mass of a symmetric shape is its centre, plus the offset by
+    # which an index names its hour.
+    #
+    # That offset was half an hour until 2026-08-27, when _day_shape started
+    # integrating over hours centred on PVGIS's stamp instead of over clock
+    # hours, so that this series and a PVGIS response are the same kind of thing
+    # and one anchor reads both. This line kept the old half hour, which is
+    # 0.3333 of an hour too much and read the shape as sitting at 12.96 when it
+    # sits where it says it does. Exactly twenty minutes, which is the same
+    # twenty minutes as everywhere else in this repair and is why it looked like
+    # a moved series rather than a stale conversion.
+    centre = (
+        sum(hour * value for hour, value in enumerate(shape)) / sum(shape)
+        + PVGIS_STAMP_MINUTES_PAST_HOUR / 60.0
+    )
     assert centre == pytest.approx(FALLBACK_SOLAR_NOON_HOUR, abs=0.01), (
         f"the fallback's day is centred on {centre:.2f} in winter time and solar noon at the "
         f"table's location is {FALLBACK_SOLAR_NOON_HOUR:.2f}"
@@ -520,23 +532,28 @@ def test_a_pvgis_series_arrives_on_the_grids_time_base_and_not_on_utc() -> None:
     ), "the reference series is not centred on solar noon, so it cannot say where anything belongs"
 
 
-def test_the_pvgis_series_is_twenty_minutes_late_and_no_whole_rotation_helps() -> None:
-    """The residual the rotation cannot reach, pinned so it cannot become something else.
+def test_the_pvgis_series_sits_where_pvgis_stamped_it() -> None:
+    """End to end placement: nothing moves the year in time any more.
 
-    PVGIS stamps ten past the hour and the grid anchors an hourly value half
-    past, so a PVGIS series sits twenty minutes late whatever whole rotation is
-    applied to it: rotating by n leaves (n - 1) * 60 + 20 minutes, and n = 1 is
-    the smallest of those. What it costs, why it is stated here rather than
-    resampled away, and where the repair belongs are all above
-    UTC_TO_WINTER_TIME_HOURS.
+    Two conventions meet here and both are needed. PVGIS answers in UTC and
+    stamps a row ten minutes past its hour. ``YearGrid`` runs in continuous
+    winter time and, asked nothing, reads an hourly value as the mean of its
+    hour. The provider carries the first, ``production_series`` says the second
+    by handing ``hourly_to_quarters`` PVGIS's stamp, and between them the year
+    lands where PVGIS put it.
 
-    This is the residual measured end to end, and it fails in both directions.
-    It goes red if somebody moves the series onto its stamps without saying so,
-    which is the change that should be made and is not this file's to make; and
-    it goes red if the displacement grows, which is the change nobody wants.
-    Neither number is written down twice: the stamp is parsed out of the
-    payload, the anchor is measured through hourly_to_quarters, and the lag is
-    the difference.
+    Until 2026-08-27 neither happened and the year sat an hour early. The
+    rotation went in that day and left twenty minutes, because a whole rotation
+    cannot reach a ten minute stamp read as half past; this test pinned that
+    residual and was named after it. The anchor became an argument the same day
+    and the residual is gone, so what is pinned now is zero.
+
+    Everything is measured rather than restated. The stamp is parsed out of the
+    payload, the grid's own convention is read back through
+    ``hourly_to_quarters``, and the lag is what the two leave. The test fails in
+    both directions: it goes red if the placement drifts, and it goes red if
+    somebody returns the model to the grid's neutral anchor, because the last
+    assertion prices exactly that change.
     """
     grid = YearGrid.for_year(PLACEMENT_YEAR)
     latitude, longitude = postcode4_to_latlon("5401")
@@ -550,22 +567,29 @@ def test_the_pvgis_series_is_twenty_minutes_late_and_no_whole_rotation_helps() -
         "account of the residual is written for the half past that hourly_to_quarters documents"
     )
 
-    expected_lag = anchor - PVGIS_STAMP_MINUTES_PAST_HOUR
     stamped = _hour_of_day_from_stamps(payload)
     modelled = _modelled_hour_of_day(payload, grid)
     lag = (modelled - stamped - WINTER_TIME_MINUS_UTC_HOURS) * 60.0
-    assert lag == pytest.approx(expected_lag, abs=1.0), (
-        f"the modelled year sits {lag:+.1f} minutes after where PVGIS stamped it, and the "
-        f"stamp at {PVGIS_STAMP_MINUTES_PAST_HOUR} past against an anchor at {anchor:.0f} past "
-        f"accounts for {expected_lag:+.1f}. Either the placement moved, which is the repair "
-        "described above UTC_TO_WINTER_TIME_HOURS and wants this test rewritten, or something "
-        "else has started moving the series in time"
+    assert lag == pytest.approx(0.0, abs=1.0), (
+        f"the modelled year sits {lag:+.1f} minutes from where PVGIS stamped it. The rotation "
+        f"carries the UTC hour and the model reads the series at PVGIS's {PVGIS_STAMP_MINUTES_PAST_HOUR:.0f} "
+        "past, so between them there should be nothing left to move"
     )
 
-    best = min(abs((rotation - 1) * 60.0 + expected_lag) for rotation in range(-2, 3))
-    assert abs(expected_lag) == pytest.approx(best, abs=1e-9), (
-        f"a whole rotation can now leave less than {abs(expected_lag):.0f} minutes, so "
-        "UTC_TO_WINTER_TIME_HOURS is no longer the best available placement"
+    # What returning the model to the grid's neutral anchor would cost, priced
+    # here rather than left as a warning. It is the residual this test used to
+    # be named after, and a whole rotation cannot reach it: rotating by n leaves
+    # (n - 1) * 60 + 20 minutes, of which n = 1 is the smallest.
+    neutral_lag = anchor - PVGIS_STAMP_MINUTES_PAST_HOUR
+    assert neutral_lag == pytest.approx(20.0, abs=1e-9), (
+        f"reading a PVGIS series at the grid's own anchor would now leave {neutral_lag:+.1f} "
+        "minutes rather than the twenty this file's account is written for, so either the "
+        "stamp or the grid's convention has changed"
+    )
+    best_rotation = min(abs((rotation - 1) * 60.0 + neutral_lag) for rotation in range(-2, 3))
+    assert neutral_lag == pytest.approx(best_rotation, abs=1e-9), (
+        f"a whole rotation could leave less than {neutral_lag:.0f} minutes, so the anchor is no "
+        "longer the only way to place this series and the argument above should be reread"
     )
 
 

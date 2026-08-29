@@ -189,7 +189,13 @@ def test_the_document_says_which_way_those_assumptions_push() -> None:
     chapter = TEXT.split("Wat wij aannemen als wij het niet vragen", 1)[1]
     assert "Voorzichtig in de richting die ons goed uitkomt is niet voorzichtig" in chapter
     assert "conservatief" in chapter, "the chapter no longer says what word was wrong"
-    assert "623 euro" in chapter, "the chapter no longer quotes what it measured"
+    # The figure itself is not asserted here. It was, as a literal 623, and on
+    # 2026-08-29 the model moved it to 624 and this copy stayed behind while
+    # tests/test_advise.py, which computes the same figure and matches the whole
+    # sentence against the document, went red. Two places holding one number is
+    # how the wrong one survives; the computed one is the one that stays true,
+    # and it is in test_every_assumption_round_one_makes_pushes_the_answer_up
+    # together with all five rows of the table below it.
 
 
 def test_the_document_does_not_claim_the_payback_band_moves_the_price_alone() -> None:

@@ -30,7 +30,12 @@ from test_pvgis_provider import (
 from ampeer_sim.calibration import compare_export_profile, hourly_share, monthly_share
 from ampeer_sim.engine.run import simulate
 from ampeer_sim.production.model import production_series
-from ampeer_sim.production.pvgis import FallbackProvider, PvgisProvider, postcode4_to_latlon
+from ampeer_sim.production.pvgis import (
+    PVGIS_STAMP_MINUTES_PAST_HOUR,
+    FallbackProvider,
+    PvgisProvider,
+    postcode4_to_latlon,
+)
 from ampeer_sim.profiles.compose import compose_consumption
 from ampeer_sim.profiles.nedu import NeduFileProvider
 from ampeer_sim.timebase import (
@@ -530,17 +535,42 @@ def _hour_of_day_centre(quarters: np.ndarray) -> float:
 
 
 def _modelled_hour_of_day() -> np.ndarray:
-    """The share of the modelled year's production falling in each grid hour.
+    """The share of the modelled year's production falling in each reference hour.
 
     Bucketed on the grid rather than on the local clock, which is why
     ``hourly_share`` is not used here: it buckets by ``grid.local_hour``, which
     follows summer time, and the reference this is compared against is a fixed
     winter time distribution. Mixing the two would blur every summer hour into
     the next one and hide exactly the kind of one hour error this exists for.
+
+    The buckets are the reference's own hours and not clock hours, and that is
+    the correction of 2026-08-29. A PVGIS row is stamped ten minutes past, so
+    the hour it speaks for runs from twenty to the hour until twenty past the
+    next one, which in quarters is ``[4k - 1.333, 4k + 2.667)``. Bucketing the
+    model on clock hours instead compared it against windows shifted from its
+    own by ten minutes, and that misalignment cancelled against the twenty
+    minute lag the series carried until 2026-08-27: the metric read 0.0171,
+    which looked like a well placed series and was two errors of opposite sign.
+    Repairing the placement made it read 0.0904 and the fault was in the ruler.
+
+    Integrated over the window rather than sampled at its centre, so the two
+    partial quarters at either end carry the fraction of themselves that falls
+    inside it. The five weights sum to four, which is the check that the window
+    is an hour wide however the stamp moves.
     """
     quarters = _pvgis_quarters()
-    per_hour = quarters.reshape(GRID.hours, QUARTERS_PER_HOUR).sum(axis=1)
-    by_hour = per_hour.reshape(GRID.days, HOURS_PER_DAY).sum(axis=0)
+
+    stamp_in_quarters = PVGIS_STAMP_MINUTES_PAST_HOUR / MINUTES_PER_QUARTER
+    weights = (1.0 - stamp_in_quarters, 1.0, 1.0, 1.0, stamp_in_quarters)
+    assert sum(weights) == pytest.approx(QUARTERS_PER_HOUR, abs=1e-12)
+
+    padded = np.pad(quarters, 2)
+    windowed = sum(
+        weight * padded[2 + offset : 2 + offset + quarters.size]
+        for offset, weight in zip((-2, -1, 0, 1, 2), weights, strict=True)
+    )
+    at_hour = np.asarray(windowed).reshape(GRID.days, HOURS_PER_DAY, QUARTERS_PER_HOUR)[:, :, 0]
+    by_hour = at_hour.sum(axis=0)
     return np.asarray(by_hour / by_hour.sum())
 
 

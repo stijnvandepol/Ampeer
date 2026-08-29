@@ -399,6 +399,35 @@ def test_the_model_constants_are_pinned_to_the_engine_version() -> None:
             ("ampeer_sim.types.TariffSet.net_metering", "False"),
             ("ampeer_sim.types.TariffSet.standing_charge_year", "Decimal('0')"),
         ),
+        # 0.4.0 moved where inside its hour an hourly value is read, which is
+        # an argument to an interpolation and a module level constant, not a
+        # dataclass default. So this row is 0.3.0's unchanged for the fourth
+        # time running, and the pin below is the one that sees the change.
+        "0.4.0": (
+            ("ampeer_sim.types.BatterySpec.allow_grid_charging", "False"),
+            ("ampeer_sim.types.BatterySpec.round_trip_efficiency", "0.9"),
+            ("ampeer_sim.types.BatterySpec.usable_dod", "0.9"),
+            ("ampeer_sim.types.EV.annual_km", "12000"),
+            ("ampeer_sim.types.EV.charge_power_kw", "3.7"),
+            ("ampeer_sim.types.EV.kwh_per_100km", "18.0"),
+            ("ampeer_sim.types.EnergyFlows.grid_charge", "None"),
+            ("ampeer_sim.types.EnergyFlows.grid_discharge", "None"),
+            ("ampeer_sim.types.HeatPump.base_temperature_c", "15.0"),
+            ("ampeer_sim.types.HeatPump.cop_at_7c", "3.5"),
+            ("ampeer_sim.types.HeatPump.cop_slope_per_c", "0.06"),
+            ("ampeer_sim.types.Household.daytime_occupancy", "False"),
+            ("ampeer_sim.types.Household.ev", "None"),
+            ("ampeer_sim.types.Household.heat_pump", "None"),
+            ("ampeer_sim.types.Household.profile_category", "ProfileCategory.E1A"),
+            ("ampeer_sim.types.Household.shiftable_block_kwh", "1.0"),
+            ("ampeer_sim.types.PVSystem.install_year", "None"),
+            ("ampeer_sim.types.PVSystem.system_loss_fraction", "0.14"),
+            ("ampeer_sim.types.TariffSet.dynamic", "False"),
+            ("ampeer_sim.types.TariffSet.feed_in_cost_per_kwh", "Decimal('0')"),
+            ("ampeer_sim.types.TariffSet.feed_in_fixed_cost_year", "Decimal('0')"),
+            ("ampeer_sim.types.TariffSet.net_metering", "False"),
+            ("ampeer_sim.types.TariffSet.standing_charge_year", "Decimal('0')"),
+        ),
     }
     assert ENGINE_VERSION in snapshot, (
         f"ENGINE_VERSION is {ENGINE_VERSION!r} and this table has no row for it. "
@@ -472,6 +501,64 @@ def test_the_module_constants_are_pinned_to_the_engine_version() -> None:
             ("ampeer_sim.profiles.presence.MIDDAY_WINDOW", "cbd2debb98ebecca"),
             ("ampeer_sim.simulate.DEFAULT_WEATHER_YEAR", "d398b29d3dbbb9bf"),
             ("ampeer_sim.timebase.DST_SWITCH_QUARTER", "2c624232cdd22177"),
+            ("ampeer_sim.timebase.HOURS_PER_DAY", "c2356069e9d1e79c"),
+            ("ampeer_sim.timebase.MINUTES_PER_DAY", "a4ff3ad278c7b057"),
+            ("ampeer_sim.timebase.MINUTES_PER_QUARTER", "e629fa6598d73276"),
+            ("ampeer_sim.timebase.QUARTERS_PER_DAY", "7b1a278f5abe8e9d"),
+            ("ampeer_sim.timebase.QUARTERS_PER_HOUR", "4b227777d4dd1fc6"),
+            ("ampeer_sim.validate.DEFAULT_PROFILE_YEAR", "b2b2f104d32c6389"),
+            ("ampeer_sim.validate.DEFAULT_TOLERANCE_PERCENT", "f1e42019aecc858f"),
+            ("ampeer_sim.validate.REQUIRED_FIELDS", "45b84058cdd90331"),
+        ),
+        # 0.4.0 put the last twenty minutes of the PVGIS placement right. The
+        # anchor became an argument rather than the 1.5 written into
+        # hourly_to_quarters, so two names appear here that 0.3.0 did not have:
+        # PVGIS_STAMP_MINUTES_PAST_HOUR, which the model hands the interpolation
+        # for a PVGIS series, and HOURLY_MEAN_ANCHOR_MINUTES, which is what a
+        # series that says nothing about itself gets. This is the row that would
+        # have blinked, and the reason the pin exists.
+        "0.4.0": (
+            ("ampeer_sim.economics.sensitivity.CENTRAL_FACTOR", "d0ff5974b6aa52cf"),
+            ("ampeer_sim.economics.sensitivity.VARIATIONS", "4b3b6cc9ab933edf"),
+            ("ampeer_sim.economics.tariffs.EUR_PRECISION", "66341319baafc19a"),
+            ("ampeer_sim.economics.tariffs.KWH_PRECISION", "66341319baafc19a"),
+            ("ampeer_sim.engine.strategies.FORESIGHT_HORIZON_DAYS", "6b86b273ff34fce1"),
+            ("ampeer_sim.engine.strategies.HYBRID_SAFETY_MARGIN", "9f29a130438b8117"),
+            (
+                "ampeer_sim.production.fallback_yield.MONTHLY_MEAN_PRODUCTION_W_PER_KWP",
+                "0678f9f6b8831e49",
+            ),
+            ("ampeer_sim.production.fallback_yield.MONTHLY_MEAN_TEMPERATURE", "115c55510054006f"),
+            ("ampeer_sim.production.fallback_yield.ORIENTATION_FACTORS", "79fe2b88af8001d3"),
+            ("ampeer_sim.production.fallback_yield.TABLE_LONGITUDE", "4b9c27c3a3718066"),
+            ("ampeer_sim.production.model.DEGRADATION_PER_YEAR", "07e17407c7918077"),
+            ("ampeer_sim.production.model.MAX_DEGRADATION", "44896b09365746b5"),
+            ("ampeer_sim.production.pvgis.FALLBACK_DAYLIGHT_HOURS", "77c52f3feed5acdd"),
+            ("ampeer_sim.production.pvgis.FALLBACK_SOLAR_NOON_HOUR", "456baac0519e7bbe"),
+            ("ampeer_sim.production.pvgis.PVGIS_STAMP_MINUTES_PAST_HOUR", "f1e42019aecc858f"),
+            ("ampeer_sim.production.pvgis.PVGIS_URL", "83e0554d696623d2"),
+            ("ampeer_sim.production.pvgis.RADIATION_DATABASE", "d4666808263aa56c"),
+            ("ampeer_sim.production.pvgis.REFERENCE_LOSS_PERCENT", "8aed642bf5118b9d"),
+            ("ampeer_sim.production.pvgis.REFERENCE_PEAK_POWER_KW", "d0ff5974b6aa52cf"),
+            ("ampeer_sim.production.pvgis.UTC_TO_WINTER_TIME_HOURS", "6b86b273ff34fce1"),
+            ("ampeer_sim.production.pvgis._DEFAULT_CENTROID", "45a1d875efbe8796"),
+            ("ampeer_sim.production.pvgis._POSTCODE_CENTROIDS", "7c3619d3e0959da1"),
+            ("ampeer_sim.profiles.assets.ARRIVAL_WINDOW", "e8c3a86ba10aea79"),
+            ("ampeer_sim.profiles.assets.MIN_COP", "d0ff5974b6aa52cf"),
+            ("ampeer_sim.profiles.assets.NIGHT_WINDOW", "7b5f404e02b3e494"),
+            ("ampeer_sim.profiles.nedu.BASE_SERIES_SUFFIX", "ef3d560c808a0096"),
+            ("ampeer_sim.profiles.nedu.FEED_IN_SERIES_SUFFIX", "6f8e0f7c337b21bd"),
+            ("ampeer_sim.profiles.nedu.FIRST_DATA_COLUMN", "4e07408562bedb8b"),
+            ("ampeer_sim.profiles.nedu.HEADER_ROWS", "7902699be42c8a8e"),
+            ("ampeer_sim.profiles.nedu.NAME_ROW", "5feceb66ffc86f38"),
+            ("ampeer_sim.profiles.nedu.SINGLE_REGISTER", "b1741201e5ef1384"),
+            ("ampeer_sim.profiles.nedu.SUM_TOLERANCE", "1187132475a4431d"),
+            ("ampeer_sim.profiles.nedu.YEAR_ROW", "6b86b273ff34fce1"),
+            ("ampeer_sim.profiles.presence.EVENING_WINDOW", "e8c3a86ba10aea79"),
+            ("ampeer_sim.profiles.presence.MIDDAY_WINDOW", "cbd2debb98ebecca"),
+            ("ampeer_sim.simulate.DEFAULT_WEATHER_YEAR", "d398b29d3dbbb9bf"),
+            ("ampeer_sim.timebase.DST_SWITCH_QUARTER", "2c624232cdd22177"),
+            ("ampeer_sim.timebase.HOURLY_MEAN_ANCHOR_MINUTES", "26c9a96ce053a14d"),
             ("ampeer_sim.timebase.HOURS_PER_DAY", "c2356069e9d1e79c"),
             ("ampeer_sim.timebase.MINUTES_PER_DAY", "a4ff3ad278c7b057"),
             ("ampeer_sim.timebase.MINUTES_PER_QUARTER", "e629fa6598d73276"),
@@ -555,6 +642,25 @@ def test_the_golden_answers_are_pinned_to_the_engine_version() -> None:
         # tests/golden/README.md says the same in prose with the numbers that did
         # move. The check that did reach it is in tests/test_calibration.py.
         "0.3.0": (
+            ("hand_checkable.expected_consumption_kwh", 3650.0),
+            ("hand_checkable.expected_self_consumption_rate", 0.9391),
+            ("large_array_small_use.expected_consumption_kwh", 2200.0),
+            ("large_array_small_use.expected_self_consumption_rate", 0.1194),
+            ("marloes_ev_at_night.expected_consumption_kwh", 5700.0),
+            ("marloes_ev_at_night.expected_self_consumption_rate", 0.2647),
+            ("marloes_ev_on_solar.expected_consumption_kwh", 5700.0),
+            ("marloes_ev_on_solar.expected_self_consumption_rate", 0.7661),
+            ("rob_fixed_contract.expected_consumption_kwh", 3500.0),
+            ("rob_fixed_contract.expected_self_consumption_rate", 0.341),
+            ("sander_heat_pump.expected_consumption_kwh", 6802.0),
+            ("sander_heat_pump.expected_self_consumption_rate", 0.4977),
+        ),
+        # 0.4.0. The six households run on FallbackProvider, whose day is built
+        # in winter time and read at the same stamp it is built on, so moving
+        # the PVGIS anchor leaves five of the six exactly where they were. Only
+        # sander_heat_pump moves, because a heat pump reads a temperature series
+        # through the same anchor and its degree hours shift with it.
+        "0.4.0": (
             ("hand_checkable.expected_consumption_kwh", 3650.0),
             ("hand_checkable.expected_self_consumption_rate", 0.9391),
             ("large_array_small_use.expected_consumption_kwh", 2200.0),

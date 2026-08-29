@@ -7,7 +7,11 @@ import numpy as np
 import pytest
 
 import ampeer_advice.facts
-from ampeer_sim.timebase import MINUTES_PER_QUARTER, YearGrid
+from ampeer_sim.timebase import (
+    HOURLY_MEAN_ANCHOR_MINUTES,
+    MINUTES_PER_QUARTER,
+    YearGrid,
+)
 
 
 def test_non_leap_year_has_35040_quarters() -> None:
@@ -54,38 +58,132 @@ def test_hourly_to_quarters_is_monotone_for_a_monotone_input() -> None:
     assert np.all(np.diff(quarters) >= -1e-12)
 
 
-def test_hourly_to_quarters_peaks_around_the_hour_midpoint() -> None:
-    """Where an hourly value lands, which is a convention and not a given.
+def _placed_minutes_past(grid: YearGrid, hour: int, anchor: float | None = None) -> float:
+    """Where a lone hourly spike at ``hour`` ends up, in minutes past that hour.
 
-    The anchor is half past, because an hourly value is read here as the mean of
-    its hour. That is right for every series built as hour means, which is what
-    the offline production shape is, and it is not right for PVGIS, which stamps
-    its rows ten minutes past the hour. The engine consequently places a PVGIS
-    series twenty minutes late, and the measurement of what that costs is above
-    ``UTC_TO_WINTER_TIME_HOURS`` in ``ampeer_sim.production.pvgis``.
+    Read out of what the function returns rather than out of the arithmetic in
+    its body, so this measures the placement instead of restating the formula.
+    A quarter names the fifteen minutes beginning at it, hence the half quarter
+    that turns an index into the middle of what it covers.
+    """
+    hourly = np.zeros(grid.hours)
+    hourly[hour] = 4.0
+    quarters = (
+        grid.hourly_to_quarters(hourly)
+        if anchor is None
+        else grid.hourly_to_quarters(hourly, anchor)
+    )
+    positions = np.arange(quarters.size, dtype=float)
+    centre = float((positions * quarters).sum() / quarters.sum())
+    return (centre + 0.5) * MINUTES_PER_QUARTER - hour * 60.0
 
-    So the anchor is asserted in minutes as well as in quarter positions, and
-    the second half of this is what tests/test_pvgis_provider.py measures the
-    twenty minutes against. Moving it is a change to where every hourly series
-    in the model sits, and it should cost a red test here first.
+
+def test_an_unstamped_hourly_series_is_read_as_the_mean_of_its_hour() -> None:
+    """The default anchor, which is the only one true of a series that says nothing.
+
+    An hourly value with no stamp on it is the mean of its hour, so it belongs
+    in the middle of that hour. That is what every series in this model was read
+    as until 2026-08-27, when the anchor became an argument because one series
+    is not: PVGIS stamps its rows ten minutes past the hour, and reading those
+    as hour means put them twenty minutes late. The measurement of what that
+    cost is above ``UTC_TO_WINTER_TIME_HOURS`` in ``ampeer_sim.production.pvgis``.
+
+    The default is asserted here and not merely used, because a default is what
+    a caller who says nothing gets. Moving it moves every unstamped series in
+    the model at once, and it should cost a red test here first.
     """
     grid = YearGrid.for_year(2025)
     hourly = np.zeros(grid.hours)
     hourly[11] = 4.0
     quarters = grid.hourly_to_quarters(hourly)
-    # The midpoint of hour 11 sits at quarter position 45.5, between 45 and 46.
+    # The middle of hour 11 sits at quarter position 45.5, between 45 and 46.
     assert quarters[45] == pytest.approx(3.5)
     assert quarters[46] == pytest.approx(3.5)
     assert int(quarters.argmax()) in (45, 46)
 
-    positions = np.arange(quarters.size, dtype=float)
-    centre = float((positions * quarters).sum() / quarters.sum())
-    anchor_minutes = (centre + 0.5) * MINUTES_PER_QUARTER - 11 * 60.0
-    assert anchor_minutes == pytest.approx(30.0, abs=1e-9), (
-        f"an hourly value is now anchored {anchor_minutes:.2f} minutes past its hour rather "
-        "than half past, so every hourly series in the model has moved in time and the "
-        "twenty minute residual recorded for PVGIS is a different number"
+    anchor_minutes = _placed_minutes_past(grid, 11)
+    assert anchor_minutes == pytest.approx(HOURLY_MEAN_ANCHOR_MINUTES, abs=1e-9), (
+        f"an unstamped hourly value is now anchored {anchor_minutes:.2f} minutes past its "
+        f"hour rather than {HOURLY_MEAN_ANCHOR_MINUTES:.0f}, so every series in the model "
+        "that carries no stamp has moved in time"
     )
+    assert HOURLY_MEAN_ANCHOR_MINUTES == pytest.approx(30.0), (
+        "the mean of an hour belongs in the middle of it, and half of sixty is thirty"
+    )
+
+
+@pytest.mark.parametrize("anchor", [0.0, 10.0, 22.5, 30.0, 45.0, 59.0])
+def test_a_stamped_hourly_series_lands_where_its_stamp_says(anchor: float) -> None:
+    """The argument does what it says, over the whole hour it may name.
+
+    Six anchors and not one, because a single case cannot tell a working
+    parameter from a constant that happens to agree with it at one value: the
+    two ends and the two that the engine actually uses, PVGIS's ten past and the
+    hourly mean's half past.
+
+    Measured out of the returned series and compared against the argument, which
+    are the two ends of the thing under test and neither of them is the line of
+    arithmetic in between.
+    """
+    grid = YearGrid.for_year(2025)
+    placed = _placed_minutes_past(grid, 11, anchor)
+    assert placed == pytest.approx(anchor, abs=1e-9), (
+        f"a value stamped {anchor:.2f} minutes past its hour was placed {placed:.2f} past"
+    )
+
+
+def test_the_anchor_moves_a_series_and_nothing_else_about_it() -> None:
+    """A displacement, not a rescaling: the same energy, twenty minutes earlier.
+
+    Worth its own check because the anchor is applied inside an interpolation
+    and an interpolation is where a total quietly stops being conserved. The two
+    anchors compared are the ones the engine uses, and twenty minutes is exactly
+    the residual the argument was added to remove.
+
+    The input has the shape of a day because the property is only true of a
+    series that is smooth across an hour, and that is a fact about linear
+    resampling rather than about this code. Measured on 2026-08-29: a daylight
+    shaped series and a constant both conserve exactly, to 0.00e+00, while
+    ``abs(sin(0.7n))``, which turns over about every nine samples, moves by
+    5.3e-05 and only a third of that sits at the two ends. This test used that
+    jagged series and demanded 1e-9, which no resampler can give it. Production
+    and temperature, the two series the engine actually carries through here,
+    are smooth over an hour, so the tolerance below is the right one for them
+    and the input has to look like them for it to mean anything.
+    """
+    grid = YearGrid.for_year(2025)
+    hours = np.arange(grid.hours)
+    hourly = np.clip(np.sin((hours % 24 - 6) / 12 * np.pi), 0.0, None) * 300.0
+
+    as_mean = grid.hourly_to_quarters(hourly, HOURLY_MEAN_ANCHOR_MINUTES)
+    as_stamped = grid.hourly_to_quarters(hourly, 10.0)
+    assert as_stamped.sum() == pytest.approx(as_mean.sum(), rel=1e-9), (
+        "moving where a value sits inside its hour changed how much of it there is"
+    )
+
+    positions = np.arange(grid.quarters, dtype=float)
+    moved = (
+        float((positions * as_mean).sum() / as_mean.sum())
+        - float((positions * as_stamped).sum() / as_stamped.sum())
+    ) * MINUTES_PER_QUARTER
+    assert moved == pytest.approx(20.0, abs=1e-6), (
+        f"the two anchors the engine uses are {moved:.2f} minutes apart and the residual "
+        "they were introduced to remove is twenty"
+    )
+
+
+@pytest.mark.parametrize("anchor", [-1.0, 60.0, 90.0])
+def test_an_anchor_outside_its_own_hour_is_refused(anchor: float) -> None:
+    """Sixty minutes past is the next hour, and saying so is not a placement.
+
+    Left to numpy this would not raise; it would silently interpolate against a
+    shifted set of anchors and place the whole series in a neighbouring hour,
+    which is the failure this argument exists to make impossible to reach by
+    accident.
+    """
+    grid = YearGrid.for_year(2025)
+    with pytest.raises(ValueError, match="inside its own hour"):
+        grid.hourly_to_quarters(np.zeros(grid.hours), anchor)
 
 
 def test_hourly_to_quarters_rejects_a_wrong_length_series() -> None:

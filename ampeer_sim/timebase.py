@@ -27,6 +27,15 @@ MINUTES_PER_DAY = 1_440
 #: Summer time starts and ends at 02:00 continuous winter time.
 DST_SWITCH_QUARTER = 8
 
+#: Where in its own hour a value sits when nothing says otherwise: the middle.
+#:
+#: This is the anchor of a series of true hourly means, and it is the default of
+#: ``YearGrid.hourly_to_quarters`` because it is the one thing that is true of a
+#: series carrying no stamp. A source that does stamp its rows says so instead,
+#: and ``PVGIS_STAMP_MINUTES_PAST_HOUR`` in ``ampeer_sim.production.pvgis`` is
+#: the one that does.
+HOURLY_MEAN_ANCHOR_MINUTES = 30.0
+
 
 def _last_sunday(year: int, month: int) -> date:
     last_day = calendar.monthrange(year, month)[1]
@@ -123,43 +132,56 @@ class YearGrid:
         """
         return np.repeat(np.arange(self.days, dtype=np.int16), QUARTERS_PER_DAY)
 
-    def hourly_to_quarters(self, hourly: np.ndarray) -> np.ndarray:
+    def hourly_to_quarters(
+        self,
+        hourly: np.ndarray,
+        anchor_minutes_past_hour: float = HOURLY_MEAN_ANCHOR_MINUTES,
+    ) -> np.ndarray:
         """Interpolate an hourly series onto the quarter grid.
 
-        The hourly value is treated as the average over its hour, so its
-        midpoint sits at quarter position ``hour * 4 + 1.5``, which is half past
-        that hour. Values outside the first and last midpoint are clamped rather
-        than extrapolated.
+        ``anchor_minutes_past_hour`` says where inside its own hour each value
+        sits. That is a fact about the series and never about the grid, which is
+        why it is an argument: a series of true hourly means sits in the middle
+        of its hour and takes the default, and a source that stamps its rows
+        says what its stamp is. Values outside the first and last anchor are
+        clamped rather than extrapolated.
 
-        That anchor is a convention about what an hourly value means and not a
-        property of the grid, and one series this model consumes does not follow
-        it. PVGIS stamps its rows ten minutes past the hour, so a PVGIS series
-        anchored here sits twenty minutes late however the caller rotates it: a
-        whole rotation cannot move a series by a third of an hour. Measured on
-        2026-08-27 on the reference household of tests/test_calibration.py, that
-        is 0.42 points of self consumption and 3.92 euro, and the argument with
-        the figures is above ``UTC_TO_WINTER_TIME_HOURS`` in
-        ``ampeer_sim.production.pvgis``.
+        Quarter ``q`` covers the fifteen minutes beginning at it, so its own
+        middle is ``(q + 0.5) * 15`` minutes into the day. An anchor of ``m``
+        minutes past hour ``k`` therefore lands at quarter position
+        ``4k + m / 15 - 0.5``: the default of thirty minutes gives the
+        ``4k + 1.5`` this function used unconditionally until 2026-08-27, and
+        PVGIS's ten past gives ``4k + 0.1667``.
 
-        The anchor is not a parameter yet, and that is a statement about scope
-        rather than about difficulty. It would be one argument here with the
-        default this docstring describes, passed by the two callers,
-        ``ampeer_sim.production.model`` and ``ampeer_sim.profiles.assets``, from
-        something the provider says about its own stamps. Both call sites and
-        the test that pins the present anchor,
-        ``tests/test_production_model.py``, would move with it.
+        Until that date there was no argument and every series was read as an
+        hourly mean. PVGIS stamps its rows ten minutes past the hour, so the one
+        series a visitor's answer is normally built from sat twenty minutes late
+        and no whole rotation could reach it, a rotation moving a series by
+        sixty minutes at a time and this being twenty. Measured on the reference
+        household of tests/test_calibration.py, that was 0.42 points of self
+        consumption and 3.92 euro, understating the shock. The figures and the
+        two provider side repairs that were measured and refused are above
+        ``UTC_TO_WINTER_TIME_HOURS`` in ``ampeer_sim.production.pvgis``.
 
-        A caller that rotates a series to compensate is not doing the same
-        thing and should not be told it is. Rotating fractionally means
-        interpolating twice, once into the rotation and once here, and the
-        second low pass costs more than the displacement it removes: 9.41 euro
-        on that household against the 3.92 it was correcting.
+        The repair belongs here and not in a caller that rotates or resamples to
+        compensate, and that was measured rather than preferred. Moving a series
+        by a fraction of an hour before it arrives means interpolating twice,
+        once into the shift and once here, and the second low pass flattens the
+        midday peak: 9.41 euro on that household against the 3.92 it was
+        correcting. Saying where the value sits costs nothing extra, because it
+        replaces the interpolation this function already performs.
         """
         if hourly.shape != (self.hours,):
             raise ValueError(f"expected {self.hours} hourly values, got {hourly.shape}")
-        hour_midpoints = np.arange(self.hours, dtype=float) * QUARTERS_PER_HOUR + 1.5
+        if not 0.0 <= anchor_minutes_past_hour < 60.0:
+            raise ValueError(
+                f"an hourly value sits somewhere inside its own hour, and "
+                f"{anchor_minutes_past_hour} minutes past is not inside it"
+            )
+        anchor = anchor_minutes_past_hour / MINUTES_PER_QUARTER - 0.5
+        hour_anchors = np.arange(self.hours, dtype=float) * QUARTERS_PER_HOUR + anchor
         quarter_positions = np.arange(self.quarters, dtype=float)
-        interpolated: np.ndarray = np.interp(quarter_positions, hour_midpoints, hourly)
+        interpolated: np.ndarray = np.interp(quarter_positions, hour_anchors, hourly)
         return interpolated
 
     def align_hourly_year(self, hourly: np.ndarray, weather_year: int) -> np.ndarray:

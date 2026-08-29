@@ -17,12 +17,15 @@ index against index, so a series that arrives on the wrong time base is never
 noticed again, and the price of getting it wrong is in
 ``UTC_TO_WINTER_TIME_HOURS`` below.
 
-One provider keeps that contract to the hour and not to the minute, and the
-gap is stated rather than left to be found. PVGIS stamps its rows ten minutes
-past the hour and the grid anchors an hourly value half past, so the PVGIS
-series sits twenty minutes late however it is rotated. What that is worth, why
-it is not repaired here, and where the repair belongs are all in the second
-half of the comment above ``UTC_TO_WINTER_TIME_HOURS``.
+That contract is kept to the minute and not only to the hour, as of
+2026-08-27. Both providers here answer one signature, so both have to agree
+about where inside its hour a value sits or the model cannot read them the same
+way. The convention is PVGIS's ten past, in ``PVGIS_STAMP_MINUTES_PAST_HOUR``
+below, because a stamp on a measurement cannot be moved and the offline shape is
+an integral that can be taken over any hour asked for. What the twenty minutes
+was worth while nothing said any of this, and why the offline shape moved rather
+than the anchor, are in the second half of the comment above
+``UTC_TO_WINTER_TIME_HOURS``.
 """
 
 from __future__ import annotations
@@ -49,6 +52,19 @@ RADIATION_DATABASE = "PVGIS-SARAH3"
 #: We ask for one kWp and no losses so the caller can scale and vary freely.
 REFERENCE_PEAK_POWER_KW = 1.0
 REFERENCE_LOSS_PERCENT = 0.0
+
+#: Minutes past the hour that PVGIS stamps a row with, which is the answer to
+#: "where inside its hour does this value sit" for every series this module
+#: fetches. Read off a live SARAH3 response on 2026-08-27: 8760 rows for 2023 at
+#: Uden, the first stamped 20230101:0010 and the last 20231231:2310.
+#:
+#: This is the fact the grid needs and cannot know. ``YearGrid.hourly_to_quarters``
+#: defaults to the middle of the hour, which is what a series of true hourly
+#: means is, and ``ampeer_sim.production.model`` and ``ampeer_sim.profiles.assets``
+#: hand it this instead, because what they carry in the shipping path is a PVGIS
+#: response and both of its columns come off these rows. What that is worth is
+#: below, in the second half of the comment above UTC_TO_WINTER_TIME_HOURS.
+PVGIS_STAMP_MINUTES_PAST_HOUR = 10.0
 
 #: Hours a PVGIS stamp sits behind the grid's clock. PVGIS timestamps its rows in
 #: UTC and ``YearGrid`` runs in continuous winter time, which is UTC plus one, so
@@ -92,16 +108,16 @@ REFERENCE_LOSS_PERCENT = 0.0
 #: 15.76 C of 1 January 00:00 UTC, one hour in 8760, and the only consumer of
 #: the temperature series spreads a year of heat demand across all of them.
 #:
-#: What a whole hour cannot reach, stated here rather than left to be found.
+#: What a whole hour could not reach, repaired on 2026-08-27 in the anchor.
 #: PVGIS stamps a row ten minutes past the hour, which the response says itself:
-#: a live call on 2026-08-27 returned 8760 rows for 2023, the first stamped
+#: a live call on that date returned 8760 rows for 2023, the first stamped
 #: 20230101:0010 and the last 20231231:2310. ``YearGrid.hourly_to_quarters``
-#: anchors hourly value k half past grid hour k, because an hourly value is read
-#: there as the mean of its hour. So the value PVGIS puts at k:10 UTC, which is
-#: (k+1):10 in winter time, is placed at (k+1):30 and arrives twenty minutes
-#: late. No whole rotation does better: rotating by n leaves (n - 1) * 60 + 20
-#: minutes, so n = 1 is the smallest displacement available and n = 0 would be
-#: forty minutes early.
+#: used to anchor hourly value k half past grid hour k unconditionally, because
+#: an hourly value was read there as the mean of its hour. So the value PVGIS
+#: puts at k:10 UTC, which is (k+1):10 in winter time, was placed at (k+1):30
+#: and arrived twenty minutes late. No whole rotation could do better: rotating
+#: by n leaves (n - 1) * 60 + 20 minutes, so n = 1 was the smallest displacement
+#: available and n = 0 would have been forty minutes early.
 #:
 #: Measured on 2026-08-27 against a live PVGIS SARAH3 call for Uden at 51.66 and
 #: 5.61 east, 2023, one kWp, zero loss, 35 degrees facing south, 1194.66 kWh per
@@ -111,22 +127,22 @@ REFERENCE_LOSS_PERCENT = 0.0
 #: the day, in winter time:
 #:
 #:     hour i at hour i, before 0.3.0   28.16%   2583   2487   665.21   11.8885
-#:     one whole hour, shipping         29.13%   2548   2452   656.20   12.8885
-#:     on PVGIS's own stamps            28.71%   2564   2468   660.12   12.5551
+#:     one whole hour, 0.3.0            29.13%   2548   2452   656.20   12.8885
+#:     on PVGIS's own stamps, 0.4.0     28.71%   2564   2468   660.12   12.5551
 #:
-#: So the residual is worth 0.42 points of self consumption and 3.92 euro, and
-#: it understates the shock where the hour above overstated it. Twenty minutes
-#: is not negligible on a south facing array, because the crossover where
-#: production overtakes a household's demand is steep and moving the day across
-#: it moves more than a third of a percent of the year.
+#: So the residual was worth 0.42 points of self consumption and 3.92 euro, and
+#: it understated the shock where the hour above it overstated it. Twenty
+#: minutes is not negligible on a south facing array, because the crossover
+#: where production overtakes a household's demand is steep and moving the day
+#: across it moves more than a third of a percent of the year.
 #:
 #: It is a stated offset and not a smaller rotation, and that was measured
 #: rather than preferred. Moving a series by a fraction of an index means
 #: interpolating between hourly values, and the model then interpolates a second
-#: time on its way to quarters. Measured the same day on the same household,
+#: time on its way to quarters. Measured on 2026-08-27 on the same household,
 #: against the 660.12 euro correct placement gives:
 #:
-#:     shipping, twenty minutes late           29.13%   656.20   off by 3.92
+#:     twenty minutes late, 0.3.0              29.13%   656.20   off by 3.92
 #:     resampled linearly onto the half past   29.73%   650.71   off by 9.41
 #:     resampled with a Catmull-Rom kernel     28.93%   658.12   off by 1.92
 #:
@@ -136,17 +152,26 @@ REFERENCE_LOSS_PERCENT = 0.0
 #: keeps the peak, still misses by half the defect, and puts 904 of 8760 hours
 #: below zero, down to -32.2 W per kWp, which is not a quantity of sunlight.
 #:
-#: Where it belongs is the anchor: one interpolation, from PVGIS's own stamps
-#: straight onto the quarter grid, which is the 28.71 percent row above and
-#: costs nothing in smoothing because it replaces the interpolation the model
-#: already performs rather than adding one. That is a parameter on
-#: ``YearGrid.hourly_to_quarters`` and on its two call sites,
-#: ampeer_sim/production/model.py and ampeer_sim/profiles/assets.py, with
-#: tests/test_production_model.py pinning the anchor as it stands. It also asks
-#: what the offline shape's anchor is, since that one is built as hour means and
-#: is right at half past. None of that is a change this file can make alone,
-#: which is why the twenty minutes is written down with its price instead of
-#: being repaired badly.
+#: Where it belongs is the anchor, and that is where it now is:
+#: PVGIS_STAMP_MINUTES_PAST_HOUR above is handed to
+#: ``YearGrid.hourly_to_quarters`` by ampeer_sim/production/model.py and
+#: ampeer_sim/profiles/assets.py, so there is one interpolation, from PVGIS's
+#: own stamps straight onto the quarter grid. It costs nothing in smoothing
+#: because it replaces the interpolation the model already performs rather than
+#: adding one, which is the whole reason this is not one of the two rows above.
+#:
+#: It also asked what the offline shape's anchor is, and the answer moved that
+#: shape rather than the anchor. FallbackProvider built hour means, which belong
+#: at half past, so a single anchor of ten past would have put the offline path
+#: twenty minutes early: 623.50 euro becomes 628.07 on the household above, 4.57
+#: euro, which is larger than the 3.92 this repair removes and is refused by
+#: MAX_FALLBACK_SHAPE_OFFSET_MINUTES in tests/test_calibration.py. Repairing
+#: that by threading the provider's identity through every caller of
+#: production_series was the alternative and it is four files wide;
+#: ``FallbackProvider._day_shape`` instead takes its integral over the hour
+#: centred on this same stamp, which is free because the shape is analytic. The
+#: offline day did not move: 12.6263 in winter time before and 12.6262 after,
+#: and the month still carries exactly the table's energy.
 UTC_TO_WINTER_TIME_HOURS = 1
 
 #: Solar noon at the table's location, on the continuous winter time the grid
@@ -328,11 +353,14 @@ class PvgisProvider:
     PVGIS answers in. The conversion is one rotation and its whole argument,
     including what the wrapped hour costs, is above UTC_TO_WINTER_TIME_HOURS.
 
-    It is right to the hour and twenty minutes late to the minute, because
-    PVGIS stamps ten past and the grid anchors half past. That residual is
-    measured, priced and refused a bad repair in the second half of the same
-    comment; nothing here hides it, and tests/test_pvgis_provider.py pins it at
-    exactly twenty minutes so it cannot quietly become something else.
+    It is right to the minute as well, as of 2026-08-27. The rows keep the ten
+    past stamp PVGIS gave them and the model is told about it rather than
+    reading them as hour means, so nothing here resamples and nothing arrives
+    twenty minutes late. That residual, what it was worth and the two provider
+    side repairs measured and refused before it went into the anchor are in the
+    second half of the same comment, and
+    tests/test_pvgis_provider.py pins the placement end to end so it cannot
+    quietly become something else again.
     """
 
     def __init__(
@@ -389,6 +417,14 @@ class FallbackProvider:
     grid's own winter time already, which is what FALLBACK_SOLAR_NOON_HOUR is
     measured in, so it is on the time base every provider promises before it
     starts. Only PVGIS speaks UTC.
+
+    What this shape does keep is the other half of that contract, the one that
+    says where inside its hour a value sits. Each value is the mean over the
+    hour centred on PVGIS_STAMP_MINUTES_PAST_HOUR rather than over the clock
+    hour, so a caller reading these values and a caller reading a PVGIS response
+    are reading the same kind of thing. ``_day_shape`` says why that side gave
+    way rather than the anchor, and it costs this shape nothing: the day sits
+    where it sat and the month carries what it carried.
 
     The shape is the reference plane's, south at 35 degrees, whatever roof it is
     asked about; the orientation only scales it. That is wrong for a west roof,
@@ -469,10 +505,32 @@ class FallbackProvider:
     def _day_shape(mean_power: float) -> list[float]:
         """A half sine centred on solar noon, averaging to ``mean_power``.
 
-        Each hour holds the half sine's mean over that hour, integrated rather
-        than sampled at the midpoint. The window no longer starts on an hour
-        boundary, so a midpoint sample would drop the part of the first and last
-        hour that falls inside it and pick up nothing in exchange.
+        Each value holds the half sine's mean over the hour its own stamp sits
+        in the middle of, integrated rather than sampled at the midpoint. The
+        window does not start on an hour boundary, so a midpoint sample would
+        drop the part of the first and last hour that falls inside it and pick
+        up nothing in exchange.
+
+        The hour a value speaks for is centred on ``PVGIS_STAMP_MINUTES_PAST_HOUR``
+        and not on the clock hour, which is what makes this series and a PVGIS
+        response the same kind of thing. Until 2026-08-27 nothing in the package
+        distinguished the two, because everything read every hourly series as
+        the mean of its clock hour; the model now says where inside its hour a
+        value sits and says PVGIS's stamp, since a PVGIS response is what it
+        carries wherever a visitor's answer comes from. Two providers answering
+        one signature had to agree about that or the offline path would land
+        twenty minutes early, which is 4.57 euro on the reference household of
+        tests/test_calibration.py and is refused by
+        MAX_FALLBACK_SHAPE_OFFSET_MINUTES there.
+
+        Agreeing costs this shape nothing, which is why the convention is
+        PVGIS's rather than the other way round. PVGIS's stamp is a fact about a
+        measurement and cannot be moved; this shape is an integral of a sine and
+        can be taken over any hour asked for. The day still sits where it sat:
+        the window moves twenty minutes earlier and the anchor puts it twenty
+        minutes later, so the modelled centre stays at 12.6263 in winter time
+        and the month still carries exactly the table's energy, because the
+        twenty four windows tile the day and both ends of the tiling are dark.
 
         The scaling is a division by what the shape actually sums to, not a
         closed form for what it should sum to. The closed form was there until
@@ -483,11 +541,18 @@ class FallbackProvider:
         """
         start = FALLBACK_SOLAR_NOON_HOUR - FALLBACK_DAYLIGHT_HOURS / 2.0
         end = start + FALLBACK_DAYLIGHT_HOURS
-        if start < 0.0 or end > HOURS_PER_DAY:
+        stamp = PVGIS_STAMP_MINUTES_PAST_HOUR / 60.0
+        # The span the twenty four windows cover between them, which is the day
+        # slid by the stamp. Judged against that rather than against midnight to
+        # midnight: the windows are what the energy is spread over, so a window
+        # of daylight outside them is energy dropped and silently scaled back up.
+        first, last = stamp - 0.5, HOURS_PER_DAY - 1 + stamp + 0.5
+        if start < first or end > last:
             raise ValueError(
                 f"a {FALLBACK_DAYLIGHT_HOURS:.2f} hour window centred on "
-                f"{FALLBACK_SOLAR_NOON_HOUR:.2f} runs outside the day, so part of the "
-                "month's energy would be dropped and the rest silently scaled up"
+                f"{FALLBACK_SOLAR_NOON_HOUR:.2f} runs outside the {first:.2f} to {last:.2f} "
+                "the day's hours cover, so part of the month's energy would be dropped "
+                "and the rest silently scaled up"
             )
         scale = FALLBACK_DAYLIGHT_HOURS / math.pi
 
@@ -495,8 +560,8 @@ class FallbackProvider:
             return -scale * math.cos((until - start) / FALLBACK_DAYLIGHT_HOURS * math.pi)
 
         values = [
-            swept(min(hour + 1.0, end)) - swept(max(float(hour), start))
-            if hour + 1.0 > start and hour < end
+            swept(min(hour + stamp + 0.5, end)) - swept(max(hour + stamp - 0.5, start))
+            if hour + stamp + 0.5 > start and hour + stamp - 0.5 < end
             else 0.0
             for hour in range(HOURS_PER_DAY)
         ]

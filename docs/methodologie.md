@@ -4,7 +4,7 @@ Dit document beschrijft precies hoe wij aan ons antwoord komen, inclusief alles 
 naast kunnen zitten. Wij vragen u iets te geloven over uw eigen huis, dus u mag weten
 waarop dat berust. Reken het na en laat het ons weten als u een fout vindt.
 
-Motorversie waarop dit document slaat: 0.3.0.
+Motorversie waarop dit document slaat: 0.4.0.
 
 ## Kort samengevat
 
@@ -107,7 +107,7 @@ het laden er al in en rekenen wij het een tweede keer mee. Uw verbruik overdag k
 te hoog uit, u lijkt meer van uw eigen opwek te gebruiken dan u doet, en het bedrag
 bovenaan valt lager uit dan het bij u is. Gemeten op 23 augustus 2026, op het
 referentiehuishouden uit hoofdstuk 17 met een auto die 's nachts laadt: 447 euro in
-plaats van 623. Wij vragen dit nu niet uit en kunnen het niet aan uw antwoorden zien.
+plaats van 624. Wij vragen dit nu niet uit en kunnen het niet aan uw antwoorden zien.
 
 **De beperking:** deze drie gedragingen zijn stereotypen die wij zelf hebben opgesteld.
 Ze komen niet uit een meting van hoe Nederlanders werkelijk laden. En in de eerste versie
@@ -498,7 +498,7 @@ mag leggen, en dan mag het geen zekerheid voorwenden die het niet heeft.
 Wat dat oplevert, mag u weten: van de zes huishoudens die wij als voorbeeld doorrekenen,
 krijgt er niet één een onvoorwaardelijk "koop er een". Daarvoor zou de omslagprijs ook bij
 het ongunstigste tariefniveau boven de 900 euro per kWh moeten liggen. Het huishouden dat
-er het dichtst bij komt zit daar op 601 euro, en op 707 euro in het midden. Bij de prijzen
+er het dichtst bij komt zit daar op 601 euro, en op 706 euro in het midden. Bij de prijzen
 van vandaag en de tarieven die leveranciers voor 2027 hebben gepubliceerd, is een batterij
 die onmiskenbaar de moeite waard is dus zeldzaam.
 
@@ -638,7 +638,7 @@ hieronder, omdat hij niet aan of uit is maar geleidelijk: elk jaar ouder is een 
 procent minder opwek, tot maximaal twintig procent. Wij zetten hier met opzet geen bedrag
 bij. De tabel hieronder is op een huishouden gemeten, en een tweede getal dat wij er niet
 op dezelfde manier naast kunnen leggen zou meer zekerheid suggereren dan wij hebben. Dat is de kant die ons uitkomt. Op ons referentiehuishouden, 3,5 kWp en 3500 kWh in
-postcode 5401, kost het einde van saldering met deze aannames 623 euro per jaar. Verandert
+postcode 5401, kost het einde van saldering met deze aannames 624 euro per jaar. Verandert
 u er één, dan wordt dat bedrag lager:
 
 | Als dit wel zo is | Dan wordt het bedrag bovenaan |
