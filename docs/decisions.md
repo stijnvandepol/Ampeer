@@ -602,14 +602,18 @@ argument decision 10 already makes about the plan checkboxes.
 `ampeer_sim` then stops costing a version bump again, which is the friction
 decision 8 is for.
 
-### 21. The PVGIS series' last twenty minutes are stated, not rotated away
+### 21. The PVGIS series' last twenty minutes, stated and then repaired
 
-**Decided:** `PvgisProvider` keeps its whole hour rotation. The twenty minutes
-it cannot reach is written above `UTC_TO_WINTER_TIME_HOURS` with what it costs,
-pinned end to end by
-`test_the_pvgis_series_is_twenty_minutes_late_and_no_whole_rotation_helps`, and
-stated to the reader in chapter 7 of `docs/methodologie.md`. `ENGINE_VERSION`
-does not move.
+**Decided:** on 2026-08-27, that `PvgisProvider` keeps its whole hour rotation
+and the twenty minutes it cannot reach is written down with what it costs rather
+than resampled away. On 2026-08-29 the repair this entry named in its own To
+reverse was carried out instead: the anchor is an argument on
+`YearGrid.hourly_to_quarters`, `production_series` hands it PVGIS's stamp, and
+`ENGINE_VERSION` moved to 0.4.0.
+
+Both halves are kept because the second rests on the first. The measurement
+below is what ruled out the two repairs that looked cheaper, and it is why the
+anchor was the only place left to put it.
 
 **Because:** PVGIS stamps a row ten minutes past the hour and
 `YearGrid.hourly_to_quarters` anchors an hourly value half past, so the series
@@ -644,16 +648,26 @@ afternoon 1,065 read at the stamp and 0,889 read as an hour mean, while the same
 call gives east 979,35 against west 948,91 kWh per kWp. Only the stamp reading
 agrees with the yield table, and it is also the smaller of the two corrections.
 
-**Lives in:** the comment above `UTC_TO_WINTER_TIME_HOURS` in
-`ampeer_sim/production/pvgis.py`,
-`test_the_pvgis_series_is_twenty_minutes_late_and_no_whole_rotation_helps` in
-`tests/test_pvgis_provider.py`, and chapter 7 of `docs/methodologie.md`.
+What the prediction cost, since it was made here: all three consequences it
+named arrived. `MAX_HOUR_OF_DAY_GAP` did read 0,0904 and call the repair a
+regression, and the fault was in the ruler rather than in the series: a PVGIS
+row speaks for the hour centred on its stamp, so `_modelled_hour_of_day` now
+integrates over `[4k - 1,333, 4k + 2,667)` instead of over clock hours, and the
+distance came back under the 0,02 ceiling without the ceiling being touched. The
+0,0171 that stood before any of this was two errors of opposite sign.
 
-**To reverse:** make the anchor a parameter and pass it from the provider. Three
-files outside `ampeer_sim/production/pvgis.py` move with it,
-`MAX_HOUR_OF_DAY_GAP` has to be re-founded on a reference resampled onto the
-grid's hours or it will call the repair a regression at 0,0904, and
-`ENGINE_VERSION` moves because every household's answer does.
+**Lives in:** `HOURLY_MEAN_ANCHOR_MINUTES` and the `anchor_minutes_past_hour`
+argument in `ampeer_sim/timebase.py`, `PVGIS_STAMP_MINUTES_PAST_HOUR` in
+`ampeer_sim/production/pvgis.py`, the default in
+`ampeer_sim/production/model.py`, `test_the_pvgis_series_sits_where_pvgis_stamped_it`
+in `tests/test_pvgis_provider.py`, `_modelled_hour_of_day` in
+`tests/test_calibration.py`, and chapter 7 of `docs/methodologie.md`.
+
+**To reverse:** return the model's default to the grid's neutral anchor. The
+series goes twenty minutes late again, which
+`test_the_pvgis_series_sits_where_pvgis_stamped_it` prices in its last two
+assertions rather than merely refusing, and `ENGINE_VERSION` moves because every
+household's answer does.
 
 ### 22. The Dutch boundary is enforced by listing the English, not by guessing the Dutch
 
