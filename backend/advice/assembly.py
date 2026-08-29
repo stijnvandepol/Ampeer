@@ -36,6 +36,7 @@ from ampeer_advice.tariffs import baseline_tariffs, scenario_2027_tariffs
 from ampeer_sim.types import (
     EV,
     BatterySpec,
+    EnergyFlows,
     EVChargingBehaviour,
     HeatPump,
     Household,
@@ -50,6 +51,7 @@ __all__ = [
     "build_pv_system",
     "build_tariffs",
     "build_year",
+    "year_series",
 ]
 
 
@@ -119,11 +121,38 @@ def build_tariffs(data: dict[str, Any]) -> tuple[TariffSet, TariffSet, TariffSet
     )
 
 
-def build_year(own_kwh: np.ndarray, export_kwh: np.ndarray, grid_kwh: np.ndarray) -> EncodedYear:
-    """One household's simulated year, packed for the wire and stamped.
+def year_series(flows: EnergyFlows) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """The three series the wire carries, read out of the engine's own flows.
 
-    The three arrays are kWh per quarter: what the household used of its own
-    production, what went to the grid and what came off it.
+    Returned in the encoder's argument order: what the household used of its
+    own production, what went to the grid and what came off it, in kWh per
+    quarter.
+
+    Two readings were available for the second and third and they are not the
+    same statement. `from_grid` and `to_grid` are what this household took and
+    fed in for its own sake; `total_import` and `total_export` add the energy a
+    battery moved across the meter for price reasons. The meter is what this
+    byte is named after and what a bill is written from, so the meter is what
+    it carries. Measured on 2026-08-27: identical today, to the last bit, on
+    every path this service runs, because `build_battery_spec` leaves
+    `allow_grid_charging` at its default of False and `ampeer_advice.advise`
+    passes no charge or discharge plan, so `grid_charge` and `grid_discharge`
+    are zero in all 35040 quarters. The choice only starts to matter when
+    price-driven trading arrives, and on that day drawing `from_grid` would
+    show a plate that disagrees with the bill beside it.
+
+    `own` is direct use and deliberately not direct use plus battery discharge.
+    `EnergyFlows.self_consumption_rate` gives the reason in full: discharged
+    energy has already paid the round trip loss, and with grid charging it
+    contains kilowatt hours this roof never made. The visible consequence is
+    that on a quarter where a battery discharges, `own` plus `grid` is less
+    than what the household consumed, which is true rather than tidy.
+    """
+    return flows.self_consumption, flows.total_export, flows.total_import
+
+
+def build_year(flows: EnergyFlows) -> EncodedYear:
+    """One household's simulated year, packed for the wire and stamped.
 
     The stamp is not a parameter. Everything this phase can produce is built
     from a national NEDU profile scaled to a figure somebody typed into a form,
@@ -139,4 +168,4 @@ def build_year(own_kwh: np.ndarray, export_kwh: np.ndarray, grid_kwh: np.ndarray
     `advice.serializers.year_field` is where the two meet, and it is where the
     refusal to serve a measured series over a shareable token lives.
     """
-    return encode_year(own_kwh, export_kwh, grid_kwh, provenance=SYNTHETIC)
+    return encode_year(*year_series(flows), provenance=SYNTHETIC)

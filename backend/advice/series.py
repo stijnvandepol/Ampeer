@@ -25,7 +25,27 @@ where it cannot.
 Verified round trip on 2026-08-27 against the unquantised series: worst single
 quarter error equals exactly half a quantisation step on all three series,
 annual totals within 0.003 percent, zero quarters returned on the wrong side of
-the meter. Ninety one kilobytes raw, thirty nine gzipped.
+the meter.
+
+What it costs to send, remeasured on 2026-08-27 on the reference household of
+``tests/test_advice_series.py`` and corrected. The whole ``year`` object as
+JSON is 93_608 bytes, and gzipped at compression level 1, which is nginx's
+default and what ``infra/nginx/`` leaves in place, 45_242 bytes.
+
+This paragraph used to say ninety one kilobytes raw and thirty nine gzipped.
+The second figure was a measurement of a different thing: 40_693 bytes at the
+same level, which is the 70_080 packed bytes gzipped before base64 was applied
+to them. Nobody receives those. Base64 costs a third before the connection sees
+the payload and gzip does not win it back, so the saving being claimed was 57
+percent where the real one is 52. The first figure only survives because 91
+kibibytes and 93_608 bytes are the same statement.
+
+The uncompressed figure is structural and the compressed one is not. Two arrays
+of 35040 bytes are 46720 base64 characters each whatever the household did, and
+only the three ceilings vary; how well the bytes compress is a property of the
+data, so every correction to the production model moves it a little.
+``tests/test_dpia.py`` holds ``docs/dpia.md`` to within two percent of a live
+measurement for that reason, rather than to the digit.
 
 Provenance is the part of this module that is not about bytes.
 

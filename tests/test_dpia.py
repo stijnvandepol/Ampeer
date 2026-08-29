@@ -673,3 +673,96 @@ def test_the_opening_points_at_the_chapter_that_holds_the_open_decisions() -> No
     assert f"staan in hoofdstuk {number}" in re.sub(r"\s+", " ", TEXT), (
         f"chapter 0 does not point at hoofdstuk {number}, which is where the decisions are"
     )
+
+
+#: nginx's own default, which `infra/nginx/` sets no `gzip_comp_level` to
+#: override. The document quotes what a visitor's connection carries, so it has
+#: to be measured at the level that connection actually uses. Level 9 is 1454
+#: bytes smaller and would be a figure for a server this project does not run.
+NGINX_GZIP_LEVEL = 1
+
+
+#: How far the document's two byte counts may sit from a fresh measurement.
+#:
+#: Not a comfort tolerance, and the two halves have different reasons. The
+#: uncompressed figure is almost entirely structural: 35040 bytes per series
+#: become 46720 base64 characters whatever the household did, and only the
+#: three ceilings vary, so it moves by a few bytes at most. The compressed one
+#: is a property of the data, so every correction to the production model moves
+#: it: measured twice on 2026-08-27, half an hour apart and across one such
+#: correction, it read 45.242 and 45.333 bytes, which is 0,2 percent. Two
+#: percent is ten times that and still an order of magnitude below the
+#: difference the mistake this pins was made of, which was 12 percent.
+MAX_QUOTED_SIZE_DRIFT = 0.02
+
+
+def _quoted_bytes(pattern: str) -> int:
+    """A byte count the document writes with a Dutch thousands separator."""
+    match = re.search(pattern, TEXT)
+    assert match, f"the document no longer quotes a byte count matching {pattern!r}"
+    return int(match.group(1).replace(".", ""))
+
+
+def test_the_document_quotes_what_a_year_costs_to_send() -> None:
+    """The two byte counts in chapter 6, measured rather than remembered.
+
+    They matter because they are the only figures in this document about what
+    a visitor's connection carries, and because the pair that stood here before
+    was mismatched: the uncompressed figure described the JSON and the
+    compressed one described the packed bytes before base64 was applied, so the
+    ratio between them was a saving nobody ever gets. Measured on 2026-08-27
+    those are 93.608 and 40.693 bytes, so the document was quoting a 57 percent
+    saving where the real one is 52, off a base that was not the artefact
+    either. A document that quotes a measurement of a different thing is worse
+    than one that quotes none.
+
+    Measured on the household `docs/dpia.md` names, through the two functions
+    that build the field on the way out, and gzipped at the level nginx uses.
+    Read out of the document by pattern rather than searched for as a literal,
+    so the failure can say what the figure has become instead of only that it
+    is absent.
+    """
+    import gzip
+    import json
+
+    from test_advice_series import reference_household_flows
+
+    from advice.assembly import build_year
+    from advice.serializers import year_field
+
+    body = json.dumps(year_field(build_year(reference_household_flows()))).encode("utf-8")
+    packed = gzip.compress(body, NGINX_GZIP_LEVEL, mtime=0)
+
+    for label, measured, pattern in (
+        ("as JSON", len(body), r"het veld is ([\d.]+)\s*\n?bytes aan JSON"),
+        ("gzipped", len(packed), r"en ([\d.]+) bytes zodra nginx"),
+    ):
+        quoted = _quoted_bytes(pattern)
+        drift = abs(quoted - measured) / measured
+        assert drift <= MAX_QUOTED_SIZE_DRIFT, (
+            f"the document says the year is {quoted} bytes {label} and it measures "
+            f"{measured}, which is {drift:.1%} away. Re-measure and rewrite the sentence"
+        )
+
+
+def test_the_document_is_right_that_the_answer_now_carries_the_year() -> None:
+    """Chapter 6 stopped describing a field nobody sends, so this holds it to that.
+
+    The chapter used to say the answer *can* carry a year, which was true in
+    the way a shape in a serializer is true: nothing handed it one. It now says
+    the answer carries one, and the sentence is only worth writing if something
+    fails when it stops being true. `advice.service` is the single composition
+    root, so a `render` call there without a year is a response without one.
+    """
+    calls = [
+        node
+        for node in ast.walk(ast.parse(SERVICE.read_text(encoding="utf-8")))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "render"
+    ]
+    assert len(calls) == 1, f"advice/service.py calls render {len(calls)} times"
+    assert any(keyword.arg == "year" for keyword in calls[0].keywords), (
+        "advice/service.py renders without a year, so no answer carries one and "
+        "chapter 6 describes a field that is not sent"
+    )

@@ -9,6 +9,7 @@ visitor gets when PVGIS is down.
 
 from __future__ import annotations
 
+import base64
 import json
 import re
 import time
@@ -19,6 +20,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from django.conf import settings
 from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -125,6 +127,139 @@ def test_a_stored_advice_comes_back_unchanged_through_its_link() -> None:
     fetched = APIClient().get(reverse("advice-detail", args=[created["token"]]))
     assert fetched.status_code == 200
     assert fetched.json() == created
+
+
+#: The five keys of the optional `year` object, written out rather than read
+#: from the serializer that declares them. This is the API's side of a contract
+#: another codebase builds against, and a contract test that reads both sides
+#: from the same object agrees with whatever that object became.
+YEAR_KEYS = {"own", "meter", "ceilings", "provenance", "quarters"}
+
+
+def _the_same_year_run_independently() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """ESTIMATE's household simulated here, without going through the service.
+
+    Assembled from the same builders and the same offline providers the request
+    uses, but composed in this file, so what it can catch is a wiring fault:
+    the wrong flows carried out of `advise`, two series swapped on the way to
+    the encoder, or the household that took the free advice being drawn instead
+    of the one the visitor described. It is deliberately not a second
+    implementation of the engine, which is what `tests/test_golden.py` is for.
+    """
+    from advice.assembly import build_household, build_pv_system, year_series
+    from ampeer_sim.engine.run import simulate
+    from ampeer_sim.production.model import production_series
+    from ampeer_sim.profiles.compose import compose_consumption
+
+    weather_year = settings.AMPEER_WEATHER_YEAR
+    grid = YearGrid.for_year(settings.AMPEER_PROFILE_YEAR)
+    household = build_household(ESTIMATE)
+    system = build_pv_system(ESTIMATE)
+
+    watts, temperature, _source = FallbackProvider(weather_year).hourly_series(
+        household.postcode4, system.azimuth_deg, system.tilt_deg
+    )
+    production = production_series(watts, system, grid, weather_year=weather_year)
+    consumption = compose_consumption(
+        household,
+        grid,
+        FlatProfileProvider().fractions(grid.year, household.profile_category),
+        temperature,
+        weather_year=weather_year,
+        production_kwh=production,
+    )
+    return year_series(simulate(consumption, production))
+
+
+def test_an_estimate_carries_the_whole_year_and_says_where_it_came_from() -> None:
+    """The field on the wire, from a real request over HTTP.
+
+    Until 2026-08-27 nothing emitted this key: the format, the serializer and
+    the refusal all existed and no producer handed them anything, so every
+    check on it ran on an object a test had built. This is the request a
+    visitor makes.
+    """
+    response = APIClient().post(reverse("advice-estimate"), ESTIMATE, format="json")
+    assert response.status_code == 201, response.data
+
+    year = response.json()["year"]
+    assert set(year) == YEAR_KEYS
+    assert set(year["ceilings"]) == {"own", "export", "grid"}
+    assert year["provenance"] == "SYNTHETIC"
+    assert year["quarters"] == YearGrid.for_year(settings.AMPEER_PROFILE_YEAR).quarters
+
+    # One byte per quarter per array, which is the sentence the frontend
+    # allocates against. Read off the decoded bytes and not off the base64.
+    assert len(base64.b64decode(year["own"])) == year["quarters"]
+    assert len(base64.b64decode(year["meter"])) == year["quarters"]
+
+
+def test_the_year_on_the_wire_is_this_household_and_not_a_different_one() -> None:
+    """What the bytes add up to, against the engine run outside the service.
+
+    The ceilings are the maxima of the three series, so they are the cheapest
+    figure to compare and the one a wiring fault moves first: swapping export
+    and offtake, or carrying out the counterfactual year the free routes are
+    measured on, changes them by tens of percent.
+
+    Not compared exactly, and the reason is a finding rather than a tolerance
+    chosen for comfort. `compute_and_store` calls `run_advice` before it calls
+    `advise`, and the first of those fills the production cache, which stores
+    the series as float32 because PVGIS reports three significant digits.
+    `advise` therefore reads the roof back through that round trip while the
+    headline band beside it was computed on the float64 series, so the two
+    halves of one answer already run on production series that differ in the
+    eighth digit. Measured on 2026-08-27 on ESTIMATE: the export ceiling is
+    0.4557944370301161 here and 0.45579442304417456 on the wire, a relative
+    3e-8. The tolerance below is 1e-6, which is thirty times that and five
+    orders of magnitude tighter than anything a wiring fault could hide in.
+    """
+    own, export, grid = _the_same_year_run_independently()
+    served = APIClient().post(reverse("advice-estimate"), ESTIMATE, format="json").json()["year"]
+
+    assert served["ceilings"] == pytest.approx(
+        {
+            "own": float(own.max()),
+            "export": float(export.max()),
+            "grid": float(grid.max()),
+        },
+        rel=1e-6,
+    )
+
+
+def test_the_real_route_refuses_a_measured_series_rather_than_storing_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The privacy control, reached the way phase 2 will reach it.
+
+    `advice.assembly.build_year` stamps SYNTHETIC because that is what phase
+    0.5 can honestly say. In phase 2 the meter coupling is a second source and
+    a builder that knows about it, and that builder is the thing patched in
+    here: everything downstream of it is the code that ships today.
+
+    What is asserted is the whole shape of the refusal, not only that
+    something raised. The request fails; the row that was opened before the
+    payload existed still holds an empty advice; and the token route, which
+    filters nothing and is pinned elsewhere in this file to return what is
+    stored verbatim, therefore has no measured series to hand to whoever the
+    link reaches.
+    """
+    from advice.assembly import year_series
+    from advice.series import MEASURED, MeasuredSeriesRefused, encode_year
+
+    def measured(flows: Any) -> Any:
+        return encode_year(*year_series(flows), provenance=MEASURED)
+
+    monkeypatch.setattr("advice.service.build_year", measured)
+
+    with pytest.raises(MeasuredSeriesRefused, match=MEASURED):
+        APIClient().post(reverse("advice-estimate"), ESTIMATE, format="json")
+
+    stored = StoredAdvice.objects.get()
+    assert stored.advice == {}, "a refused advice left something readable behind"
+    fetched = APIClient().get(reverse("advice-detail", args=[stored.token]))
+    assert fetched.status_code == 200
+    assert "year" not in fetched.json()
 
 
 def test_two_requests_get_different_tokens() -> None:

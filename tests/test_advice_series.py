@@ -55,7 +55,7 @@ from advice.series import (
 from ampeer_sim.production.model import production_series
 from ampeer_sim.production.pvgis import FallbackProvider
 from ampeer_sim.timebase import YearGrid
-from ampeer_sim.types import PVSystem
+from ampeer_sim.types import EnergyFlows, PVSystem
 
 #: The five keys the frontend was given, written out rather than read from the
 #: serializer. Reading them from the thing under test would make this file
@@ -133,7 +133,7 @@ def _consumption() -> np.ndarray:
     return np.asarray(raw / raw.sum() * ANNUAL_CONSUMPTION_KWH)
 
 
-def _a_household_year() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def reference_household_year() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """One year of flows: own use, export, offtake, in kWh per quarter.
 
     The production half comes out of the offline production model, so this runs
@@ -143,6 +143,11 @@ def _a_household_year() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     what is left over and takes the rest off the grid. That construction is
     also why no quarter holds both directions, which is the property the meter
     byte rests on.
+
+    Public rather than underscored because `tests/test_dpia.py` measures the
+    size of this household's payload, and `docs/dpia.md` quotes that figure by
+    naming this file. Two households would make the document quote a
+    measurement of something else.
     """
     watts, _temperature, _source = FallbackProvider(WEATHER_YEAR).hourly_series("5401", 0.0, 35.0)
     system = PVSystem(peak_power_wp=PEAK_POWER_WP, azimuth_deg=0.0, tilt_deg=35.0)
@@ -152,11 +157,35 @@ def _a_household_year() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     return own, production - own, used - own
 
 
+def reference_household_flows() -> EnergyFlows:
+    """The same year as the engine hands it over, so `build_year` can be fed.
+
+    Built here from the three series above rather than by running the engine,
+    for the reason the module docstring gives about circular measurement: the
+    mapping from flows to wire is what `tests/test_advice_assembly.py` checks,
+    and a fixture produced by the code under test would agree with whatever
+    that code became. What this asserts by construction is only the identity
+    the engine also satisfies, that consumption is direct use plus offtake and
+    production is direct use plus feed-in.
+    """
+    own, export, grid = reference_household_year()
+    zeros = np.zeros_like(own)
+    return EnergyFlows(
+        consumption=own + grid,
+        production=own + export,
+        self_consumption=own,
+        from_grid=grid,
+        to_grid=export,
+        battery_charge=zeros,
+        battery_discharge=zeros,
+    )
+
+
 def _three_series(
     encoded: EncodedYear,
 ) -> list[tuple[str, np.ndarray, np.ndarray, int]]:
     """Each flow beside what it decodes to, and the steps its byte is cut into."""
-    own, export, grid = _a_household_year()
+    own, export, grid = reference_household_year()
     back_own, back_export, back_grid = decode_year(encoded)
     return [
         ("own", own, back_own, OWN_FULL_SCALE),
@@ -194,7 +223,7 @@ def test_a_year_survives_the_round_trip_to_within_half_a_step() -> None:
     ordinary cause of that is a ceiling set to a percentile of the series
     instead of its maximum.
     """
-    own, export, grid = _a_household_year()
+    own, export, grid = reference_household_year()
     encoded = encode_year(own, export, grid)
 
     for name, before, after, full in _three_series(encoded):
@@ -218,7 +247,7 @@ def test_the_annual_totals_survive_the_round_trip() -> None:
     a series whose total drifts is a picture that contradicts the number
     printed beside it.
     """
-    own, export, grid = _a_household_year()
+    own, export, grid = reference_household_year()
     encoded = encode_year(own, export, grid)
 
     for name, before, after, _full in _three_series(encoded):
@@ -237,7 +266,7 @@ def test_no_quarter_comes_back_on_the_wrong_side_of_the_meter() -> None:
     household the opposite of what happened, and the direction lives in a bit
     that rounding cannot touch, so the count here is zero and not small.
     """
-    own, export, grid = _a_household_year()
+    own, export, grid = reference_household_year()
     back_own, back_export, back_grid = decode_year(encode_year(own, export, grid))
     del back_own
 
@@ -252,7 +281,7 @@ def test_the_direction_lives_in_the_high_bit_and_the_magnitude_under_it() -> Non
     which passes for any pair of functions that agree. This reads the array the
     browser reads.
     """
-    own, export, grid = _a_household_year()
+    own, export, grid = reference_household_year()
     encoded = encode_year(own, export, grid)
 
     meter = np.frombuffer(base64.b64decode(encoded.meter), dtype=np.uint8)
@@ -274,7 +303,7 @@ def test_the_ceilings_are_the_maxima_so_nothing_is_clipped() -> None:
     export and 231 of offtake, and none of them could be recovered by a
     renderer that wanted them back.
     """
-    own, export, grid = _a_household_year()
+    own, export, grid = reference_household_year()
     encoded = encode_year(own, export, grid)
 
     for name, before, after, _full in _three_series(encoded):
@@ -297,7 +326,7 @@ def test_a_quarter_holding_both_directions_is_refused_rather_than_packed() -> No
     silently drop one of the two directions and the picture would show the
     wrong side of the meter, so the encoder raises.
     """
-    own, export, grid = _a_household_year()
+    own, export, grid = reference_household_year()
     both = grid.copy()
     both[export > 0] = 1.0
 
@@ -312,7 +341,7 @@ def test_a_direction_a_household_never_uses_encodes_as_zero() -> None:
     them, and a division by that ceiling would be the one place this module
     could produce a NaN on a real household.
     """
-    own, export, grid = _a_household_year()
+    own, export, grid = reference_household_year()
     nothing = np.zeros_like(export)
     encoded = encode_year(own, nothing, grid + export)
 
@@ -338,7 +367,7 @@ def test_a_series_that_is_not_a_matching_year_is_refused(mangle: Any, message: s
     allocated 365 by 96 for it, which draws a year with a hole in it rather
     than raising anywhere.
     """
-    own, export, grid = _a_household_year()
+    own, export, grid = reference_household_year()
     with pytest.raises(ValueError, match=message):
         encode_year(*mangle(own, export, grid))
 
@@ -350,7 +379,7 @@ def test_an_unrecognised_provenance_is_refused_at_the_encoder() -> None:
     whether the value is in the shareable set and would read anything it does
     not recognise as not shareable, or, one edit later, as shareable.
     """
-    own, export, grid = _a_household_year()
+    own, export, grid = reference_household_year()
     with pytest.raises(ValueError, match="provenance"):
         encode_year(own, export, grid, provenance="ESTIMATED")
 
@@ -376,8 +405,8 @@ def test_a_year_survives_the_round_trip_through_the_real_serializer() -> None:
     or truncate them. So this goes through the serializer the API declares and
     through DRF's renderer, and decodes what comes out the other end.
     """
-    own, export, grid = _a_household_year()
-    payload = year_field(build_year(own, export, grid))
+    own, export, grid = reference_household_year()
+    payload = year_field(build_year(reference_household_flows()))
 
     body = json.loads(JSONRenderer().render(payload).decode("utf-8"))
     assert set(body) == WIRE_KEYS
@@ -408,8 +437,7 @@ def test_the_serializer_refuses_a_year_that_is_not_the_shape_it_declares() -> No
     unremarked if this object were assembled as a dict literal, which is the
     reason it is a serializer.
     """
-    own, export, grid = _a_household_year()
-    good = year_field(build_year(own, export, grid))
+    good = year_field(build_year(reference_household_flows()))
 
     for broken in (good | {"scale": 1}, good | {"quarters": 96}):
         serializer = YearSerializer(data=broken)
@@ -435,20 +463,32 @@ def test_a_measured_series_is_never_served_on_the_token_route() -> None:
     between during which the rule is written in a document and enforced
     nowhere.
 
-    The route half is what makes this more than a unit test of a raise. The
-    token route hands back what is stored, verbatim, which
-    `tests/test_advice_api.py` pins in its own test, so the door in
-    `advice.serializers` is the whole of the control and what it lets through
-    is what a stranger with the link can read.
+    The route half is what makes this more than a unit test of a raise, and
+    what it establishes is uncomfortable rather than reassuring: the second
+    half below writes a measured year straight into a row and the token route
+    hands it back, every byte of it. That is not a defect in the route. The
+    route is a lookup, it serves what is stored, and it is pinned to do exactly
+    that by `tests/test_advice_api.py`. It is the reason the door in
+    `advice.serializers` is the whole of the control. Nothing filters on the
+    way out, so anything that reaches the row is readable by whoever the link
+    reaches, and a check added at read time later would leave every row written
+    before it untouched.
+
+    The write path is where that door stands, and it is exercised against the
+    real endpoint in
+    `tests/test_advice_api.py::test_the_real_route_refuses_a_measured_series_
+    rather_than_storing_it`. Until 2026-08-27 this test could not do that half:
+    nothing handed a year to the serializer at all, so it assembled a stored
+    row itself and the refusal it checked was reachable from no route.
     """
-    own, export, grid = _a_household_year()
+    own, export, grid = reference_household_year()
 
     measured = encode_year(own, export, grid, provenance=MEASURED)
     with pytest.raises(MeasuredSeriesRefused):
         year_field(measured)
 
     stored = StoredAdvice.create(
-        inputs={}, advice={"year": year_field(build_year(own, export, grid))}
+        inputs={}, advice={"year": year_field(build_year(reference_household_flows()))}
     )
     fetched = APIClient().get(reverse("advice-detail", args=[stored.token]))
     assert fetched.status_code == 200
@@ -469,6 +509,36 @@ def test_a_measured_series_is_never_served_on_the_token_route() -> None:
     assert back_own.shape == own.shape
 
 
+@pytest.mark.django_db
+def test_the_token_route_filters_nothing_which_is_why_the_door_is_at_the_write() -> None:
+    """The unpleasant half, asserted rather than assumed.
+
+    A reader could take the test above to mean the token route checks
+    provenance. It does not. `StoredAdviceView` reads a row and returns its
+    `advice` column, and this writes a measured year into that column without
+    going through `year_field` at all, which is precisely what a phase 2
+    writer added carelessly would do.
+
+    It is worth a test of its own for two reasons. It says out loud that the
+    control is a write-time control, so nobody looks for it on the read side
+    and concludes it is missing. And it is what makes the refusal load
+    bearing: if the route filtered, a leak would be one bad response, and
+    because it does not, a leak is a row that stays readable for ninety days
+    by anyone holding the link.
+    """
+    own, export, grid = reference_household_year()
+    smuggled = dataclasses.asdict(encode_year(own, export, grid, provenance=MEASURED))
+
+    stored = StoredAdvice.create(inputs={}, advice={"year": smuggled})
+    served = APIClient().get(reverse("advice-detail", args=[stored.token])).json()["year"]
+
+    assert served == smuggled, (
+        "the token route no longer serves what is stored verbatim, so the sentence "
+        "above about where the control has to sit needs rewriting rather than deleting"
+    )
+    assert served["provenance"] == MEASURED
+
+
 def test_the_refusal_is_about_the_token_and_not_about_the_word() -> None:
     """The phase 2 door, so that the check above cannot be read as a ban.
 
@@ -480,7 +550,7 @@ def test_the_refusal_is_about_the_token_and_not_about_the_word() -> None:
     Nothing passes False today and the scan below is what keeps that sentence
     true rather than remembered.
     """
-    own, export, grid = _a_household_year()
+    own, export, grid = reference_household_year()
     measured = encode_year(own, export, grid, provenance=MEASURED)
 
     behind_an_account = year_field(measured, shareable_token=False)
@@ -508,7 +578,7 @@ def test_the_serializer_defaults_to_the_safe_reading() -> None:
     default has to be the one that assumes it is. A default of False would make
     the control something a caller has to remember to ask for.
     """
-    own, export, grid = _a_household_year()
+    own, export, grid = reference_household_year()
     measured = encode_year(own, export, grid, provenance=MEASURED)
 
     with pytest.raises(MeasuredSeriesRefused):

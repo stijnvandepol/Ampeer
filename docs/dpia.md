@@ -182,15 +182,33 @@ gebruiker aangeleverde URL ophaalt.
 
 ### Het jaar in kwartieren, en waarom dat hier staat
 
-Het antwoord kan een veld `year` dragen: uw hele jaar in kwartieren, zodat het
-scherm het als een plaat kan tekenen. Dat zijn twee reeksen van 35040 bytes,
-base64 gecodeerd, met drie plafonds in kWh per kwartier erbij en een telling
-van het aantal kwartieren. De eerste byte per kwartier zegt hoeveel van de
-eigen opwek u in dat kwartier zelf hebt gebruikt, de tweede is de meter, met de
-richting in de hoogste bit. Gemeten op 27 augustus 2026 op het
-referentiehuishouden van `tests/test_advice_series.py`: 91 kB, en ongeveer 43 kB
-zodra de verbinding het inpakt. Het veld is optioneel, en het is nu beschreven
-omdat de regel eronder goedkoper is om te bouwen dan om later toe te voegen.
+Het antwoord draagt sinds 27 augustus 2026 een veld `year`: uw hele jaar in
+kwartieren, zodat het scherm het als een plaat kan tekenen. Dat zijn twee
+reeksen van 35040 bytes, base64 gecodeerd, met drie plafonds in kWh per
+kwartier erbij en een telling van het aantal kwartieren. De eerste byte per
+kwartier zegt hoeveel van de eigen opwek u in dat kwartier zelf hebt gebruikt,
+de tweede is de meter, met de richting in de hoogste bit.
+
+Wat dat kost om te versturen, gemeten op 27 augustus 2026 op het
+referentiehuishouden van `tests/test_advice_series.py`: het veld is 93.608
+bytes aan JSON, en 45.242 bytes zodra nginx het inpakt op compressieniveau 1,
+de standaard die `infra/nginx/` niet overschrijft.
+
+Het eerste getal ligt vast in de vorm: 35040 bytes per reeks worden 46720
+tekens base64, en verder varieren alleen de drie plafonds. Het tweede hangt af
+van uw gegevens en beweegt dus mee met elke correctie aan het opwekmodel.
+Daarom houdt `tests/test_dpia.py` beide binnen twee procent van een verse
+meting in plaats van op de letter. Een eerdere versie van dit hoofdstuk noemde
+ongeveer 43 kB voor het ingepakte veld. Dat getal hoorde bij de gepakte bytes
+voordat er base64 overheen ging, dus bij iets wat niemand ontvangt.
+
+Het veld is optioneel. Een advies dat voor 27 augustus 2026 is opgeslagen draagt
+het niet, en de tokenroute geeft terug wat er staat, dus in de negentig dagen
+daarna komen beide vormen voor. Datzelfde antwoord wordt ook opgeslagen, dus
+een advies van vandaag beslaat in de database ongeveer 91 kB in plaats van
+enkele kilobytes. Dat is dezelfde reeks achter dezelfde link en geen tweede
+verwerking, maar het is wel een grotere kopie, en hoofdstuk 4 beschrijft hoe
+lang die blijft staan.
 
 **Waarom dit vandaag geen nieuw persoonsgegeven is.** De reeks is synthetisch.
 Hij wordt opgebouwd uit een landelijk NEDU-standaardprofiel, geschaald naar het
@@ -222,6 +240,19 @@ gemeten reeks over de tokenroute te halen zou zijn. Voor fase 2 is er een
 uitgang, `shareable_token=False`, bedoeld voor een advies dat achter een
 account wordt opgehaald in plaats van achter een doorstuurbare link. Niets
 gebruikt die uitgang vandaag, en een test valt om zodra iets dat wel doet.
+
+Die weigering staat bij het schrijven en niet bij het lezen, en dat is een
+eigenschap om te kennen in plaats van een detail. De tokenroute zoekt een rij
+op en geeft terug wat erin staat; hij kijkt niet naar `provenance` en filtert
+niets. Wat er dus eenmaal in staat, is negentig dagen lang leesbaar voor
+iedereen aan wie de link is doorgestuurd, en een controle die later aan de
+leeskant wordt toegevoegd laat elke rij van daarvoor ongemoeid. Daarom zit de
+deur voor het opslaan.
+`tests/test_advice_api.py` doet dat na op de echte route: met een gemeten reeks
+mislukt het verzoek, de rij die al was aangemaakt blijft leeg, en er is dus
+niets om op te halen. `tests/test_advice_series.py` legt de andere helft vast,
+namelijk dat de tokenroute een gemeten reeks die iemand er rechtstreeks in zou
+schrijven wel degelijk zou uitleveren.
 
 Dat dit nu is gebouwd en niet in fase 2 is een keuze met een reden. Vandaag
 kost het drie regels. Op het moment dat de eerste gemeten reeks bestaat kost

@@ -8,13 +8,23 @@ told', never a guess dressed as an answer.
 
 from __future__ import annotations
 
+import inspect
 from decimal import Decimal
 from typing import Any
 
+import numpy as np
 import pytest
 
-from advice.assembly import build_battery_spec, build_household, build_pv_system, build_tariffs
-from ampeer_sim.types import EVChargingBehaviour, ProfileCategory
+from advice.assembly import (
+    build_battery_spec,
+    build_household,
+    build_pv_system,
+    build_tariffs,
+    build_year,
+    year_series,
+)
+from advice.series import MEASURED, SYNTHETIC
+from ampeer_sim.types import EnergyFlows, EVChargingBehaviour, ProfileCategory
 
 ESTIMATE: dict[str, Any] = {
     "postcode4": "5401",
@@ -139,3 +149,118 @@ def test_the_scenario_charges_for_feeding_in() -> None:
     cent is gross, and the cost per exported kWh eats almost all of it."""
     _, scenario, _ = build_tariffs(ESTIMATE)
     assert scenario.feed_in_cost_per_kwh > Decimal("0")
+
+
+#: One common year at 96 quarters a day, which is the only length
+#: `advice.series` accepts besides a leap year.
+QUARTERS_IN_A_YEAR = 365 * 96
+
+
+def _flows(
+    self_consumption: list[float],
+    from_grid: list[float],
+    to_grid: list[float],
+    battery_discharge: list[float] | None = None,
+    grid_charge: list[float] | None = None,
+    grid_discharge: list[float] | None = None,
+) -> EnergyFlows:
+    """A handful of quarters, balanced the way the engine balances them.
+
+    `consumption` and `production` are derived from the other columns by the
+    two equations `ampeer_sim.engine.run.assert_energy_balance` enforces, so a
+    case written here is a case the engine could have produced rather than an
+    arbitrary set of arrays.
+    """
+    direct = np.asarray(self_consumption, dtype=float)
+    offtake = np.asarray(from_grid, dtype=float)
+    feed_in = np.asarray(to_grid, dtype=float)
+    discharge = np.asarray(battery_discharge or [0.0] * len(direct), dtype=float)
+    charge = np.zeros_like(direct)
+    return EnergyFlows(
+        consumption=direct + discharge + offtake,
+        production=direct + charge + feed_in,
+        self_consumption=direct,
+        from_grid=offtake,
+        to_grid=feed_in,
+        battery_charge=charge,
+        battery_discharge=discharge,
+        grid_charge=np.asarray(grid_charge or [0.0] * len(direct), dtype=float),
+        grid_discharge=np.asarray(grid_discharge or [0.0] * len(direct), dtype=float),
+    )
+
+
+def test_the_wire_reads_the_meter_and_not_the_household_side_of_it() -> None:
+    """Which offtake the picture draws, when a battery trades on price.
+
+    `from_grid` and `to_grid` are what this household took and fed in for its
+    own sake. `total_import` and `total_export` add what a battery moved across
+    the meter because the price told it to. The byte is called the meter and a
+    bill is written from the meter, so the meter is what it carries; drawing
+    the household side would put a plate beside a euro figure that disagrees
+    with it.
+
+    Nothing produces this case today and that is why it is written here. On
+    every path the service runs, `grid_charge` and `grid_discharge` are zero,
+    so the two readings are identical and a test built from a real run cannot
+    tell them apart.
+    """
+    flows = _flows(
+        self_consumption=[0.0, 1.0],
+        from_grid=[2.0, 0.0],
+        to_grid=[0.0, 3.0],
+        grid_charge=[0.5, 0.0],
+        grid_discharge=[0.0, 0.25],
+    )
+    own, export, grid = year_series(flows)
+
+    assert list(grid) == [2.5, 0.0], "offtake dropped the kilowatt hours the battery bought"
+    assert list(export) == [0.0, 3.25], "feed-in dropped the kilowatt hours the battery sold"
+    assert list(own) == [0.0, 1.0]
+    assert list(flows.from_grid) != list(grid), "the household side would have read differently"
+
+
+def test_own_use_is_direct_use_and_never_direct_use_plus_discharge() -> None:
+    """What a battery gives back is not counted as own use of the roof.
+
+    `EnergyFlows.self_consumption_rate` gives the reason: discharged energy has
+    already paid the round trip loss, and with grid charging it holds kilowatt
+    hours this roof never made. The visible consequence is asserted rather than
+    hidden, because it looks like a bug in a plate: on a quarter where the
+    battery discharges, own use plus offtake is less than what was consumed.
+    """
+    flows = _flows(
+        self_consumption=[1.0],
+        from_grid=[0.5],
+        to_grid=[0.0],
+        battery_discharge=[2.0],
+    )
+    own, _export, grid = year_series(flows)
+
+    assert list(own) == [1.0]
+    assert own[0] + grid[0] < flows.consumption[0]
+    assert flows.consumption[0] == 3.5
+
+
+def test_a_year_built_here_is_stamped_synthetic_and_the_stamp_is_not_a_parameter() -> None:
+    """The one thing this file may say about where the numbers came from.
+
+    Everything phase 0.5 can produce is a national profile scaled to a figure
+    somebody typed in. A caller able to pass `MEASURED` would be a caller able
+    to claim a meter reading for a standard profile, which is the mistake the
+    field exists to make impossible, so the signature is asserted and not only
+    the value.
+    """
+    quarters = QUARTERS_IN_A_YEAR
+    flows = _flows(
+        self_consumption=[0.1] * quarters,
+        from_grid=[0.2] * quarters,
+        to_grid=[0.0] * quarters,
+    )
+    encoded = build_year(flows)
+
+    assert encoded.provenance == SYNTHETIC
+    assert encoded.quarters == quarters
+    assert set(inspect.signature(build_year).parameters) == {"flows"}, (
+        f"build_year now takes {sorted(inspect.signature(build_year).parameters)}; a "
+        f"provenance argument here is a way to stamp {MEASURED} on a standard profile"
+    )

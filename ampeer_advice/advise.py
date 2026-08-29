@@ -488,6 +488,15 @@ def advise(
         fired=fired,
         routes=ROUTES,
         battery=battery,
+        # The first pass, which is this household as it was described. The
+        # simulation was already being run for the rules to read and its result
+        # was dropped on the floor; carrying it out costs nothing and is the
+        # only quarter-hour series in this function that describes a year
+        # somebody actually lived. `outcome.consumption` is the household that
+        # took the free advice and the capacity curve runs five more years that
+        # are each a different battery, and none of those is a picture to show
+        # a visitor of their own year.
+        flows=flows,
     )
 
 

@@ -212,9 +212,27 @@ def _battery(advice: Advice) -> dict[str, Any] | None:
     }
 
 
-def render(advice: Advice, result: Result, token: str) -> dict[str, Any]:
-    """The whole response, JSON-safe, with no Decimal left in it."""
-    return {
+def render(
+    advice: Advice, result: Result, token: str, year: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """The whole response, JSON-safe, with no Decimal left in it.
+
+    `year` arrives already built and already checked. This module may not build
+    it: `tests/test_advice_series.py` pins the two modules that may import
+    `advice.series` at all, so that the one function which decides whether a
+    quarter-hour series may leave over a shareable token cannot be walked
+    around by a third module assembling the same dict. What reaches here is
+    what `advice.serializers.year_field` returned, and this file only decides
+    the key it lands under.
+
+    The key is absent rather than null when there is none, which is the shape
+    the frontend was given: an optional object. Absent and null are the same
+    thing to a reader and not to a parser, and this response already carries
+    `battery: null` and `saving_eur: null` for figures that were measured and
+    came out empty. A year that was never built is a different statement from a
+    year that came out empty, so it is spelled differently.
+    """
+    payload: dict[str, Any] = {
         "token": token,
         # Top level, never nested. A caveat in a footnote is a caveat nobody
         # reads.
@@ -237,3 +255,6 @@ def render(advice: Advice, result: Result, token: str) -> dict[str, Any]:
         "profile_year": result.profile_year,
         "weather_year": result.weather_year,
     }
+    if year is not None:
+        payload["year"] = year
+    return payload

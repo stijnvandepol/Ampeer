@@ -338,6 +338,67 @@ def test_the_advice_carries_both_versions() -> None:
     assert advice.engine_version == ENGINE_VERSION
     assert advice.advice_version == ADVICE_VERSION
 
+
+@pytest.mark.parametrize("name", sorted(HOUSEHOLDS))
+def test_the_advice_carries_out_the_year_it_was_decided_on(name: str) -> None:
+    """The simulated year leaves this package, and it is the first pass.
+
+    ``advise`` runs the household as it was described, then runs it again
+    having taken the free advice, then up to five more times for the capacity
+    curve. Only the first of those is a year anybody lived, and it was being
+    computed and dropped. Which one is carried out is asserted rather than
+    assumed, because every one of them is the right shape and only one is the
+    right answer: the free-route year would show a household the week it was
+    told to move to as though it had already moved.
+
+    Compared against the same call this function makes, run here, which is a
+    check on the wiring and not on the engine.
+    """
+    case = HOUSEHOLDS[name]
+    advice = _golden_advice(name)
+    household = _household(case)
+    system = PVSystem(peak_power_wp=case["peak_power_wp"], azimuth_deg=0.0, tilt_deg=35.0)
+
+    hourly, temperature, _ = FallbackProvider(WEATHER_YEAR).hourly_series(
+        household.postcode4, system.azimuth_deg, system.tilt_deg
+    )
+    production = production_series(hourly, system, GRID, weather_year=WEATHER_YEAR)
+    consumption = compose_consumption(
+        household,
+        GRID,
+        FlatProfiles().fractions(GRID.year, household.profile_category),
+        temperature,
+        weather_year=WEATHER_YEAR,
+        production_kwh=production,
+    )
+    expected = simulate(consumption, production)
+
+    assert advice.flows.consumption.shape == (GRID.quarters,)
+    assert np.array_equal(advice.flows.consumption, expected.consumption)
+    assert np.array_equal(advice.flows.self_consumption, expected.self_consumption)
+    assert np.array_equal(advice.flows.from_grid, expected.from_grid)
+    assert np.array_equal(advice.flows.to_grid, expected.to_grid)
+
+
+@pytest.mark.parametrize("name", sorted(HOUSEHOLDS))
+def test_no_quarter_of_a_golden_year_is_both_an_export_and_an_offtake(name: str) -> None:
+    """The assumption the wire format is built on, measured on real years.
+
+    ``backend/advice/series.py`` packs the meter into one byte with the
+    direction in its high bit, which is only possible because a quarter is a
+    surplus or a shortfall and never both. That module asserts the property on
+    the array it is handed, which turns a violation into a failed request. This
+    is the same property measured a step earlier, on every household the golden
+    set describes, so that a change to the engine that made both directions
+    possible in one quarter is a red test here rather than a 500 for a visitor.
+
+    It is a claim about the engine and it belongs in this package's tests: the
+    wire format did not invent it, it relies on it.
+    """
+    flows = _golden_advice(name).flows
+    both = int(((flows.total_export > 0) & (flows.total_import > 0)).sum())
+    assert both == 0, f"{both} of {GRID.quarters} quarters both exported and took off the grid"
+
     # And the engine half has to be the version of the run that produced the
     # numbers, not of the code rendering them. Those are the same string on
     # every real call, and they would stay the same string if advise() read
