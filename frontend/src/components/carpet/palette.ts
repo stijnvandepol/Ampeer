@@ -23,9 +23,15 @@
  * grey. It also has to stay inside its own band: the three states occupy three
  * non-overlapping ranges of contrast against the ground, so no cell of one
  * state can be mistaken for a cell of another, and a larger lift closes those
- * gaps. Measured on 2026-08-27 over all 65536 cells the format can hold:
- * export 3,10 to 4,53, offtake 6,70 to 7,63, own 11,90 to 13,57, worst
- * neighbouring pair 1,57:1. `tests/carpet/palette.test.ts` pins all of it.
+ * gaps. Measured on 2026-08-30 over every colour the format can express:
+ * export 3,09 to 4,07, offtake 6,70 to 7,59, own 11,90 to 13,57, worst
+ * neighbouring pair 1,57:1. `tests/carpet/palette.test.ts` pins all of it,
+ * reading the tokens out of the stylesheet rather than from a copy.
+ *
+ * Those figures replace the ones this comment carried until 2026-08-30, which
+ * were written here and never re-derived: export was given as 3,10 to 4,53 and
+ * offtake as 6,70 to 7,63. The top of the export band was out by 11 percent.
+ * Nothing was measuring them, which is the whole reason the test now exists.
  *
  * Those neighbouring pairs are 1,57:1 and not 3:1, and that is arithmetic
  * rather than a corner cut. Three states above a ground of relative luminance

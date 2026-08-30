@@ -14,26 +14,20 @@
 
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
+import { contrast as ratio, fromHex } from "./wcag";
 
 const css = readFileSync("src/app/globals.css", "utf-8");
 
 // --- WCAG 2.2 relative luminance and contrast, straight from the definition ---
+//
+// The formula lives in ./wcag.ts, because the plate's own contrast test asks
+// the same question of colours that are never in this stylesheet. The two
+// anchors at the bottom of this file are what prove it is the real formula,
+// and they now prove it for both callers.
 
-function channel(eight: number): number {
-  const c = eight / 255;
-  return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-}
-
-function luminance(hex: string): number {
-  const digits = hex.replace("#", "");
-  const [r, g, b] = [0, 2, 4].map((at) =>
-    Number.parseInt(digits.slice(at, at + 2), 16),
-  );
-  return (
-    0.2126 * channel(r ?? 0) +
-    0.7152 * channel(g ?? 0) +
-    0.0722 * channel(b ?? 0)
-  );
+/** The shared ratio, over the hex strings this file reads out of the CSS. */
+function contrast(a: string, b: string): number {
+  return ratio(fromHex(a), fromHex(b));
 }
 
 /** Two opaque colours, blended. `share` of the first, the rest of the second. */
@@ -48,12 +42,6 @@ function mix(front: string, back: string, share: number): string {
       .padStart(2, "0");
   }
   return out;
-}
-
-function contrast(a: string, b: string): number {
-  const [x, y] = [luminance(a), luminance(b)];
-  const [lighter, darker] = x > y ? [x, y] : [y, x];
-  return (lighter + 0.05) / (darker + 0.05);
 }
 
 // --- reading the four theme blocks out of the stylesheet ---

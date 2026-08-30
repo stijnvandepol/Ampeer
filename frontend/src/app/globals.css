@@ -75,10 +75,12 @@
    * dimmest cell that state can produce and the pair measured in
    * tests/design/contrast.test.ts is that state's worst case.
    *
-   * Measured on 2026-08-27 against the ground: own 11,90:1, offtake 6,70:1,
-   * export 3,10:1, on-carpet 12,99:1. All three states clear the 3:1 that WCAG
+   * Measured on 2026-08-30 against the ground: own 11,90:1, offtake 6,70:1,
+   * export 3,09:1, on-carpet 12,99:1. All three states clear the 3:1 that WCAG
    * 2.2 SC 1.4.11 asks of a graphic that carries meaning, which is what the
-   * prototype's near-invisible export could not do at 1,20:1.
+   * prototype's near-invisible export could not do at 1,20:1. Export clears it
+   * by 0,09 and nothing else here is that close, so it is the one of the three
+   * that a darker ground would push under.
    *
    * What they cannot all do is clear 3:1 against EACH OTHER, and the reason is
    * arithmetic rather than taste. Stepping 3:1 at a time up from this ground,
@@ -86,10 +88,11 @@
    * 1,432, and a relative luminance above 1 does not exist. So a ground and two
    * states is the most a pairwise 3:1 ladder holds, and this plate has three.
    * They are told apart by hue and by not overlapping: the ranges the renderer
-   * can draw are 3,10 to 4,53 for export, 6,70 to 7,63 for offtake and 11,90 to
+   * can draw are 3,09 to 4,07 for export, 6,70 to 7,59 for offtake and 11,90 to
    * 13,57 for own, so the worst adjacent pair is 1,57:1 and no cell of one state
    * can ever be mistaken for a cell of another. tests/carpet/palette.test.ts
-   * walks all 65536 cells the format can hold and pins both facts.
+   * walks all 65536 cells the format can hold and pins both facts. Corrected on
+   * 2026-08-30: this line said 4,53 and 7,63 while nothing read it.
    */
   --colour-carpet-ground: #071019;
   --colour-carpet-own: #f5c64a;
