@@ -127,10 +127,20 @@ def test_the_typescript_types_name_every_key_the_response_has() -> None:
     declared = TYPES.read_text(encoding="utf-8")
     missing: list[str] = []
 
+    def is_named(key: str) -> bool:
+        """Whether `types.ts` names this key, required or optional.
+
+        A field the API may leave out is declared `readonly year?: ...`, and
+        that names the key just as surely as the required form. Both spellings
+        keep the colon in the pattern, so `year` is not satisfied by a
+        neighbouring `yearly`.
+        """
+        return any(f"readonly {key}{mark}:" in declared for mark in ("", "?"))
+
     def walk(node: Any, path: str) -> None:
         if isinstance(node, dict):
             for key, value in node.items():
-                if f"readonly {key}:" not in declared:
+                if not is_named(key):
                     missing.append(f"{path}.{key}")
                 walk(value, f"{path}.{key}")
         elif isinstance(node, list):

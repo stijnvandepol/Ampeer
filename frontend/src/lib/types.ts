@@ -92,6 +92,58 @@ export interface BatteryAdvice {
   readonly curve: readonly (readonly [number, ScenarioBand])[];
 }
 
+/**
+ * The largest quarter of each series, in kWh. Every byte on the wire is a
+ * fraction of one of these, so nothing can be read back out without them.
+ *
+ * Three ceilings and not one. Export peaks around three times higher than
+ * offtake on the same household, so a shared ceiling would spend the meter
+ * byte's seven bits on export and leave offtake a third of the resolution it
+ * can have for free. They are maxima rather than percentiles, deliberately:
+ * see `backend/advice/series.py`, which says why the clipping belongs to
+ * whoever draws the picture and not to whoever packs it.
+ */
+export interface YearCeilings {
+  readonly own: number;
+  readonly export: number;
+  readonly grid: number;
+}
+
+/**
+ * One household's year of quarter-hour flows, packed.
+ *
+ * Two base64 strings of one byte per quarter. `own` is what the household used
+ * of its own production, scaled against `ceilings.own` over the full 255.
+ *
+ * `meter` is one byte for both directions, because a quarter is a surplus or a
+ * shortfall and never both: bit 0x80 set means the quarter EXPORTED, clear
+ * means it took from the grid, and the low SEVEN bits are the magnitude
+ * against that direction's ceiling, so the divisor is 127 and not 255.
+ *
+ * That divisor is the trap in this format and it fails silently. Reading the
+ * meter byte whole over 255, which is what a reader ported from a three-array
+ * prototype writes, halves every offtake quarter and turns the direction flag
+ * into magnitude, so export inflates and offtake collapses and the picture
+ * still looks like a picture. Measured from Python on 2026-08-27 on the
+ * reference household: offtake 1132,3 kWh against 2273,8 and export 4007,8
+ * against 2447,8. `tests/carpet/decode.test.ts` is written against exactly
+ * that mistake.
+ *
+ * `provenance` is SYNTHETIC for a series modelled from a national profile and
+ * what the visitor typed, and MEASURED for one off their own meter. Nothing
+ * produces a measured series today and the API refuses to serve one over a
+ * shareable link, which is why the frontend renders neither word: there is no
+ * `provenance_text` beside it, and translating a model's enum in the browser
+ * is the second copy of the model's vocabulary this file exists to prevent.
+ */
+export interface YearSeries {
+  readonly own: string;
+  readonly meter: string;
+  readonly ceilings: YearCeilings;
+  readonly provenance: "SYNTHETIC" | "MEASURED";
+  readonly quarters: number;
+}
+
 export interface Advice {
   readonly token: string;
   readonly confidence: "INDICATIVE" | "GOOD" | "PRECISE";
@@ -111,6 +163,15 @@ export interface Advice {
   readonly production_source_text: string;
   readonly profile_year: number;
   readonly weather_year: number;
+  /**
+   * The year, when the API sent one. Optional on purpose and optional forever:
+   * an advice is a complete answer without it, and a browser that cannot draw
+   * it must show the same page rather than a hole where a picture was. The
+   * advice page renders the plate only when this is present, and
+   * `e2e/carpet.spec.ts` pins that an advice without it lays out exactly as it
+   * did before this field existed.
+   */
+  readonly year?: YearSeries;
 }
 
 /** The order the reader sees. Free routes first, whatever they are worth. */

@@ -68,7 +68,9 @@ class FlatProfileProvider:
 
 def build_reference_payload() -> dict[str, Any]:
     """The advice API's response for one fixed household, from the real code."""
+    from advice.assembly import build_year
     from advice.rendering import render
+    from advice.serializers import year_field
     from ampeer_advice.advise import advise
     from ampeer_advice.tariffs import baseline_tariffs, scenario_2027_tariffs
     from ampeer_sim.production.pvgis import FallbackProvider
@@ -103,7 +105,14 @@ def build_reference_payload() -> dict[str, Any]:
         filled_fields=4,
         weather_year=WEATHER_YEAR,
     )
-    return render(advice, result, token=FIXTURE_TOKEN)
+    # The same year the API sends, built through the same door. Left out until
+    # 2026-08-30, and the fixture was then the one response the whole frontend
+    # is built and tested against while carrying no `year` at all: the field
+    # existed on the wire and in the browser's types and appeared in no test
+    # that renders a page. A fixture that is not the response is a fixture that
+    # agrees with everything.
+    year = year_field(build_year(advice.flows))
+    return render(advice, result, token=FIXTURE_TOKEN, year=year)
 
 
 def write_fixture() -> int:
