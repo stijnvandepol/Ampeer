@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { DayCounting } from "@/components/day/DayCounting";
+import styles from "./home.module.css";
 
 export const metadata: Metadata = {
   // Deliberately "betekent" and not "kost". A title that presumes a cost
@@ -9,6 +11,26 @@ export const metadata: Metadata = {
   // read before either has been computed.
   title: "Wat het einde van de saldering voor u betekent",
 };
+
+/** What a visitor gets, as a name and what it means rather than as a claim. */
+const PROMISES: readonly (readonly [string, string])[] = [
+  [
+    "Een bedrag met zijn marge",
+    "Een bedrag per jaar met de bandbreedte eromheen, nooit een enkel getal zonder.",
+  ],
+  [
+    "Hoe zeker het is",
+    "Het betrouwbaarheidsniveau staat naast de uitkomst zelf, niet in een voetnoot.",
+  ],
+  [
+    "Drie routes, gratis eerst",
+    "Uw ritme verschuiven, slimmer sturen met wat u al heeft, en pas daarna opslag.",
+  ],
+  [
+    "Een link, geen account",
+    "U krijgt een adres waarmee u er later bij kunt. Wij vragen niets anders.",
+  ],
+];
 
 /**
  * The landing page: what changes, and the way in.
@@ -21,55 +43,65 @@ export const metadata: Metadata = {
  *
  * There is no date arithmetic either. A page that counts down to 1 January
  * 2027 is manufacturing urgency out of a calendar, and rule four exists
- * precisely because that is the easiest thing in the world to add.
+ * precisely because that is the easiest thing in the world to add. Since
+ * 2026-08-30 that is a gate rather than a resolution: `ampeer-no-reading-the-clock`
+ * in `.semgrep/frontend.yml` refuses this tree the clock, so there is nothing
+ * here to count down from.
+ *
+ * The figure carries the rule instead of the date. It is the one moving thing
+ * on the page, and what it moves is the time axis out of the picture, which is
+ * what saldering does and what its ending undoes. Chapter 2 of the frontend
+ * spec allows movement towards uncertainty and never towards a purchase; this
+ * is the first half.
  */
 export default function Home() {
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-10 px-6 py-16">
-      <section className="flex flex-col gap-5">
-        <p className="text-sm uppercase tracking-wide text-ink-muted">
-          Salderen stopt in 2027
-        </p>
-        <h1 className="text-3xl font-bold">
-          Wat kost het einde van de saldering uw huishouden?
+    <div className={styles.page}>
+      <section className={styles.hero}>
+        <p className={styles.eyebrow}>Salderen stopt in 2027</p>
+        <h1 className={styles.title}>
+          Uw zonnestroom wordt in kwartieren afgerekend
         </h1>
-        <p className="text-lg text-ink-muted">
+        <p className={styles.lead}>
           Vanaf 1 januari 2027 vervalt de salderingsregeling. Een kWh die u zelf
           gebruikt is vanaf dat moment meer waard dan diezelfde kWh die u
           teruglevert. Hoeveel dat voor u scheelt hangt af van uw dak, uw
-          verbruik en uw contract.
+          verbruik en het moment waarop u stroom gebruikt.
         </p>
       </section>
 
-      <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-medium">Wat u terugkrijgt</h2>
-        <ul className="flex list-disc flex-col gap-2 pl-5 text-ink-muted">
-          <li>
-            Een bedrag per jaar met de marge eromheen, niet een enkel getal.
-          </li>
-          <li>Hoe zeker die uitkomst is, meteen naast de uitkomst zelf.</li>
-          <li>
-            Drie routes, met de gratis routes eerst: uw ritme verschuiven,
-            slimmer sturen met wat u al heeft, en opslag.
-          </li>
-          <li>Een link waarmee u er later bij kunt, zonder account.</li>
-        </ul>
+      <DayCounting />
+
+      <section className={styles.section}>
+        <h2 className={styles.heading}>Wat u terugkrijgt</h2>
+        <dl className={styles.promises}>
+          {PROMISES.map(([name, text]) => (
+            <div key={name} className={styles.promise}>
+              <dt className={styles.promiseName}>{name}</dt>
+              <dd className={styles.promiseText}>{text}</dd>
+            </div>
+          ))}
+        </dl>
       </section>
 
-      <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-medium">Wat wij niet doen</h2>
-        <p className="text-ink-muted">
+      <section className={styles.section}>
+        <h2 className={styles.heading}>Wat wij niet doen</h2>
+        <p className={styles.body}>
           Wij verkopen geen panelen, geen batterijen en geen energiecontract, en
           wij sturen u niet door naar een partij die dat wel doet. &quot;Geen
-          batterij&quot; is hier een geldige uitkomst.
+          batterij&quot; is hier een geldige uitkomst, en voor een deel van de
+          huishoudens is het de juiste.
         </p>
       </section>
 
-      <p>
+      <div className={styles.act}>
         <Link href="/berekenen/" className="button-accent">
           Beantwoord vier vragen
         </Link>
-      </p>
+        <p className={styles.note}>
+          Zonder inloggen, en zonder dat u iets hoeft te koppelen.
+        </p>
+      </div>
     </div>
   );
 }

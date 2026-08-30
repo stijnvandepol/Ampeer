@@ -62,11 +62,17 @@
 /berekenen/
 /berekenen/?ronde=2
 /methodologie/
+0%
 00
+00:00
 06
+06:00
 12
+12:00
 18
+18:00
 24
+24:00
 50%
 :
 ARRIVAL
@@ -93,12 +99,15 @@ Deze link opent dit advies opnieuw, zonder account. Bewaar hem als u er later bi
 Deze pagina hoort bij een berekening en er staat er geen in de link.
 Dit advies konden wij niet laten zien
 Donker
-Drie routes, met de gratis routes eerst: uw ritme verschuiven, slimmer sturen met wat u al heeft, en opslag.
+Drie routes, gratis eerst
 EAST
-Een bedrag per jaar met de marge eromheen, niet een enkel getal.
+Een bedrag met zijn marge
+Een bedrag per jaar met de bandbreedte eromheen, nooit een enkel getal zonder.
 Een jaar in kwartieren. Van links naar rechts de dagen van het jaar, van boven naar beneden het etmaal van middernacht tot middernacht. Geel staat voor een kwartier waarin u vooral uw eigen opwek gebruikte, lichtgrijsblauw voor een kwartier waarin u vooral stroom van het net haalde, en donkerblauw voor een kwartier waarin u vooral stroom teruggaf aan het net.
-Een link waarmee u er later bij kunt, zonder account.
+Een link, geen account
 Een moment, wij halen de doorrekening op die bij deze link hoort.
+Een voorbeelddag van 96 kwartieren, van middernacht links tot middernacht rechts. Hoe hoger een staaf, hoe meer stroom er in dat kwartier omging. Geel is een kwartier waarin het huishouden vooral zijn eigen opwek gebruikte, lichtgrijsblauw een kwartier waarin het stroom van het net haalde, en donkerblauw een kwartier waarin het stroom teruggaf aan het net.
+Een voorbeelddag, geen berekening.
 Elke kolom is een dag, van 1 januari links tot 31 december rechts. Elke rij is een kwartier, van middernacht boven tot middernacht onder.
 Er zijn kort achter elkaar veel berekeningen gedaan vanaf dit adres. Probeer het over een uur opnieuw.
 GOOD
@@ -106,12 +115,13 @@ Gekopieerd.
 Heeft u een dynamisch energiecontract?
 Heeft u een thuisbatterij?
 Heeft u een warmtepomp?
+Het betrouwbaarheidsniveau staat naast de uitkomst zelf, niet in een voetnoot.
 Hier is niets meer te halen.
 Hoe Ampeer rekent
 Hoe groot is de batterij?
 Hoe ligt het dak?
 Hoe schuin staat het dak?
-Hoe zeker die uitkomst is, meteen naast de uitkomst zelf.
+Hoe zeker het is
 Hoeveel stroom gebruikt de warmtepomp per jaar?
 Hoeveel stroom verbruikt u per jaar?
 Hoeveel wattpiek aan zonnepanelen ligt er?
@@ -143,6 +153,7 @@ Noord
 Noordoost
 Noordwest
 Oost
+Op tijd
 Overdag, op ons eigen overschot
 PRECISE
 Postcode, alleen de vier cijfers
@@ -155,6 +166,7 @@ SOUTH
 SOUTHEAST
 SOUTHWEST
 STORAGE
+Salderen kijkt alleen naar wat door de meter ging en telt dat over een heel jaar op. De volgorde in de tijd valt daarbij weg, en de
 Salderen stopt in 2027
 Stond vast
 Systeem
@@ -163,13 +175,16 @@ Terug
 Terugverdientijd
 Thema
 Tussen
+U krijgt een adres waarmee u er later bij kunt. Wij vragen niets anders.
 Uw advies
 Uw advies is opgehaald.
 Uw advies wordt opgehaald
 Uw gegevens
 Uw jaar in kwartieren
 Uw jaar wordt doorgerekend. Dit duurt even.
-Vanaf 1 januari 2027 vervalt de salderingsregeling. Een kWh die u zelf gebruikt is vanaf dat moment meer waard dan diezelfde kWh die u teruglevert. Hoeveel dat voor u scheelt hangt af van uw dak, uw verbruik en uw contract.
+Uw ritme verschuiven, slimmer sturen met wat u al heeft, en pas daarna opslag.
+Uw zonnestroom wordt in kwartieren afgerekend
+Vanaf 1 januari 2027 vervalt de salderingsregeling. Een kWh die u zelf gebruikt is vanaf dat moment meer waard dan diezelfde kWh die u teruglevert. Hoeveel dat voor u scheelt hangt af van uw dak, uw verbruik en het moment waarop u stroom gebruikt.
 Varieerde
 Verbruik per jaar
 Verbruiksjaar
@@ -177,6 +192,7 @@ Verder
 Verfijn uw antwoord
 Vermogen van de installatie
 Vijf vragen erbij maken deze uitkomst scherper: of er overdag iemand thuis is, hoe de auto laadt, of er een warmtepomp is, wat voor contract u heeft en of er al opslag is.
+Volgorde
 Voortgang
 Vraag
 Vul een getal in.
@@ -192,7 +208,6 @@ Wat andere maten zouden opleveren
 Wat die maat per jaar oplevert
 Wat het einde van de saldering u per jaar kost
 Wat het einde van de saldering voor u betekent
-Wat kost het einde van de saldering uw huishouden?
 Wat u terugkrijgt
 Wat wij niet doen
 Wat zijn de eerste vier cijfers van uw postcode?
@@ -201,7 +216,9 @@ Welke kant ligt het dak op?
 West
 Wij hebben geen elektrische auto
 Wij konden de rekenserver niet bereiken. Controleer uw verbinding en probeer het opnieuw.
-Wij verkopen geen panelen, geen batterijen en geen energiecontract, en wij sturen u niet door naar een partij die dat wel doet. "Geen batterij" is hier een geldige uitkomst.
+Wij verkopen geen panelen, geen batterijen en geen energiecontract, en wij sturen u niet door naar een partij die dat wel doet. "Geen batterij" is hier een geldige uitkomst, en voor een deel van de huishoudens is het de juiste.
+Zoals salderen telt
+Zonder inloggen, en zonder dat u iets hoeft te koppelen.
 Zuid
 Zuidoost
 Zuidwest
@@ -222,8 +239,11 @@ euro per jaar, met
 euro per kWh
 export
 feb
+gaf het terug aan het net en
+gele kwartieren zaten er nooit in: die kwamen nooit langs de meter. Vanaf 2027 zijn dat juist de kwartieren die tellen.
 graden
 h
+haalde het eruit.
 hoofdinhoud
 http://127.0.0.1:8000
 in.
@@ -260,6 +280,7 @@ text-3xl font-bold
 tot
 try{var c=localStorage.getItem("
 van
+van de 96 kwartieren gebruikte dit huishouden zijn eigen opwek,
 van het net gehaald
 var(
 vraag-titel
