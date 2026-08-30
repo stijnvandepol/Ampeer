@@ -73,3 +73,21 @@ rules:
       # red on correct code is as broken as one that never fires; it just
       # fails in the direction that gets it suppressed.
       - pattern-not: fetch(`${BASE}...`, ...)
+
+  - id: ampeer-no-reading-the-clock
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      This site never needs to know what day it is, and rule four is the reason.
+      "Nog 14 maanden" written as a subtraction against the clock reads as a
+      fact and behaves as scarcity, which is the failure chapter 2 of the
+      frontend spec names twice as the way past the wordlist. A date the visitor
+      should see comes from the API, which computed it, and not from the machine
+      the page happens to be rendered on. performance.now() is deliberately not
+      here: it is a monotonic timer for animation and says nothing about a date.
+    pattern-either:
+      - pattern: Date.now()
+      - pattern: Date.UTC(...)
+      - pattern: Date.parse(...)
+      - pattern: new Date(...)
+      - pattern: new Intl.DateTimeFormat(...)
