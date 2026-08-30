@@ -61,6 +61,42 @@
   /* ---- the band's own neutral fill, light ---- */
   --colour-band-track: #1f7c70;
 
+  /*
+   * The year plate. Five names, and the only ones in this file that carry the
+   * same value in all four blocks, because the plate is an instrument rather
+   * than a surface: a reader who switches theme must be looking at the same
+   * measurement, and the ratios measured below then hold in both. Everything
+   * else here follows the theme.
+   *
+   * --colour-carpet-ground is the instrument's own ground. The three others are
+   * the three states a quarter of an hour can be in, and each one is the FLOOR
+   * of its state: src/components/carpet/palette.ts only ever lightens a state
+   * towards white by its own fixed share, so the colour named here is the
+   * dimmest cell that state can produce and the pair measured in
+   * tests/design/contrast.test.ts is that state's worst case.
+   *
+   * Measured on 2026-08-27 against the ground: own 11,90:1, offtake 6,70:1,
+   * export 3,10:1, on-carpet 12,99:1. All three states clear the 3:1 that WCAG
+   * 2.2 SC 1.4.11 asks of a graphic that carries meaning, which is what the
+   * prototype's near-invisible export could not do at 1,20:1.
+   *
+   * What they cannot all do is clear 3:1 against EACH OTHER, and the reason is
+   * arithmetic rather than taste. Stepping 3:1 at a time up from this ground,
+   * whose relative luminance is 0,0049, lands on 0,115 and then 0,444 and then
+   * 1,432, and a relative luminance above 1 does not exist. So a ground and two
+   * states is the most a pairwise 3:1 ladder holds, and this plate has three.
+   * They are told apart by hue and by not overlapping: the ranges the renderer
+   * can draw are 3,10 to 4,53 for export, 6,70 to 7,63 for offtake and 11,90 to
+   * 13,57 for own, so the worst adjacent pair is 1,57:1 and no cell of one state
+   * can ever be mistaken for a cell of another. tests/carpet/palette.test.ts
+   * walks all 65536 cells the format can hold and pins both facts.
+   */
+  --colour-carpet-ground: #071019;
+  --colour-carpet-own: #f5c64a;
+  --colour-carpet-offtake: #8b9ba8;
+  --colour-carpet-export: #3f6489;
+  --colour-on-carpet: #c9d7dd;
+
   /* ---- state, light ---- */
   --colour-danger: #a11b1b;
   --colour-on-danger: #ffffff;
@@ -171,6 +207,11 @@
     --colour-confidence-precise: #86b6ff;
     --colour-on-tone: #06231f;
     --colour-band-track: #3e9e90;
+    --colour-carpet-ground: #071019;
+    --colour-carpet-own: #f5c64a;
+    --colour-carpet-offtake: #8b9ba8;
+    --colour-carpet-export: #3f6489;
+    --colour-on-carpet: #c9d7dd;
     --colour-danger: #ff8d8d;
     --colour-on-danger: #2a0606;
     --colour-border: #252e35;
@@ -201,6 +242,11 @@
   --colour-confidence-precise: #1f4fa8;
   --colour-on-tone: #ffffff;
   --colour-band-track: #1f7c70;
+  --colour-carpet-ground: #071019;
+  --colour-carpet-own: #f5c64a;
+  --colour-carpet-offtake: #8b9ba8;
+  --colour-carpet-export: #3f6489;
+  --colour-on-carpet: #c9d7dd;
   --colour-danger: #a11b1b;
   --colour-on-danger: #ffffff;
   --colour-border: #d5dce3;
@@ -224,6 +270,11 @@
   --colour-confidence-precise: #86b6ff;
   --colour-on-tone: #06231f;
   --colour-band-track: #3e9e90;
+  --colour-carpet-ground: #071019;
+  --colour-carpet-own: #f5c64a;
+  --colour-carpet-offtake: #8b9ba8;
+  --colour-carpet-export: #3f6489;
+  --colour-on-carpet: #c9d7dd;
   --colour-danger: #ff8d8d;
   --colour-on-danger: #2a0606;
   --colour-border: #252e35;

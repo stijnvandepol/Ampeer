@@ -62,6 +62,13 @@
 /berekenen/
 /berekenen/?ronde=2
 /methodologie/
+00
+06
+12
+18
+24
+50%
+:
 ARRIVAL
 Adviesversie
 Ampeer
@@ -71,6 +78,7 @@ Beantwoord vier vragen
 Begin een nieuwe berekening
 Berekenen
 Betrouwbaarheid:
+Beweeg over de plaat of gebruik de pijltjestoetsen om een kwartier te lezen.
 CHOSEN_FROM_SIMULATED_CAPACITIES
 Combinaties
 De batterij, doorgerekend
@@ -88,8 +96,10 @@ Donker
 Drie routes, met de gratis routes eerst: uw ritme verschuiven, slimmer sturen met wat u al heeft, en opslag.
 EAST
 Een bedrag per jaar met de marge eromheen, niet een enkel getal.
+Een jaar in kwartieren. Van links naar rechts de dagen van het jaar, van boven naar beneden het etmaal van middernacht tot middernacht. Geel staat voor een kwartier waarin u vooral uw eigen opwek gebruikte, lichtgrijsblauw voor een kwartier waarin u vooral stroom van het net haalde, en donkerblauw voor een kwartier waarin u vooral stroom teruggaf aan het net.
 Een link waarmee u er later bij kunt, zonder account.
 Een moment, wij halen de doorrekening op die bij deze link hoort.
+Elke kolom is een dag, van 1 januari links tot 31 december rechts. Elke rij is een kwartier, van middernacht boven tot middernacht onder.
 Er zijn kort achter elkaar veel berekeningen gedaan vanaf dit adres. Probeer het over een uur opnieuw.
 GOOD
 Gekopieerd.
@@ -157,6 +167,7 @@ Uw advies
 Uw advies is opgehaald.
 Uw advies wordt opgehaald
 Uw gegevens
+Uw jaar in kwartieren
 Uw jaar wordt doorgerekend. Dit duurt even.
 Vanaf 1 januari 2027 vervalt de salderingsregeling. Een kWh die u zelf gebruikt is vanaf dat moment meer waard dan diezelfde kWh die u teruglevert. Hoeveel dat voor u scheelt hangt af van uw dak, uw verbruik en uw contract.
 Varieerde
@@ -197,8 +208,11 @@ Zuidwest
 als middelpunt, uit
 ampeer-antwoorden
 ampeer-thema
+apr
+aug
 dark
 data-theme
+dec
 doorrekeningen
 doorrekeningen.
 en
@@ -206,6 +220,8 @@ euro
 euro als middelpunt, uit
 euro per jaar, met
 euro per kWh
+export
+feb
 graden
 h
 hoofdinhoud
@@ -213,24 +229,39 @@ http://127.0.0.1:8000
 in.
 ja
 jaar
+jan
+jul
+jun
 kWh
 kWh opslag
+kWh zelf gebruikt
 light
+mei
+mrt
 ms
 mt-10 text-xl font-medium
 mt-6 font-medium
 mt-8 text-lg font-medium
 nee
+nov
+offtake
+okt
+own
 per jaar
 per kWh
+rgb(
 ronde
 route-
+sep
 system
 tariefcombinaties.
+teruggeleverd
 text-3xl font-bold
 tot
 try{var c=localStorage.getItem("
 van
+van het net gehaald
 var(
 vraag-titel
+zelf gebruikt
 €

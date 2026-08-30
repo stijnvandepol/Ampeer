@@ -6,6 +6,7 @@ import { BandlessFigureView } from "@/components/band/BandlessFigureView";
 import { HeadlineBand } from "@/components/band/HeadlineBand";
 import { RouteSection } from "@/components/band/RouteSection";
 import { ScenarioBandFigure } from "@/components/band/ScenarioBandFigure";
+import { YearCarpet } from "@/components/carpet/YearCarpet";
 import { getAdvice } from "@/lib/api";
 import type { Advice, BatteryAdvice } from "@/lib/types";
 import { tokenFromPath } from "../_advice/link";
@@ -379,6 +380,14 @@ export default function AdviesPage() {
               label={advice.confidence_label}
             />
           </section>
+
+          {/*
+            The evidence under the figure, and only when the API sent it. The
+            field is optional on the wire, so a build talking to an older API
+            renders the page it rendered before the field existed rather than a
+            gap where a plate should be.
+          */}
+          {advice.year !== undefined && <YearCarpet year={advice.year} />}
 
           {advice.routes.map((route) => (
             <RouteSection key={route.route} route={route} />
