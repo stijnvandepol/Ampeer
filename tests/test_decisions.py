@@ -30,7 +30,25 @@ REQUIRED_FIELDS = ("**Decided:**", "**Because:**", "**Lives in:**", "**To revers
 
 #: What makes a backticked token on a Lives in line a path rather than a symbol.
 #: pyproject.toml carries no slash, so a slash alone does not decide it.
-_PATH_SUFFIXES = (".py", ".toml", ".yml", ".yaml", ".sh", ".md", ".json")
+#:
+#: The frontend suffixes were added on 2026-08-30 with the first decision that
+#: lives there. Without them a token like `frontend/src/app/globals.css` reads
+#: as a SYMBOL, and the check then looks for that literal string inside the
+#: other files the entry names, which is a failure with a misleading message
+#: rather than the path check the entry was asking for. No existing entry named
+#: such a file, so nothing was reclassified by adding them.
+_PATH_SUFFIXES = (
+    ".py",
+    ".toml",
+    ".yml",
+    ".yaml",
+    ".sh",
+    ".md",
+    ".json",
+    ".ts",
+    ".tsx",
+    ".css",
+)
 
 _ENTRY = re.compile(r"^### \d+\. (.+)$", re.MULTILINE)
 _QUOTED = re.compile(r"`([^`]+)`")

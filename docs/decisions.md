@@ -802,6 +802,58 @@ because the direction flag is read as magnitude.
 **To reverse:** scale to a percentile and accept that the year's brightest
 quarters are gone from the payload rather than from the picture.
 
+### 25. The plate's colours are named inside the check, not beside it
+
+**Decided:** the year plate declares `--colour-carpet-ground`,
+`--colour-carpet-own`, `--colour-carpet-offtake`, `--colour-carpet-export` and
+`--colour-on-carpet` in the same bare `:root` block as every other colour, and
+its three states are rows in `GRAPHIC_PAIRS`. Each token is the FLOOR of its
+state: `cellColour` only ever lightens towards white, so the token is the
+dimmest cell that state can draw.
+
+**Because:** this was the open question recorded under "What was not decided
+here" until 2026-08-30, and it was open because the two cheaper spellings were
+both the check being switched off. `--carpet-own` sits outside the
+`--colour-([a-z0-9-]+)` pattern the contrast test parses. A second bare `:root`
+block hides from the same test, whose block regex is not global and reads the
+first one only. Either leaves a green suite and three unmeasured colours, on the
+one plate where colour is the entire encoding: a cell is one pixel with no
+label, no shape and no position of its own.
+
+The floor rule is what makes three token rows a worst case rather than three
+samples, and it is not free. The prototype blended each state towards the
+instrument's ground by its magnitude, which draws a low quarter approaching
+1,2:1 while the token it derives from measures fine, so the check agreed with
+the stylesheet and not with the screen.
+
+Measured on 2026-08-30 over every colour the format can express: export 3,09 to
+4,07, offtake 6,70 to 7,59, own 11,90 to 13,57, worst neighbouring pair
+1,5691:1. All three clear the 3:1 of SC 1.4.11; export clears it by 0,09 and is
+the one a darker ground would push under. They cannot also be 3:1 from each
+other, and that is arithmetic: three states each 3:1 above a ground of
+luminance 0,0049 would need 0,115, 0,444 and 1,432, and relative luminance stops
+at 1. So a ground and two states is the most a pairwise ladder holds, and the
+third is told apart by hue and by the bands not overlapping.
+
+Those figures replace the ones that stood in two source comments from
+2026-08-27 to 2026-08-30, which named `tests/carpet/palette.test.ts` as pinning
+them while that file did no such walk. Export's top was given as 4,53 against a
+real 4,07 and offtake's as 7,63 against 7,59. A claim nobody re-derives is the
+subject of this project's last six commits, and this one was mine.
+
+**Lives in:** `CARPET_TOKENS` and `STATE_LIFT` in
+`frontend/src/components/carpet/palette.ts`, the five tokens in
+`frontend/src/app/globals.css`, `GRAPHIC_PAIRS` in
+`frontend/tests/design/contrast.test.ts`, the shared ratio in
+`frontend/tests/design/wcag.ts`, and the walk in
+`frontend/tests/carpet/palette.test.ts`.
+
+**To reverse:** rename the tokens outside the `--colour-` pattern, or let
+`cellColour` blend towards the ground. Either makes the three rows in
+`GRAPHIC_PAIRS` measure a colour that is in the stylesheet rather than the worst
+one on screen, so both would have to remove those rows in the same commit rather
+than leave them measuring nothing.
+
 ## What was not decided here
 
 Five belong to the controller and are written up with their trade-offs in
@@ -811,7 +863,7 @@ arrives before phase 1, and access to the host including whether `web2` becomes
 ephemeral. They are not repeated here, because two lists of the same open
 questions is how one of them gets answered twice and the other not at all.
 
-Eight sit outside that document.
+Seven sit outside that document.
 
 - **Whether `feat/**` stays in the push trigger of `.github/workflows/ci.yml`.**
   Removing it roughly halves the minutes a branch costs, and rewrites five
@@ -952,31 +1004,6 @@ Eight sit outside that document.
   The full reading, with the block tables, the offtake-only finding and eight
   named gaps, is `docs/analysis/2026-08-24-tou-tariff-2029.md`. Editing CLAUDE.md
   is not mine.
-
-- **What the year carpet's colours are called, and whether it is built at all.**
-  Nothing of it exists. The lane that was to draw the plate wrote no file,
-  because three separate gates each need a file it was not given, and it proved
-  each one by making it go red from a file it did own rather than by reading it
-  and assuming. `frontend/tests/design/contrast.test.ts` requires every declared
-  `--colour-` name to appear in a hardcoded pair list inside that test, so adding
-  one token to `frontend/src/app/globals.css` turns four of its tests red and
-  three of those are fixable from the stylesheet. `frontend/e2e/language.spec.ts`
-  compares every user-visible string under `frontend/src/` against
-  `frontend/tests/ui-strings.txt` byte for byte in both directions. And vitest
-  collects only `frontend/tests/**`, while coverage measures `frontend/src/**`
-  with `all` on, so the unit tests for the pure decode cannot sit beside the
-  component; measured on 2026-08-27 the floors leave 0,03 points of branch
-  headroom and 0,04 of function headroom, which is at most 2 uncovered branches
-  in 30 and none of 20.
-
-  The open question is the naming, and it is open because the two cheaper
-  spellings are both the check being switched off. Calling them `--carpet-own`
-  puts them outside the pattern the contrast test parses, and declaring them in a
-  second bare `:root` block hides them from the same test, whose block regex is
-  not global and reads the first one only. Either leaves a green suite and three
-  unmeasured colours, on the one plate where the colour is the meaning. Recorded
-  here rather than as a decision because a decision has to name the file that
-  carries it, and there is not one.
 
 - **The order the two open pull requests are merged in.** #23 carries this
   branch into `dev` and #22 carries `dev` into `main`, so #23 goes first and #22
