@@ -59,7 +59,14 @@ test("a visitor answers four questions and lands on an advice", async ({
   await stubApi(page, recorded);
 
   await page.goto("/");
-  await page.getByRole("link", { name: "Beantwoord vier vragen" }).click();
+  // `.first()`, because the landing page offers the way in twice: once closing
+  // the first screen and once closing the page. Two is the ceiling and a test
+  // in tests/app/pages.test.tsx holds it there; this walk takes the one a
+  // visitor meets first.
+  await page
+    .getByRole("link", { name: "Beantwoord vier vragen" })
+    .first()
+    .click();
   await expect(page).toHaveURL(/\/berekenen\/$/);
 
   // Question one, and the refusal to skip it. The button is not disabled, so

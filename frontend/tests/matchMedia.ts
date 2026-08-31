@@ -16,12 +16,35 @@
  * jsdom in this repository's vitest environment.
  */
 
-export function installMatchMedia(reduceMotion: boolean): void {
+/**
+ * What every query other than reduced motion answers.
+ *
+ * `(pointer: fine)` is true because jsdom is standing in for a desktop
+ * browser, which is where the components that ask it are meant to run. It was
+ * added on 2026-08-31 with the pointer ring, whose whole behaviour is gated on
+ * that query: with the previous blanket false, every test of it would have
+ * passed over a component that had attached no listeners, which is a test that
+ * proves the opposite of what it says.
+ *
+ * Anything not named here stays false, which is the conservative answer for a
+ * feature query.
+ */
+const DEFAULT_ANSWERS: Readonly<Record<string, boolean>> = {
+  "(pointer: fine)": true,
+};
+
+export function installMatchMedia(
+  reduceMotion: boolean,
+  answers: Readonly<Record<string, boolean>> = {},
+): void {
+  const resolved = { ...DEFAULT_ANSWERS, ...answers };
   const listeners = new Set<(event: MediaQueryListEvent) => void>();
   const query = (media: string): MediaQueryList =>
     ({
       media,
-      matches: media.includes("prefers-reduced-motion") ? reduceMotion : false,
+      matches: media.includes("prefers-reduced-motion")
+        ? reduceMotion
+        : (resolved[media] ?? false),
       onchange: null,
       addEventListener: (
         _type: string,

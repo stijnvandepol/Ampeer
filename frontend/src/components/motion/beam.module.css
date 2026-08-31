@@ -1,0 +1,85 @@
+/*
+ * The connecting line.
+ *
+ * TUNING:
+ *   --beam-draw    how long the stroke takes, when it is time driven
+ *   --beam-width   stroke width, in the viewBox's units
+ *   animation-range on .path decides WHERE in the scroll it draws
+ */
+
+.beam {
+  --beam-draw: 900ms;
+  --beam-width: 0.6;
+
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* The line's own bed, always there, so the shape is legible before it draws. */
+.track {
+  fill: none;
+  stroke: var(--colour-border);
+  stroke-width: var(--beam-width);
+  vector-effect: non-scaling-stroke;
+}
+
+.path {
+  fill: none;
+  stroke: var(--colour-accent);
+  stroke-width: var(--beam-width);
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  /*
+   * pathLength="1" on the element means one whole path is one unit, so the dash
+   * is the entire line and the offset is how much of it is still hidden. No
+   * measurement in JavaScript, and correct at any size.
+   */
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+/*
+ * Drawn by the scroll rather than by a clock, so it arrives when the reader
+ * does. globals.css detaches every timeline under prefers-reduced-motion, and
+ * `both` with a keyframe that ends at offset 0 means the un-animated state is
+ * the completed line.
+ */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .path {
+      animation: draw linear both;
+      animation-timeline: view();
+      animation-range: entry 15% cover 45%;
+    }
+  }
+}
+
+/*
+ * A browser without view() gets the line drawn once on load instead. Same end
+ * state, same duration knob, no scroll dependency.
+ */
+@supports not (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .path {
+      animation: draw var(--beam-draw) var(--ease-standard) both;
+    }
+  }
+}
+
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/*
+ * The one place this file cheats and it says so: stroke-dashoffset is neither
+ * transform nor opacity, so it is not composited. It is one path, one property,
+ * on an element with no children, and the paint area is a line a few pixels
+ * wide. The alternative, a masked rectangle translated across, costs more DOM
+ * than it saves.
+ */

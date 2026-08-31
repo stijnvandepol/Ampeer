@@ -1,0 +1,86 @@
+/*
+ * The pinned section with a sideways track.
+ *
+ * TUNING:
+ *   --rail-length  how much vertical scroll the section occupies, in viewport
+ *                  heights. Longer = slower sideways travel per pixel scrolled.
+ *   --rail-gap     space between the cards on the track.
+ *
+ * The distance travelled is not a knob: it is the track's own width minus the
+ * viewport, so adding a card lengthens the travel by exactly that card.
+ */
+
+.container {
+  --rail-length: 260vh;
+  --rail-gap: var(--space-5);
+}
+
+.sticky {
+  display: flex;
+  align-items: center;
+}
+
+.track {
+  display: flex;
+  gap: var(--rail-gap);
+}
+
+/*
+ * Everything that makes it a rail is inside this block. Without view timelines
+ * the section is an ordinary one and the track wraps, which is the layout a
+ * phone gets anyway.
+ */
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) and (min-width: 60rem) {
+    .container {
+      height: var(--rail-length);
+      /*
+       * The timeline every child measures itself against. Named, so the sticky
+       * child can read the scroll of its own ancestor rather than of the page:
+       * the page timeline would start the travel the moment the document
+       * scrolls, long before this section is anywhere near the screen.
+       */
+      view-timeline-name: --rail;
+      view-timeline-axis: block;
+    }
+
+    .sticky {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .track {
+      /*
+       * The travel: the track's own width, less one screen, so the last card
+       * finishes flush with the right edge instead of leaving a gap or running
+       * past. `max-content` on the width is what lets the browser know the
+       * whole track before any of it has scrolled.
+       */
+      width: max-content;
+      animation: slide linear both;
+      animation-timeline: --rail;
+      animation-range: contain 0% contain 100%;
+      will-change: transform;
+    }
+  }
+}
+
+@keyframes slide {
+  to {
+    transform: translateX(calc(-1 * (100% - 100vw + var(--space-6))));
+  }
+}
+
+/*
+ * Below the breakpoint, and in every browser without the timeline, the track is
+ * a wrapping row. Not a horizontally scrolling one: a nested horizontal scroll
+ * area on a phone competes with the page's own scroll and is the single most
+ * common way a carousel becomes unusable on touch.
+ */
+@media (max-width: 59.999rem) {
+  .track {
+    flex-wrap: wrap;
+  }
+}

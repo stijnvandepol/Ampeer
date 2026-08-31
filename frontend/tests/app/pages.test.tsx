@@ -16,13 +16,21 @@ import {
 describe("the landing page", () => {
   it("leads into the four questions and nowhere else", () => {
     const { container } = render(<Home />);
+    // Two ways in and no third. Two is the ceiling: one closing the first
+    // screen and one closing the page. A third, a sticky bar or a repeat
+    // halfway down is how a way in becomes a funnel, and neither of the two
+    // calls to action the spec allows belongs here at all, because both refer
+    // to an answer that does not exist yet.
+    //
     // The trailing slash is next.config.ts's doing and is added by the build,
     // not by Link, so this accepts the path with or without it.
-    expect(
-      screen
-        .getByRole("link", { name: "Beantwoord vier vragen" })
-        .getAttribute("href"),
-    ).toMatch(/^\/berekenen\/?$/);
+    const ways = screen.getAllByRole("link", {
+      name: "Beantwoord vier vragen",
+    });
+    expect(ways).toHaveLength(2);
+    for (const way of ways) {
+      expect(way.getAttribute("href")).toMatch(/^\/berekenen\/?$/);
+    }
     const hrefs = [...container.querySelectorAll("a[href]")].map((element) =>
       element.getAttribute("href"),
     );
