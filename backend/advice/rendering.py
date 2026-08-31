@@ -30,6 +30,7 @@ from typing import Any
 
 from ampeer_advice.nl import (
     CONFIDENCE_LABELS,
+    MODELLED_CONSUMPTION_BASIS_TEXTS,
     ROUTE_TITLES,
     SIZING_BASIS_TEXTS,
     label_for,
@@ -212,8 +213,51 @@ def _battery(advice: Advice) -> dict[str, Any] | None:
     }
 
 
+#: How far the modelled year may sit from what was entered and still be called
+#: unchanged, in kilowatt hours.
+#:
+#: One, and it is a tolerance on floating point rather than a judgement about
+#: anything. `scale_to_annual` scales the base profile to exactly the figure
+#: entered, and `apply_presence` moves energy between quarters without creating
+#: or destroying any, so a household with no car and no heat pump comes back to
+#: the entered figure to within the arithmetic. The smallest asset this model
+#: can add is a heat pump at 1 kWh of heat demand; every real one is hundreds.
+CONSUMPTION_UNCHANGED_TOLERANCE_KWH = 1.0
+
+
+def _modelled_consumption(advice: Advice, entered_kwh: float) -> dict[str, Any]:
+    """The year's total consumption, with why it carries no band.
+
+    Rounded to a whole kilowatt hour. Energy is a float here as everywhere, and
+    the tenths of this one are the profile's arithmetic rather than anything
+    measured; a reader checking it against their annual bill is working in
+    hundreds.
+
+    The basis is decided by comparing the series against the figure entered,
+    not by reading `has_ev` and `has_heat_pump` off the request. Those flags say
+    what was asked for and this comparison says what happened to the year every
+    other figure in the response was computed from. A flag set on a request
+    whose asset never reached the series would make the flag version say
+    something untrue, and it is exactly the sentence about the annual bill that
+    would then be shown to a household it cannot apply to.
+    """
+    modelled = float(advice.flows.consumption.sum())
+    unchanged = abs(modelled - entered_kwh) < CONSUMPTION_UNCHANGED_TOLERANCE_KWH
+    basis = "ENTERED_UNCHANGED" if unchanged else "ENTERED_PLUS_ASSETS"
+    return {
+        "value": round(modelled),
+        "band": None,
+        "basis": basis,
+        "basis_text": MODELLED_CONSUMPTION_BASIS_TEXTS[basis],
+    }
+
+
 def render(
-    advice: Advice, result: Result, token: str, year: dict[str, Any] | None = None
+    advice: Advice,
+    result: Result,
+    token: str,
+    year: dict[str, Any] | None = None,
+    entered_consumption_kwh: float | None = None,
 ) -> dict[str, Any]:
     """The whole response, JSON-safe, with no Decimal left in it.
 
@@ -254,7 +298,28 @@ def render(
         "production_source_text": production_source_text(result.production_source.name),
         "profile_year": result.profile_year,
         "weather_year": result.weather_year,
+        # The consumption the model actually used: what the visitor entered,
+        # plus whatever the car and the heat pump added on top.
+        #
+        # It is here because of what the question repair in decision 26 cannot
+        # do on its own. That repair asks the visitor for their consumption
+        # WITHOUT those assets, and its one failure mode is a visitor who reads
+        # the total off their annual bill anyway. That visitor is otherwise
+        # indistinguishable from a correct one: they lose between 26,5 and 59,2
+        # percent of their answer and nothing anywhere reports a problem.
+        # Showing the total back does not repair that reading and is not meant
+        # to. It makes it VISIBLE, which is the difference between a wrong
+        # answer a household can catch and one nobody can.
+        #
+        # In the bandless shape, which is the response's own way of saying a
+        # figure legitimately has none. This one is an echo of an input rather
+        # than an estimate of anything, so a band would be decoration, and
+        # `test_no_figure_anywhere_in_the_response_arrives_without_a_band`
+        # is what makes that a statement in the document rather than an
+        # omission from it.
     }
+    if entered_consumption_kwh is not None:
+        payload["modelled_consumption_kwh"] = _modelled_consumption(advice, entered_consumption_kwh)
     if year is not None:
         payload["year"] = year
     return payload

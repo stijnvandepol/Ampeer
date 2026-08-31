@@ -6,6 +6,18 @@ import BerekenenPage from "@/app/berekenen/page";
 import { ANSWERS_STORAGE_KEY } from "@/app/_flow/answers";
 import { forgetCachedAnswers } from "@/app/_flow/store";
 
+/**
+ * The consumption field's label, in full.
+ *
+ * Spelled out rather than matched loosely, because the two words this test
+ * would happily drop are the whole of decision 26. The model adds the car and
+ * the heat pump on top of this figure, so a visitor who reads the total off
+ * their annual bill is counted twice and loses between a quarter and half of
+ * their answer with nothing reporting it. A `getByLabelText(/Verbruik/)` here
+ * would keep passing through exactly the edit that undoes that.
+ */
+const CONSUMPTION_LABEL = "Verbruik per jaar, zonder auto en warmtepomp";
+
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
@@ -113,7 +125,7 @@ async function answerRoundOne() {
   await userEvent.click(screen.getByRole("button", { name: "Volgende" }));
   await userEvent.click(screen.getByLabelText("Zuidwest"));
   await userEvent.click(screen.getByRole("button", { name: "Volgende" }));
-  await userEvent.type(screen.getByLabelText("Verbruik per jaar"), "3400");
+  await userEvent.type(screen.getByLabelText(CONSUMPTION_LABEL), "3400");
 }
 
 describe("the question flow", () => {
@@ -272,7 +284,7 @@ describe("the question flow", () => {
     await userEvent.click(screen.getByLabelText("Zuid"));
     await userEvent.click(screen.getByRole("button", { name: "Volgende" }));
     expect(screen.getByText("Vraag 4 van 4")).toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText("Verbruik per jaar"), "3400");
+    await userEvent.type(screen.getByLabelText(CONSUMPTION_LABEL), "3400");
     await userEvent.click(screen.getByRole("button", { name: "Bereken" }));
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
@@ -363,11 +375,8 @@ describe("the question flow", () => {
     // which is false: it was answered with something unusable.
     render(<BerekenenPage />);
     await answerRoundOne();
-    await userEvent.clear(screen.getByLabelText("Verbruik per jaar"));
-    await userEvent.type(
-      screen.getByLabelText("Verbruik per jaar"),
-      "99999999",
-    );
+    await userEvent.clear(screen.getByLabelText(CONSUMPTION_LABEL));
+    await userEvent.type(screen.getByLabelText(CONSUMPTION_LABEL), "99999999");
     await userEvent.click(screen.getByRole("button", { name: "Bereken" }));
     const alerts = screen.getAllByRole("alert");
     expect(alerts).toHaveLength(1);

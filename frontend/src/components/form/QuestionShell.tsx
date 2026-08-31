@@ -10,6 +10,18 @@ interface Props {
   readonly of: number;
   readonly title: string;
   /**
+   * What the question means, when the title alone can be read two ways.
+   *
+   * Under the heading and above the field, because the one question this
+   * exists for is the one a visitor answers wrongly by skimming. It is
+   * described by the section, so a screen reader reaching the heading gets it
+   * before the field rather than after.
+   */
+  // `| undefined` spelled out because exactOptionalPropertyTypes is on: the
+  // caller passes undefined for the questions that have no note, and without
+  // this that is a type error rather than an absent prop.
+  readonly note?: string | undefined;
+  /**
    * What the forward button says. "Volgende" on every question but the last
    * one, where the button no longer leads to a question and saying so is the
    * difference between a form and a trap.
@@ -48,6 +60,7 @@ export function QuestionShell({
   step,
   of,
   title,
+  note,
   nextLabel = "Volgende",
   busy = false,
   onBack,
@@ -74,6 +87,9 @@ export function QuestionShell({
       <h2 id={HEADING_ID} ref={heading} tabIndex={-1} className="text-2xl">
         {title}
       </h2>
+      {note !== undefined && (
+        <p className="max-w-[60ch] text-sm text-ink-muted">{note}</p>
+      )}
       <form
         noValidate
         onSubmit={(event) => event.preventDefault()}

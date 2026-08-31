@@ -367,4 +367,36 @@ describe("the advice page", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(fixture.production_source)).toBeNull();
   });
+
+  it("shows the consumption it modelled, so a doubled figure can be caught", async () => {
+    // The visibility half of decision 26. The question asks for consumption
+    // WITHOUT a car and a heat pump, and its one failure mode is a visitor who
+    // enters the total off their annual bill anyway: they are otherwise
+    // indistinguishable from a correct one and lose between a quarter and half
+    // of their answer with nothing reporting it. This figure is the only place
+    // they can recognise the number the model actually used, or fail to.
+    vi.stubGlobal("fetch", respondWith(fixture));
+    render(<AdviesPage />);
+    await screen.findByText(fixture.confidence_label);
+    const modelled = fixture.modelled_consumption_kwh;
+    expect(modelled).toBeDefined();
+    expect(screen.getByText(`${modelled!.value} kWh`)).toBeInTheDocument();
+    // The sentence with it, from the API. Without it the figure is a number in
+    // a list of versions and a reader has no reason to check it against
+    // anything. The basis enum stays out of sight, same boundary as the
+    // production source above.
+    expect(screen.getByText(modelled!.basis_text)).toBeInTheDocument();
+    expect(screen.queryByText(modelled!.basis)).toBeNull();
+  });
+
+  it("renders the page it rendered before the field existed when it is absent", async () => {
+    // Optional on the wire, like `year`. A build talking to an older API shows
+    // no gap where the figure would be.
+    const { modelled_consumption_kwh: _absent, ...without } = fixture;
+    vi.stubGlobal("fetch", respondWith(without));
+    render(<AdviesPage />);
+    await screen.findByText(fixture.confidence_label);
+    expect(screen.queryByText("Verbruik")).toBeNull();
+    expect(screen.getByText("Motorversie")).toBeInTheDocument();
+  });
 });

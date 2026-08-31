@@ -123,7 +123,7 @@ Hoe ligt het dak?
 Hoe schuin staat het dak?
 Hoe zeker het is
 Hoeveel stroom gebruikt de warmtepomp per jaar?
-Hoeveel stroom verbruikt u per jaar?
+Hoeveel stroom verbruikt u per jaar, zonder auto en warmtepomp?
 Hoeveel wattpiek aan zonnepanelen ligt er?
 Hoofdnavigatie
 INDICATIVE
@@ -186,7 +186,8 @@ Uw ritme verschuiven, slimmer sturen met wat u al heeft, en pas daarna opslag.
 Uw zonnestroom wordt in kwartieren afgerekend
 Vanaf 1 januari 2027 vervalt de salderingsregeling. Een kWh die u zelf gebruikt is vanaf dat moment meer waard dan diezelfde kWh die u teruglevert. Hoeveel dat voor u scheelt hangt af van uw dak, uw verbruik en het moment waarop u stroom gebruikt.
 Varieerde
-Verbruik per jaar
+Verbruik
+Verbruik per jaar, zonder auto en warmtepomp
 Verbruiksjaar
 Verder
 Verfijn uw antwoord
@@ -218,6 +219,7 @@ Wij hebben geen elektrische auto
 Wij konden de rekenserver niet bereiken. Controleer uw verbinding en probeer het opnieuw.
 Wij verkopen geen panelen, geen batterijen en geen energiecontract, en wij sturen u niet door naar een partij die dat wel doet. "Geen batterij" is hier een geldige uitkomst, en voor een deel van de huishoudens is het de juiste.
 Zoals salderen telt
+Zonder het laden van een elektrische auto en zonder een warmtepomp, ook als u die wel heeft. Daar vragen wij zo apart naar en wij tellen ze er dan zelf bij op. Staan ze op uw jaarnota, haal ze er dan af. Een schatting is genoeg.
 Zonder inloggen, en zonder dat u iets hoeft te koppelen.
 Zuid
 Zuidoost

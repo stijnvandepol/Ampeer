@@ -357,6 +357,29 @@ survives a sloppy subtraction comfortably. What it does not survive is a visitor
 who cannot subtract at all and types the total anyway, which puts them silently
 back on the "today" row.
 
+## What was decided
+
+**Repair 1, on 2026-08-31, by Stijn.** The question now names what it excludes.
+This document recommends repair 2 below and then argues against its own
+recommendation under "The strongest argument against my own recommendation";
+the decision went with that second argument. The reasoning that carried it is
+the one written there: repair 2 raises what every asset-owning household is
+told by 36 to 145 percent entirely inside the model, where the visitor cannot
+see it, and chapter 17 of the methodology already has the sentence for that
+situation.
+
+Everything below stands as measured. Two things were added afterwards and are
+recorded in decision 26 of `docs/decisions.md` rather than here, because they
+are consequences of the choice rather than evidence for it. Round one, which
+models no assets at all, now reads exactly right for a car charging at night
+and moves from 23 percent low to 33 percent high for a heat pump. And the
+response carries `modelled_consumption_kwh`, which does not close repair 1's
+failure mode but makes it visible.
+
+The one thing this document asks for that was not done: it says both wordings
+should be put in front of twenty people before this is settled, and that no
+such measurement exists. That is still true. The decision was taken without it.
+
 ## Recommendation
 
 **Repair 2, with the floor written down, and with the car's annual kilometres

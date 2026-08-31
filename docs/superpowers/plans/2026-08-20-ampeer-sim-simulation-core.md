@@ -1184,9 +1184,7 @@ def expected_sum(category: ProfileCategory) -> float:
     return 1.0 if category in SINGLE_REGISTER else 2.0
 
 
-def validate_fractions(
-    fractions: np.ndarray, category: ProfileCategory, grid: YearGrid
-) -> None:
+def validate_fractions(fractions: np.ndarray, category: ProfileCategory, grid: YearGrid) -> None:
     """Check length and total. Raises ``ProfileValidationError`` on a mismatch."""
     if fractions.shape != (grid.quarters,):
         raise ProfileValidationError(
@@ -1230,9 +1228,7 @@ class NeduFileProvider:
         values = [float(row[column]) for row in rows[HEADER_ROWS:] if row[column].strip()]
         return np.array(values, dtype=float)
 
-    def _locate_column(
-        self, rows: list[list[str]], year: int, category: ProfileCategory
-    ) -> int:
+    def _locate_column(self, rows: list[list[str]], year: int, category: ProfileCategory) -> int:
         wanted = f"{category.value}_{BASE_SERIES_SUFFIX}"
         for index, name in enumerate(rows[NAME_ROW]):
             if index < FIRST_DATA_COLUMN or not name.endswith(wanted):
@@ -1241,9 +1237,7 @@ class NeduFileProvider:
             if found_year != str(year):
                 continue
             return index
-        raise ProfileValidationError(
-            f"{self._path.name} holds no {wanted} series for {year}"
-        )
+        raise ProfileValidationError(f"{self._path.name} holds no {wanted} series for {year}")
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -1504,9 +1498,7 @@ class _FakeSession:
 def _payload(hours: int = 8_760) -> dict[str, Any]:
     return {
         "outputs": {
-            "hourly": [
-                {"time": "20230101:0010", "G(i)": 100.0, "T2m": 5.0} for _ in range(hours)
-            ]
+            "hourly": [{"time": "20230101:0010", "G(i)": 100.0, "T2m": 5.0} for _ in range(hours)]
         }
     }
 
@@ -1530,9 +1522,7 @@ def test_provider_never_puts_user_input_in_the_url() -> None:
 
 
 def test_fallback_provider_returns_a_full_year_without_network() -> None:
-    irradiance, temperature, source = FallbackProvider(2023).hourly_series(
-        "5401", 0.0, 35.0, 3_500
-    )
+    irradiance, temperature, source = FallbackProvider(2023).hourly_series("5401", 0.0, 35.0, 3_500)
     assert irradiance.shape == (8_760,)
     assert temperature.shape == (8_760,)
     assert source is ProductionSource.FALLBACK
@@ -1678,29 +1668,96 @@ RADIATION_DATABASE = "PVGIS-SARAH3"
 #: Coarse centroid per postcode century, good enough because irradiance barely
 #: varies over a few kilometres. Keys are the first two digits of the postcode.
 _POSTCODE_CENTROIDS: dict[str, tuple[float, float]] = {
-    "10": (52.37, 4.90), "11": (52.31, 4.94), "12": (52.16, 5.02), "13": (52.35, 5.24),
-    "14": (52.52, 4.96), "15": (52.46, 4.63), "16": (52.63, 4.75), "17": (52.79, 4.83),
-    "18": (52.63, 4.74), "19": (52.46, 4.61), "20": (52.38, 4.63), "21": (52.26, 4.49),
-    "22": (52.16, 4.49), "23": (52.16, 4.49), "24": (52.05, 4.63), "25": (52.08, 4.31),
-    "26": (52.01, 4.36), "27": (52.02, 4.71), "28": (51.99, 4.47), "29": (51.92, 4.48),
-    "30": (51.92, 4.48), "31": (51.92, 4.48), "32": (51.87, 4.60), "33": (51.81, 4.67),
-    "34": (52.09, 5.11), "35": (52.09, 5.11), "36": (52.02, 5.17), "37": (52.16, 5.39),
-    "38": (52.16, 5.39), "39": (52.05, 5.24), "40": (51.96, 5.32), "41": (51.90, 5.29),
-    "42": (51.82, 4.66), "43": (51.49, 3.61), "44": (51.50, 3.90), "45": (51.44, 3.57),
-    "46": (51.49, 4.29), "47": (51.59, 4.78), "48": (51.59, 4.78), "49": (51.69, 5.30),
-    "50": (51.56, 5.09), "51": (51.56, 5.06), "52": (51.44, 5.48), "53": (51.69, 5.30),
-    "54": (51.66, 5.61), "55": (51.44, 5.48), "56": (51.44, 5.48), "57": (51.48, 5.66),
-    "58": (51.36, 5.22), "59": (51.44, 5.98), "60": (51.44, 5.98), "61": (51.20, 5.99),
-    "62": (50.85, 5.69), "63": (50.85, 5.69), "64": (50.88, 5.98), "65": (51.84, 5.86),
-    "66": (51.84, 5.86), "67": (51.98, 5.90), "68": (51.98, 5.90), "69": (51.90, 5.98),
-    "70": (51.99, 6.56), "71": (51.99, 6.56), "72": (52.15, 6.19), "73": (52.21, 6.19),
-    "74": (52.22, 6.89), "75": (52.22, 6.89), "76": (52.26, 6.79), "77": (52.51, 6.09),
-    "78": (52.51, 6.09), "79": (52.71, 6.19), "80": (52.51, 6.09), "81": (52.51, 6.09),
-    "82": (52.51, 5.47), "83": (52.71, 6.19), "84": (52.90, 5.90), "85": (52.90, 5.90),
-    "86": (53.03, 5.66), "87": (53.03, 5.66), "88": (53.20, 5.79), "89": (53.20, 5.79),
-    "90": (53.22, 6.57), "91": (53.22, 6.57), "92": (53.22, 6.57), "93": (53.11, 6.56),
-    "94": (53.11, 6.56), "95": (53.33, 6.75), "96": (53.33, 6.75), "97": (53.22, 6.57),
-    "98": (53.33, 6.92), "99": (53.33, 6.92),
+    "10": (52.37, 4.90),
+    "11": (52.31, 4.94),
+    "12": (52.16, 5.02),
+    "13": (52.35, 5.24),
+    "14": (52.52, 4.96),
+    "15": (52.46, 4.63),
+    "16": (52.63, 4.75),
+    "17": (52.79, 4.83),
+    "18": (52.63, 4.74),
+    "19": (52.46, 4.61),
+    "20": (52.38, 4.63),
+    "21": (52.26, 4.49),
+    "22": (52.16, 4.49),
+    "23": (52.16, 4.49),
+    "24": (52.05, 4.63),
+    "25": (52.08, 4.31),
+    "26": (52.01, 4.36),
+    "27": (52.02, 4.71),
+    "28": (51.99, 4.47),
+    "29": (51.92, 4.48),
+    "30": (51.92, 4.48),
+    "31": (51.92, 4.48),
+    "32": (51.87, 4.60),
+    "33": (51.81, 4.67),
+    "34": (52.09, 5.11),
+    "35": (52.09, 5.11),
+    "36": (52.02, 5.17),
+    "37": (52.16, 5.39),
+    "38": (52.16, 5.39),
+    "39": (52.05, 5.24),
+    "40": (51.96, 5.32),
+    "41": (51.90, 5.29),
+    "42": (51.82, 4.66),
+    "43": (51.49, 3.61),
+    "44": (51.50, 3.90),
+    "45": (51.44, 3.57),
+    "46": (51.49, 4.29),
+    "47": (51.59, 4.78),
+    "48": (51.59, 4.78),
+    "49": (51.69, 5.30),
+    "50": (51.56, 5.09),
+    "51": (51.56, 5.06),
+    "52": (51.44, 5.48),
+    "53": (51.69, 5.30),
+    "54": (51.66, 5.61),
+    "55": (51.44, 5.48),
+    "56": (51.44, 5.48),
+    "57": (51.48, 5.66),
+    "58": (51.36, 5.22),
+    "59": (51.44, 5.98),
+    "60": (51.44, 5.98),
+    "61": (51.20, 5.99),
+    "62": (50.85, 5.69),
+    "63": (50.85, 5.69),
+    "64": (50.88, 5.98),
+    "65": (51.84, 5.86),
+    "66": (51.84, 5.86),
+    "67": (51.98, 5.90),
+    "68": (51.98, 5.90),
+    "69": (51.90, 5.98),
+    "70": (51.99, 6.56),
+    "71": (51.99, 6.56),
+    "72": (52.15, 6.19),
+    "73": (52.21, 6.19),
+    "74": (52.22, 6.89),
+    "75": (52.22, 6.89),
+    "76": (52.26, 6.79),
+    "77": (52.51, 6.09),
+    "78": (52.51, 6.09),
+    "79": (52.71, 6.19),
+    "80": (52.51, 6.09),
+    "81": (52.51, 6.09),
+    "82": (52.51, 5.47),
+    "83": (52.71, 6.19),
+    "84": (52.90, 5.90),
+    "85": (52.90, 5.90),
+    "86": (53.03, 5.66),
+    "87": (53.03, 5.66),
+    "88": (53.20, 5.79),
+    "89": (53.20, 5.79),
+    "90": (53.22, 6.57),
+    "91": (53.22, 6.57),
+    "92": (53.22, 6.57),
+    "93": (53.11, 6.56),
+    "94": (53.11, 6.56),
+    "95": (53.33, 6.75),
+    "96": (53.33, 6.75),
+    "97": (53.22, 6.57),
+    "98": (53.33, 6.92),
+    "99": (53.33, 6.92),
 }
 
 _DEFAULT_CENTROID = (52.09, 5.11)
@@ -1937,8 +1994,9 @@ def test_heat_pump_consumes_nothing_in_a_warm_year() -> None:
 
 
 def test_heat_pump_delivers_the_requested_heat_demand() -> None:
-    pump = HeatPump(heat_demand_kwh=6_000.0, base_temperature_c=15.0, cop_at_7c=3.0,
-                    cop_slope_per_c=0.0)
+    pump = HeatPump(
+        heat_demand_kwh=6_000.0, base_temperature_c=15.0, cop_at_7c=3.0, cop_slope_per_c=0.0
+    )
     cold = np.full(GRID.hours, 5.0)
     series = heat_pump_profile(pump, cold, GRID, weather_year=2025)
     # With a flat COP of 3, electricity is a third of the heat demand.
@@ -2297,9 +2355,7 @@ def test_a_bare_household_totals_its_annual_consumption() -> None:
 
 def test_an_ev_adds_its_own_annual_energy() -> None:
     ev = EV(behaviour=EVChargingBehaviour.NIGHT, annual_km=12_000, kwh_per_100km=18.0)
-    series = compose_consumption(
-        _household(ev=ev), GRID, FRACTIONS, MILD, weather_year=2025
-    )
+    series = compose_consumption(_household(ev=ev), GRID, FRACTIONS, MILD, weather_year=2025)
     assert series.sum() == pytest.approx(3_500.0 + ev.annual_kwh)
 
 
@@ -2503,8 +2559,11 @@ def test_discharging_is_limited_by_power() -> None:
 
 def test_a_full_cycle_loses_exactly_the_round_trip_efficiency() -> None:
     spec = BatterySpec(
-        capacity_kwh=10.0, max_charge_kw=40.0, max_discharge_kw=40.0,
-        round_trip_efficiency=0.90, usable_dod=1.0,
+        capacity_kwh=10.0,
+        max_charge_kw=40.0,
+        max_discharge_kw=40.0,
+        round_trip_efficiency=0.90,
+        usable_dod=1.0,
     )
     battery = Battery(spec)
     taken = battery.charge(offered_kwh=10.0)
@@ -2641,8 +2700,11 @@ from ampeer_sim.engine.run import EnergyBalanceError, assert_energy_balance, sim
 from ampeer_sim.types import BatterySpec, EnergyFlows
 
 SPEC = BatterySpec(
-    capacity_kwh=5.0, max_charge_kw=2.5, max_discharge_kw=2.5,
-    round_trip_efficiency=0.90, usable_dod=0.90,
+    capacity_kwh=5.0,
+    max_charge_kw=2.5,
+    max_discharge_kw=2.5,
+    round_trip_efficiency=0.90,
+    usable_dod=0.90,
 )
 
 
@@ -2692,8 +2754,10 @@ def test_a_grid_charge_plan_shows_up_as_extra_offtake() -> None:
     plan = np.zeros(96)
     plan[0] = 0.5
     flows = simulate(
-        consumption=np.zeros(96), production=np.zeros(96),
-        battery_spec=SPEC, charge_plan=plan,
+        consumption=np.zeros(96),
+        production=np.zeros(96),
+        battery_spec=SPEC,
+        charge_plan=plan,
     )
     assert flows.from_grid.sum() > 0.0
     assert_energy_balance(flows)
@@ -2705,8 +2769,11 @@ def test_a_discharge_plan_shows_up_as_extra_feed_in() -> None:
     discharge = np.zeros(96)
     discharge[50] = 0.5
     flows = simulate(
-        consumption=np.zeros(96), production=np.zeros(96),
-        battery_spec=SPEC, charge_plan=charge, discharge_plan=discharge,
+        consumption=np.zeros(96),
+        production=np.zeros(96),
+        battery_spec=SPEC,
+        charge_plan=charge,
+        discharge_plan=discharge,
     )
     assert flows.to_grid.sum() > 0.0
     assert_energy_balance(flows)
@@ -2846,8 +2913,7 @@ def assert_energy_balance(flows: EnergyFlows, tolerance: float = 1e-9) -> None:
     if np.any(production_residual > tolerance):
         worst = int(np.argmax(production_residual))
         raise EnergyBalanceError(
-            f"production does not balance at step {worst}: "
-            f"residual {production_residual[worst]!r}"
+            f"production does not balance at step {worst}: residual {production_residual[worst]!r}"
         )
 ```
 
@@ -2910,8 +2976,12 @@ from ampeer_sim.types import BatterySpec, Strategy
 
 GRID = YearGrid.for_year(2025)
 SPEC = BatterySpec(
-    capacity_kwh=10.0, max_charge_kw=4.0, max_discharge_kw=4.0,
-    round_trip_efficiency=0.90, usable_dod=0.90, allow_grid_charging=True,
+    capacity_kwh=10.0,
+    max_charge_kw=4.0,
+    max_discharge_kw=4.0,
+    round_trip_efficiency=0.90,
+    usable_dod=0.90,
+    allow_grid_charging=True,
 )
 
 
@@ -2960,9 +3030,7 @@ def test_arbitrage_plans_never_exceed_the_usable_capacity_per_day() -> None:
 
 def test_a_strategy_cannot_see_beyond_its_horizon() -> None:
     """Day two is expensive, day one is flat. Day one must not react to day two."""
-    prices = np.concatenate(
-        [np.full(96, 0.20), np.full(48, 0.05), np.full(48, 0.60)]
-    )
+    prices = np.concatenate([np.full(96, 0.20), np.full(48, 0.05), np.full(48, 0.60)])
     prices = np.concatenate([prices, np.full(GRID.quarters - prices.size, 0.20)])
     charge, _ = build_plans(Strategy.ARBITRAGE, SPEC, prices, GRID)
     assert charge[:96].sum() == pytest.approx(0.0)
@@ -3084,9 +3152,7 @@ def build_plans(
     for day in range(grid.days):
         start = day * QUARTERS_PER_DAY
         stop = start + QUARTERS_PER_DAY
-        day_charge, day_discharge = _plan_one_day(
-            prices_per_quarter[start:stop], spec, margin
-        )
+        day_charge, day_discharge = _plan_one_day(prices_per_quarter[start:stop], spec, margin)
         charge[start:stop] = day_charge
         discharge[start:stop] = day_discharge
     return charge, discharge
@@ -3198,25 +3264,23 @@ def test_net_metering_never_pays_more_than_the_offtake_is_worth() -> None:
 def test_without_net_metering_feed_in_earns_the_feed_in_price() -> None:
     cost = annual_cost(_flows(2_000.0, 800.0), FIXED_2027)
     expected = (
-        Decimal("2000") * Decimal("0.27") - Decimal("800") * Decimal("0.05")
-        + Decimal("90.00") + Decimal("120.00")
+        Decimal("2000") * Decimal("0.27")
+        - Decimal("800") * Decimal("0.05")
+        + Decimal("90.00")
+        + Decimal("120.00")
     )
     assert cost == expected
 
 
 def test_a_dynamic_contract_prices_each_quarter_separately() -> None:
-    tariffs = TariffSet(
-        supply_price=Decimal("0.27"), feed_in_price=Decimal("0.05"), dynamic=True
-    )
+    tariffs = TariffSet(supply_price=Decimal("0.27"), feed_in_price=Decimal("0.05"), dynamic=True)
     prices = np.array([0.10, 0.20, 0.30, 0.40])
     cost = annual_cost(_flows(400.0, 0.0), tariffs, prices_per_quarter=prices)
     assert cost == Decimal("100.000")
 
 
 def test_a_dynamic_contract_requires_prices() -> None:
-    tariffs = TariffSet(
-        supply_price=Decimal("0.27"), feed_in_price=Decimal("0.05"), dynamic=True
-    )
+    tariffs = TariffSet(supply_price=Decimal("0.27"), feed_in_price=Decimal("0.05"), dynamic=True)
     with pytest.raises(ValueError, match="dynamic"):
         annual_cost(_flows(400.0, 0.0), tariffs)
 
@@ -3283,9 +3347,9 @@ def annual_cost(
         if prices_per_quarter is None:
             raise ValueError("a dynamic tariff needs a price series")
         supply_cost = _dynamic_offtake_cost(flows.from_grid, prices_per_quarter)
-        feed_in_revenue = Decimal(
-            repr(float((flows.to_grid * prices_per_quarter).sum()))
-        ).quantize(EUR_PRECISION)
+        feed_in_revenue = Decimal(repr(float((flows.to_grid * prices_per_quarter).sum()))).quantize(
+            EUR_PRECISION
+        )
     elif tariffs.net_metering:
         netted = min(feed_in, offtake)
         supply_cost = (offtake - netted) * tariffs.supply_price
@@ -3392,12 +3456,16 @@ class _FlatProfileProvider:
 
 
 BASELINE = TariffSet(
-    supply_price=Decimal("0.27"), feed_in_price=Decimal("0.27"),
-    standing_charge_year=Decimal("120.00"), net_metering=True,
+    supply_price=Decimal("0.27"),
+    feed_in_price=Decimal("0.27"),
+    standing_charge_year=Decimal("120.00"),
+    net_metering=True,
 )
 SCENARIO = TariffSet(
-    supply_price=Decimal("0.27"), feed_in_price=Decimal("0.05"),
-    feed_in_fixed_cost_year=Decimal("90.00"), standing_charge_year=Decimal("120.00"),
+    supply_price=Decimal("0.27"),
+    feed_in_price=Decimal("0.05"),
+    feed_in_fixed_cost_year=Decimal("90.00"),
+    standing_charge_year=Decimal("120.00"),
 )
 
 
@@ -3614,9 +3682,7 @@ def run_advice(
     def one_run(
         run_household: Household, run_system: PVSystem, run_scenario: TariffSet
     ) -> tuple[Decimal, float]:
-        production = production_series(
-            irradiance, run_system, grid, weather_year=weather_year
-        )
+        production = production_series(irradiance, run_system, grid, weather_year=weather_year)
         consumption = compose_consumption(
             run_household,
             grid,
@@ -3642,7 +3708,9 @@ def run_advice(
         engine_version=ENGINE_VERSION,
         band=band_from_differences(differences),
         self_consumption_rate=central_rate,
-        production_source=source if isinstance(source, ProductionSource) else ProductionSource.PVGIS,
+        production_source=source
+        if isinstance(source, ProductionSource)
+        else ProductionSource.PVGIS,
         profile_year=grid.year,
         weather_year=weather_year,
         scenarios={},
@@ -3703,13 +3771,17 @@ from ampeer_sim.timebase import YearGrid
 from ampeer_sim.types import BatterySpec
 
 SPEC = BatterySpec(
-    capacity_kwh=5.0, max_charge_kw=2.5, max_discharge_kw=2.5,
-    round_trip_efficiency=0.90, usable_dod=0.90,
+    capacity_kwh=5.0,
+    max_charge_kw=2.5,
+    max_discharge_kw=2.5,
+    round_trip_efficiency=0.90,
+    usable_dod=0.90,
 )
 
 series = st.lists(
     st.floats(min_value=0.0, max_value=2.0, allow_nan=False, allow_infinity=False),
-    min_size=96, max_size=96,
+    min_size=96,
+    max_size=96,
 )
 
 
@@ -3882,8 +3954,12 @@ def _run(case: dict[str, Any]) -> float:
     )
     production = production_series(irradiance, system, GRID, weather_year=2025)
     consumption = compose_consumption(
-        household, GRID, _FlatProfileProvider().fractions(2025, ProfileCategory.E1A),
-        temperature, weather_year=2025, production_kwh=production,
+        household,
+        GRID,
+        _FlatProfileProvider().fractions(2025, ProfileCategory.E1A),
+        temperature,
+        weather_year=2025,
+        production_kwh=production,
     )
     return simulate(consumption, production).self_consumption_rate
 

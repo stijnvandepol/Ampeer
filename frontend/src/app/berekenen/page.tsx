@@ -51,7 +51,37 @@ const ROUND_ONE_TITLES = [
   "Wat zijn de eerste vier cijfers van uw postcode?",
   "Hoeveel wattpiek aan zonnepanelen ligt er?",
   "Hoe ligt het dak?",
-  "Hoeveel stroom verbruikt u per jaar?",
+  "Hoeveel stroom verbruikt u per jaar, zonder auto en warmtepomp?",
+] as const;
+
+/**
+ * What a question means, where the title alone can be read two ways.
+ *
+ * Only one question has one, and it is the question this whole mechanism was
+ * added for. The model scales the base profile to the figure entered here and
+ * then ADDS the car and the heat pump on top, so the figure being asked for is
+ * consumption without them. A visitor who charges at home and reads the total
+ * off their annual bill has the car in that number already, and the model then
+ * counts it twice: measured on the reference household, 447 euro where the
+ * truth is 624, and four of six golden households also lose a fired rule.
+ *
+ * Saying it here is the whole repair. It was chosen over carving the assets
+ * back out inside the model, which produces the same figure to the cent but
+ * puts the largest single correction in the product where the visitor cannot
+ * see it. See decision 26 in docs/decisions.md.
+ *
+ * "Een schatting is genoeg" is measured rather than reassuring. Chapter 4 of
+ * docs/methodologie.md carries the sensitivity, remeasured on the shipping
+ * model on 2026-08-31: being 500 kWh out costs about 31 euro with a heat pump
+ * and 46 with a car, against the 176 to 184 that entering the bill total
+ * costs. A visitor who abandons the question because they cannot produce an
+ * exact figure is worse off than one who estimates, by a factor of about four.
+ */
+const ROUND_ONE_NOTES: readonly (string | undefined)[] = [
+  undefined,
+  undefined,
+  undefined,
+  "Zonder het laden van een elektrische auto en zonder een warmtepomp, ook als u die wel heeft. Daar vragen wij zo apart naar en wij tellen ze er dan zelf bij op. Staan ze op uw jaarnota, haal ze er dan af. Een schatting is genoeg.",
 ] as const;
 
 const ROUND_TWO_TITLES = [
@@ -298,7 +328,7 @@ export default function BerekenenPage() {
       <NumberQuestion
         key="annual-consumption-kwh"
         id="annual-consumption-kwh"
-        label="Verbruik per jaar"
+        label="Verbruik per jaar, zonder auto en warmtepomp"
         value={answers.annualConsumptionKwh}
         min={range.min}
         max={range.max}
@@ -442,6 +472,7 @@ export default function BerekenenPage() {
         step={round === 1 ? index + 1 : ROUND_ONE_QUESTION_COUNT + index + 1}
         of={round === 1 ? ROUND_ONE_QUESTION_COUNT : ALL_QUESTION_COUNT}
         title={titles[index] ?? ""}
+        note={round === 1 ? ROUND_ONE_NOTES[index] : undefined}
         nextLabel={last ? "Bereken" : "Volgende"}
         busy={busy}
         onBack={back}

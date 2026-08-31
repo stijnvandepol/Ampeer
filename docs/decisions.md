@@ -854,6 +854,76 @@ subject of this project's last six commits, and this one was mine.
 one on screen, so both would have to remove those rows in the same commit rather
 than leave them measuring nothing.
 
+### 26. The consumption question asks for the figure without the car and the pump
+
+**Decided:** on 2026-08-31, by Stijn, that round one's consumption question
+names what it excludes rather than the model carving those assets back out of
+the answer. The question is now "Hoeveel stroom verbruikt u per jaar, zonder
+auto en warmtepomp?", with a note under it saying to subtract them if they are
+on the annual bill, that we ask about them separately, and that an estimate is
+enough.
+
+**Because:** the model scales the base profile to the figure entered and then
+ADDS the car and the heat pump on top, so the figure being asked for was always
+consumption without them, and nothing said so. A visitor who charges at home
+reads the total off their annual bill, the car is in it, and it is counted
+twice. Measured over the six golden households and the reference household of
+chapter 17: between 26,5 and 59,2 percent of the answer, always understating
+the shock, and four of six households also lose a fired rule.
+
+The alternative was to read the answer as the total and carve the modelled
+asset out of it. `docs/analysis/2026-08-24-double-counting.md` measures both and
+finds they give the same figure to the cent, so this was never an accuracy
+argument. It is an argument about failure modes, and that document recommends
+the carve-out and then makes the stronger argument against its own
+recommendation, which is the one that decided this: the carve-out raises what
+every asset-owning household is told by 36 to 145 percent entirely inside the
+model, where the visitor cannot see it, resting on an asset size the model
+guesses. Chapter 17 already has the sentence for that situation, which is that
+being careful in the direction that suits us is not careful, it is convenient.
+Under this repair the visitor owns the subtraction and can check it.
+
+**What it costs round one, measured on 2026-08-31 and not part of the analysis
+document.** Round one models no car and no heat pump at all. So for a household
+that owns one, the answer moves:
+
+| round one, no asset modelled | truth from round two | now | before |
+|---|---|---|---|
+| car charging at night | 623,71 | 623,71 | 447,27 |
+| heat pump, 12000 kWh heat demand | 470,63 | 623,71 | 363,55 |
+| car on its own surplus | 202,22 | 623,71 | 447,27 |
+
+The night charger becomes exactly right, because charging at night draws
+nothing while the sun is up and the whole error was scaling the base profile to
+5660 instead of 3500. The heat pump goes from 23 percent low to 33 percent
+high, and that is the direction this product can least afford. It is not a
+modelling error: round one does not know about the assets, which is what
+INDICATIVE means and what round two is for. It is recorded here because the
+question has to mean one thing in both rounds, round two is the one that must
+be right, and the price of that is on this table rather than nowhere.
+
+**The failure mode this repair does not close, and what was built for it.** A
+visitor who enters the bill total anyway is indistinguishable from a correct
+one. So the response now carries `modelled_consumption_kwh`, the consumption
+the model actually used, in the bandless shape with a Dutch sentence saying
+whether that is the figure entered or the figure entered plus the assets. It
+does not repair the reading and is not meant to. It makes it visible, which is
+the difference between a wrong answer a household can catch and one nobody can.
+
+**Lives in:** `ROUND_ONE_NOTES` in
+`frontend/src/app/berekenen/page.tsx`, the `note` prop in
+`frontend/src/components/form/QuestionShell.tsx`,
+`MODELLED_CONSUMPTION_BASIS_TEXTS` in `ampeer_advice/nl.py`,
+`_modelled_consumption` in `backend/advice/rendering.py`, chapters 4, 5 and 19
+of `docs/methodologie.md`, and
+`test_the_question_really_says_what_chapters_four_and_five_claim_it_says` in
+`tests/test_methodology.py`.
+
+**To reverse:** take the exclusion back out of the question and carve the
+assets out inside the model instead. That needs the floor the analysis derives,
+2550 kWh of residual base, and a rule for what happens below it, and it moves
+every asset-owning household's figure up by 36 to 145 percent in one commit.
+
 ## What was not decided here
 
 Five belong to the controller and are written up with their trade-offs in
@@ -863,7 +933,7 @@ arrives before phase 1, and access to the host including whether `web2` becomes
 ephemeral. They are not repeated here, because two lists of the same open
 questions is how one of them gets answered twice and the other not at all.
 
-Seven sit outside that document.
+Six sit outside that document.
 
 - **Whether `feat/**` stays in the push trigger of `.github/workflows/ci.yml`.**
   Removing it roughly halves the minutes a branch costs, and rewrites five
@@ -940,48 +1010,6 @@ Seven sit outside that document.
   width it does not have. Applying that here changes a number a visitor reads.
   Pinned in `tests/test_sensitivity.py` so it cannot drift while the question
   is open.
-
-- **What to do about a visitor entering the figure from their annual bill.**
-  "Verbruik per jaar" is asked in round one. Whether the household has a car or
-  a heat pump is asked in round two, and the model adds those on top of the
-  answer to the first question. So the figure being asked for is consumption
-  without them, and nothing at the question says so. A visitor who charges at
-  home reads the total off their bill, the car is already in it, and the model
-  counts it twice.
-
-  Measured on 2026-08-23 on the reference household of chapter 17, comparing
-  what the visitor is told against what the model itself would say for the same
-  household described correctly: a car charging at night gives 456 euro instead
-  of 634, a heat pump with a 12000 kWh heat demand gives 291 instead of 479, and
-  a car charging on its own surplus gives 97 instead of 212. Between 28 and 54
-  percent of the answer, always understating the shock.
-
-  Two repairs and they are different products. Say at the question which figure
-  is wanted, which is honest but asks for a number many people cannot produce:
-  somebody with a heat pump usually has one meter and one total. Or read the
-  answer as the total and carve the modelled asset out of it, which needs a rule
-  for what happens when the carve-out leaves too little and changes what every
-  such household is told. Not mine to pick. docs/methodologie.md chapters 4, 5
-  and 19 now describe the behaviour, and two pairings in
-  `tests/test_methodology.py` hold the description against the model.
-
-  The numbers under the choice are in
-  `docs/analysis/2026-08-24-double-counting.md`, measured on 2026-08-26 over the
-  six golden households and the reference household of chapter 17, and
-  remeasured against the production model decisions 16 and 17 shipped. Three
-  findings decide most of it. The two repairs produce the same figure to the
-  cent on every household, so this is a choice about who does the subtraction
-  and not about accuracy. The double count also removes advice rather than only
-  shrinking a euro figure: four of six households lose a fired rule and every
-  rule lost is one that sells nothing, including the mandatory "nu geen
-  batterij". And the carve-out's floor is derivable rather than a worry: 2550
-  kWh of residual base, the point at which `apply_presence` can no longer move
-  its whole block, with the model's own band on it running 1275 to 5101.
-
-  The figures in the paragraph above this one are the ones the document
-  supersedes: on the shipping model the same three shapes are 447 against 623,
-  285 against 470, and 89 against 202, which is 26.5 to 59.2 percent rather than
-  28 to 54. The shape of the finding did not move and the euros did.
 
 - **Whether the 2029 sentence in CLAUDE.md is corrected.** It says "een
   tijdsafhankelijk nettarief bij met vier prijsniveaus en vijf tijdsblokken".

@@ -823,7 +823,11 @@ def test_the_fallback_answers_every_postcode_with_the_same_series() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _reference_shock(annual_consumption_kwh: float, ev: object | None = None) -> Decimal:
+def _reference_shock(
+    annual_consumption_kwh: float,
+    ev: object | None = None,
+    hp: object | None = None,
+) -> Decimal:
     """The end of net metering priced for the reference household of chapter 17.
 
     3.5 kWp facing south at 35 degrees in postcode 5401, on the offline
@@ -849,6 +853,7 @@ def _reference_shock(annual_consumption_kwh: float, ev: object | None = None) ->
         postcode4="5401",
         annual_consumption_kwh=annual_consumption_kwh,
         ev=ev,  # type: ignore[arg-type]
+        heat_pump=hp,  # type: ignore[arg-type]
     )
     consumption = compose_consumption(
         household,
@@ -1096,3 +1101,92 @@ def test_the_document_states_the_residual_the_engine_still_carries() -> None:
             f"chapter 7 no longer says {claim!r}, so it states a residual without saying "
             "where the repair belongs or what the easy repair would cost"
         )
+
+
+def test_the_question_really_says_what_chapters_four_and_five_claim_it_says() -> None:
+    """Both chapters now say the exclusion stands at the question. This is what
+    makes that a fact rather than a claim about another file.
+
+    The whole repair is one sentence in a form. A document that says the form
+    asks for consumption without the car, over a form that does not, is worse
+    than the situation it replaced: it reads as a fix, and the double count it
+    describes goes on happening. Measured on the reference household, that is
+    447 euro where the truth is 624.
+
+    Reading the frontend from a Python test is the same move
+    tests/test_frontend_contract.py makes on types.ts, and for the same reason:
+    the claim spans two trees, so a check inside either one proves half of it.
+    """
+    form = (REPO_ROOT / "frontend" / "src" / "app" / "berekenen" / "page.tsx").read_text(
+        encoding="utf-8"
+    )
+    assert "zonder auto en warmtepomp?" in form, (
+        "the consumption question no longer names what it excludes, and chapters 4, 5 "
+        "and 19 of docs/methodologie.md all say it does"
+    )
+    # The title alone is the half a visitor skims. The note under it is the half
+    # that says what to do about a car they already own, and without it the
+    # title reads as "if you have no car".
+    for phrase in ("ook als u die wel heeft", "Een schatting is genoeg"):
+        assert phrase in form, f"the note under the consumption question no longer says {phrase!r}"
+
+    for chapter_name in ("De elektrische auto", "De warmtepomp"):
+        chapter = " ".join(_chapter(chapter_name).split())
+        assert "bij de vraag" in chapter, f"chapter {chapter_name!r} no longer makes the claim"
+
+
+def test_the_sensitivity_chapter_four_quotes_is_the_one_the_model_has() -> None:
+    """ "Een schatting is genoeg" is a measurement, not reassurance.
+
+    It is the sentence that decides whether somebody who cannot produce an
+    exact figure estimates or abandons the question, and abandoning is the
+    expensive one. So the ratio it rests on is recomputed here rather than read
+    back out of the chapter: being 500 kWh out has to stay far cheaper than
+    entering the bill total, or the sentence is advice this model does not
+    support.
+    """
+    from ampeer_sim.types import EV, EVChargingBehaviour, HeatPump
+
+    car = EV(behaviour=EVChargingBehaviour.NIGHT)
+    pump = HeatPump(heat_demand_kwh=12_000.0)
+
+    correct_car = _reference_shock(3_500.0, ev=car)
+    slip_car = abs(_reference_shock(3_000.0, ev=car) - correct_car)
+    correct_pump = _reference_shock(3_500.0, hp=pump)
+    slip_pump = abs(_reference_shock(3_000.0, hp=pump) - correct_pump)
+    bill_car = correct_car - _reference_shock(3_500.0 + car.annual_kwh, ev=car)
+
+    chapter = " ".join(_chapter("De elektrische auto").split())
+    assert f"ongeveer {round(slip_car)} euro" in chapter, (
+        f"500 kWh out with a car now costs {slip_car} and chapter 4 quotes something else"
+    )
+    assert f"ongeveer {round(slip_pump)} euro" in chapter, (
+        f"500 kWh out with a heat pump now costs {slip_pump} and chapter 4 quotes something else"
+    )
+    # The claim the sentence actually makes: estimating is much cheaper than
+    # not answering the question as asked. Four times, per the chapter.
+    assert bill_car > 3 * slip_car, (
+        f"entering the bill total costs {bill_car} against {slip_car} for a 500 kWh slip, "
+        "so chapter 4 may no longer say a rough estimate is four times cheaper"
+    )
+
+
+def test_chapter_five_quotes_the_heat_pump_double_count_the_model_produces() -> None:
+    """The figure a household with a heat pump loses by entering their bill.
+
+    Chapter 4 has carried the car's pair since 2026-08-23 and chapter 5 carried
+    none, on the stated grounds that the heat pump has no fixed size to lay a
+    figure beside. It has one the moment the chapter names a heat demand, and
+    12000 kWh is the demand the chapter already uses.
+    """
+    from ampeer_sim.types import HeatPump
+
+    pump = HeatPump(heat_demand_kwh=12_000.0)
+    correct = _reference_shock(3_500.0, hp=pump)
+    off_the_bill = _reference_shock(3_500.0 + pump.heat_demand_kwh / 3.5, hp=pump)
+
+    chapter = " ".join(_chapter("De warmtepomp").split())
+    assert f"{round(off_the_bill)} euro in plaats van {round(correct)}" in chapter, (
+        f"the pair is now {round(off_the_bill)} against {round(correct)} and chapter 5 "
+        "quotes something else"
+    )

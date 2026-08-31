@@ -161,6 +161,25 @@ export interface Advice {
    * how much weight to give the answer. Render this one.
    */
   readonly production_source_text: string;
+  /**
+   * The consumption the model used, in kWh, and why it carries no band.
+   *
+   * A `BandlessFigure` because it is an echo of an input rather than an
+   * estimate of anything: it is what the visitor entered, plus whatever the
+   * car and the heat pump added on top. `basis` distinguishes those two cases
+   * and `basis_text` is the sentence that goes with it.
+   *
+   * On the page so that a visitor who answered the consumption question with
+   * the total off their annual bill can see it. That question asks for
+   * consumption WITHOUT those assets, and somebody who reads past it is
+   * otherwise indistinguishable from somebody who answered correctly. See
+   * decision 26.
+   *
+   * Optional on the wire, like `year`: an older API does not send it, and a
+   * build talking to one renders the page it rendered before the field
+   * existed.
+   */
+  readonly modelled_consumption_kwh?: BandlessFigure;
   readonly profile_year: number;
   readonly weather_year: number;
   /**

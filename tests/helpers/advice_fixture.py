@@ -112,7 +112,18 @@ def build_reference_payload() -> dict[str, Any]:
     # that renders a page. A fixture that is not the response is a fixture that
     # agrees with everything.
     year = year_field(build_year(advice.flows))
-    return render(advice, result, token=FIXTURE_TOKEN, year=year)
+    return render(
+        advice,
+        result,
+        token=FIXTURE_TOKEN,
+        year=year,
+        # The household above has no car and no heat pump, so this fixture
+        # carries the ENTERED_UNCHANGED basis. That is the shape the frontend
+        # builds against; the other one is asserted in
+        # tests/test_advice_rendering.py, where an advice can be built with the
+        # assets rather than only described.
+        entered_consumption_kwh=household.annual_consumption_kwh,
+    )
 
 
 def write_fixture() -> int:

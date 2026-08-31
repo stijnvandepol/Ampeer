@@ -94,7 +94,18 @@ def compute_and_store(data: dict[str, Any], question_count: int) -> dict[str, An
     # the request fails with the row still holding an empty advice, so nothing
     # a stranger could open was written down. That is the behaviour under test
     # in tests/test_advice_series.py.
-    payload = render(advice, result, token=stored.token, year=year_field(build_year(advice.flows)))
+    payload = render(
+        advice,
+        result,
+        token=stored.token,
+        year=year_field(build_year(advice.flows)),
+        # What the visitor typed, so the response can say whether the year it
+        # modelled is that figure or that figure plus a car and a heat pump.
+        # See decision 26: the question now asks for consumption without them,
+        # and this is what makes a visitor who entered their bill total anyway
+        # able to notice.
+        entered_consumption_kwh=float(data["annual_consumption_kwh"]),
+    )
     stored.advice = payload
     stored.save(update_fields=["advice"])
 

@@ -101,13 +101,29 @@ wij hebben geen manier om dat te merken.
 
 **Waar dat verbruik bij opgeteld wordt, en waarom dat u kan raken.** Die 2160 kWh
 tellen wij op bij het jaarverbruik dat u invult. Wij halen het er niet vanaf. Het getal
-dat wij van u vragen is dus uw verbruik zonder het laden van de auto, en dat staat op dit
-moment niet bij de vraag. Vult u het getal van uw jaarnota in en laadt u thuis, dan zit
-het laden er al in en rekenen wij het een tweede keer mee. Uw verbruik overdag komt dan
-te hoog uit, u lijkt meer van uw eigen opwek te gebruiken dan u doet, en het bedrag
-bovenaan valt lager uit dan het bij u is. Gemeten op 23 augustus 2026, op het
-referentiehuishouden uit hoofdstuk 17 met een auto die 's nachts laadt: 447 euro in
-plaats van 624. Wij vragen dit nu niet uit en kunnen het niet aan uw antwoorden zien.
+dat wij van u vragen is dus uw verbruik zonder het laden van de auto. Sinds 31 augustus
+2026 staat dat bij de vraag zelf: die heet "Hoeveel stroom verbruikt u per jaar, zonder
+auto en warmtepomp?" en eronder staat wat u er wel en niet bij moet rekenen. Vult u toch
+het getal van uw jaarnota in en laadt u thuis, dan zit het laden er al in en rekenen wij
+het een tweede keer mee. Uw verbruik overdag komt dan te hoog uit, u lijkt meer van uw
+eigen opwek te gebruiken dan u doet, en het bedrag bovenaan valt lager uit dan het bij u
+is. Gemeten op 23 augustus 2026, op het referentiehuishouden uit hoofdstuk 17 met een
+auto die 's nachts laadt: 447 euro in plaats van 624.
+
+**Wij kunnen dat niet aan uw antwoorden zien, en daarom laten wij het zien.** Onder
+"Waarmee gerekend is" op uw adviespagina staat het verbruik waarmee wij daadwerkelijk
+gerekend hebben: uw eigen opgave, plus wat wij voor de auto en de warmtepomp hebben
+opgeteld. Herkent u dat getal niet als uw jaarverbruik, dan is dit vrijwel zeker wat er
+is gebeurd. Wij kunnen het niet voor u repareren, want wij weten niet welk van de twee
+getallen u bedoelde, maar wij kunnen het wel zichtbaar maken in plaats van het stil te
+laten.
+
+**Hoe nauwkeurig uw opgave moet zijn.** Een schatting is genoeg, en dat is gemeten en
+niet geruststellend bedoeld. Gemeten op 31 augustus 2026 op hetzelfde huishouden: zit u
+er 500 kWh naast, dan scheelt dat ongeveer 46 euro in het antwoord als u een auto heeft
+en ongeveer 31 euro als u een warmtepomp heeft. Het nota-totaal invullen kost 176 tot
+184 euro. Er niet uitkomen en de vraag overslaan is dus vier keer zo duur als een ruwe
+schatting.
 
 **De beperking:** deze drie gedragingen zijn stereotypen die wij zelf hebben opgesteld.
 Ze komen niet uit een meting van hoe Nederlanders werkelijk laden. En in de eerste versie
@@ -128,11 +144,12 @@ Een pomp die daar bovenzit verbruikt minder dan wij tonen, een oudere pomp meer,
 vragen niet naar het merk of het bouwjaar.
 
 Het stroomverbruik van de pomp tellen wij net als bij de auto op bij het jaarverbruik dat
-u invult. Ook hier vragen wij dus om uw verbruik zonder de pomp, en ook hier staat dat nog
-niet bij de vraag. Zit uw pomp al in het getal op uw nota, dan telt hij twee keer mee en
-valt het bedrag bovenaan te laag uit. Wij zetten er met opzet geen tweede bedrag bij: hoe
-groot dat verschil is hangt af van de warmtevraag die u invult, en anders dan bij de auto
-hebben wij daar geen vast getal voor waarnaast wij het eerlijk kunnen leggen.
+u invult. Ook hier vragen wij dus om uw verbruik zonder de pomp, en sinds 31 augustus 2026
+staat dat net als bij de auto bij de vraag. Zit uw pomp toch al in het getal op uw nota,
+dan telt hij twee keer mee en valt het bedrag bovenaan te laag uit: bij een warmtevraag
+van 12.000 kWh is dat 287 euro in plaats van 471. Ook hier geldt dat het verbruik waarmee
+wij gerekend hebben onder "Waarmee gerekend is" op uw adviespagina staat, zodat u het kunt
+naleggen.
 
 De buitentemperatuur komt uit dezelfde bron als de instraling, dus voor uw locatie en
 dezelfde uren.
@@ -722,8 +739,8 @@ Voor de volledigheid, op een rij:
 - Ons basisprofiel is dat van huizen zonder zonnepanelen.
 - De omvang van het verplaatsbare blok is aangenomen.
 - Wij vragen uw jaarverbruik zonder het laden van een elektrische auto en zonder een
-  warmtepomp, en wij zeggen dat nog niet bij de vraag. Zegt u dat u er een hebt en hebt u
-  het getal van uw jaarnota ingevuld, dan tellen wij dat verbruik twee keer mee en valt
+  warmtepomp, en sinds 31 augustus 2026 staat dat bij de vraag. Vult u toch
+  het getal van uw jaarnota in, dan tellen wij dat verbruik twee keer mee en valt
   het bedrag bovenaan te laag uit. Zie hoofdstuk 4 en 5.
 - Wij weten niet hoe oud uw panelen zijn en vragen er niet naar, dus rekenen wij ze als
   nieuw. Bij oudere panelen is het bedrag bovenaan hoger dan het bij u is.
