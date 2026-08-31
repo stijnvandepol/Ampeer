@@ -21,7 +21,13 @@ const TOKEN = fixture.token;
 const ADVICE_PATH = `/advies/${TOKEN}/`;
 
 /** Every route the site has, for the sweep that has to cover all of them. */
-const ALL_PATHS = ["/", "/berekenen/", ADVICE_PATH, "/methodologie/"] as const;
+const ALL_PATHS = [
+  "/",
+  "/einde-saldering/",
+  "/berekenen/",
+  ADVICE_PATH,
+  "/methodologie/",
+] as const;
 
 /** The advice has arrived once its headline band is on the screen. */
 async function openAdvice(page: Page): Promise<void> {

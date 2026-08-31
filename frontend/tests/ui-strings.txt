@@ -43,10 +43,12 @@
 ");if(c==="light"||c==="dark"){document.documentElement.setAttribute("
 ",c)}}catch(e){}
 #
+#pagina
 %
 %s | Ampeer
 (prefers-reduced-motion: reduce)
 )
+*
 ,
 , met
 -
@@ -57,11 +59,19 @@
 -tilt
 -value
 .
+. Dat document is er om nagerekend te worden.
 /
+/#organisatie
+/#website
+/*.txt$
+/__next
 /advies
 /berekenen/
 /berekenen/?ronde=2
+/einde-saldering/
 /methodologie/
+/methodologie/#11-de-terugleververgoeding-is-lager-dan-vaak-gedacht
+/sitemap.xml
 0%
 00
 00:00
@@ -77,23 +87,36 @@
 :
 ARRIVAL
 Adviesversie
+Alleen als het bij u uitkomt. Voor een deel van de huishoudens is het antwoord nee, en dat is bij ons een geldige en volwaardige uitkomst.
 Ampeer
 Ampeer verkoopt geen panelen, geen batterijen en geen energiecontract, en plaatst geen advertenties.
 Beantwoord deze vraag om verder te gaan.
 Beantwoord vier vragen
+Bedragen per kilowattuur, exclusief btw, op een vast contract. De veelgenoemde 3 tot 8 cent is de brutovergoeding, met de terugleverkosten er nog voor. Op een dynamisch contract blijft de vergoeding 5 tot 7 cent en positief. Zie
 Begin een nieuwe berekening
 Berekenen
 Betrouwbaarheid:
 Beweeg over de plaat of gebruik de pijltjestoetsen om een kwartier te lezen.
+Bijna elke rekentool geeft u een enkel bedrag. Wij doen dat niet, en niet uit voorzichtigheid. Het antwoord hangt af van dingen die nog niet vaststaan, zoals de terugleververgoeding in 2027 en de stroomprijs, en van dingen die per huis verschillen, zoals wanneer u thuis bent.
+Boven uw bedrag staat of het indicatief, goed of precies is. Dat staat er direct naast en niet in een voetnoot, want hoe zeker een antwoord is hoort bij het antwoord. Vier vragen geeft indicatief. Negen vragen geeft goed.
 CHOSEN_FROM_SIMULATED_CAPACITIES
 Combinaties
+Dat is ook waarom "nu geen batterij" bij ons een geldige uitkomst is. Een adviseur die aan batterijen verdient kan die zin niet schrijven.
+Dat staat allemaal uitgeschreven, met de aannames en de bandbreedtes erbij, in
 De batterij, doorgerekend
+De drie routes, en de gratis routes eerst
+De eerste vier cijfers van uw postcode, hoeveel wattpiek er ligt, hoe het dak ligt en uw jaarverbruik. Meer niet. Wij bouwen daar een kwartierprofiel van een heel jaar mee op, 35.040 kwartieren, en rekenen dat door op de tarieven van nu en die van 2027.
 De hele doorrekening van de batterij
 De rekenserver gaf een antwoord dat wij niet konden lezen.
 De rekenserver had een storing. Probeer het straks opnieuw.
 De rekenserver kon dit antwoord niet gebruiken. Controleer uw invoer.
 De rekenserver kon dit antwoord niet gebruiken:
+De salderingsregeling laat u de stroom die u teruglevert wegstrepen tegen de stroom die u afneemt. Dat wegstrepen stopt. U blijft leveren en afnemen, maar de twee worden niet meer tegen elkaar weggestreept.
+De schaal loopt van
+De vergoeding is wat u krijgt per teruggeleverde kilowattuur. De terugleverkosten zijn wat uw leverancier daarvoor in rekening brengt. De veelgenoemde 3 tot 8 cent is de vergoeding met de kosten er nog voor.
+De vorm van uw verbruik komt uit de standaardprofielen die netbeheerders publiceren. De opwek van uw dak komt uit PVGIS, de rekentool van de Europese Commissie, op basis van echte instralingsmetingen voor uw postcodegebied. De tarieven komen uit gepubliceerde cijfers, en welke dat zijn staat er per bedrag bij.
 De vragen worden klaargezet.
+De wasmachine, de vaatwasser en de droger draaien op het moment dat uw panelen leveren. Dit kost niets en het is bij veel huishoudens de grootste post.
 Deze link hoort niet bij een berekening. Controleer of hij compleet is overgenomen.
 Deze link opent dit advies opnieuw, zonder account. Bewaar hem als u er later bij wilt.
 Deze pagina hoort bij een berekening en er staat er geen in de link.
@@ -101,6 +124,7 @@ Dit advies konden wij niet laten zien
 Donker
 Drie routes, gratis eerst
 EAST
+Een bedrag met een bandbreedte, niet één getal
 Een bedrag met zijn marge
 Een bedrag per jaar met de bandbreedte eromheen, nooit een enkel getal zonder.
 Een jaar in kwartieren. Van links naar rechts de dagen van het jaar, van boven naar beneden het etmaal van middernacht tot middernacht. Geel staat voor een kwartier waarin u vooral uw eigen opwek gebruikte, lichtgrijsblauw voor een kwartier waarin u vooral stroom van het net haalde, en donkerblauw voor een kwartier waarin u vooral stroom teruggaf aan het net.
@@ -108,25 +132,33 @@ Een link, geen account
 Een moment, wij halen de doorrekening op die bij deze link hoort.
 Een voorbeelddag van 96 kwartieren, van middernacht links tot middernacht rechts. Hoe hoger een staaf, hoe meer stroom er in dat kwartier omging. Geel is een kwartier waarin het huishouden vooral zijn eigen opwek gebruikte, lichtgrijsblauw een kwartier waarin het stroom van het net haalde, en donkerblauw een kwartier waarin het stroom teruggaf aan het net.
 Een voorbeelddag, geen berekening.
+Einde saldering
+Einde salderingsregeling: wat het bij u doet
 Elke kolom is een dag, van 1 januari links tot 31 december rechts. Elke rij is een kwartier, van middernacht boven tot middernacht onder.
 Er zijn kort achter elkaar veel berekeningen gedaan vanaf dit adres. Probeer het over een uur opnieuw.
 GOOD
 Gekopieerd.
+Gratis of bijna gratis: slimmer sturen met wat u al heeft
+Gratis: uw eigen ritme verschuiven
+Heb ik een slimme meter nodig?
 Heeft u een dynamisch energiecontract?
 Heeft u een thuisbatterij?
 Heeft u een warmtepomp?
 Het betrouwbaarheidsniveau staat naast de uitkomst zelf, niet in een voetnoot.
+Het einde van de saldering, en hoe u uitrekent wat het bij u doet
 Hier is niets meer te halen.
 Hoe Ampeer rekent
 Hoe groot is de batterij?
 Hoe ligt het dak?
 Hoe schuin staat het dak?
+Hoe zeker het antwoord is
 Hoe zeker het is
 Hoeveel stroom gebruikt de warmtepomp per jaar?
 Hoeveel stroom verbruikt u per jaar, zonder auto en warmtepomp?
 Hoeveel wattpiek aan zonnepanelen ligt er?
 Hoofdnavigatie
 INDICATIVE
+Investeren: stroom opslaan in een thuisbatterij
 Is er al een thuisbatterij?
 Is er een warmtepomp?
 Is er op een doordeweekse dag meestal iemand thuis?
@@ -141,6 +173,8 @@ Maat waarop dit is gebaseerd
 Meestal 's nachts
 Meestal bij thuiskomst, aan het begin van de avond
 Methodologie
+Moet ik mijn zonnepanelen nu weghalen?
+Moet ik overstappen op een dynamisch contract?
 Motorversie
 NIGHT
 NONE
@@ -149,11 +183,21 @@ NORTHEAST
 NORTHWEST
 Naar de inhoud
 Nee
+Nee. Panelen leveren stroom die u anders had moeten kopen, en dat blijft na 2027 zo. Wat verandert is wat de stroom opbrengt die u niet zelf gebruikt.
+Netbeheerders hebben een tijdsafhankelijk nettarief voorgesteld: het transporttarief hangt dan af van het moment van de dag en het seizoen, met een klein aantal prijsniveaus over een klein aantal tijdsblokken. Dat maakt het moment waarop u stroom gebruikt nog belangrijker dan het vanaf 2027 al wordt.
+Neutrale energie-adviseur voor Nederlandse huishoudens met zonnepanelen. Verkoopt geen panelen, geen batterijen en geen energiecontract, en plaatst geen advertenties.
+Niemand weet wat de terugleververgoeding in 2027 werkelijk wordt. Wij rekenen met een band en niet met een getal.
+Niet om bij ons een antwoord te krijgen. Wij bouwen uw jaar op uit standaardprofielen en uw eigen opgave. Echte meetgegevens maken het antwoord scherper, maar zijn geen voorwaarde.
 Noord
 Noordoost
 Noordwest
+Omdat het verschil tussen die twee banden alleen telt voor de kilowatturen die u daadwerkelijk teruglevert. Twee huizen met precies dezelfde panelen en precies hetzelfde jaarverbruik krijgen een ander antwoord, alleen doordat de een overdag thuis is en de ander niet.
 Oost
+Op 1 januari 2027 stopt de salderingsregeling. Wat dat u kost hangt niet af van hoeveel panelen u heeft, maar van wanneer u stroom gebruikt. Deze pagina legt uit wat er precies verandert, waarom een gemiddeld bedrag u niets zegt, en wat u eraan kunt doen.
+Op 1 januari 2027 stopt de salderingsregeling. Wat er verandert, waarom een gemiddeld bedrag u niets zegt, en hoe u het voor uw eigen huis doorrekent.
+Op dit webadres zat eerder een andere dienst, die wel Nederlandse energiecontracten bemiddelde. Die heeft niets met dit product te maken. Ampeer bemiddelt niets en heeft geen eigen contract.
 Op tijd
+Organization
 Overdag, op ons eigen overschot
 PRECISE
 Postcode, alleen de vier cijfers
@@ -168,6 +212,8 @@ SOUTHWEST
 STORAGE
 Salderen kijkt alleen naar wat door de meter ging en telt dat over een heel jaar op. De volgorde in de tijd valt daarbij weg, en de
 Salderen stopt in 2027
+Slaan jullie mijn gegevens op?
+Soms, en soms niet. Op een dynamisch contract zitten geen aparte terugleverkosten, maar beweegt uw prijs per uur mee. Of het bij u gunstig uitpakt hangt af van uw patroon, en dat rekenen wij door.
 Stond vast
 Systeem
 Tabel
@@ -175,25 +221,37 @@ Terug
 Terugverdientijd
 Thema
 Tussen
+Twee dingen erbij, want zonder die twee is dit een belofte. Het is een voorstel dat bij de ACM ligt en nog geen regel. En ons model rekent het nog niet door: wat u vandaag bij ons krijgt gaat over 2027 en niet over 2029.
 U krijgt een adres waarmee u er later bij kunt. Wij vragen niets anders.
+U krijgt een bedrag per jaar met de marge eromheen, en de band is het object op het scherm. Daaronder ziet u uw eigen jaar in kwartieren: per kwartier of u vooral uw eigen opwek gebruikte, stroom van het net haalde, of teruglevede.
+U krijgt een terugleververgoeding voor wat u teruglevert. Daar staat tegenover dat u de volle prijs betaalt voor wat u afneemt. U leest vaak dat die vergoeding 3 tot 8 cent wordt. Dat is de brutovergoeding: daar gaan de terugleverkosten nog vanaf, en die rekenen leveranciers per teruggeleverde kilowattuur.
 Uw advies
 Uw advies is opgehaald.
 Uw advies wordt opgehaald
+Uw boiler, uw laadpaal of uw warmtepomp anders inregelen, of kijken of een ander contract bij uw patroon past. Apparaten die u al heeft, anders gebruikt.
 Uw gegevens
 Uw jaar in kwartieren
 Uw jaar wordt doorgerekend. Dit duurt even.
+Uw meter houdt twee standen bij: wat u afnam en wat u teruggaf. Bij salderen wordt het kleinste van de twee van het grootste afgetrokken en betaalt u alleen het verschil. Een kilowattuur die in juni het net op ging, streept er zo een weg die in december binnenkwam. Het moment waarop iets gebeurde doet niet mee.
 Uw ritme verschuiven, slimmer sturen met wat u al heeft, en pas daarna opslag.
+Uw situatie doorrekenen
 Uw zonnestroom wordt in kwartieren afgerekend
 Vanaf 1 januari 2027 vervalt de salderingsregeling. Een kWh die u zelf gebruikt is vanaf dat moment meer waard dan diezelfde kWh die u teruglevert. Hoeveel dat voor u scheelt hangt af van uw dak, uw verbruik en het moment waarop u stroom gebruikt.
+Vanaf 2027
+Vanaf 2027 houdt u van een teruggeleverde kilowattuur op een vast contract
 Varieerde
+Veelgestelde vragen
 Verbruik
 Verbruik per jaar, zonder auto en warmtepomp
 Verbruiksjaar
 Verder
 Verfijn uw antwoord
 Vermogen van de installatie
+Vier vragen, en u weet wat het bij u doet in plaats van gemiddeld.
+Vier vragen, geen account, geen koppeling
 Vijf vragen erbij maken deze uitkomst scherper: of er overdag iemand thuis is, hoe de auto laadt, of er een warmtepomp is, wat voor contract u heeft en of er al opslag is.
 Volgorde
+Voor de meeste huishoudens wel, maar minder dan nu, en hoeveel minder verschilt sterk. Dat is precies het bedrag dat wij voor u uitrekenen.
 Voortgang
 Vraag
 Vul een getal in.
@@ -201,24 +259,50 @@ Vul een heel getal in, zonder cijfers achter de komma.
 Vul hoogstens
 Vul minstens
 WEST
+Waar onze getallen vandaan komen
 Waarmee gerekend is
+Waarom een gemiddeld bedrag u niets zegt
+Waarom het bedrag per huishouden zo verschilt
 Waarover varieert dit bedrag?
 Wanneer laadt de auto?
 Wanneer laadt uw elektrische auto?
+Wat Ampeer voor u uitrekent
 Wat andere maten zouden opleveren
 Wat die maat per jaar oplevert
+Wat een kilowattuur waard is, in centen. De bovenste band is een kilowattuur die u zelf gebruikt en die verandert nauwelijks. De onderste band is een kilowattuur die u teruglevert: nu even veel waard als de bovenste, en vanaf 2027 bijna niets, aan de ongunstige kant zelfs minder dan nul.
+Wat er in 2029 nog bij komt
+Wat er op 1 januari 2027 verandert
+Wat er verandert
+Wat ervoor in de plaats komt
 Wat het einde van de saldering u per jaar kost
 Wat het einde van de saldering voor u betekent
+Wat is het verschil tussen terugleververgoeding en terugleverkosten?
+Wat salderen nu voor u doet
 Wat u terugkrijgt
 Wat wij niet doen
+Wat wij niet doen en waar wij niets aan verdienen
+Wat wij niet weten
 Wat zijn de eerste vier cijfers van uw postcode?
+WebPage
+WebSite
 Weerjaar
+Welk jaar
 Welke kant ligt het dak op?
 West
+Wij bewaren uw antwoorden en uw uitkomst achter de link die u krijgt, zodat u er later bij kunt. Er is geen account, wij vragen geen e-mailadres, en van uw postcode slaan wij alleen de vier cijfers op.
 Wij hebben geen elektrische auto
 Wij konden de rekenserver niet bereiken. Controleer uw verbinding en probeer het opnieuw.
+Wij rekenen daarom niet één keer maar 243 keer door, met die onzekerheden op verschillende standen, en tonen de bandbreedte die daaruit komt. Het middelpunt is een markering in die band en niet het antwoord. Een enkel getal uit die 243 groot afdrukken zou de band weggooien, en de band is wat het antwoord eerlijk maakt.
+Wij tonen altijd alle drie de routes, in deze volgorde, ook als er bij u aan een ervan niets te halen valt. Een lege route is zelf een antwoord.
 Wij verkopen geen panelen, geen batterijen en geen energiecontract, en wij sturen u niet door naar een partij die dat wel doet. "Geen batterij" is hier een geldige uitkomst, en voor een deel van de huishoudens is het de juiste.
+Wij verkopen geen zonnepanelen, geen thuisbatterijen en geen energiecontract. Wij sturen u niet door naar een partij die dat wel doet, wij plaatsen geen advertenties en wij verkopen geen leads. Er is geen knop op deze site die naar een verkopende partij leidt.
+Wij weten niet hoe oud uw panelen zijn, dus rekenen wij ze als nieuw. Bij oudere panelen valt het bedrag bij u hoger uit dan bij ons.
+Wij weten niet hoeveel schaduw er op uw dak valt en vragen er niet naar.
+Wij weten niet welke apparaten u heeft of wanneer u ze aanzet.
+Zijn zonnepanelen na 2027 nog rendabel?
+Zoals het nu is
 Zoals salderen telt
+Zolang u mag salderen is een teruggeleverde kilowattuur precies zo veel waard als een die u zelf gebruikt, want de ene wordt van de andere afgetrokken. Daarom staan beide banden op dezelfde hoogte: dat is niet vereenvoudigd, dat is de regeling.
 Zonder het laden van een elektrische auto en zonder een warmtepomp, ook als u die wel heeft. Daar vragen wij zo apart naar en wij tellen ze er dan zelf bij op. Staan ze op uw jaarnota, haal ze er dan af. Een schatting is genoeg.
 Zonder inloggen, en zonder dat u iets hoeft te koppelen.
 Zuid
@@ -229,6 +313,9 @@ ampeer-antwoorden
 ampeer-thema
 apr
 aug
+cent over, nadat de terugleverkosten eraf zijn. Aan de ongunstige kant is dat negatief: dan kost terugleveren u geld. Wat u zelf gebruikt blijft
+cent waard. Het verschil zit dus niet in wat zelf gebruiken oplevert.
+cent.
 dark
 data-theme
 dec
@@ -241,13 +328,17 @@ euro per jaar, met
 euro per kWh
 export
 feb
+force-static
 gaf het terug aan het net en
 gele kwartieren zaten er nooit in: die kwamen nooit langs de meter. Vanaf 2027 zijn dat juist de kwartieren die tellen.
 graden
 h
 haalde het eruit.
 hoofdinhoud
+hoofdstuk 11 van onze methodologie
 http://127.0.0.1:8000
+https://ampeer.nl
+https://schema.org
 in.
 ja
 jaar
@@ -259,15 +350,20 @@ kWh opslag
 kWh zelf gebruikt
 light
 mei
+monthly
 mrt
 ms
 mt-10 text-xl font-medium
 mt-6 font-medium
 mt-8 text-lg font-medium
 nee
+nl
+nl-NL
+nl_NL
 nov
 offtake
 okt
+onze methodologie
 own
 per jaar
 per kWh
@@ -286,5 +382,7 @@ van de 96 kwartieren gebruikte dit huishouden zijn eigen opwek,
 van het net gehaald
 var(
 vraag-titel
+website
+yearly
 zelf gebruikt
 €

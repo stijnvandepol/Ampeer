@@ -32,6 +32,12 @@ export function SiteHeader() {
           className="flex flex-wrap items-center gap-x-5 gap-y-2"
         >
           <Link
+            href="/einde-saldering/"
+            className="text-sm text-ink-muted underline-offset-4 hover:underline"
+          >
+            Einde saldering
+          </Link>
+          <Link
             href="/berekenen/"
             className="text-sm text-ink-muted underline-offset-4 hover:underline"
           >

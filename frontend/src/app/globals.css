@@ -436,6 +436,19 @@
     transition-duration: 0.01ms !important;
     transition-delay: 0.01ms !important;
     scroll-behavior: auto !important;
+    /*
+     * The line the rest of this block does not cover, added 2026-08-31.
+     *
+     * An animation driven by a PROGRESS timeline, animation-timeline: view()
+     * or scroll(), takes its position from the timeline and not from the
+     * clock. Forcing animation-duration to 0.01ms does nothing to it: it keeps
+     * moving, in proportion to the scroll, and the preference is silently not
+     * honoured. Every claim above about this block was true only while nothing
+     * scroll-driven existed. Detaching the timeline is what actually stops it,
+     * and the element then renders at the animation's fill state, which for
+     * every scroll-driven animation on this site is the finished state.
+     */
+    animation-timeline: none !important;
   }
 
   :root {

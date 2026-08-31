@@ -27,7 +27,7 @@ import { expect, test } from "@playwright/test";
 const OWN_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
 /** Every page a visitor can reach without an advice in hand, plus one with. */
-const PAGES = ["/", "/berekenen/", "/methodologie/"];
+const PAGES = ["/", "/einde-saldering/", "/berekenen/", "/methodologie/"];
 
 function foreignRequests(page: import("@playwright/test").Page): string[] {
   const foreign: string[] = [];

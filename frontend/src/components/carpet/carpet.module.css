@@ -252,3 +252,16 @@
 .export {
   background: var(--colour-carpet-export);
 }
+
+/*
+ * Forced colors replaces every background, which would make the three legend
+ * swatches one colour and leave three labels naming a distinction the reader
+ * cannot see. The swatches are the key to the plate beside them, so the colour
+ * is the content. See the longer note in day.module.css; the same reasoning
+ * and the same measured tokens.
+ */
+@media (forced-colors: active) {
+  .swatch {
+    forced-color-adjust: none;
+  }
+}

@@ -155,3 +155,27 @@
   text-overflow: ellipsis;
   padding-right: 0.5rem;
 }
+
+/*
+ * Windows high contrast, and any other forced-colors mode.
+ *
+ * Forced colors replaces every background with a system colour, and on this
+ * figure the background IS the datum: three states told apart by hue become
+ * one colour, and the picture says nothing at all. `forced-color-adjust: none`
+ * is the documented opt-out for exactly this case, a graphic whose meaning is
+ * carried by colour, and it is defensible here because these are not decorative
+ * colours: tests/carpet/palette.test.ts measures every one of them against the
+ * instrument's own ground, which is the same fixed dark ground in every theme,
+ * so opting out keeps a measured encoding rather than substituting an
+ * unmeasured one.
+ *
+ * The plate on the advice page needs no equivalent. It is a canvas, and a
+ * canvas is a bitmap that forced colors does not touch; only its legend
+ * swatches are DOM, and those carry this same rule in carpet.module.css.
+ */
+@media (forced-colors: active) {
+  .strip,
+  .cell {
+    forced-color-adjust: none;
+  }
+}
