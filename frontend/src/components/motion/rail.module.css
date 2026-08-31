@@ -11,7 +11,12 @@
  */
 
 .container {
-  --rail-length: 260vh;
+  /*
+   * 150vh and not 260. At the longer value four cards took 2,6 screens of
+   * scrolling to travel past, on a page that was already 6,8 screens long: the
+   * section read as slow rather than as considered.
+   */
+  --rail-length: 150vh;
   --rail-gap: var(--space-5);
 }
 

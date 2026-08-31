@@ -167,7 +167,7 @@ export default function BerekenenPage() {
     // Not a blank page and not a spinner. The one thing this state can say
     // truthfully is that it is about to show questions, so it says that.
     return (
-      <div className="mx-auto w-full max-w-2xl px-6 py-16">
+      <div className="mx-auto w-full max-w-[var(--shell-max)] px-6 py-16">
         <p role="status">De vragen worden klaargezet.</p>
       </div>
     );
@@ -456,8 +456,17 @@ export default function BerekenenPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-16">
-      {/*
+    /*
+      The frame is the site's width and the column inside it is a form's width.
+      Both were max-w-2xl and centred, so the questions sat 176 pixels to the
+      right of the wordmark above them on a 1440 wide screen: two centred
+      columns of different widths never share an edge. A form should not be
+      1024 pixels wide, and it should start where everything else on the site
+      starts.
+    */
+    <div className="mx-auto w-full max-w-[var(--shell-max)] px-6 py-16">
+      <div className="flex w-full max-w-2xl flex-col gap-6">
+        {/*
         The flow is the page; each question is a section of it. So the h1 names
         the task and stays put, and QuestionShell's h2 is the question that
         changes underneath it. Without this the route had no first-level
@@ -465,34 +474,35 @@ export default function BerekenenPage() {
         the project uses excludes page-has-heading-one. A gate that is green
         because a rule is switched off is not a gate.
       */}
-      <h1 className="text-sm font-medium uppercase tracking-wide text-ink-muted">
-        Uw gegevens
-      </h1>
-      <QuestionShell
-        step={round === 1 ? index + 1 : ROUND_ONE_QUESTION_COUNT + index + 1}
-        of={round === 1 ? ROUND_ONE_QUESTION_COUNT : ALL_QUESTION_COUNT}
-        title={titles[index] ?? ""}
-        note={round === 1 ? ROUND_ONE_NOTES[index] : undefined}
-        nextLabel={last ? "Bereken" : "Volgende"}
-        busy={busy}
-        onBack={back}
-        onNext={next}
-      >
-        {round === 1 ? roundOne() : roundTwo()}
-        {missing && (
-          <p role="alert" className="text-danger">
-            Beantwoord deze vraag om verder te gaan.
-          </p>
-        )}
-        {busy && (
-          <p role="status">Uw jaar wordt doorgerekend. Dit duurt even.</p>
-        )}
-        {failure !== null && (
-          <p role="alert" className="text-danger">
-            {failure}
-          </p>
-        )}
-      </QuestionShell>
+        <h1 className="text-sm font-medium uppercase tracking-wide text-ink-muted">
+          Uw gegevens
+        </h1>
+        <QuestionShell
+          step={round === 1 ? index + 1 : ROUND_ONE_QUESTION_COUNT + index + 1}
+          of={round === 1 ? ROUND_ONE_QUESTION_COUNT : ALL_QUESTION_COUNT}
+          title={titles[index] ?? ""}
+          note={round === 1 ? ROUND_ONE_NOTES[index] : undefined}
+          nextLabel={last ? "Bereken" : "Volgende"}
+          busy={busy}
+          onBack={back}
+          onNext={next}
+        >
+          {round === 1 ? roundOne() : roundTwo()}
+          {missing && (
+            <p role="alert" className="text-danger">
+              Beantwoord deze vraag om verder te gaan.
+            </p>
+          )}
+          {busy && (
+            <p role="status">Uw jaar wordt doorgerekend. Dit duurt even.</p>
+          )}
+          {failure !== null && (
+            <p role="alert" className="text-danger">
+              {failure}
+            </p>
+          )}
+        </QuestionShell>
+      </div>
     </div>
   );
 }

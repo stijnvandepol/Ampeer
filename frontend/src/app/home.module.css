@@ -24,10 +24,17 @@
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 64rem;
+  max-width: var(--shell-max);
   margin: 0 auto;
-  padding: clamp(4rem, 3rem + 8vw, 9rem) var(--space-5)
-    clamp(3rem, 2rem + 5vw, 6rem);
+  /*
+   * Measured down on 2026-08-31. At the previous padding the hero was 841
+   * pixels tall on a 900 pixel screen, so a reader on a laptop saw the
+   * headline and nothing else, with no sign that anything followed. It now
+   * leaves the top of the next section visible, which is the cheapest possible
+   * way to say there is more.
+   */
+  padding: clamp(2.5rem, 2rem + 4vw, 5rem) var(--space-5)
+    clamp(2rem, 1.5rem + 3vw, 3.5rem);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -57,7 +64,12 @@
   line-height: 0.95;
   letter-spacing: var(--tracking-display);
   text-wrap: balance;
-  max-width: 14ch;
+  /*
+   * In characters, so the line count holds as the size changes. At 4,5rem this
+   * is two lines on a desktop and three on a phone, and the balance keeps the
+   * last one from being a single orphaned word.
+   */
+  max-width: 15ch;
   margin: 0;
 }
 
@@ -76,7 +88,7 @@
 
 .page {
   width: 100%;
-  max-width: 64rem;
+  max-width: var(--shell-max);
   margin: 0 auto;
   padding: clamp(3rem, 2rem + 4vw, 6rem) var(--space-5);
   display: flex;

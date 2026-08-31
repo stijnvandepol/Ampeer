@@ -175,8 +175,28 @@ describe("the questions route", () => {
     // because "Ampeer" is genuinely distinct from the other three.
     expect(berekenenMetadata.title).toBe("Uw situatie doorrekenen");
     expect(String(berekenenMetadata.title)).not.toMatch(/kost|bespaar|verlies/);
-    expect(
+    expect(berekenenMetadata.alternates?.canonical).toBe("/berekenen/");
+    // Its own description too. It inherited the site's until 2026-08-31, so the
+    // one route a marketing link points at was described in a search result by
+    // a sentence about something else.
+    expect(String(berekenenMetadata.description)).toContain("Vier vragen");
+  });
+
+  it("declares the calculator without claiming a rating nobody gave", () => {
+    // WebApplication for entity understanding, and it will never produce a
+    // rich result: Google's Software App result needs aggregateRating or review
+    // on top of this, and a rating a neutral advisor supplied about itself is
+    // the first thing that would stop it being neutral. The Search Console
+    // warning about a missing rating is the correct state of this markup, and
+    // this test is what stops somebody closing it.
+    const { container } = render(
       BerekenenLayout({ children: null, params: Promise.resolve({}) }),
-    ).toBeNull();
+    );
+    const block = container.querySelector("script")?.textContent ?? "";
+    const data = JSON.parse(block) as Record<string, unknown>;
+    expect(data["@type"]).toBe("WebApplication");
+    expect(data["isAccessibleForFree"]).toBe(true);
+    expect(block).not.toContain("aggregateRating");
+    expect(block).not.toContain("review");
   });
 });

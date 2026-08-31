@@ -13,7 +13,7 @@ import { ThemeToggle } from "./ThemeToggle";
 export function SiteHeader() {
   return (
     <header className="border-b border-hairline">
-      <div className="mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-4 px-6 py-4">
+      <div className="mx-auto flex w-full max-w-[var(--shell-max)] flex-wrap items-center justify-between gap-4 px-6 py-4">
         <Link href="/" className="font-medium tracking-tight text-ink">
           Ampeer
         </Link>

@@ -18,6 +18,10 @@ import { SITE_ORIGIN } from "./site";
  * some future data driven field from ending the element early. One call, and
  * it removes this construct's only injection shape.
  */
+export function JsonLd({ data }: { readonly data: Record<string, unknown> }) {
+  return <script type="application/ld+json">{emit(data)}</script>;
+}
+
 function emit(data: Record<string, unknown>): string {
   return JSON.stringify(data).replaceAll("<", "\\u003c");
 }

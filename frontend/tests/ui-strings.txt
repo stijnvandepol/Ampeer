@@ -259,6 +259,7 @@ Verfijn uw antwoord
 Vermogen van de installatie
 Vier vragen over uw dak en uw verbruik, en u ziet wat er vanaf 1 januari 2027 bij u verandert, met de marge eromheen.
 Vier vragen over uw dak en uw verbruik, en u ziet wat het einde van de salderingsregeling bij uw huis doet, met de bandbreedte erbij. Gratis, geen account.
+Vier vragen over uw dak en uw verbruik. Geen account, geen e-mailadres, en niets aan uw meterkast. U krijgt een bedrag met de bandbreedte erbij.
 Vier vragen over uw eigen dak, en geen enkele over uw e-mailadres.
 Vier vragen, en u weet wat het bij u doet in plaats van gemiddeld.
 Vier vragen, geen account, geen koppeling
@@ -306,6 +307,7 @@ WebSite
 Weerjaar
 Welk jaar
 Welke kant ligt het dak op?
+Welke verbruiksprofielen, welke instralingsreeks en welke tarieven wij gebruiken, met de aannames en de bandbreedtes erbij. Geschreven om nagerekend te worden.
 West
 Wij bewaren uw antwoorden en uw uitkomst achter de link die u krijgt, zodat u er later bij kunt. Er is geen account, wij vragen geen e-mailadres, en van uw postcode slaan wij alleen de vier cijfers op.
 Wij bouwen uw jaar op

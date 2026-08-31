@@ -165,7 +165,7 @@ export default function Home() {
             The full stop is also the setter's guaranteed break point.
           */}
           <HeroHeading
-            text="Saldering stopt. Reken uw eigen huis door."
+            text="Saldering stopt. Reken uw huis door."
             className={styles.title}
           />
           <p className={styles.lead}>

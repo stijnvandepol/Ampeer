@@ -130,8 +130,14 @@
    * viewport driven rather than stepped because it has to hold its line count
    * from a 360px phone to a 27 inch monitor; a fixed size would either wrap to
    * five lines on the phone or sit lost in the middle of the desktop.
+   *
+   * Measured down from clamp(3rem, 8vw, 7rem) on 2026-08-31. At 7rem the
+   * headline was 112 pixels, ran to three lines with an orphaned middle one,
+   * and the hero it sat in was 841 pixels tall on a 900 pixel screen: 93
+   * percent of the viewport spent before a reader could see that anything
+   * followed. Big type is the point and filling the screen with it is not.
    */
-  --text-display: clamp(3rem, 8vw, 7rem);
+  --text-display: clamp(2.5rem, 5.5vw, 4.5rem);
 
   /*
    * --text-band-end and --text-band-middle used to sit here, with a comment
@@ -178,6 +184,23 @@
   --space-9: 6rem;
 
   /* ---- shape ---- */
+  /*
+   * The width of the site's frame: the header, the footer, and every page that
+   * is a layout rather than a reading column.
+   *
+   * One token because the two must agree. Until 2026-08-31 the header and the
+   * footer were on Tailwind's max-w-3xl, 48rem, while the landing and product
+   * pages were on 64rem, so the wordmark sat 128 pixels inside the headline
+   * underneath it on a 1440 wide screen. Nothing was broken and everything was
+   * very slightly wrong, which is the kind of misalignment a reader feels
+   * without being able to name.
+   *
+   * A prose page keeps its own, narrower measure. 64rem of running text is
+   * unreadable, and a centred reading column reads as a deliberate column
+   * rather than as a misalignment.
+   */
+  --shell-max: 64rem;
+
   --radius-sm: 0.25rem;
   --radius-md: 0.5rem;
   --radius-lg: 1rem;
@@ -355,6 +378,77 @@
     outline-offset: var(--focus-ring-offset);
   }
 
+  /*
+   * Form controls, which had no styling at all until 2026-08-31.
+   *
+   * Every input, select and textarea in this product was the default control of
+   * whatever browser the visitor had. On the dark theme that is a box with no
+   * border and no background: on `/berekenen/`, the single most important
+   * control in the product, the field a household types its postcode into, was
+   * effectively invisible. It is the first screen of the flow and the whole
+   * product is behind it.
+   *
+   * Styled here in `@layer base` rather than per component, because there are
+   * four of them across three files and a fifth will be added by somebody who
+   * does not know this comment exists.
+   *
+   * `color-scheme: dark` on the root is what makes the native parts of a select
+   * and a number spinner follow the theme; without it the dropdown arrow and
+   * the stepper stay light on a dark field.
+   */
+  input,
+  select,
+  textarea {
+    border: 1px solid var(--colour-border-strong);
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-3);
+    background-color: var(--colour-surface-raised);
+    color: var(--colour-ink);
+    font: inherit;
+  }
+
+  input:hover,
+  select:hover,
+  textarea:hover {
+    border-color: var(--colour-ink-subtle);
+  }
+
+  /*
+   * The focus ring, on the same token every other focusable thing on the site
+   * uses. It is an outline rather than a border change, so the field does not
+   * move by a pixel when it takes focus.
+   */
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid var(--colour-focus);
+    outline-offset: 2px;
+  }
+
+  /*
+   * A field that is refusing what is in it. `aria-invalid` is already set by
+   * NumberQuestion, so this needs no new attribute: the thing that told a
+   * screen reader is now also the thing that tells everybody else.
+   */
+  input[aria-invalid="true"] {
+    border-color: var(--colour-danger);
+  }
+
+  /*
+   * The two that are not boxes. A radio keeps the browser's own shape, which is
+   * the shape people recognise, and only takes the accent; a range keeps its
+   * track. Giving either of them the border and padding above turns a control
+   * people know into one they have to work out.
+   */
+  input[type="radio"],
+  input[type="checkbox"],
+  input[type="range"] {
+    border: none;
+    padding: 0;
+    background: none;
+    accent-color: var(--colour-accent);
+  }
+
   ::selection {
     background-color: var(--colour-accent);
     color: var(--colour-on-accent);
@@ -405,6 +499,52 @@
     background-color: var(--colour-accent);
     color: var(--colour-on-accent);
     font-weight: var(--weight-medium);
+  }
+
+  /*
+   * The quieter of the two. Same size, same radius and the same focus ring as
+   * .button-accent, so a pair of them reads as one control with a clear first
+   * choice rather than as a styled button next to an unstyled one.
+   *
+   * It exists because the question flow shipped with raw browser buttons:
+   * "Terug" and "Volgende" were the default control of whatever browser the
+   * visitor had, next to an accent link, on the only screen in the product
+   * where somebody has to press something to continue.
+   */
+  .button-quiet {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-5);
+    border: 1px solid var(--colour-border-strong);
+    background-color: transparent;
+    color: var(--colour-ink);
+    font-weight: var(--weight-medium);
+    cursor: pointer;
+  }
+
+  .button-quiet:hover {
+    background-color: var(--colour-surface-sunken);
+    border-color: var(--colour-ink-subtle);
+  }
+
+  /*
+   * Both buttons, when they cannot be pressed. The forward one goes dead for
+   * the length of a computation, and a control that looks identical while it
+   * is refusing clicks is the shape a visitor presses four more times.
+   */
+  .button-accent:disabled,
+  .button-quiet:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .button-accent {
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    cursor: pointer;
   }
 
   .button-accent:hover {

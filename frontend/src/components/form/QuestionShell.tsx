@@ -96,12 +96,32 @@ export function QuestionShell({
         className="flex flex-col gap-6"
       >
         {children}
-        <div className="flex gap-3">
-          <button type="button" disabled={busy} onClick={onBack}>
+        {/*
+          Two real buttons, and the forward one is the loud one.
+
+          They were unstyled until 2026-08-31: the default control of whatever
+          browser the visitor happened to have, side by side, on the only screen
+          in this product where somebody has to press something to continue.
+          Both looked identical, so nothing on the screen said which one went
+          forwards, and neither looked disabled while a computation was running.
+
+          Back on the left and forward on the right, which is the order they are
+          read in, the order they are tabbed in and the order they sit in the
+          source. One order for all three is worth more here than any
+          arrangement that has to be explained.
+        */}
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            className="button-quiet"
+            disabled={busy}
+            onClick={onBack}
+          >
             Terug
           </button>
           <button
             type="button"
+            className="button-accent"
             disabled={busy}
             aria-busy={busy}
             onClick={onNext}
