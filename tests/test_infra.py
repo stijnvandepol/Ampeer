@@ -611,3 +611,114 @@ def test_the_backend_network_can_still_reach_the_outside() -> None:
         "back is marked internal, so the api can no longer reach PVGIS; see the "
         "comment on the networks block"
     )
+
+
+# ---------------------------------------------------------------------------
+# Container hardening, and the credential that was in argv
+# ---------------------------------------------------------------------------
+
+#: Every service in the compose file, read once at collection time so the
+#: parametrisations below are derived from the document rather than typed out.
+#:
+#: Typed-out names are how `test_every_service_says_which_network_it_is_on` came
+#: to exist: all four services shared a network by omission, and the two tests
+#: that looked at networking only looked at the four that were there. A fifth
+#: service added tomorrow without `security_opt`, without a memory ceiling, or
+#: with a token in its command line has to fail here on the day it is added,
+#: and it only does that if the list of cases comes from the file.
+SERVICE_NAMES: tuple[str, ...] = tuple(sorted(_services()))
+
+#: What a credential looks like in a variable name. Matched case insensitively
+#: against the whole command line, so `${CLOUDFLARE_TUNNEL_TOKEN}`,
+#: `--api-secret`, and `PGPASSWORD=...` are all one finding.
+CREDENTIAL_WORDS = ("token", "password", "secret", "credential", "apikey", "api_key")
+
+
+def _command_words(spec: dict[str, Any]) -> str:
+    """One string holding everything this service puts in a process's argv.
+
+    `command:` and `entrypoint:` both land in argv and both accept the string
+    form and the list form, so all four shapes are flattened here rather than
+    at three call sites.
+    """
+    parts: list[str] = []
+    for key in ("entrypoint", "command"):
+        value = spec.get(key)
+        if value is None:
+            continue
+        if isinstance(value, str):
+            parts.append(value)
+        else:
+            parts.extend(str(item) for item in value)
+    return " ".join(parts)
+
+
+@pytest.mark.parametrize("name", SERVICE_NAMES)
+def test_every_service_forbids_privilege_escalation(name: str) -> None:
+    """`no-new-privileges` is the one flag that holds when everything else fails.
+
+    Without it a setuid binary inside the image can still raise the privileges
+    of a process that started unprivileged, which makes `USER ampeer` in
+    api.Dockerfile and the `cap_drop` below advisory rather than binding: the
+    whole point of running as uid 10001 is that a bug in gunicorn cannot become
+    root, and a setuid helper left in a base image is exactly the path back.
+
+    Docker does not set it by default and there is no way to set it once for
+    the stack, so it is four identical lines and one omission away from being
+    absent on the service that needs it most.
+    """
+    options = [str(option) for option in _services()[name].get("security_opt") or []]
+    assert "no-new-privileges:true" in options, (
+        f"{name} does not set no-new-privileges, so a setuid binary in its image can "
+        f"still raise privilege: security_opt is {options}"
+    )
+
+
+@pytest.mark.parametrize("name", SERVICE_NAMES)
+def test_every_service_states_a_memory_ceiling(name: str) -> None:
+    """A container with no ceiling can take the host, and Postgres with it.
+
+    Docker gives a container the whole machine unless told otherwise. The api
+    is the one that will find out: three gunicorn workers, each holding up to
+    27 cached `EnergyFlows` of nine 35040-point float64 series, is 65 MB of
+    live array per worker before the timestep loop's own lists. A leak or a
+    hostile input in that path grows until the kernel's OOM killer picks a
+    victim, and the victim it picks is whichever process is largest, which on
+    this host is as likely to be Postgres as the process that caused it.
+
+    The ceiling is what turns that into one restarting container. Both spellings
+    are accepted because both work under `docker compose up`; what is refused is
+    neither.
+    """
+    spec = _services()[name]
+    limits = ((spec.get("deploy") or {}).get("resources") or {}).get("limits") or {}
+    ceiling = spec.get("mem_limit") or limits.get("memory")
+    assert ceiling, (
+        f"{name} declares no memory ceiling, so it may use the whole host; set "
+        "mem_limit or deploy.resources.limits.memory"
+    )
+    assert re.fullmatch(r"\d+[mg]", str(ceiling)), (
+        f"{name}: {ceiling!r} is not a byte size compose reads, such as '768m'"
+    )
+
+
+@pytest.mark.parametrize("name", SERVICE_NAMES)
+def test_no_credential_is_passed_on_a_command_line(name: str) -> None:
+    """argv is world readable, and the environment is not.
+
+    The tunnel token used to sit in `command:`. infra/.env.example already says
+    what that credential is worth: whoever reads it can run a connector for this
+    tunnel. In argv it is additionally in `docker inspect` output and in
+    /proc/<pid>/cmdline, which is mode 0444, so every local account on the LXC
+    can read it; /proc/<pid>/environ is 0400 and owner only.
+
+    This asks the question of every service rather than of the tunnel, because
+    the next credential to be passed this way will be in a different service and
+    will look reasonable at the time.
+    """
+    command = _command_words(_services()[name])
+    found = [word for word in CREDENTIAL_WORDS if word in command.lower()]
+    assert not found, (
+        f"{name} names {found} on its command line, where /proc/<pid>/cmdline makes it "
+        f"readable by every local account: {command!r}. Pass it in `environment:` instead."
+    )
