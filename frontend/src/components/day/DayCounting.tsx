@@ -12,7 +12,6 @@ import {
   illustrativeDay,
   placeAt,
   sortedOrder,
-  type DayState,
 } from "./shape";
 import styles from "./day.module.css";
 
