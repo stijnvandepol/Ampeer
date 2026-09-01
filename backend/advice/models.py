@@ -133,8 +133,12 @@ class ProductionCache(models.Model):
     would hand back a series computed for a different roof than the simulation
     then assumes. Rounding happens once, in the serializer.
 
-    There is no expiry. PVGIS data about a closed weather year does not change.
-    `fetched_at` exists so a later cleanup remains possible.
+    There is no expiry, and there is a sweep, which are two different things.
+    PVGIS data about a closed weather year does not change, so no row here is
+    ever wrong for being old and nothing about a read depends on `fetched_at`.
+    What the column is for is bounding a table that otherwise only grows:
+    `purge_expired_advice` drops rows past PRODUCTION_CACHE_MAX_AGE_DAYS and
+    argues the age there. Until 2026-09-01 nothing read the column at all.
     """
 
     #: Two digits, not four, and named so nobody reads it as a postcode4. The

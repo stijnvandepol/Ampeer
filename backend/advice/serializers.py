@@ -92,6 +92,64 @@ MAX_POSTCODE4 = 9999
 #: and nobody knows their roof angle to better than a degree anyway.
 _ROUNDED_TO_WHOLE_DEGREES = ("azimuth_deg", "tilt_deg")
 
+#: And then grouped, which is the sentence above carried one step further. If a
+#: whole degree is already finer than anyone can answer, it is also finer than
+#: the cache in front of PVGIS should key on, and how wide that key is is not a
+#: storage question. ProductionCache sits in front of a call with a 20 second
+#: timeout, gunicorn runs three synchronous workers, and the fallback provider
+#: is only reached after that timeout expires, so one miss holds a third of the
+#: service for as long as PVGIS is slow. On whole degrees the reachable key
+#: space is 90 postcode areas x 361 azimuths x 91 tilts, which is a supply of
+#: misses no amount of traffic exhausts: a caller can always name a roof nobody
+#: has named yet. Grouped, the space is small enough that ordinary traffic
+#: fills it, and a filled cache has no misses left to hand out.
+#:
+#: Two widths rather than one, because the two questions are not answered
+#: equally badly. Azimuth is asked as one of eight compass directions
+#: (frontend RoofPicker.tsx), every one of which is a multiple of 15, so no
+#: answer the form can produce moves at all. Tilt is a slider, and 5 degrees is
+#: about the width of the mistake somebody makes guessing their own roof.
+AZIMUTH_BUCKET_DEG = 15
+TILT_BUCKET_DEG = 5
+
+
+def to_bucket(value: int, size: int) -> int:
+    """The nearest multiple of ``size``, in integer arithmetic only.
+
+    Integer arithmetic and not ``round(value / size) * size``, because the
+    float form lets the last bits of a division decide a bucket, and a value
+    that lands in two different buckets on two runs is two cache rows and two
+    PVGIS calls for one roof. The input is always an ``int`` here: DRF's
+    IntegerField has already run, so there is nothing left to be imprecise.
+
+    Exact ties go to the larger multiple. No integer input can reach one at
+    either width in use, since a tie needs a half degree, but the rule is
+    written down rather than left to whichever way the arithmetic happens to
+    fall.
+    """
+    return (2 * value + size) // (2 * size) * size
+
+
+def bucket_azimuth(value: int) -> int:
+    """Group one azimuth, and give north a single name.
+
+    A compass has no seam and this range has two ends. MIN_AZIMUTH_DEG and
+    MAX_AZIMUTH_DEG are both north and both legal, which ampeer_sim already
+    knows: FallbackProvider._azimuth_gap measures the short way round the
+    circle precisely so the two are not read as opposites. A cache key cannot
+    do that, because it compares for equality, so the two names for north would
+    be two rows holding the same series. They are folded onto one here, and the
+    one kept is the positive end because that is what RoofPicker.tsx sends for
+    north.
+    """
+    bucketed = to_bucket(value, AZIMUTH_BUCKET_DEG)
+    return MAX_AZIMUTH_DEG if bucketed == MIN_AZIMUTH_DEG else bucketed
+
+
+def bucket_tilt(value: int) -> int:
+    """Group one tilt. Nothing wraps: a roof lies between flat and vertical."""
+    return to_bucket(value, TILT_BUCKET_DEG)
+
 
 #: How many unknown field names one error response repeats back. Naming the
 #: offending field is the whole point of refusing rather than dropping it, and
@@ -156,6 +214,19 @@ class EstimateInputSerializer(StrictSerializer):
         if not MIN_POSTCODE4 <= int(value) <= MAX_POSTCODE4:
             raise serializers.ValidationError(message_for("POSTCODE4_NOT_DUTCH"))
         return value
+
+    # The two below group and never refuse, and they run here rather than in
+    # to_internal_value below on purpose. Grouping before the range check would
+    # turn it into a way past it: a tilt of 91 is outside what the PV model
+    # accepts and would arrive as 90, which is inside. A field level validator
+    # runs after the field's own bounds, so the order is "refuse, then group"
+    # and cannot be read the other way round.
+
+    def validate_azimuth_deg(self, value: int) -> int:
+        return bucket_azimuth(value)
+
+    def validate_tilt_deg(self, value: int) -> int:
+        return bucket_tilt(value)
 
     def to_internal_value(self, data: Any) -> dict[str, Any]:
         # IntegerField refuses 34.6 outright. Rounding before validation keeps a

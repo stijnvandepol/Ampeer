@@ -13,6 +13,7 @@ for no extra evidence.
 from __future__ import annotations
 
 import ast
+import inspect
 import re
 from pathlib import Path
 from typing import Any
@@ -23,7 +24,21 @@ import advice.nl
 import advice.serializers
 import ampeer_advice.nl
 from advice.nl import TEMPLATED_MESSAGES, VALIDATION_MESSAGES, message_for
-from advice.serializers import EstimateInputSerializer, RefineInputSerializer
+from advice.serializers import (
+    AZIMUTH_BUCKET_DEG,
+    MAX_AZIMUTH_DEG,
+    MAX_POSTCODE4,
+    MAX_TILT_DEG,
+    MIN_AZIMUTH_DEG,
+    MIN_POSTCODE4,
+    MIN_TILT_DEG,
+    TILT_BUCKET_DEG,
+    EstimateInputSerializer,
+    RefineInputSerializer,
+    bucket_azimuth,
+    bucket_tilt,
+)
+from ampeer_sim.production.pvgis import PvgisProvider
 
 VALID_ESTIMATE: dict[str, Any] = {
     "postcode4": "5401",
@@ -166,10 +181,17 @@ def test_a_fractional_roof_angle_is_rounded_to_a_whole_degree() -> None:
     assert isinstance(serializer.validated_data["tilt_deg"], int)
 
 
-def test_a_fractional_azimuth_is_rounded_too() -> None:
+def test_a_fractional_azimuth_is_rounded_and_then_grouped() -> None:
+    """-12.4 was -12 until the grouping landed, and is -15 now.
+
+    Both steps are visible in that one number and they stay separate steps: the
+    round is what keeps a float out of the cache key, and the group is what
+    keeps the key space walkable. The value is still an int, which is what the
+    SmallIntegerField columns of ProductionCache require.
+    """
     serializer = EstimateInputSerializer(data=VALID_ESTIMATE | {"azimuth_deg": -12.4})
     assert serializer.is_valid(), serializer.errors
-    assert serializer.validated_data["azimuth_deg"] == -12
+    assert serializer.validated_data["azimuth_deg"] == -15
     assert isinstance(serializer.validated_data["azimuth_deg"], int)
 
 
@@ -179,6 +201,171 @@ def test_rounding_happens_before_the_bound_and_not_instead_of_it() -> None:
     serializer = EstimateInputSerializer(data=VALID_ESTIMATE | {"tilt_deg": 90.6})
     assert not serializer.is_valid()
     assert "tilt_deg" in serializer.errors
+
+
+# --------------------------------------------------------------------------
+# The size of the ProductionCache key, which is a question about the three
+# gunicorn workers rather than about disk.
+# --------------------------------------------------------------------------
+
+#: Read out of the provider rather than typed here, because it is the number
+#: that turns a cache miss into an occupied worker and it lives in ampeer_sim.
+PVGIS_TIMEOUT_S = float(inspect.signature(PvgisProvider.__init__).parameters["timeout_s"].default)
+
+#: infra/entrypoint-api.sh, parsed for the same reason.
+ENTRYPOINT = Path(__file__).resolve().parent.parent / "infra" / "entrypoint-api.sh"
+
+#: How long the whole key space may take to walk, measured in hours of the
+#: machine's own worst case capacity. Three workers give 72 worker hours a day,
+#: so a space under this bound is walked in under a day and a half of
+#: everything the service can do, after which every request is a hit and the
+#: attack has nothing left to miss on. It is not a storage bound: a hundred
+#: thousand rows of 60 kB is not a problem anybody would notice.
+MAX_WORKER_HOURS_TO_EXHAUST = 100.0
+
+
+def _gunicorn_workers() -> int:
+    """How many synchronous workers serve the API, read from the entrypoint."""
+    found = re.search(r"--workers\s+(\d+)", ENTRYPOINT.read_text(encoding="utf-8"))
+    assert found is not None, f"{ENTRYPOINT.name} no longer says how many workers it starts"
+    return int(found.group(1))
+
+
+def _reachable_production_cache_keys() -> int:
+    """Every distinct ProductionCache row a stranger's POST body can create.
+
+    Three of the four key columns come out of the request. weather_year is
+    fixed by a setting and is therefore one value, not a dimension. The
+    postcode column holds a postcode century rather than a postcode, which is
+    what ampeer_sim resolves on.
+    """
+    areas = MAX_POSTCODE4 // 100 - MIN_POSTCODE4 // 100 + 1
+    azimuths = {bucket_azimuth(value) for value in range(MIN_AZIMUTH_DEG, MAX_AZIMUTH_DEG + 1)}
+    tilts = {bucket_tilt(value) for value in range(MIN_TILT_DEG, MAX_TILT_DEG + 1)}
+    return areas * len(azimuths) * len(tilts)
+
+
+def test_the_production_cache_key_space_can_be_exhausted() -> None:
+    """Why the number matters is worker occupancy, and not the disk it sits on.
+
+    ProductionCache stands in front of PVGIS. PvgisProvider's timeout is 20
+    seconds and ResilientProductionProvider only reaches the offline fallback
+    after it expires, so one miss can hold one gunicorn worker for 20 seconds
+    and there are three of them. What decides whether that is an outage or a
+    slow morning is not how many rows the table can hold but whether the supply
+    of misses runs out. On ungrouped whole degrees it does not: 90 postcode
+    areas by 361 azimuths by 91 tilts is 2,956,590 keys, so a caller can name a
+    roof nobody has ever named for as long as they care to, and the throttle
+    does not help because sustaining three concurrent misses needs about 27
+    identities an hour, which is one IPv6 /64.
+
+    Grouping the two angles is what ends that, and it ends it by arithmetic
+    rather than by making the attack more expensive. Once the space is small
+    enough to be walked, it is walked, and after that every request is a hit.
+
+    This computes the space from the two bucket constants rather than
+    restating a number, so the constants and this argument cannot drift apart.
+    """
+    keys = _reachable_production_cache_keys()
+    worker_hours = keys * PVGIS_TIMEOUT_S / _gunicorn_workers() / 3600.0
+    assert worker_hours < MAX_WORKER_HOURS_TO_EXHAUST, (
+        f"{keys} reachable ProductionCache keys, which is {worker_hours:.0f} hours of the "
+        f"whole machine at a {PVGIS_TIMEOUT_S:.0f} second miss. A space that cannot be "
+        "walked is a supply of misses that never runs out, and each one holds one of "
+        f"{_gunicorn_workers()} workers."
+    )
+
+
+def test_two_roofs_nobody_could_tell_apart_share_one_cache_key() -> None:
+    """The behavioural half, so the constant and the code cannot drift.
+
+    38 and 44 degrees is a difference no visitor can measure about their own
+    house, and before this grouping it was seven cache rows rather than one.
+    """
+    serializers_at = [
+        EstimateInputSerializer(data=VALID_ESTIMATE | {"azimuth_deg": azimuth})
+        for azimuth in (38, 44)
+    ]
+    for serializer in serializers_at:
+        assert serializer.is_valid(), serializer.errors
+    grouped = {serializer.validated_data["azimuth_deg"] for serializer in serializers_at}
+    assert grouped == {45}, grouped
+
+
+def test_the_seam_between_two_azimuth_buckets_is_where_it_is_declared() -> None:
+    """Grouping is to the nearest multiple, not down to the one below.
+
+    Nearest halves the worst error a household is advised on, from a whole
+    bucket to half of one, and it leaves every compass direction the form can
+    send exactly where it was. It also means the seam sits half a bucket up:
+    37 and 38 degrees are on opposite sides of it, which is the honest place
+    for a boundary test to look.
+    """
+    assert bucket_azimuth(37) == 30
+    assert bucket_azimuth(38) == 45
+
+
+@pytest.mark.parametrize(
+    ("sent", "expected"),
+    [
+        # North, named from both ends of the range, is one key and not two.
+        (MIN_AZIMUTH_DEG, MAX_AZIMUTH_DEG),
+        (MAX_AZIMUTH_DEG, MAX_AZIMUTH_DEG),
+        (-173, MAX_AZIMUTH_DEG),
+        (173, MAX_AZIMUTH_DEG),
+        # South is exact and stays exact.
+        (0, 0),
+        # The far side of the seam is an ordinary bucket again.
+        (-172, -165),
+        (172, 165),
+    ],
+)
+def test_the_compass_has_no_seam_where_the_range_has_two_ends(sent: int, expected: int) -> None:
+    """-180 and 180 are the same direction and must not be two rows.
+
+    ampeer_sim already knows this: FallbackProvider._azimuth_gap measures round
+    the circle precisely so the two are not read as opposites. A cache key
+    compares for equality and cannot, so the fold happens here. The positive
+    end is the one kept because that is the value RoofPicker.tsx sends for
+    north.
+    """
+    serializer = EstimateInputSerializer(data=VALID_ESTIMATE | {"azimuth_deg": sent})
+    assert serializer.is_valid(), serializer.errors
+    assert serializer.validated_data["azimuth_deg"] == expected
+
+
+@pytest.mark.parametrize(
+    ("sent", "expected"),
+    [(MIN_TILT_DEG, 0), (MAX_TILT_DEG, 90), (2, 0), (3, 5), (88, 90)],
+)
+def test_a_tilt_is_grouped_and_stays_inside_the_range(sent: int, expected: int) -> None:
+    """Flat and vertical are the two ends of a roof, and neither wraps.
+
+    Both ends are already multiples of the bucket, so grouping cannot push a
+    value out of the range the PV model accepts, which is what would otherwise
+    make this a second bounds check.
+    """
+    serializer = EstimateInputSerializer(data=VALID_ESTIMATE | {"tilt_deg": sent})
+    assert serializer.is_valid(), serializer.errors
+    assert serializer.validated_data["tilt_deg"] == expected
+    assert MIN_TILT_DEG <= serializer.validated_data["tilt_deg"] <= MAX_TILT_DEG
+
+
+def test_grouping_is_stable_rather_than_decided_by_the_last_bits_of_a_float() -> None:
+    """A value that lands in two buckets on two runs is two rows for one roof.
+
+    The check is that every reachable value is a fixed point of its own bucket:
+    grouping a grouped value returns it. That is the property a float division
+    cannot promise and integer arithmetic can.
+    """
+    for value in range(MIN_AZIMUTH_DEG, MAX_AZIMUTH_DEG + 1):
+        once = bucket_azimuth(value)
+        assert bucket_azimuth(once) == once, value
+        assert once % AZIMUTH_BUCKET_DEG == 0, value
+    for value in range(MIN_TILT_DEG, MAX_TILT_DEG + 1):
+        once = bucket_tilt(value)
+        assert bucket_tilt(once) == once, value
+        assert once % TILT_BUCKET_DEG == 0, value
 
 
 def test_a_complete_refine_validates() -> None:
@@ -482,6 +669,10 @@ ENGLISH_PROSE_WORDS = frozenset(
         "be",
         "been",
         "both",
+        # 2026-09-01, from purge_expired_advice.py reporting the third table it
+        # now sweeps. This is the one line of diff per new English word that the
+        # note above says is the price, paid.
+        "cache",
         "cannot",
         "consumption",
         "container",
@@ -535,6 +726,8 @@ ENGLISH_PROSE_WORDS = frozenset(
         "past",
         "period",
         "private",
+        # 2026-09-01, same line and same reason as "cache" above.
+        "production",
         "profile",
         "provenance",
         "purge",

@@ -66,6 +66,14 @@ const DIRECTION_ORDER: readonly CompassDirection[] = [
  * lookup returns a series computed for a slightly different roof than the
  * simulation then assumes. Rounding here as well means the value the visitor
  * saw, the value that was sent and the value that was cached are one number.
+ *
+ * Since 2026-09-01 rounding is not the last thing that happens to these two.
+ * The API also groups azimuth to 15 degrees and tilt to 5, after the bounds
+ * are checked, to keep the number of distinct PVGIS cache keys small enough
+ * that misses run out. So the value that was cached is a whole degree and the
+ * middle of its group, and this picker's degree is what decides which group.
+ * The eight directions it can emit are all multiples of 15 and are therefore
+ * their own group; only the tilt slider moves.
  */
 function toWholeDegrees(value: number): number {
   return Math.round(value);
