@@ -160,9 +160,39 @@ gegevens loopt via de API, en die geeft op een token precies een advies terug.
 Op de host kan root bij alles, en dat is de verwerkingsverantwoordelijke.
 Toegang tot de host is geen onderwerp van dit document en hoort bij hoofdstuk 10.
 
-Er is geen verwerker. Niets wordt uitbesteed, er draait geen dienst van derden
-mee in de stack behalve de tunnelverbinding die het verkeer doorgeeft, en er
-gaat geen gegeven naar een advertentie- of analysepartij.
+**Cloudflare Inc. is een verwerker.** De tunnelverbinding geeft het verkeer niet
+alleen door. Cloudflare beeindigt TLS aan de rand en de connector spreekt daarna
+gewoon HTTP tegen deze machine. Dat staat zo in `infra/nginx/nginx.conf`, als de
+reden dat `X-Forwarded-Proto` daar een constante mag zijn: `$scheme` is op elk
+verzoek `http`, ook op de verzoeken die over https binnenkwamen. De versleuteling
+loopt dus tot Cloudflare en niet tot hier.
+
+Cloudflare ziet daarmee op elk verzoek twee dingen in leesbare vorm:
+
+- **Het pad.** Dat is `GET /advies/<token>/` en `GET /api/advice/<token>/`. Dat
+  token is niet een verwijzing naar een advies, het is de enige sleutel die het
+  opent, en het is precies wat vier voorzieningen in deze stack uit de logboeken
+  houden: het `map`-blok in `infra/nginx/nginx.conf` dat een pad met een token
+  door een label vervangt, `error_log crit` op de twee locaties die tokens
+  dragen, `RedactedFormatter` in `backend/ampeer/settings/base.py` en
+  `server_side_binding` in `backend/ampeer/settings/prod.py`. Die vier houden het
+  token uit de logboeken van deze machine. Ze zeggen niets over de rand.
+- **Het IP-adres van de bezoeker.** Hoofdstuk 2 zegt dat er geen tabel is met een
+  adresveld, en dat klopt: `backend/advice/throttling.py` hasht het adres met een
+  HMAC onder `SECRET_KEY` voordat het een teller wordt. Die moeite gaat over deze
+  machine. Bij Cloudflare komt het adres onvermijdelijk binnen, want het is de
+  partij die de verbinding aanneemt.
+
+Dat maakt Cloudflare een verwerker in de zin van artikel 4 lid 8 AVG, en artikel
+28 eist voor een verwerker een schriftelijke verwerkersovereenkomst. Cloudflare
+publiceert een standaardovereenkomst die bij het account hoort. Of die is
+aanvaard en of hij deze verwerking dekt, is niet nagegaan en nergens vastgelegd,
+en dat is wat hier ontbreekt. Hoofdstuk 10 zet het bij de
+verwerkingsverantwoordelijke, naast de privacyverklaring en het
+verwerkersregister.
+
+Verder wordt niets uitbesteed. Er draait geen andere dienst van derden mee in de
+stack en er gaat geen gegeven naar een advertentie- of analysepartij.
 
 ## 6. Wat de machine verlaat
 
@@ -344,12 +374,29 @@ is, en het is de reden dat dit hoofdstuk kort kan zijn.
 | De opruiming stopt zonder dat iemand het merkt | De deploy draait een controle die rood wordt zodra er iets over datum is, en de timer zelf faalt zichtbaar |
 | Een derde partij krijgt het surfgedrag van de bezoeker | Geen enkel verzoek buiten de eigen oorsprong, afgedwongen door een test |
 | Een gemeten kwartierreeks bereikt iemand aan wie de link is doorgestuurd | Het veld `year` draagt zijn herkomst mee, en de enige functie die het kan opbouwen weigert een gemeten reeks achter een deelbaar token. Vandaag bestaat er nog geen gemeten reeks |
+| Het token staat in het pad van elk verzoek en is dus leesbaar voor Cloudflare | Niets structureels. Het token hoort in het pad, en Cloudflare beeindigt TLS aan de rand, dus het pad is daar leesbaar. Wat het begrenst is dat de link na negentig dagen verloopt. De oplossing staat onder deze tabel en is niet gebouwd |
 | Het advies wordt gestuurd door een commercieel belang | Geen advertenties, geen leads, geen eigen contract en geen hardwareverkoop. Elke regel die vuurt komt terug in het antwoord, dus een advies is na te lopen |
 
 **Wat hier niet tegen staat.** Er is geen kopie buiten de host, dus een storing
 die de machine meeneemt neemt de gegevens en de back-ups mee. Dat is een
 beschikbaarheidsrisico en geen vertrouwelijkheidsrisico, en het is opgeschreven
 in hoofdstuk 8 van `infra/README.md` in plaats van hier opgelost.
+
+**De oplossing voor de regel over Cloudflare, en waarom die er nog niet is.** Het
+token hoeft niet in het pad te staan. Een URL-fragment wordt door geen enkele
+browser naar een server gestuurd, dus `/advies/#<token>` blijft in de browser, en
+het token kan daarna in een `Authorization`-header naar de API. Dan leest
+Cloudflare het niet meer. Dat is ook wat OWASP ASVS v5.0.0 in 14.2.1 op niveau 1
+eist: "the URL and query string do not contain sensitive information, such as an
+API key or session token". Het ontwerp van vandaag voldoet daar niet aan.
+
+Dat is in deze wijziging niet gedaan, en de kosten zijn de reden om het apart te
+doen. `frontend/src/lib/api.ts` bouwt vandaag `/api/advice/<token>/` en zou een
+header moeten sturen; de route onder `frontend/src/app/advies/` leest het token
+uit het pad en zou het uit het fragment moeten lezen; en de API zou de header
+naast de padvorm moeten aannemen zolang er links van voor de wijziging rondgaan.
+Die links leven negentig dagen, dus de padvorm kan niet in een keer weg. Zolang
+dat niet is gebeurd, staat de regel hierboven in de tabel zonder iets ernaast.
 
 ## 9. Wat er verandert bij fase 1 en 2
 
@@ -393,6 +440,9 @@ beslissen.
 5. **Toegang tot de host**, en of `web2` ephemeer wordt. Die staat los van dit
    document en is elders opgeschreven.
 
-Er is verder geen privacyverklaring en geen verwerkersregister. Allebei zijn ze
-nodig voordat de dienst publiek gaat, en allebei vallen ze buiten wat uit deze
-repository te schrijven is.
+Er is verder geen privacyverklaring, geen verwerkersregister en geen vastgelegde
+verwerkersovereenkomst met Cloudflare. Alle drie zijn ze nodig voordat de dienst
+publiek gaat, en alle drie vallen ze buiten wat uit deze repository te schrijven
+is. De verwerkersovereenkomst is wel de enige van de drie die over een verwerking
+gaat die vandaag al draait: hoofdstuk 5 beschrijft wat Cloudflare op elk verzoek
+te zien krijgt.

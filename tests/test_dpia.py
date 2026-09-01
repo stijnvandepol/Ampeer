@@ -766,3 +766,120 @@ def test_the_document_is_right_that_the_answer_now_carries_the_year() -> None:
         "advice/service.py renders without a year, so no answer carries one and "
         "chapter 6 describes a field that is not sent"
     )
+
+
+NGINX = REPO_ROOT / "infra" / "nginx" / "nginx.conf"
+
+#: The sentence in `infra/nginx/nginx.conf` that turns the tunnel from a wire
+#: into a processor. It is a comment rather than a directive, so the directive
+#: it explains is asserted beside it: a comment can be deleted without changing
+#: what the server does, and the constant it justifies cannot.
+TLS_TERMINATION = "Cloudflare terminates TLS at the edge"
+
+
+def _nginx() -> tuple[str, str]:
+    """infra/nginx/nginx.conf as flattened prose, and as directives alone.
+
+    Split apart for the reason tests/test_nginx_config.py gives at length: the
+    comments in that file quote the directives they explain, so a grep over the
+    whole text matches the sentence about a directive as readily as the
+    directive. Here both halves are wanted, and each has to be asked the right
+    question.
+    """
+    conf = NGINX.read_text(encoding="utf-8")
+    prose = re.sub(r"\s+", " ", re.sub(r"^\s*#\s?", "", conf, flags=re.MULTILINE))
+    directives = "\n".join(line for line in conf.splitlines() if not line.lstrip().startswith("#"))
+    return prose, directives
+
+
+def test_the_document_names_the_party_that_reads_the_token_in_the_clear() -> None:
+    """Chapter 5 named the tunnel and then denied what naming it implies.
+
+    It said "Er is geen verwerker" and, in the same sentence, that a third
+    party service passes the traffic through. Passing through is not what
+    happens. Cloudflare terminates TLS at the edge, which `infra/nginx/nginx.conf`
+    states as the reason `X-Forwarded-Proto` may be a constant there, so
+    Cloudflare reads in cleartext the path of every request. That path is
+    `/advies/<token>/`, and the token in it is the only credential that opens a
+    household's advice: the same string four separate mechanisms in this
+    repository exist to keep out of logs. The visitor's address is in the clear
+    beside it, the address chapter 2 says is hashed before it is counted.
+
+    That makes Cloudflare a processor under article 4(8) and article 28 asks for
+    a written agreement. A privacy assessment that says there is no processor is
+    not merely incomplete; it is the one sentence a reader would rely on to
+    conclude no such agreement is owed.
+
+    The premise is asserted rather than assumed. A test that only looked for the
+    word "Cloudflare" in the document would pass against a sentence claiming the
+    opposite, and would keep passing after the day TLS reaches this container
+    and the chapter becomes an overstatement instead of a correction.
+    """
+    prose, directives = _nginx()
+    assert TLS_TERMINATION in prose, (
+        f"infra/nginx/nginx.conf no longer says {TLS_TERMINATION!r}, and that sentence "
+        "is the entire premise of chapter 5 of docs/dpia.md. Re-read nginx.conf before "
+        "touching this test. If the phrase only moved or was reworded, move this "
+        "constant with it; if TLS now reaches this container, then Cloudflare no longer "
+        "reads the token and chapter 5 overstates the exposure and has to be rewritten."
+    )
+    assert "proxy_set_header X-Forwarded-Proto https;" in directives, (
+        "nginx no longer sets X-Forwarded-Proto to a constant. That constant is only "
+        "correct because TLS is terminated upstream, so its absence means the comment "
+        "above is describing a deployment that no longer exists. Chapter 5 rests on it."
+    )
+
+    assert "Er is geen verwerker" not in TEXT, (
+        "chapter 5 says there is no processor while the tunnel that carries every "
+        "request reads the token and the address in the clear"
+    )
+    assert "**Cloudflare Inc. is een verwerker.**" in TEXT, (
+        "chapter 5 no longer names Cloudflare as a processor, which is what the "
+        "premise above makes it"
+    )
+    flattened = re.sub(r"\s+", " ", TEXT)
+    for phrase in (
+        "`GET /advies/<token>/`",
+        "artikel 4 lid 8",
+        "artikel 28",
+        "verwerkersovereenkomst",
+    ):
+        assert phrase in flattened, (
+            f"chapter 5 does not say {phrase!r}. Naming the processor without saying "
+            "what it sees, or without the agreement article 28 asks for, leaves the "
+            "reader with the half of the correction that costs nothing."
+        )
+
+
+def test_the_risk_table_carries_the_token_in_the_url_and_the_fix_not_taken() -> None:
+    """The row, and the paragraph that keeps "nothing yet" from reading as "nothing to do".
+
+    Every other row in chapter 8 names something that stands against the risk.
+    This one cannot, and writing it down anyway is the point: the token is in
+    the path by design, so what mitigates it today is a ninety day expiry and
+    nothing structural.
+
+    The structural fix exists and is not built. A URL fragment is never sent to
+    any server, so `/advies/#<token>` with an `Authorization` header would put
+    the token out of Cloudflare's reach, and it is what OWASP ASVS v5.0.0
+    requires in 14.2.1 at L1, which the current design fails. Recording it
+    beside the row is what tells the next reader it was costed rather than
+    missed, and asserting it here is what keeps the row from being quietly
+    softened into a mitigation that does not exist.
+    """
+    chapter = TEXT.split("## 8. Risico's, en wat ertegen staat", 1)[1].split("\n## 9.", 1)[0]
+    rows = [line for line in chapter.splitlines() if line.startswith("|") and "Cloudflare" in line]
+    assert len(rows) == 1, (
+        f"chapter 8 has {len(rows)} rows naming Cloudflare and there should be exactly "
+        "one: the token is readable to it in the URL of every request"
+    )
+    assert "Niets structureels" in rows[0], (
+        f"the row now claims something stands against the risk: {rows[0]!r}. The token "
+        "is in the path by design, so the honest second column says so. Anything else "
+        "has to be a change to the code, not to this table."
+    )
+    for phrase in ("14.2.1", "/advies/#<token>", "Authorization", "frontend/src/lib/api.ts"):
+        assert phrase in chapter, (
+            f"chapter 8 does not say {phrase!r}, so the fix that was considered and not "
+            "taken is not written down, and the row above reads as an oversight"
+        )
