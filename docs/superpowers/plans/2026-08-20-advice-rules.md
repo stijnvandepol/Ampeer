@@ -371,7 +371,9 @@ def test_annual_totals_come_straight_from_the_flows() -> None:
     production = np.full(GRID.quarters, 0.2)
     context = _context(consumption, production)
     assert context.annual_production_kwh == pytest.approx(production.sum())
-    assert context.annual_export_kwh == pytest.approx(float(simulate(consumption, production).to_grid.sum()))
+    assert context.annual_export_kwh == pytest.approx(
+        float(simulate(consumption, production).to_grid.sum())
+    )
 
 
 def test_evening_and_night_consumption_is_a_daily_mean_over_17_to_07() -> None:
@@ -734,8 +736,8 @@ def test_the_knee_is_where_marginal_saving_halves() -> None:
     # 3 kWh earns 300; every kWh after that earns much less.
     curve = [
         (3.0, Decimal("300")),
-        (5.0, Decimal("390")),   # 45 per kWh, still above half of 100
-        (7.0, Decimal("420")),   # 15 per kWh, below half
+        (5.0, Decimal("390")),  # 45 per kWh, still above half of 100
+        (7.0, Decimal("420")),  # 15 per kWh, below half
         (10.0, Decimal("430")),
         (15.0, Decimal("435")),
     ]
