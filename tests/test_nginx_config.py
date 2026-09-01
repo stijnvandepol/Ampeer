@@ -436,8 +436,54 @@ def test_the_page_carries_the_headers_that_protect_its_own_url() -> None:
     assert headers.get("X-Frame-Options") == "DENY"
 
     policy = headers.get("Content-Security-Policy", "")
-    for directive in ("default-src 'self'", "connect-src 'self'", "frame-ancestors 'none'"):
+    for directive in (
+        "default-src 'self'",
+        "connect-src 'self'",
+        "frame-ancestors 'none'",
+        "object-src 'none'",
+    ):
         assert directive in policy, f"the policy no longer carries {directive!r}: {policy!r}"
+
+
+def test_the_pages_carry_hsts_and_not_only_the_api() -> None:
+    """prod.py sets SECURE_HSTS_SECONDS and nothing served it to a human.
+
+    Django's SecurityMiddleware stamps that header on responses Django
+    produces, and Django produces /api/*. Every page a household opens is the
+    exported build handed out by this server, so before this the entire real
+    audience received no HSTS at all: the first navigation to
+    http://ampeer.nl/ stayed strippable on every visit, not only the first.
+
+    The same blind spot as the four headers above, for the same reason.
+    `manage.py check --deploy` reads Django settings, sees the seconds set,
+    and does not know this file exists.
+
+    `preload` is deliberately absent, and that assertion is not a style
+    preference. The token in the header is what hstspreload.org requires
+    before it will accept a submission, from anybody, and removal from the
+    list rides browser release trains for months. Its absence at the site root
+    is what keeps a submission from being accepted while nobody here has
+    decided to make that commitment.
+    """
+    headers = _headers()
+    hsts = headers.get("Strict-Transport-Security")
+    assert hsts, (
+        "the pages carry no Strict-Transport-Security; prod.py sets it and Django only "
+        "ever stamps it on /api/, which no household opens"
+    )
+
+    seconds = re.search(r"max-age=(\d+)", hsts)
+    assert seconds, f"no max-age in {hsts!r}"
+    assert int(seconds.group(1)) >= 31_536_000, (
+        f"max-age is {seconds.group(1)}, under a year: a browser that has not visited for "
+        "that long is back to a strippable first request"
+    )
+
+    assert "includeSubDomains" in hsts, hsts
+    assert "preload" not in hsts, (
+        f"{hsts!r} carries preload, which is a one way door this project has not chosen to "
+        "walk through: anybody may then submit ampeer.nl, and removal takes months"
+    )
 
 
 def test_every_one_of_those_headers_is_unconditional() -> None:
@@ -449,6 +495,120 @@ def test_every_one_of_those_headers_is_unconditional() -> None:
     marked = re.findall(r"add_header\s+(\S+)\s+\"[^\"]*\"\s+always\s*;", DIRECTIVES)
     assert set(marked) == set(_headers()), (
         f"{sorted(set(_headers()) - set(marked))} are set without `always`"
+    )
+
+
+def test_the_readiness_endpoint_is_not_served_to_the_internet() -> None:
+    """Decision 4 in docs/decisions.md switches the throttle off on
+    api/advice/health/, and it is right to: the probe runs every thirty
+    seconds and its DRF counter lives in Postgres, so throttling it would turn
+    the readiness check into the query it exists to avoid.
+
+    What that decision does not cover is who can reach the route. This file
+    proxies all of /api/advice/ to gunicorn, so the one deliberately
+    unthrottled endpoint on the service was also reachable from the internet,
+    in front of three synchronous workers, and it does real work per request:
+    advice/profiles.py stats the profile, opens it and reads a byte.
+
+    The only caller that needs it is not on the internet. infra/api.Dockerfile
+    declares the HEALTHCHECK and calls http://127.0.0.1:8000/api/advice/health/
+    from inside the api container, which never passes through this server.
+    Grepped on 2026-09-01 across .github/workflows/, scripts/ and
+    infra/systemd/: no other caller exists.
+
+    An exact match location beats every prefix whatever order they are written
+    in, so this cannot be defeated by a later edit reordering the blocks.
+    """
+    block = re.search(r"location\s+=\s*/api/advice/health/\s*\{([^}]*)\}", DIRECTIVES, re.DOTALL)
+    assert block, (
+        "no exact match location for /api/advice/health/, so it falls to the /api/advice/ "
+        "prefix and the one unthrottled endpoint is proxied to gunicorn from the internet"
+    )
+    body = block.group(1)
+    assert "proxy_pass" not in body, f"the readiness route is still proxied: {body!r}"
+
+    refusal = re.search(r"return\s+(\d{3})", body)
+    assert refusal, f"the block refuses nothing: {body!r}"
+    assert refusal.group(1)[0] == "4", (
+        f"the readiness route answers {refusal.group(1)}, which is not a refusal"
+    )
+
+
+def _throttle_rate_per_second(rate: str) -> float:
+    """DRF's "20/hour" as requests per second.
+
+    DRF reads only the first character of the period, so `h`, `hour` and `hr`
+    are one thing to it and one thing here.
+    """
+    count, _, period = rate.partition("/")
+    return int(count) / {"s": 1, "m": 60, "h": 3600, "d": 86400}[period[0]]
+
+
+def test_something_ahead_of_django_limits_the_rate() -> None:
+    """DRF's throttle is the per visitor half, and there was no other half.
+
+    Every limit on this service was keyed on the caller, so the cost of one
+    more caller is one more full budget, and the counter itself is a Postgres
+    round trip in production: reaching the limit is work the database does.
+    OWASP ASVS v5.0.0 2.1.3 asks for documented limits "including both
+    per-user and globally", and `grep -rnE "limit_req|limit_conn" infra/`
+    returned nothing at all on 2026-09-01.
+
+    The ceiling is asserted against what DRF hands one visitor rather than
+    written down twice, so raising a DRF rate past the global ceiling fails
+    here instead of quietly making nginx the thing real visitors hit.
+    """
+    from django.conf import settings
+
+    zone = re.search(
+        r"limit_req_zone\s+(\S+)\s+zone=(\w+):\d+[kKmM]\s+rate=(\d+)r/([sm])\s*;", DIRECTIVES
+    )
+    assert zone, "no limit_req_zone: the only limit on this service is DRF's per visitor one"
+    key, name, count, unit = zone.group(1), zone.group(2), int(zone.group(3)), zone.group(4)
+    ceiling = count / (1 if unit == "s" else 60)
+
+    # A zone keyed on the caller is the half DRF already has, and on this
+    # deployment it would key on the wrong thing anyway: nothing reaches this
+    # container except through the tunnel, so every request carries the
+    # connector's container address, and the visitor's own address is only in
+    # the header the caller controls.
+    assert key not in {
+        "$binary_remote_addr",
+        "$remote_addr",
+        "$http_x_forwarded_for",
+        "$proxy_add_x_forwarded_for",
+    }, f"the zone is keyed on {key}, which makes it a second per caller limit, not a global one"
+
+    if key == "$server_name":
+        # nginx does not limit at all when the key evaluates empty, silently.
+        # This is the one way the directive above can be present and do
+        # nothing, so it is the one worth an assertion.
+        names = [name.strip() for name in re.findall(r"server_name\s+([^;]+);", DIRECTIVES)]
+        assert names and all(names), (
+            f"the zone is keyed on $server_name and server_name is {names}: nginx skips "
+            "limiting entirely for an empty key, so the limit would be there and off"
+        )
+
+    applied = re.findall(r"limit_req\s+zone=(\w+)[^;]*;", DIRECTIVES)
+    assert applied, f"zone {name!r} is declared and nothing uses it"
+    assert set(applied) == {name}, f"a limit_req names a zone not declared here: {applied}"
+
+    proxying = [body for body in _blocks("location") if "proxy_pass" in body]
+    assert proxying, "no location proxies anything, so this test is reading nothing"
+    for body in proxying:
+        assert re.search(r"limit_req\s+zone=", body), (
+            "a location proxies to the API and carries no limit_req of its own. Sibling "
+            "locations do not inherit from one another and longest prefix wins, so a "
+            "limit_req on /api/ alone leaves /api/advice/ unlimited: " + " ".join(body.split())[:80]
+        )
+
+    rates = settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]
+    per_visitor = sum(_throttle_rate_per_second(rate) for rate in rates.values())
+    assert per_visitor > 0, rates
+    assert ceiling >= 50 * per_visitor, (
+        f"the global ceiling is {ceiling} r/s and DRF hands one visitor {per_visitor:.4f} r/s, "
+        f"so {ceiling / per_visitor:.0f} visitors at their full allowance reach it. That is "
+        "not comfortably above legitimate use."
     )
 
 
