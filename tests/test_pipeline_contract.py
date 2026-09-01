@@ -22,6 +22,8 @@ RULESET_SCRIPT = REPO_ROOT / "scripts" / "setup_rulesets.sh"
 PYPROJECT = REPO_ROOT / "pyproject.toml"
 PRE_COMMIT = REPO_ROOT / ".pre-commit-config.yaml"
 UV_LOCK = REPO_ROOT / "uv.lock"
+NVMRC = REPO_ROOT / "frontend" / ".nvmrc"
+FRONTEND_PACKAGE_JSON = REPO_ROOT / "frontend" / "package.json"
 #: The second place an image enters this project. Workflow service containers
 #: were the first, and until 2026-08-21 they were the only place anything read.
 INFRA_COMPOSE = REPO_ROOT / "infra" / "docker-compose.yml"
@@ -384,6 +386,29 @@ def test_pre_commit_and_the_lockfile_agree_on_ruff() -> None:
     hook_rev = next(repo["rev"] for repo in config["repos"] if "ruff-pre-commit" in repo["repo"])
     assert hook_rev.lstrip("v") == _locked_version("ruff"), (
         f"pre-commit pins ruff {hook_rev} but uv.lock has {_locked_version('ruff')}"
+    )
+
+
+def test_the_node_types_describe_the_node_that_actually_runs() -> None:
+    """`@types/node` major tracks the Node major it describes, so it is a claim
+    about the platform and not a dependency like any other.
+
+    Every Node-touching job in ci.yml takes its version from
+    `frontend/.nvmrc`. If the types say a later Node than the one the jobs
+    install, `tsc` type checks the code against a standard library that is not
+    there, and the failure is the quiet kind: green here, `undefined is not a
+    function` in production. Dependabot proposed exactly that on 2026-08-24,
+    six majors at once, and nothing in the pipeline objected because nothing
+    was reading these two files together.
+    """
+    node_major = NVMRC.read_text(encoding="utf-8").strip().split(".")[0]
+    package = json.loads(FRONTEND_PACKAGE_JSON.read_text(encoding="utf-8"))
+    declared = package["devDependencies"]["@types/node"]
+    types_major = re.match(r"[\^~]?(\d+)", declared)
+    assert types_major, f"cannot read a major version out of @types/node {declared!r}"
+    assert types_major.group(1) == node_major, (
+        f"frontend/.nvmrc installs Node {node_major} and package.json asks for "
+        f"@types/node {declared}; tsc would be checking against the wrong platform"
     )
 
 
