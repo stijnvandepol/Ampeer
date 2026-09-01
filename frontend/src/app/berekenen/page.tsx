@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChoiceQuestion } from "@/components/form/ChoiceQuestion";
 import { NumberQuestion } from "@/components/form/NumberQuestion";
@@ -8,7 +9,7 @@ import {
   ALL_QUESTION_COUNT,
   ROUND_ONE_QUESTION_COUNT,
 } from "@/components/form/Progress";
-import { QuestionShell } from "@/components/form/QuestionShell";
+import { NOTE_ID, QuestionShell } from "@/components/form/QuestionShell";
 import { RoofPicker } from "@/components/form/RoofPicker";
 import { postEstimate, postRefine } from "@/lib/api";
 import { BOUNDS, type Bound } from "@/lib/validation";
@@ -178,6 +179,51 @@ export default function BerekenenPage() {
   const titles = round === 1 ? ROUND_ONE_TITLES : ROUND_TWO_TITLES;
   const last = index === titles.length - 1;
 
+  /*
+   * Round two with no round one behind it, caught before it starts.
+   *
+   * The answers live in sessionStorage, which is per tab, and the advice page's
+   * only route onward is a link to `?ronde=2`. So somebody who saves their
+   * link, closes the tab and comes back the next day, which is the journey the
+   * product asks them to make, arrives here with nothing stored.
+   *
+   * What happened before 2026-09-01: the five questions were asked and
+   * answered, the progress bar claimed "Vraag 5 van 9" for four questions that
+   * were never answered, and pressing Bereken on the last one produced
+   * "Beantwoord deze vraag om verder te gaan" over a question that visibly was.
+   * `toRefineInput` returned null because the base was missing, and the flow
+   * reported that against whichever question happened to be on screen. Terug
+   * walked back through five answered questions and then off the form. Nothing
+   * anywhere named the actual problem.
+   *
+   * Checked here rather than at submit, because the honest moment to say "this
+   * needs the first four questions" is before asking five more.
+   */
+  if (round === 2 && toEstimateInput(answers) === null) {
+    return (
+      <div className="mx-auto w-full max-w-[var(--shell-max)] px-6 py-16">
+        <div className="flex w-full max-w-2xl flex-col gap-4">
+          <h1 className="text-2xl">De eerste vier vragen ontbreken nog</h1>
+          <p className="max-w-[60ch] text-ink-muted">
+            De vijf vragen hierna maken een antwoord scherper dat er al is, en
+            in dit browservenster staat dat antwoord er nog niet. Dat gebeurt
+            als u uw bewaarde link in een nieuw venster opent of op een ander
+            apparaat.
+          </p>
+          <p className="max-w-[60ch] text-ink-muted">
+            Beantwoord eerst de vier vragen over uw huis. Daarna kunt u
+            verfijnen.
+          </p>
+          <p>
+            <Link href="/berekenen/" className="button-accent">
+              Beantwoord vier vragen
+            </Link>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   async function submit() {
     setBusy(true);
     setFailure(null);
@@ -264,6 +310,11 @@ export default function BerekenenPage() {
           key="postcode4"
           id="postcode4"
           label="Postcode, alleen de vier cijfers"
+          // The one field in this flow with an honest autofill token. There is
+          // no autocomplete name for "watt-peak on my roof", and inventing one
+          // would hand a browser's saved address data to a field that is not an
+          // address.
+          autoComplete="postal-code"
           value={answers.postcode4}
           min={range.min}
           max={range.max}
@@ -329,6 +380,11 @@ export default function BerekenenPage() {
         key="annual-consumption-kwh"
         id="annual-consumption-kwh"
         label="Verbruik per jaar, zonder auto en warmtepomp"
+        // The note above this question is the sentence that stops a visitor
+        // entering their annual bill total, which is worth 176 to 184 euro of
+        // accuracy. It sat in a paragraph nothing pointed at, so a screen
+        // reader user tabbing into the field never heard it.
+        describedBy={NOTE_ID}
         value={answers.annualConsumptionKwh}
         min={range.min}
         max={range.max}

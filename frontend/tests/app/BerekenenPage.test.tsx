@@ -173,6 +173,7 @@ describe("the question flow", () => {
       screen.getByLabelText("Postcode, alleen de vier cijfers"),
       "999",
     );
+    await userEvent.tab();
     expect(screen.getByRole("alert")).toHaveTextContent("1000");
   });
 
@@ -244,7 +245,7 @@ describe("the question flow", () => {
     render(<BerekenenPage />);
     expect(
       screen.getByLabelText("Postcode, alleen de vier cijfers"),
-    ).toHaveValue(5401);
+    ).toHaveValue("5401");
   });
 
   it("checks no direction on the roof question before the visitor answers one", async () => {

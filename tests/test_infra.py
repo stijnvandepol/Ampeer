@@ -542,3 +542,72 @@ def test_the_server_runs_more_than_one_worker() -> None:
     workers = re.findall(r"--workers (\d+)", _gunicorn_command())
     assert len(workers) == 1, f"the server declares {workers} worker counts"
     assert int(workers[0]) > 1, "one worker serialises every advice behind the one before it"
+
+
+def _services() -> dict[str, Any]:
+    loaded: dict[str, Any] = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))
+    services: dict[str, Any] = loaded["services"]
+    return services
+
+
+def test_the_tunnel_can_reach_the_web_container_and_nothing_else() -> None:
+    """The one container facing the internet is not on the network the others share.
+
+    Cloudflare Tunnel makes every request to the origin internally between
+    `cloudflared` and the origin, so ``REMOTE_ADDR`` is always a bridge address
+    and there is no peer signal separating "arrived through nginx" from
+    "arrived from anything else on the bridge". While all four services sat on
+    one implicit default network, anything holding a position there could reach
+    ``api:8000`` around nginx and forge ``X-Forwarded-Proto``, which is
+    Django's only TLS signal, and ``X-Forwarded-For``, which is what the
+    throttle counts. Django's own ``SECURE_PROXY_SSL_HEADER`` documentation
+    makes "your proxy strips the header from all incoming requests" a
+    precondition for setting it, and a direct connection to the api does not
+    satisfy it.
+
+    ``tunnel`` is the likeliest holder of that position: the only image here not
+    built from this repository, and the only one that talks to the internet.
+    """
+    services = _services()
+    tunnel = set(services["tunnel"]["networks"])
+    api = set(services["api"]["networks"])
+    db = set(services["db"]["networks"])
+    web = set(services["web"]["networks"])
+
+    assert tunnel == {"edge"}, f"the tunnel is on {sorted(tunnel)} and should be on edge alone"
+    assert not tunnel & api, "the tunnel shares a network with the api and can reach it directly"
+    assert not tunnel & db, "the tunnel shares a network with the database"
+    # nginx is the bridge, and the only one.
+    assert tunnel & web, "the tunnel cannot reach nginx, so nothing can be served"
+    assert api & web, "nginx cannot reach the api, so nothing can be served"
+
+
+def test_every_service_says_which_network_it_is_on() -> None:
+    """A service with no `networks` key joins the default one silently.
+
+    That is how all four ended up sharing a network in the first place: nobody
+    wrote it down, so nobody read it. An addition made without this key would
+    quietly undo the split above and no assertion in this file would notice,
+    because the two tests there only look at the four services that exist
+    today.
+    """
+    missing = [name for name, body in _services().items() if "networks" not in body]
+    assert not missing, f"these services join the default network by omission: {missing}"
+
+
+def test_the_backend_network_can_still_reach_the_outside() -> None:
+    """`internal: true` on the back network would be a plausible tightening and
+    would break the product.
+
+    The api calls PVGIS, which is one of the three sources CLAUDE.md's allowlist
+    permits, and an internal network has no route out. The finding the split
+    above fixes is about INGRESS, which containers are reachable from the one
+    facing the internet, and marking the network internal answers a different
+    question by breaking the answer to this one.
+    """
+    loaded: dict[str, Any] = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))
+    back = loaded["networks"]["back"] or {}
+    assert not back.get("internal"), (
+        "back is marked internal, so the api can no longer reach PVGIS; see the "
+        "comment on the networks block"
+    )

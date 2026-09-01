@@ -92,6 +92,7 @@ Alleen als het bij u uitkomt. Voor een deel van de huishoudens is het antwoord n
 Ampeer
 Ampeer verkoopt geen panelen, geen batterijen en geen energiecontract, en plaatst geen advertenties.
 Beantwoord deze vraag om verder te gaan.
+Beantwoord eerst de vier vragen over uw huis. Daarna kunt u verfijnen.
 Beantwoord vier vragen
 Bedragen per kilowattuur, exclusief btw, op een vast contract. De veelgenoemde 3 tot 8 cent is de brutovergoeding, met de terugleverkosten er nog voor. Op een dynamisch contract blijft de vergoeding 5 tot 7 cent en positief. Zie
 Begin een nieuwe berekening
@@ -111,6 +112,7 @@ De batterij, doorgerekend
 De drie routes, en de gratis routes eerst
 De eerste vier cijfers van uw postcode, hoeveel wattpiek er ligt, hoe het dak ligt en uw jaarverbruik. Meer niet. Wij bouwen daar een kwartierprofiel van een heel jaar mee op, 35.040 kwartieren, en rekenen dat door op de tarieven van nu en die van 2027.
 De eerste vier cijfers van uw postcode, hoeveel wattpiek er op uw dak ligt, welke kant dat dak op ligt, en uw jaarverbruik.
+De eerste vier vragen ontbreken nog
 De hele doorrekening van de batterij
 De rekenserver gaf een antwoord dat wij niet konden lezen.
 De rekenserver had een storing. Probeer het straks opnieuw.
@@ -119,6 +121,7 @@ De rekenserver kon dit antwoord niet gebruiken:
 De salderingsregeling laat u de stroom die u teruglevert wegstrepen tegen de stroom die u afneemt. Dat wegstrepen stopt. U blijft leveren en afnemen, maar de twee worden niet meer tegen elkaar weggestreept.
 De schaal loopt van
 De vergoeding is wat u krijgt per teruggeleverde kilowattuur. De terugleverkosten zijn wat uw leverancier daarvoor in rekening brengt. De veelgenoemde 3 tot 8 cent is de vergoeding met de kosten er nog voor.
+De vijf vragen hierna maken een antwoord scherper dat er al is, en in dit browservenster staat dat antwoord er nog niet. Dat gebeurt als u uw bewaarde link in een nieuw venster opent of op een ander apparaat.
 De vorm van uw verbruik komt uit de standaardprofielen die netbeheerders publiceren. De opwek van uw dak komt uit PVGIS, de rekentool van de Europese Commissie, op basis van echte instralingsmetingen voor uw postcodegebied. De tarieven komen uit gepubliceerde cijfers, en welke dat zijn staat er per bedrag bij.
 De vragen worden klaargezet.
 De wasmachine, de vaatwasser en de droger draaien op het moment dat uw panelen leveren. Dit kost niets en het is bij veel huishoudens de grootste post.
@@ -269,7 +272,7 @@ Voor de meeste huishoudens wel, maar minder dan nu, en hoeveel minder verschilt 
 Voor huishoudens met zonnepanelen
 Voortgang
 Vraag
-Vul een getal in.
+Vul een getal in, zonder letters of spaties.
 Vul een heel getal in, zonder cijfers achter de komma.
 Vul hoogstens
 Vul minstens
@@ -408,6 +411,7 @@ van de 96 kwartieren gebruikte dit huishouden zijn eigen opwek,
 van het net gehaald
 var(
 vraag-titel
+vraag-toelichting
 vragen
 website
 yearly

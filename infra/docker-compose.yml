@@ -57,6 +57,7 @@ x-logging: &logging
 
 services:
   db:
+    networks: [back]
     image: postgres@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
     logging: *logging
     restart: unless-stopped
@@ -96,6 +97,7 @@ services:
       retries: 5
 
   api:
+    networks: [back]
     image: ghcr.io/stijnvandepol/ampeer-api:${AMPEER_VERSION}
     logging: *logging
     build:
@@ -136,6 +138,9 @@ services:
     # `depends_on: service_healthy` would never have released.
 
   web:
+    # Both, and the only service on both. That is what makes nginx the one path
+    # from the tunnel to Django.
+    networks: [edge, back]
     image: ghcr.io/stijnvandepol/ampeer-web:${AMPEER_VERSION}
     logging: *logging
     build:
@@ -172,6 +177,7 @@ services:
         condition: service_healthy
 
   tunnel:
+    networks: [edge]
     image: cloudflare/cloudflared@sha256:0aa26e284f05e6c77ae375b8c9c11d9eb6a448fb7bcd8d40f31cb6176189eb38
     logging: *logging
     restart: unless-stopped
@@ -179,6 +185,31 @@ services:
     depends_on:
       web:
         condition: service_started
+
+networks:
+  # Two networks, and the split is a security boundary rather than tidiness.
+  #
+  # Everything used to sit on one implicit default network. Cloudflare Tunnel
+  # makes every request to the origin internally between `cloudflared` and the
+  # origin, so REMOTE_ADDR is always a bridge address and there is no peer
+  # signal telling "came through nginx" apart from "came from anything else on
+  # the bridge". Anything holding a position on that flat network could reach
+  # api:8000 directly, around nginx, and then forge X-Forwarded-Proto, which is
+  # Django's only TLS signal, and X-Forwarded-For, which is what the throttle
+  # counts. Django's own SECURE_PROXY_SSL_HEADER documentation makes "your proxy
+  # strips the header from all incoming requests" a precondition for setting it
+  # at all; nginx satisfies that and a direct connection to api:8000 does not.
+  #
+  # The likeliest holder of that position is `tunnel`: the one image here that
+  # is not built from this repository and the only one that talks to the
+  # internet. It is now on `edge` alone, so it can reach `web` and nothing else.
+  #
+  # `back` is deliberately NOT `internal: true`. The api makes outbound calls to
+  # PVGIS, which CLAUDE.md's allowlist permits, and an internal network has no
+  # route out. The finding this fixes is about INGRESS: which containers can be
+  # reached from the one that faces the internet.
+  edge:
+  back:
 
 volumes:
   ampeer-db:
