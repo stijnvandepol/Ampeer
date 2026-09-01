@@ -673,6 +673,22 @@ def test_the_frontend_coverage_gate_still_measures_and_still_fails() -> None:
     assert 'include: ["src/**"]' in source, "coverage no longer includes src/**"
 
 
+def test_the_frontend_lint_gate_can_fail_on_a_warning() -> None:
+    """eslint exits 0 while it has only warnings to report.
+
+    So `pnpm lint` without `--max-warnings 0` is a step that runs the linter,
+    prints its findings into the job log, and passes. That is what it did until
+    2026-09-01, and three unused-variable warnings had been riding along in
+    green runs on that branch because of it. Adding the flag is only half the
+    fix; without this test the next person to find it noisy can take it back
+    out and the gate goes quiet again in a way no run would report.
+    """
+    scripts = json.loads(PACKAGE_JSON.read_text(encoding="utf-8"))["scripts"]
+    assert "--max-warnings 0" in scripts["lint"], (
+        f"pnpm lint cannot fail on a warning: {scripts['lint']}"
+    )
+
+
 def test_the_package_manager_is_pinned_by_hash() -> None:
     """corepack downloads and executes whatever the registry serves under this
     version unless the field carries an integrity hash.
