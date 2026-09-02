@@ -11,6 +11,12 @@ which is exactly what correct looks like: get_live filters on expires_at, so an
 unpurged row is invisible rather than absent. Those are two different promises
 and CLAUDE.md makes the stronger one. Without a check, the first person to find
 out that nothing was deleted is whoever reads a database backup.
+
+Three tables and one promise. StoredAdvice is the promise; the throttle counters
+and ProductionCache are here because they are the two tables beside it that
+nothing else ever deletes, and a retention that only covers the table somebody
+remembered is not a retention. Only the first of the three is in --check, and
+the reason is written above each of the other two.
 """
 
 from __future__ import annotations
@@ -24,13 +30,39 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import connection
 from django.utils import timezone
 
-from advice.models import StoredAdvice
+from advice.models import ProductionCache, StoredAdvice
 
 #: How long a row is allowed to sit past its expires_at before --check calls it
 #: a failure. The timer fires daily, so a timer that has not run yet today is
 #: normal and must not be reported as a broken retention promise. One day is the
 #: smallest window that tells those two apart.
 GRACE_DAYS = 1
+
+#: How old a ProductionCache row may get before this command drops it.
+#:
+#: The reason is not staleness, and saying so is the point. PVGIS data about a
+#: closed weather year does not change, so a row written a year ago is exactly
+#: as correct as one written this morning and deleting it buys no accuracy. The
+#: reason is that ProductionCache is the one table in this schema that only ever
+#: grows: nothing expires it, nothing reads fetched_at, and every row holds two
+#: compressed year-long series. It is bounded now, because advice/serializers.py
+#: groups the two roof angles and there are 41,040 reachable keys rather than
+#: 2,956,590, but bounded is not the same as swept, and the bound is still
+#: gigabytes of series that no request will ever ask for again.
+#:
+#: A year rather than a month because a year is the period on which the keys
+#: themselves turn over. AMPEER_WEATHER_YEAR advances roughly annually, and the
+#: moment it does every row carrying the old value is unreachable forever, since
+#: weather_year is part of the unique key. A yearly sweep therefore spends most
+#: of its deletions on rows nothing could read.
+#:
+#: What it costs when it is wrong is one PVGIS call. fetched_at is stamped once
+#: at write and never touched on a read, so this is an age and not a last-used
+#: time: a roof that is asked about every week is deleted on the same schedule
+#: as one nobody has asked about since. The next visitor who asks for it waits
+#: for the fetch and fills the row again, which is the cost the cache exists to
+#: pay once rather than a wrong answer.
+PRODUCTION_CACHE_MAX_AGE_DAYS = 365
 
 #: base.py already names this, precisely so the migration that creates the
 #: table and the code that reads it cannot drift. Imported rather than
@@ -58,6 +90,31 @@ class Command(BaseCommand):
         deleted, _ = StoredAdvice.objects.filter(expires_at__lte=timezone.now()).delete()
         self.stdout.write(f"deleted {deleted} expired advice(s)")
         self.stdout.write(f"deleted {self._purge_throttle_counters()} expired throttle row(s)")
+        self.stdout.write(
+            f"deleted {self._purge_production_cache()} production cache row(s) past "
+            f"{PRODUCTION_CACHE_MAX_AGE_DAYS} day(s)"
+        )
+
+    def _purge_production_cache(self) -> int:
+        """Give fetched_at its first reader.
+
+        The column has existed since the first migration and models.py said what
+        it was for in as many words: a later cleanup remains possible. Nothing
+        read it, so "possible" was the whole of it, and a table that only grows
+        with a timestamp nobody looks at is indistinguishable from a table that
+        only grows.
+
+        Not in --check. That mode reports one thing, which is that the ninety
+        day retention promise in docs/dpia.md has stopped being kept, and it
+        exits non-zero on the host and in the deploy. This table carries no
+        personal detail at all, only a postcode century and two roof angles, so
+        an unswept row here is a disk question and not a broken promise. Putting
+        it in --check would turn a deploy red over housekeeping and teach
+        somebody to stop reading the check.
+        """
+        cutoff = timezone.now() - timedelta(days=PRODUCTION_CACHE_MAX_AGE_DAYS)
+        deleted, _ = ProductionCache.objects.filter(fetched_at__lt=cutoff).delete()
+        return int(deleted)
 
     def _purge_throttle_counters(self) -> int:
         """Delete the rate limiter's expired rows, which nothing else does.

@@ -19,9 +19,10 @@ import json
 from collections.abc import Iterator
 from decimal import Decimal
 
+import numpy as np
 import pytest
 
-from advice.rendering import money, render
+from advice.rendering import ROUTE_ORDER, money, render
 from ampeer_advice.nl import SIZING_BASIS_TEXTS
 from ampeer_advice.types import (
     Advice,
@@ -32,7 +33,7 @@ from ampeer_advice.types import (
     ScenarioBand,
 )
 from ampeer_sim.economics.sensitivity import band_from_differences
-from ampeer_sim.types import Band, ProductionSource, Result
+from ampeer_sim.types import Band, EnergyFlows, ProductionSource, Result
 
 #: What the bands in this file say they moved and held. The real ones get these
 #: from ampeer_advice.tariffs and ampeer_advice.advise.
@@ -62,6 +63,19 @@ RESULT = Result(
     weather_year=2023,
 )
 
+#: Four quarters, which is not a year and does not need to be: nothing in this
+#: file packs them. `render` never touches the flows, and that is the property
+#: the two tests at the bottom rest on.
+FLOWS = EnergyFlows(
+    consumption=np.array([0.4, 0.4, 0.4, 0.4]),
+    production=np.array([0.0, 0.9, 0.9, 0.0]),
+    self_consumption=np.array([0.0, 0.4, 0.4, 0.0]),
+    from_grid=np.array([0.4, 0.0, 0.0, 0.4]),
+    to_grid=np.array([0.0, 0.5, 0.5, 0.0]),
+    battery_charge=np.zeros(4),
+    battery_discharge=np.zeros(4),
+)
+
 ADVICE = Advice(
     engine_version="0.1.0",
     advice_version="0.1.0",
@@ -76,6 +90,7 @@ ADVICE = Advice(
     ),
     routes=(Route.SHIFT_BEHAVIOUR, Route.SMART_CONTROL, Route.STORAGE),
     battery=None,
+    flows=FLOWS,
 )
 
 BATTERY = BatteryAdvice(
@@ -493,3 +508,85 @@ def test_the_whole_response_survives_json_serialisation() -> None:
     production."""
     payload = render(_advice_with_battery(("CONSIDER_BATTERY",)), RESULT, token="abc123")
     assert json.loads(json.dumps(payload)) == payload
+
+
+def test_the_order_the_rules_fire_in_is_the_order_the_reader_is_shown() -> None:
+    """Two notions of route order, and nothing tied them together.
+
+    `evaluate` sorts the fired rules on `Route.value`. `_routes` builds the
+    blocks a reader sees by walking `ROUTE_ORDER`, a tuple written out by hand
+    in this module. They agree today because the enum happens to carry 1, 2 and
+    3 in the same sequence that tuple lists.
+
+    Nothing said they had to. Changing `Route.STORAGE` to 0 leaves the rendered
+    blocks in their old order while the fired list, and therefore
+    `recommended_route`, puts storage first. The reader would then be shown the
+    free routes at the top of the page and told a battery is the first thing to
+    do.
+
+    Derived from both sides rather than written out a third time. The literal
+    order already has a test above; this one is about the two agreeing.
+    """
+    from ampeer_advice.rules import RULES
+    from ampeer_advice.types import Route
+
+    by_value = sorted(Route, key=lambda route: route.value)
+    assert by_value == list(ROUTE_ORDER), (
+        f"evaluate would present {[route.name for route in by_value]} and this module "
+        f"renders {[route.name for route in ROUTE_ORDER]}"
+    )
+    assert {rule.route for rule in RULES} <= set(ROUTE_ORDER), (
+        "a rule now names a route the renderer never walks, so its advice reaches nobody"
+    )
+
+
+#: A stand-in for what `advice.serializers.year_field` returns. Written out
+#: here rather than built by calling that function, because what is under test
+#: on this side of the boundary is that `render` passes an object through
+#: unchanged and does not decide anything about it. Building a real one would
+#: also make this file the third module that reaches into the wire format,
+#: which `tests/test_advice_series.py` pins to two.
+A_YEAR: dict[str, object] = {
+    "own": "AAEC",
+    "meter": "gIAB",
+    "ceilings": {"own": 0.4, "export": 0.5, "grid": 0.4},
+    "provenance": "SYNTHETIC",
+    "quarters": 35040,
+}
+
+
+def test_the_year_arrives_under_its_own_key_exactly_as_it_was_handed_over() -> None:
+    """The key name is a published contract and this file may not edit the value.
+
+    `render` is not allowed to touch the object: the one function that builds
+    it is also the one that decides whether a measured series may leave at all,
+    so a renderer that rewrote a key here would be a second author of a payload
+    with one checked author. Identity rather than equality says so precisely.
+    """
+    payload = render(ADVICE, RESULT, token="abc123", year=A_YEAR)
+
+    assert payload["year"] is A_YEAR
+    assert set(payload["year"]) == {"own", "meter", "ceilings", "provenance", "quarters"}
+    assert json.loads(json.dumps(payload))["year"] == A_YEAR
+
+
+def test_an_advice_without_a_year_is_a_response_with_no_year_key_at_all() -> None:
+    """The other way round, which is the half that keeps the field optional.
+
+    Absent and not null. A `null` here would say a year was built and came out
+    empty, which is what `battery` and `saving_eur` mean by it a few keys away;
+    a missing key says none was built. The frontend is given an optional
+    object, and the fixture it is developed against is produced by a caller
+    that passes no year, so this is the shape it renders today rather than a
+    theoretical branch.
+
+    Everything else in the response has to be identical between the two, or the
+    year would be changing an answer instead of adding a picture to it.
+    """
+    without = render(ADVICE, RESULT, token="abc123")
+    with_year = render(ADVICE, RESULT, token="abc123", year=A_YEAR)
+
+    assert "year" not in without
+    assert json.loads(json.dumps(without)) == without
+    assert set(with_year) - set(without) == {"year"}
+    assert {key: value for key, value in with_year.items() if key != "year"} == without

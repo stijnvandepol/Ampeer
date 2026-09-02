@@ -87,9 +87,9 @@ def test_the_state_of_charge_never_leaves_its_bounds(
     offers: list[float], wants: list[float]
 ) -> None:
     battery = Battery(SPEC)
-    for offered, wanted in zip(offers, wants, strict=False):
-        battery.charge(offered)
-        battery.discharge(wanted)
+    for quarter, (offered, wanted) in enumerate(zip(offers, wants, strict=False)):
+        battery.charge(offered, quarter)
+        battery.discharge(wanted, quarter)
         assert -1e-12 <= battery.soc_kwh <= SPEC.usable_capacity_kwh + 1e-12
 
 

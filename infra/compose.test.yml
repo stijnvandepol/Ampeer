@@ -95,12 +95,21 @@ services:
     # --no-interpolate is not a detail. Plain `docker compose config` prints
     # every variable with its value substituted, and three of the values in
     # this stack are credentials. Measured on 2026-08-21 against the production
-    # file with a placeholder env file, the merged output contained
-    # `--token <the connector token>` on the line below, plus DJANGO_SECRET_KEY
-    # and POSTGRES_PASSWORD twice, all in cleartext on a terminal and in
-    # whatever scrollback or CI log that terminal writes to. --no-interpolate
-    # prints `${CLOUDFLARE_TUNNEL_TOKEN}` instead, which answers every question
-    # about the shape of the document and none about its secrets.
+    # file with a placeholder env file, the merged output contained the
+    # connector token, plus DJANGO_SECRET_KEY and POSTGRES_PASSWORD twice, all
+    # in cleartext on a terminal and in whatever scrollback or CI log that
+    # terminal writes to. --no-interpolate prints
+    # `${CLOUDFLARE_TUNNEL_TOKEN}` instead, which answers every question about
+    # the shape of the document and none about its secrets.
+    #
+    # The token moved off the command line on 2026-09-01, because argv is
+    # readable through /proc by every local account where an environment is
+    # not. It is now `TUNNEL_TOKEN` under `environment:`, and this paragraph
+    # used to say the merged output carried `--token` on the line below, which
+    # stopped being true with that move. What did not change is the reason for
+    # the flag: `docker compose config` substitutes an environment value just
+    # as readily as a command line one, so the token is still printed in
+    # cleartext without it.
     #
     # It is not deleted, because a compose override cannot delete a service and
     # faking it with an inert command would produce a container that is up and

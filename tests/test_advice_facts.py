@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from ampeer_advice.facts import build_context
-from ampeer_advice.types import Confidence
+from ampeer_advice.types import AdviceContext, Confidence
 from ampeer_sim.engine.run import simulate
 from ampeer_sim.timebase import YearGrid
 from ampeer_sim.types import Band, Household, ProductionSource, Result
@@ -25,7 +25,9 @@ def _result() -> Result:
     )
 
 
-def _context(consumption: np.ndarray, production: np.ndarray, **household_kwargs: object):
+def _context(
+    consumption: np.ndarray, production: np.ndarray, **household_kwargs: object
+) -> AdviceContext:
     household = Household(postcode4="5401", annual_consumption_kwh=3_500.0, **household_kwargs)  # type: ignore[arg-type]
     flows = simulate(consumption, production)
     return build_context(

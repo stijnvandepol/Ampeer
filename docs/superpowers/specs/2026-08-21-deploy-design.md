@@ -92,9 +92,10 @@ een job achterlaat is er de volgende keer nog, en dat is precies de eigenschap d
 gecompromitteerde job permanent maakt.
 
 Daar komt bij wat al eerder is vastgesteld en waarom `tests/test_pipeline_contract.py`
-faalt op elke job die `self-hosted` zegt: de workflows draaien op `push` naar `feat/**`,
-waar geen ruleset geldt, dus een job die de self-hosted runner koos zou ongereviewde code
-binnen Stijns eigen netwerk draaien. Die test blijft staan, met één uitzondering die
+faalt op elke job die `self-hosted` zegt: `ci.yml` draait op `push` naar `feat/**`,
+waar geen ruleset geldt, dus een job daar die de self-hosted runner koos zou ongereviewde
+code binnen Stijns eigen netwerk draaien. `security.yml` is smaller en begint pas bij een
+pull request; de weigering geldt toch voor allebei. Die test blijft staan, met één uitzondering die
 expliciet benoemd moet worden: de deploy-job draait op `push` van een **tag** op `main`,
 niet op een branch, en heeft `environment: production` met een verplichte review.
 
@@ -382,6 +383,9 @@ veilige helft van een ruil, en de prijs is een regel:
 
 Die regel is van hieruit niet af te dwingen. Wat wel afgedwongen is, is de winst: een
 migratie die faalt stopt de deploy terwijl de vorige release nog heel is en nog bedient.
+Dat is op 21 augustus 2026 met een opzettelijk kapotte migratie tegen een draaiende stack
+nagespeeld; hoofdstuk 5 van `infra/README.md` zet de metingen erbij, inclusief de nuance
+dat een release met meer dan een migratie de gelukte migraties toegepast achterlaat.
 `test_the_migration_runs_before_the_traffic_switches` bewaakt de volgorde, en
 `test_the_migration_runs_after_the_images_are_verified` bewaakt de andere kant ervan:
 migreren voor de digest-controle zou een omgehangen tag naar de database laten schrijven,

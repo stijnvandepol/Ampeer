@@ -8,6 +8,7 @@ enforced by nothing. A comment does not fail a build. These run inside the
 from __future__ import annotations
 
 import json
+import os
 import re
 import tomllib
 from pathlib import Path
@@ -119,6 +120,115 @@ def test_every_action_is_pinned_to_a_commit_sha() -> None:
     assert not unpinned, f"unpinned actions: {unpinned}"
 
 
+#: A `uses:` line, taken apart: the action, the SHA it is pinned to, and the
+#: version the comment claims that SHA is.
+#:
+#: The comment is optional in this pattern on purpose. A line that has no
+#: comment has to be reported by name rather than silently skipped, and a
+#: pattern that required one would simply not match it.
+_USES = re.compile(r"uses:\s*([^@\s]+)@([0-9a-f]{40})\s*(?:#\s*(\S+))?")
+
+
+def _pinned_actions() -> list[tuple[str, str, str, str | None]]:
+    """Every action the workflows use, as (where, action, sha, version)."""
+    found: list[tuple[str, str, str, str | None]] = []
+    for path in sorted(WORKFLOW_DIR.glob("*.yml")):
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if "uses:" not in line:
+                continue
+            match = _USES.search(line)
+            if match is None:
+                continue  # the test above is what reports a line with no SHA
+            action, sha, version = match.groups()
+            found.append((f"{path.name}:{number}", action, sha, version))
+    return found
+
+
+def test_every_pinned_action_says_which_version_its_sha_is() -> None:
+    """The other half of the rule, and the half that makes the first readable.
+
+    CLAUDE.md asks for a commit SHA "met de versie als comment erachter". The
+    test above enforces the SHA. Nothing enforced the comment, and without it
+    the pin is forty characters that no reviewer can place: there is no way to
+    tell whether 3d3c42e5 is checkout v7 or checkout v2, so a bump cannot be
+    reviewed and a downgrade looks the same as an upgrade.
+    """
+    naked = [
+        f"{where}: {action}@{sha[:8]}"
+        for where, action, sha, version in _pinned_actions()
+        if version is None
+    ]
+    assert not naked, (
+        "these actions are pinned to a SHA with no version beside it:\n  "
+        + "\n  ".join(naked)
+        + "\nAdd the tag it points at as a trailing comment, which is what makes "
+        "the next bump reviewable."
+    )
+
+
+def test_one_sha_never_carries_two_version_numbers() -> None:
+    """A stale comment is worse than a missing one, and this is how it happens.
+
+    Bumping an action means changing two things on one line. Change the SHA and
+    leave the comment and the line now states a version it is not, confidently,
+    in a file nobody rereads. The same SHA appears in several workflows here, so
+    updating four of five occurrences leaves the fifth contradicting the rest,
+    and that contradiction is decidable without asking GitHub anything.
+
+    What cannot be decided here is whether the comment is right about the SHA at
+    all. That needs the tag list from the API, and this project does not reach
+    outward from a test.
+    """
+    versions: dict[str, set[str]] = {}
+    where: dict[str, list[str]] = {}
+    for place, action, sha, version in _pinned_actions():
+        if version is None:
+            continue
+        versions.setdefault(sha, set()).add(version)
+        where.setdefault(sha, []).append(f"{place} {action} {version}")
+    disagreeing = {sha: sorted(seen) for sha, seen in versions.items() if len(seen) > 1}
+    assert not disagreeing, "one commit is described as two versions:\n  " + "\n  ".join(
+        f"{sha[:8]} is called {sorted(versions[sha])}: {where[sha]}" for sha in disagreeing
+    )
+
+
+def test_one_version_of_an_action_never_carries_two_shas() -> None:
+    """The same contradiction from the other side.
+
+    Half-finishing a bump leaves the old SHA under the new version number
+    somewhere, which reads as though two commits are both v7.0.1. It is the
+    likelier direction, because the comment is the part a person edits by hand.
+    """
+    shas: dict[tuple[str, str], set[str]] = {}
+    for _, action, sha, version in _pinned_actions():
+        if version is None:
+            continue
+        shas.setdefault((action, version), set()).add(sha)
+    split = {key: sorted(seen) for key, seen in shas.items() if len(seen) > 1}
+    assert not split, "one version is pinned to two different commits:\n  " + "\n  ".join(
+        f"{action}@{version} is pinned to {[sha[:8] for sha in seen]}"
+        for (action, version), seen in split.items()
+    )
+
+
+def test_the_action_scan_reads_the_workflows() -> None:
+    """The floor under the three above, all of which are statements about a set.
+
+    A pattern that stopped matching, a workflow directory that moved, or a
+    `uses:` written in another shape would leave every one of them green over an
+    empty list. Measured on 2026-08-22: 23 uses lines across three workflows,
+    naming 7 distinct actions.
+    """
+    pinned = _pinned_actions()
+    assert len(pinned) >= 20, f"only {len(pinned)} pinned actions found under {WORKFLOW_DIR}"
+    actions = {action for _, action, _, _ in pinned}
+    assert len(actions) >= 6, f"only these actions were parsed: {sorted(actions)}"
+    assert "actions/checkout" in actions, (
+        "no workflow checks out the repository, which would be a larger change than "
+        "anything this test is written for"
+    )
+
+
 #: The one job allowed on the self-hosted runner, as (workflow file, job name).
 #:
 #: Added 2026-08-21 with the deploy. The rule below is why no unreviewed code
@@ -140,9 +250,11 @@ SELF_HOSTED_EXCEPTIONS = frozenset({("deploy.yml", "deploy")})
 def test_no_job_runs_on_the_self_hosted_runner() -> None:
     """A self-hosted runner is registered on this repository.
 
-    These workflows trigger on push to feat/**, which no ruleset protects. A job
-    that selected self-hosted would run unreviewed code inside the owner's own
-    network. Nothing here may target it except the one job named in
+    ci.yml triggers on push to feat/**, which no ruleset protects, so a job
+    there that selected self-hosted would run unreviewed code inside the owner's
+    own network. security.yml is narrower and its earliest trigger is a pull
+    request; this refusal covers every workflow anyway, and
+    test_only_ci_triggers_on_a_feature_branch_push keeps that sentence true. Nothing here may target it except the one job named in
     SELF_HOSTED_EXCEPTIONS above, which is reachable only by pushing a tag and
     only through a review.
 
@@ -289,7 +401,15 @@ GATED_ROOTS = ("ampeer_sim", "ampeer_advice", "backend", "tools")
 
 
 def _run_steps(workflow: str, job: str) -> list[str]:
+    """The shell commands a job runs, refusing a job with no steps at all.
+
+    The emptiness that matters is the job's, not this filter's: a job made
+    entirely of actions has no `run` step and that is fine. A job with no steps
+    is a job whose shape changed, and the gate comparisons below would then
+    report agreement about nothing.
+    """
     steps = _workflows()[workflow]["jobs"][job].get("steps", [])
+    assert steps, f"{workflow}:{job} declares no steps"
     return [str(step["run"]) for step in steps if "run" in step]
 
 
@@ -466,6 +586,7 @@ FRONTEND_GATES = (
 
 def _steps(workflow: str, job: str) -> list[dict[str, Any]]:
     steps: list[dict[str, Any]] = _workflows()[workflow]["jobs"][job].get("steps", [])
+    assert steps, f"{workflow}:{job} declares no steps"
     return steps
 
 
@@ -575,6 +696,22 @@ def test_the_frontend_coverage_gate_still_measures_and_still_fails() -> None:
     )
     source = VITEST_CONFIG.read_text(encoding="utf-8")
     assert 'include: ["src/**"]' in source, "coverage no longer includes src/**"
+
+
+def test_the_frontend_lint_gate_can_fail_on_a_warning() -> None:
+    """eslint exits 0 while it has only warnings to report.
+
+    So `pnpm lint` without `--max-warnings 0` is a step that runs the linter,
+    prints its findings into the job log, and passes. That is what it did until
+    2026-09-01, and three unused-variable warnings had been riding along in
+    green runs on that branch because of it. Adding the flag is only half the
+    fix; without this test the next person to find it noisy can take it back
+    out and the gate goes quiet again in a way no run would report.
+    """
+    scripts = json.loads(PACKAGE_JSON.read_text(encoding="utf-8"))["scripts"]
+    assert "--max-warnings 0" in scripts["lint"], (
+        f"pnpm lint cannot fail on a warning: {scripts['lint']}"
+    )
 
 
 def test_the_package_manager_is_pinned_by_hash() -> None:
@@ -723,8 +860,11 @@ GATE_FRAGMENTS = {
     "uv run ruff format --check ampeer_sim ampeer_advice backend tests tools": (
         "uv run ruff format --check ampeer_sim ampeer_advice backend tests tools"
     ),
-    "uv run mypy ampeer_sim ampeer_advice backend tools": (
-        "uv run mypy ampeer_sim ampeer_advice backend tools"
+    "uv run mypy ampeer_sim ampeer_advice backend tests tools": (
+        "uv run mypy ampeer_sim ampeer_advice backend tests tools"
+    ),
+    "uv run shellcheck --severity=style --format=gcc $(git ls-files '*.sh')": (
+        "uv run shellcheck --severity=style --format=gcc"
     ),
     "uv run python backend/manage.py check --deploy --fail-level WARNING": (
         "uv run python backend/manage.py check --deploy --fail-level WARNING"
@@ -732,7 +872,10 @@ GATE_FRAGMENTS = {
     "uv run pre-commit run --all-files --show-diff-on-failure": (
         "uv run pre-commit run --all-files --show-diff-on-failure"
     ),
-    "uv run pytest --cov --cov-report=term-missing": "uv run pytest --cov --cov-report=term-missing",
+    'uv run pytest -m "not perf" --cov --cov-report=term-missing': (
+        'uv run pytest -m "not perf" --cov --cov-report=term-missing'
+    ),
+    "uv run pytest -m perf": "uv run pytest -m perf",
     "uv run bandit -c pyproject.toml -r ampeer_sim ampeer_advice backend tools": (
         "uv run bandit -c pyproject.toml -r ampeer_sim ampeer_advice backend tools"
     ),
@@ -820,4 +963,166 @@ def test_the_local_runner_lists_no_command_the_pipeline_stopped_running(command:
     assert command in _workflow_commands(), (
         f"`{command}` is listed here but no workflow runs it any more; remove the "
         "entry rather than leaving it to vouch for a gate that is gone"
+    )
+
+
+#: Every file that explains the self-hosted refusal by naming what a push to an
+#: unprotected branch can start. Each one has to name the workflows that
+#: actually do it and no others.
+#:
+#: All five said "ci.yml and security.yml", or "the workflows", until
+#: 2026-08-21. security.yml has never triggered on a feature push: its push
+#: trigger names dev alone and its earliest reach is a pull request. The rule
+#: those sentences justify is right and stays; the reason given for it
+#: overstated the exposure of one of the two workflows, in five places at once,
+#: because each was copied from the last.
+CLAIMS_ABOUT_FEATURE_PUSHES = (
+    ".github/workflows/deploy.yml",
+    "infra/README.md",
+    "tests/test_pipeline_contract.py",
+    "tests/test_deploy_workflow.py",
+    "docs/superpowers/specs/2026-08-21-deploy-design.md",
+)
+
+
+def _push_branches(workflow: dict[Any, Any]) -> list[str]:
+    """The branches a workflow triggers on for a push, past the YAML trap.
+
+    PyYAML resolves an unquoted `on` key to the boolean True, so reading
+    `document["on"]` finds nothing and every assertion of the form "this does
+    not trigger on X" passes on a workflow that triggers on everything.
+    """
+    block = workflow.get("on", workflow.get(True))
+    assert block, "the workflow declares no triggers at all"
+    push = block.get("push") or {}
+    branches = push.get("branches") or []
+    return [str(branch) for branch in branches]
+
+
+def _workflows_started_by_a_feature_push() -> set[str]:
+    return {
+        name
+        for name, workflow in _workflows().items()
+        if any(branch.startswith("feat/") for branch in _push_branches(workflow))
+    }
+
+
+def test_only_ci_triggers_on_a_feature_branch_push() -> None:
+    """The fact five comments rest on, measured instead of repeated.
+
+    It is the reason `test_no_job_runs_on_the_self_hosted_runner` exists, and it
+    is the kind of sentence that gets copied from file to file and then quietly
+    stops being true when a trigger moves. Asserting the set rather than the
+    presence of ci.yml, so a second workflow gaining that trigger fails here and
+    has to be written into the five files below rather than widening what they
+    already claim.
+    """
+    assert _workflows_started_by_a_feature_push() == {"ci.yml"}, (
+        f"a feature push now starts {sorted(_workflows_started_by_a_feature_push())}; "
+        "the comments listed in CLAIMS_ABOUT_FEATURE_PUSHES describe the old set"
+    )
+
+
+#: The wordings that were wrong, each split in two so this file does not
+#: contain the phrases it refuses. The first attempt spelled them out and failed
+#: on itself, which is the same shape as a `# nosec` comment that explains what
+#: follows a `# nosec` comment: a check that reads text cannot quote the text it
+#: rejects. Neither half is a forbidden phrase on its own.
+WRONG_WORDINGS = (
+    ("ci.yml and secu", "rity.yml trigger on push"),
+    ("`ci.yml` and `secu", "rity.yml` trigger on push"),
+    ("These workflows trig", "ger on push to feat"),
+    ("the workflows trig", "ger on push"),
+    ("de workflows draai", "en op `push` naar `feat/**`"),
+)
+
+
+@pytest.mark.parametrize("path", CLAIMS_ABOUT_FEATURE_PUSHES)
+def test_no_file_still_says_the_security_workflow_runs_on_a_feature_push(path: str) -> None:
+    """The exact wordings that were wrong, refused by name.
+
+    A looser check would be a check on prose, which this repository has learned
+    not to trust: an earlier version of the methodology test searched a whole
+    document for a figure and passed on the paragraph that explained it rather
+    than the table that carried it.
+    """
+    text = (REPO_ROOT / path).read_text(encoding="utf-8")
+    for head, tail in WRONG_WORDINGS:
+        assert head + tail not in text, f"{path} still says {head + tail!r}"
+
+
+#: Directories whose contents are not this repository's own source: installed
+#: packages, build output, and the profile data that is not committed.
+_NOT_OURS = ("/.venv/", "/node_modules/", "/.git/", "/out/", "/data/", "/.next/", "/htmlcov/")
+
+_TEST_REFERENCE = re.compile(r"tests/test_[a-z0-9_]+\.py")
+
+
+def _files_that_can_carry_a_reference() -> list[Path]:
+    """Every file of ours that could name a test, pruned during the walk.
+
+    Pruned rather than filtered afterwards: rglob descends into .venv and
+    node_modules first and discards them second, which cost fourteen seconds
+    against a suite that runs in forty. A test slow enough to be noticed is a
+    test somebody eventually runs with -k.
+    """
+    suffixes = {".py", ".sh", ".yml", ".yaml", ".ts", ".tsx", ".md", ".toml", ".conf"}
+    skip = {name.strip("/") for name in _NOT_OURS}
+    found: list[Path] = []
+    for directory, subdirectories, filenames in os.walk(REPO_ROOT):
+        subdirectories[:] = [name for name in subdirectories if name not in skip]
+        for filename in filenames:
+            path = Path(directory) / filename
+            if path.suffix in suffixes:
+                found.append(path)
+    return found
+
+
+def test_every_test_file_named_in_a_comment_exists() -> None:
+    """This repository explains itself by naming the test that holds each rule.
+
+    Thirty-seven places do it on 2026-08-22: a constant says which pairing
+    guards it, a workflow says which test recomputes its digest, a shell script
+    says what would catch its drift. That is the habit this codebase is built
+    on, and it is only worth anything while the file named is the file that
+    exists.
+
+    A rename is what breaks it, and it breaks silently: the comment still reads
+    like a guarantee, the reader goes looking, finds nothing, and has no way to
+    tell whether the guard moved or was deleted. Nothing else in the suite
+    would notice, because a comment cannot fail a build.
+
+    Only the path is checked. Whether the named test still asserts what the
+    comment says it asserts is not mechanically knowable, and pretending
+    otherwise would be its own false guarantee.
+    """
+    missing: dict[str, set[str]] = {}
+    for path in _files_that_can_carry_a_reference():
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:  # pragma: no cover - binary with a text suffix
+            continue
+        for reference in set(_TEST_REFERENCE.findall(text)):
+            if not (REPO_ROOT / reference).is_file():
+                missing.setdefault(reference, set()).add(path.relative_to(REPO_ROOT).as_posix())
+    assert not missing, "comments name test files that do not exist:\n" + "\n".join(
+        f"  {reference} named in {sorted(where)}" for reference, where in sorted(missing.items())
+    )
+
+
+def test_the_reference_scan_actually_reads_this_repository() -> None:
+    """The half that keeps the test above from passing on nothing.
+
+    A pattern that matched nothing, a suffix list that excluded the workflows,
+    or an exclusion that swallowed the tree would all leave the assertion above
+    trivially true. It has to find the references that are known to be there.
+    """
+    found = {
+        reference
+        for path in _files_that_can_carry_a_reference()
+        for reference in _TEST_REFERENCE.findall(path.read_text(encoding="utf-8", errors="ignore"))
+    }
+    assert len(found) >= 5, f"only found {sorted(found)}; the scan is not reading the repository"
+    assert "tests/test_pipeline_contract.py" in found, (
+        "the workflows no longer name this file, which would be a bigger change than a rename"
     )

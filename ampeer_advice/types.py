@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum, auto
 
-from ampeer_sim.types import Band
+from ampeer_sim.types import Band, EnergyFlows
 
 
 class Route(Enum):
@@ -215,3 +215,32 @@ class Advice:
     fired: tuple[FiredRule, ...]
     routes: tuple[Route, ...]
     battery: BatteryAdvice | None
+    #: The simulated year the whole advice is measured on, quarter by quarter.
+    #:
+    #: The raw arrays and not the packed wire object, and that is a boundary
+    #: rather than a preference. The packing, the base64 and the provenance
+    #: stamp live in ``backend/advice/series.py``, which is part of the Django
+    #: project; ``backend/advice/assembly.py`` already imports this package, so
+    #: reaching the other way would make the pure half depend on the web half
+    #: and close the loop. CLAUDE.md asks for the opposite: the layer where a
+    #: fault produces a plausible number rather than an error has to be
+    #: testable with no server anywhere near it.
+    #:
+    #: It is also the honest division. Which bytes a browser receives, how many
+    #: bits each direction gets and whether the series may be served at all are
+    #: decisions about a payload. Nothing here knows there is an HTTP response,
+    #: and an ``EncodedYear`` on this dataclass would mean this package had
+    #: chosen a wire format.
+    #:
+    #: ``EnergyFlows`` whole rather than the three series the wire wants,
+    #: because those three are a reading of these flows and the reading belongs
+    #: at the boundary that publishes it. Handing over ``own``, ``export`` and
+    #: ``grid`` would put a wire-shaped triple in the pure package and leave
+    #: nobody able to check the reading against what the engine returned.
+    #:
+    #: These are the flows of the household as it was described, before any
+    #: free route is applied. That is the year the headline band prices and the
+    #: year a visitor recognises as theirs; the counterfactual years measured
+    #: further down ``advise`` are answers to "what if", and drawing one of
+    #: those would show somebody a year they have not lived.
+    flows: EnergyFlows

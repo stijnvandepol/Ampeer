@@ -1,0 +1,112 @@
+/*
+ * The feature card: a light that follows the pointer, and an edge that turns
+ * with it.
+ *
+ * TUNING, all on .card:
+ *   --spot-size      radius of the light
+ *   --spot-strength  how bright it gets
+ *   --edge-strength  how bright the near part of the border gets
+ *   --spot-ease      how long the light takes to arrive and leave
+ *
+ * --spot-x, --spot-y, --spot-angle and --spot-lit are written by the component
+ * on every pointer move. They are declared here so the card renders correctly
+ * before a pointer has ever touched it, and so a browser with no pointer at all
+ * gets a card rather than a card with `var()` holes in it.
+ */
+
+.card {
+  --spot-size: 22rem;
+  --spot-strength: 0.1;
+  --edge-strength: 0.55;
+  --spot-ease: 240ms;
+  --spot-x: 50%;
+  --spot-y: 50%;
+  --spot-angle: 0deg;
+  --spot-lit: 0;
+
+  position: relative;
+  isolation: isolate;
+  border: 1px solid var(--colour-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--colour-surface-raised);
+  padding: var(--space-5);
+  overflow: hidden;
+}
+
+/*
+ * The light. A radial gradient positioned by the two custom properties, on its
+ * own layer under the content.
+ *
+ * Only `opacity` is eased. Easing the position as well makes the light trail
+ * the cursor, which does not read as smooth, it reads as slow.
+ */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: var(--spot-lit);
+  transition: opacity var(--spot-ease) var(--ease-standard);
+  background: radial-gradient(
+    var(--spot-size) circle at var(--spot-x) var(--spot-y),
+    color-mix(
+      in srgb,
+      var(--colour-accent) calc(var(--spot-strength) * 100%),
+      transparent
+    ),
+    transparent 65%
+  );
+}
+
+/*
+ * The border, drawn as a conic gradient behind the card and clipped to a one
+ * pixel ring by a mask. This is why the card needs `isolation` and a
+ * background: the ring lives outside the padding box and the content sits on an
+ * opaque surface above it.
+ *
+ * The angle comes from the pointer, so the bright arc is the part of the edge
+ * nearest the cursor. A constantly spinning gradient would be motion with no
+ * cause, which on this product is the kind that reads as decoration.
+ */
+.card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  opacity: calc(var(--spot-lit) * var(--edge-strength));
+  transition: opacity var(--spot-ease) var(--ease-standard);
+  background: conic-gradient(
+    from var(--spot-angle),
+    var(--colour-accent),
+    transparent 25%,
+    transparent 75%,
+    var(--colour-accent)
+  );
+  mask:
+    linear-gradient(black, black) content-box,
+    linear-gradient(black, black);
+  mask-composite: exclude;
+}
+
+/*
+ * No pointer, no light, and nothing to fade. The component attaches no
+ * listeners under this preference, so --spot-lit stays at 0 and both layers are
+ * already invisible; this only stops the transition itself from running if a
+ * value is ever set some other way.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .card::before,
+  .card::after {
+    transition: none;
+  }
+}
+
+/*
+ * Forced colors drops background-image entirely, so both layers vanish and the
+ * card keeps its border and its text. Nothing is lost, because neither layer
+ * carries information: they are light.
+ */

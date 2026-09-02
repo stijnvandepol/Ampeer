@@ -15,6 +15,7 @@ and no Node, and it fails on the side where the response is produced.
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 from pathlib import Path
@@ -62,6 +63,37 @@ def test_the_fixture_matches_what_the_renderer_produces() -> None:
     assert live == committed, "the API response shape changed; regenerate the fixture"
 
 
+def test_the_committed_fixture_is_byte_for_byte_what_the_generator_writes() -> None:
+    """The fixture claims to be generated. This is what makes that true.
+
+    The shape comparison above catches a response whose keys changed. It does
+    not catch an edit to a value, because a hand-changed euro amount is still
+    the same shape, and the frontend builds every one of its own tests against
+    this file. A fixture somebody adjusted by hand to make a test pass is a
+    description of a response that never existed, which is the whole reason
+    tests/helpers/advice_fixture.py calls the real renderer.
+
+    Bytes rather than parsed content, because the file is also in
+    frontend/.prettierignore on the grounds that the generator is its author.
+    That claim and this assertion are the same statement seen from two sides:
+    if a formatter or an editor rewrites it, the generator is no longer its
+    author and this fails.
+    """
+    import sys
+
+    sys.path.insert(0, str(REPO_ROOT / "tests"))
+    from helpers.advice_fixture import build_reference_payload
+
+    written = json.dumps(build_reference_payload(), indent=2, ensure_ascii=False) + "\n"
+    committed = FIXTURE.read_text(encoding="utf-8")
+    assert committed == written, (
+        "frontend/tests/fixtures/advice-response.json is not what "
+        "tests/helpers/advice_fixture.py produces. Regenerate it with\n"
+        "    uv run python tests/helpers/advice_fixture.py\n"
+        "rather than editing it, and do not run a formatter over it."
+    )
+
+
 def test_every_amount_crosses_the_wire_as_a_string() -> None:
     """JSON has floats and no decimals, so an amount that goes through a JSON
     number is rounded by whichever parser touches it last."""
@@ -95,10 +127,20 @@ def test_the_typescript_types_name_every_key_the_response_has() -> None:
     declared = TYPES.read_text(encoding="utf-8")
     missing: list[str] = []
 
+    def is_named(key: str) -> bool:
+        """Whether `types.ts` names this key, required or optional.
+
+        A field the API may leave out is declared `readonly year?: ...`, and
+        that names the key just as surely as the required form. Both spellings
+        keep the colon in the pattern, so `year` is not satisfied by a
+        neighbouring `yearly`.
+        """
+        return any(f"readonly {key}{mark}:" in declared for mark in ("", "?"))
+
     def walk(node: Any, path: str) -> None:
         if isinstance(node, dict):
             for key, value in node.items():
-                if f"readonly {key}:" not in declared:
+                if not is_named(key):
                     missing.append(f"{path}.{key}")
                 walk(value, f"{path}.{key}")
         elif isinstance(node, list):
@@ -446,12 +488,43 @@ def test_every_bound_the_serializer_enforces_has_a_copy_in_the_form() -> None:
     assert not missing, f"serializers.py bounds these and BOUNDS does not mention them: {missing}"
 
 
+def test_every_bound_the_form_applies_is_one_the_serializer_also_applies() -> None:
+    """The direction neither of the two above walks.
+
+    One asserts every Python bound has a copy in the form. The other compares
+    the values of the fields both of them know about, and skipped a field the
+    serializer does not bound: `if field in authoritative` reads as caution and
+    is a hole. A BOUNDS entry with nothing behind it means the form refuses
+    something the API would have accepted, and the visitor is stopped by our
+    own message rather than by a rule.
+
+    That is the quieter half of the two failures validation.ts describes in its
+    own opening. Too loose produces a 400 the visitor can at least see; too
+    tight produces a form that will not go on, for a reason that exists nowhere
+    but here.
+    """
+    authoritative = _serializer_bounds()
+    invented = sorted(set(_frontend_bounds()) - set(authoritative))
+    assert not invented, (
+        f"BOUNDS refuses values for {invented} and serializers.py bounds none of them, "
+        "so the form is stricter than the API and the difference lives only in the "
+        "frontend"
+    )
+
+
 def test_every_bound_in_the_form_is_the_bound_the_serializer_enforces() -> None:
+    """The values themselves, for every field the form bounds.
+
+    No longer skipping a field the serializer does not know: the test above
+    makes that case impossible, and a comparison that steps over its own
+    unknowns reports agreement it never checked. Reported here rather than
+    raising a KeyError, so the two failures read the same way.
+    """
     authoritative = _serializer_bounds()
     disagreements = [
-        f"{field}: the form says {bound}, serializers.py says {authoritative[field]}"
+        f"{field}: the form says {bound}, serializers.py says {authoritative.get(field, 'nothing')}"
         for field, bound in _frontend_bounds().items()
-        if field in authoritative and bound != authoritative[field]
+        if authoritative.get(field) != bound
     ]
     assert not disagreements, f"the API wins; fix validation.ts: {disagreements}"
 
@@ -503,4 +576,122 @@ def test_the_third_copy_of_the_postcode_range_agrees_with_the_first() -> None:
     )
     assert literals == {low, high}, (
         f"postcodeText names {sorted(literals)} and the range is {low} to {high}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The address, not just the shape
+# ---------------------------------------------------------------------------
+
+ROOT_URLS = REPO_ROOT / "backend" / "ampeer" / "urls.py"
+ADVICE_URLS = REPO_ROOT / "backend" / "advice" / "urls.py"
+NGINX = REPO_ROOT / "infra" / "nginx" / "nginx.conf"
+API_TS = REPO_ROOT / "frontend" / "src" / "lib" / "api.ts"
+
+#: A path this frontend asks the API for, quoted or in a template literal.
+_CALLED_PATH = re.compile(r"""["'`](/api/[^"'`]*)["'`]""")
+
+#: What a template literal interpolates, flattened so a token and a postcode
+#: read the same. What matters is the shape of the address, not the value.
+_INTERPOLATION = re.compile(r"\$\{[^}]*\}")
+
+
+def _api_prefix() -> str:
+    """Where Django mounts the advice API, from the root URL configuration.
+
+    Django is the only place that decides this. nginx forwards it and the
+    frontend asks for it, and both of those are copies.
+    """
+    tree = ast.parse(ROOT_URLS.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and getattr(node.func, "id", "") == "path"):
+            continue
+        if len(node.args) < 2 or not isinstance(node.args[0], ast.Constant):
+            continue
+        included = node.args[1]
+        if (
+            isinstance(included, ast.Call)
+            and getattr(included.func, "id", "") == "include"
+            and included.args
+            and isinstance(included.args[0], ast.Constant)
+            and included.args[0].value == "advice.urls"
+        ):
+            return "/" + str(node.args[0].value)
+    raise AssertionError(f"{ROOT_URLS.name} no longer mounts advice.urls anywhere")
+
+
+def _api_routes() -> set[str]:
+    """Every fixed route under that prefix, from the app's own URL configuration.
+
+    The token route is a re_path over a pattern rather than a literal, so it is
+    not a name that can be compared. It is answered for below by allowing one
+    interpolated segment.
+    """
+    tree = ast.parse(ADVICE_URLS.read_text(encoding="utf-8"))
+    return {
+        str(node.args[0].value)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and getattr(node.func, "id", "") == "path"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+    }
+
+
+def test_every_path_the_frontend_calls_is_one_the_backend_serves() -> None:
+    """The shape was checked and the address was not.
+
+    This file already argues that two codebases sharing a JSON shape with no
+    shared check is how a frontend ends up showing something the backend did
+    not mean. The address is the same argument one step earlier: the fixture
+    can be perfect and every call can still land on a 404.
+
+    `/api/advice/` is written out in fifteen places across this repository, and
+    each of them asserted its own half. Change the mount in
+    backend/ampeer/urls.py and the Python tests keep passing, because they use
+    reverse(); the frontend tests keep passing, because they mock; the nginx
+    test keeps passing, because it checks that its own block exists. Only a
+    visitor finds out.
+
+    Django decides, so Django is read. Everything else here is a copy.
+    """
+    prefix = _api_prefix()
+    routes = _api_routes()
+    assert routes, f"{ADVICE_URLS.name} declares no routes at all"
+
+    called = {
+        _INTERPOLATION.sub("<dynamic>", path)
+        for path in _CALLED_PATH.findall(API_TS.read_text(encoding="utf-8"))
+    }
+    assert called, f"{API_TS.name} asks the API for nothing; this test read nothing"
+
+    wrong = []
+    for path in sorted(called):
+        if not path.startswith(prefix):
+            wrong.append(f"{path} is not under {prefix}")
+            continue
+        rest = path[len(prefix) :]
+        if rest == "<dynamic>/" or rest in routes:
+            continue
+        wrong.append(f"{path} asks for {rest!r}, which is not one of {sorted(routes)}")
+    assert not wrong, "the frontend calls addresses the backend does not serve:\n  " + "\n  ".join(
+        wrong
+    )
+
+
+def test_nginx_forwards_the_prefix_django_answers_on() -> None:
+    """The third copy, and the one that fails in production rather than in a test.
+
+    nginx has its own location for this prefix, with a log format that keeps a
+    token out of the access log. If Django moves and nginx does not, the block
+    stops matching, requests fall through to the general /api/ location, and
+    the promise about tokens in logs quietly stops applying to the one path it
+    was written for.
+    """
+    prefix = _api_prefix()
+    text = NGINX.read_text(encoding="utf-8")
+    assert re.search(rf"location\s+{re.escape(prefix)}\s*\{{", text), (
+        f"nginx.conf has no location block for {prefix}, which is where Django now "
+        "answers. Requests would fall through to the generic /api/ block and lose the "
+        "log format that keeps tokens out of the access log."
     )

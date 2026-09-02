@@ -43,3 +43,121 @@ The old table was found to be wrong by the calibration against the measured
 national feed-in profile: it put the annual peak in May, where the country peaks
 in June, and made November brighter than October. Both were properties of 2020
 rather than of the Netherlands.
+
+## Revised on 2026-08-26, engine 0.2.0
+
+Every self consumption rate moved. Five went up by between 0.001 and 0.009 and
+`sander_heat_pump` went down by 0.006. Neither the households nor the engine's
+rules changed: the offline production model did, in two ways, and the sizes
+below say which of the two each household felt.
+
+The daily shape used to run 06:00 to 18:00 in continuous winter time while
+solar noon at the location the yield table was measured at is 12:38, so the
+whole modelled day sat 38 minutes early. It is now centred on solar noon.
+Separately, the shape's peak was scaled by a closed form that integrated a sine
+and then sampled it at twelve points, which ran 0.29 percent above the table it
+is built from; each hour is now an exact integral and the scaling divides by
+what the shape actually sums to.
+
+The two were measured apart rather than attributed by eye, holding the household
+fixed and moving the centre back to 12:00:
+
+| household | 0.1.0 | normalisation only | and centred |
+|---|---|---|---|
+| hand_checkable | 0.9381 | 0.9390 | 0.9391 |
+| large_array_small_use | 0.1134 | 0.1136 | 0.1194 |
+| marloes_ev_at_night | 0.2557 | 0.2562 | 0.2647 |
+| marloes_ev_on_solar | 0.7572 | 0.7587 | 0.7661 |
+| rob_fixed_contract | 0.3320 | 0.3327 | 0.3410 |
+| sander_heat_pump | 0.5032 | 0.5041 | 0.4977 |
+
+That splits cleanly and the split is the check on it. `hand_checkable` is the
+only household with a perfectly flat demand, and it is the only one the centring
+barely touches: a flat consumer cannot care what time the sun peaks, so its
+whole move is the normalisation, and 0.29 percent less production against an
+unchanged absorbed amount is a slightly higher rate. Every household with a
+shape to its demand moves on the centring instead, by ten to thirty times as
+much as the normalisation gave it.
+
+`sander_heat_pump` is the one that goes the other way, and it is the one worth
+reading rather than accepting. He is the only household home during the day, and
+his heat pump draws on temperature, which lags sunrise by less than production
+does. His demand therefore peaks before solar noon, so moving production 38
+minutes later moves it away from him. The direction is the opposite of the other
+five for a reason that is a property of the household and not of the change.
+
+The gap between the two `marloes` rows is 0.5014 against 0.5015 before. That
+pair is the one this file says must not collapse, and a tenth of a percentage
+point is not a collapse: both rows moved up by almost exactly the same amount,
+which is what a change to the production model rather than to the advice should
+do to two households that differ only in when they charge.
+
+## Not revised on 2026-08-27, engine 0.3.0
+
+Engine 0.3.0 moved the production a visitor is shown by a full hour and not one
+number in `households.json` changed. That is worth writing down, because a
+golden file that stands still through an engine bump is the shape a stale golden
+file also has.
+
+The reason is the sentence four paragraphs up: these six households are computed
+with the offline fallback table, on purpose, so that the suite needs no network.
+0.3.0 repaired the other provider. PVGIS timestamps its hourly rows in UTC and
+the grid runs in continuous winter time, which is UTC plus one, and nothing
+converted between them, so hour i of the response was placed at hour i of the
+grid and every kilowatt hour on the live path sat an hour early. The fallback
+was never on UTC: its day is built around solar noon in winter time, which is
+what the 2026-08-26 revision above is about, so there was nothing here to move.
+
+What did move, measured on 2026-08-27 on the reference household of
+`tests/test_calibration.py`, 3500 kWh and 3.5 kWp facing south at 35 degrees in
+postcode 5401, weather year 2023 and profile year 2025, against a flat
+consumption shape:
+
+| | before | after |
+|---|---|---|
+| self consumption | 28.16 percent | 29.13 percent |
+| export | 2583 kWh | 2548 kWh |
+| offtake | 2487 kWh | 2452 kWh |
+| end of net metering, 2027 tariffs | 665,21 euro | 656,20 euro |
+
+Every one of those moves in the direction the physics predicts. A south facing
+array put an hour early peaks at 11:00 instead of 12:00, which is further from
+the evening a household is home in, so less of the year's production meets
+demand: self consumption falls, and both meter directions rise because the
+kilowatt hours that no longer meet each other have to travel. The euro figure
+follows the export, which is what the 2027 regime prices.
+
+Two consequences of this file not moving. The check that catches the same error
+next time is not here but in `tests/test_calibration.py`, which now runs PVGIS's
+own measured hour of the day back through the provider offline. And the golden
+answers pinned in `tests/test_golden.py` carry a 0.3.0 row identical to the
+0.2.0 one, which is the honest entry rather than a missing one.
+
+### 2026-08-27, the twenty minutes that hour did not reach, and why nothing here moved either
+
+A review that afternoon measured what the rotation above had left. PVGIS stamps
+its hourly rows ten minutes past the hour and `YearGrid.hourly_to_quarters`
+anchors an hourly value half past, so the PVGIS series still sits twenty minutes
+late: no whole rotation can move a series by a third of an hour. Measured on the
+same reference household, the same day, against a live PVGIS call: 28,71 percent
+self consumption and 660,12 euro where the shipping engine gives 29,13 and
+656,20. Almost four euro, and this one understates the shock where the hour
+overstated it.
+
+Not one figure in `households.json` moves with it, and this is the second time
+that is a finding rather than an omission. These six run on `FallbackProvider`,
+whose day is built in the grid's own winter time as hour means and is correctly
+anchored at half past, so the stamp offset is a fact about the other provider
+only. `ENGINE_VERSION` therefore stays at 0.3.0: decision 8 says the version
+moves when the numbers do, and no number in `ampeer_sim` moved. What changed is
+what the repository says about itself, which is comments, a chapter and four
+tests.
+
+That the goldens cannot see either half of this is the standing weakness of this
+file, and it now has a check of its own. `tests/test_calibration.py` holds the
+two providers against each other for the first time: they place the same roof's
+day 15,6 minutes apart, of which 20,0 is the stamp offset and 4,4 is a real
+disagreement running the other way, since the offline half sine is symmetric
+about solar noon and PVGIS's nine years are morning heavy. Before that pairing
+existed, one provider could drift a whole hour from the other with every test in
+the repository green, which is exactly what happened for a year.

@@ -2,6 +2,14 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Status on 2026-08-22: delivered.** Every file this plan names is in the tree,
+> which `tests/test_plans.py` asserts for all six plans and fails on the day one
+> of them stops being true. The checkboxes below were never ticked while the work
+> was carried out, so read them as the task list this plan was written with and
+> not as work that is waiting. What the test cannot say is whether each step was
+> carried out the way it is written here; that is what the commit history and the
+> suite are for.
+
 **Goal:** Make `dev` the branch where work happens and `main` a branch nothing reaches without passing five automated gates, including the owner's own commits.
 
 **Architecture:** Two GitHub Actions workflows publish six checks; a repository ruleset requires five of them on `main`. Dependencies move to uv with a committed lockfile so the developer machine, the CI runner and the future LXC install byte-identical sets. Fast checks also run locally through pre-commit; slow ones stay in CI where they cannot be skipped.

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from ampeer_sim.production.pvgis import PVGIS_STAMP_MINUTES_PAST_HOUR
 from ampeer_sim.timebase import QUARTERS_PER_DAY, QUARTERS_PER_HOUR, YearGrid
 from ampeer_sim.types import EV, EVChargingBehaviour, HeatPump
 
@@ -17,13 +18,6 @@ ARRIVAL_WINDOW = (17, 21)
 
 #: A heat pump never does worse than a resistive heater.
 MIN_COP = 1.0
-
-
-def _window_mask(grid: YearGrid, window: tuple[int, int]) -> np.ndarray:
-    start, end = window
-    if start < end:
-        return (grid.local_hour >= start) & (grid.local_hour < end)
-    return (grid.local_hour >= start) | (grid.local_hour < end)
 
 
 def _charging_priority(in_window: np.ndarray) -> np.ndarray:
@@ -49,7 +43,7 @@ def _allocate_daily(
             f"charging {daily_need.max():.1f} kWh a day needs more than charge_power_kw="
             f"{cap * QUARTERS_PER_HOUR}"
         )
-    in_window = _window_mask(grid, window).reshape(grid.days, QUARTERS_PER_DAY)
+    in_window = grid.window_mask(window).reshape(grid.days, QUARTERS_PER_DAY)
     series = np.zeros((grid.days, QUARTERS_PER_DAY))
     for day in range(grid.days):
         remaining = float(daily_need[day])
@@ -111,16 +105,29 @@ def ev_grid_topup(ev: EV, grid: YearGrid, solar_charged_kwh: np.ndarray) -> np.n
 
 
 def heat_pump_profile(
-    pump: HeatPump, temperature_c: np.ndarray, grid: YearGrid, weather_year: int
+    pump: HeatPump,
+    temperature_c: np.ndarray,
+    grid: YearGrid,
+    weather_year: int,
+    anchor_minutes_past_hour: float = PVGIS_STAMP_MINUTES_PAST_HOUR,
 ) -> np.ndarray:
     """Return quarter-hour heat pump electricity consumption in kWh.
 
     Heat demand follows degree hours below the base temperature. The COP falls
     with the outdoor temperature, which is why a flat COP understates winter
     consumption in exactly the months without production.
+
+    ``anchor_minutes_past_hour`` says where inside its hour a temperature
+    reading sits, and it defaults to PVGIS's stamp for the same reason
+    ``ampeer_sim.production.model`` does, with one more: the temperature this
+    function is handed comes off the same PVGIS rows as the production series,
+    in the same call, so anchoring the two differently would describe one
+    response on two clocks. Hand it
+    ``ampeer_sim.timebase.HOURLY_MEAN_ANCHOR_MINUTES`` for a series of hourly
+    means.
     """
     aligned = grid.align_hourly_year(temperature_c, weather_year=weather_year)
-    quarterly_temperature = grid.hourly_to_quarters(aligned)
+    quarterly_temperature = grid.hourly_to_quarters(aligned, anchor_minutes_past_hour)
 
     degree_steps = np.clip(pump.base_temperature_c - quarterly_temperature, 0.0, None)
     total = float(degree_steps.sum())

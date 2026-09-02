@@ -6,6 +6,7 @@ import { BandlessFigureView } from "@/components/band/BandlessFigureView";
 import { HeadlineBand } from "@/components/band/HeadlineBand";
 import { RouteSection } from "@/components/band/RouteSection";
 import { ScenarioBandFigure } from "@/components/band/ScenarioBandFigure";
+import { YearCarpet } from "@/components/carpet/YearCarpet";
 import { getAdvice } from "@/lib/api";
 import type { Advice, BatteryAdvice } from "@/lib/types";
 import { tokenFromPath } from "../_advice/link";
@@ -240,7 +241,31 @@ function Provenance({ advice }: { readonly advice: Advice }) {
         <dd>{advice.profile_year}</dd>
         <dt>Weerjaar</dt>
         <dd>{advice.weather_year}</dd>
+        {advice.modelled_consumption_kwh !== undefined && (
+          <>
+            <dt>Verbruik</dt>
+            <dd>{advice.modelled_consumption_kwh.value} kWh</dd>
+          </>
+        )}
       </dl>
+      {/*
+        Why that consumption figure is what it is, in the API's own words.
+        It is on the page rather than in a log because of what it lets a
+        visitor catch: the question asks for consumption without a car and a
+        heat pump, and somebody who answered it with the total off their annual
+        bill is otherwise indistinguishable from somebody who answered it
+        correctly. They lose between a quarter and half of their answer with
+        nothing anywhere saying so. This is the one place they can see the
+        number the model actually used and recognise it, or fail to.
+      */}
+      {advice.modelled_consumption_kwh !== undefined && (
+        <p
+          data-role="modelled-consumption"
+          className="max-w-prose text-sm text-ink-muted"
+        >
+          {advice.modelled_consumption_kwh.basis_text}
+        </p>
+      )}
       {/*
         The sentence, not the enum. production_source arrives as "PVGIS" or
         "FALLBACK", which is for a machine; the API sends the Dutch beside it so
@@ -379,6 +404,14 @@ export default function AdviesPage() {
               label={advice.confidence_label}
             />
           </section>
+
+          {/*
+            The evidence under the figure, and only when the API sent it. The
+            field is optional on the wire, so a build talking to an older API
+            renders the page it rendered before the field existed rather than a
+            gap where a plate should be.
+          */}
+          {advice.year !== undefined && <YearCarpet year={advice.year} />}
 
           {advice.routes.map((route) => (
             <RouteSection key={route.route} route={route} />

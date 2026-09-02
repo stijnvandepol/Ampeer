@@ -59,7 +59,27 @@ class ProfileComparison:
         return max(abs(bucket.gap) for bucket in self.monthly + self.hourly)
 
 
-def _normalise(series: np.ndarray) -> np.ndarray:
+def _normalise(series: np.ndarray, grid: YearGrid) -> np.ndarray:
+    """Turn a series into shares, after checking it belongs to this grid.
+
+    The length check is the point. ``hourly_share`` selects with a boolean mask
+    the grid's own length, so numpy refuses a series of another length for it,
+    while ``monthly_share`` walks month boundaries by index and numpy clips a
+    slice that runs past the end without a word. Measured on 2026-08-23 with a
+    365 day grid: a leap year series returns shares summing to 0.997268, and a
+    series 30000 values long returns shares summing to exactly 1.000000 with
+    January at 0.0992 where it should be 0.0849. The second is the dangerous
+    one, because a total of one is what a healthy answer looks like.
+
+    Both go through here, so both now refuse the same input for the same stated
+    reason rather than one raising an IndexError about boolean indexing and the
+    other returning a plausible wrong distribution.
+    """
+    if series.shape != (grid.quarters,):
+        raise ValueError(
+            f"a {grid.year} grid holds {grid.quarters} quarters and this series carries "
+            f"{series.shape[0]}, so its buckets would not be the ones being compared"
+        )
     total = float(series.sum())
     if total <= 0.0:
         raise ValueError("cannot compare the shape of a series that exports nothing")
@@ -68,7 +88,7 @@ def _normalise(series: np.ndarray) -> np.ndarray:
 
 def monthly_share(series: np.ndarray, grid: YearGrid) -> tuple[float, ...]:
     """The fraction of the annual total that falls in each calendar month."""
-    normalised = _normalise(series)
+    normalised = _normalise(series, grid)
     shares = []
     start = 0
     for month in range(1, 13):
@@ -81,7 +101,7 @@ def monthly_share(series: np.ndarray, grid: YearGrid) -> tuple[float, ...]:
 
 def hourly_share(series: np.ndarray, grid: YearGrid) -> tuple[float, ...]:
     """The fraction of the annual total that falls in each hour of the local day."""
-    normalised = _normalise(series)
+    normalised = _normalise(series, grid)
     return tuple(float(normalised[grid.local_hour == hour].sum()) for hour in range(HOURS_PER_DAY))
 
 

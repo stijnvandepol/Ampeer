@@ -87,18 +87,18 @@ def simulate(
         surplus = produced - direct
         deficit = consumed - direct
 
-        stored = battery.charge(surplus)
+        stored = battery.charge(surplus, step)
         battery_charge[step] = stored
         surplus -= stored
 
-        delivered = battery.discharge(deficit)
+        delivered = battery.discharge(deficit, step)
         battery_discharge[step] = delivered
         deficit -= delivered
 
         if allow_grid_charging and charge_wanted[step] > 0.0:
-            grid_charge[step] = battery.charge(charge_wanted[step])
+            grid_charge[step] = battery.charge(charge_wanted[step], step)
         if discharge_wanted[step] > 0.0:
-            grid_discharge[step] = battery.discharge(discharge_wanted[step])
+            grid_discharge[step] = battery.discharge(discharge_wanted[step], step)
 
         from_grid[step] = deficit
         to_grid[step] = surplus

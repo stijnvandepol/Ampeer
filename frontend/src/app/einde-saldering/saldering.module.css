@@ -1,0 +1,213 @@
+/*
+ * The product page.
+ *
+ * On the same fluid type scale as the landing page, and with one thing the
+ * landing page does not have: sections that arrive as they are scrolled to.
+ * That is the only movement here and it carries no meaning, which is why it is
+ * allowed to be nothing more than polish: a reader who never sees it has
+ * missed nothing, because the un-animated state is the finished state.
+ */
+
+.page {
+  width: 100%;
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: clamp(2.5rem, 1.5rem + 4vw, 5rem) 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(2.5rem, 2rem + 2vw, 4rem);
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.eyebrow {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--colour-ink-subtle);
+}
+
+.title {
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  line-height: 1.1;
+  text-wrap: balance;
+  max-width: 20ch;
+}
+
+.lead {
+  font-size: var(--text-lg);
+  color: var(--colour-ink-muted);
+  max-width: 60ch;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.heading {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  text-wrap: balance;
+}
+
+.subheading {
+  font-size: var(--text-base);
+  font-weight: 600;
+  margin-top: 0.75rem;
+}
+
+.body {
+  color: var(--colour-ink-muted);
+  max-width: 62ch;
+}
+
+.act {
+  margin-top: 0.5rem;
+}
+
+/*
+ * The three routes, numbered, because the order is information rather than
+ * decoration: the two free routes come first and that is a rule the product
+ * holds itself to, not a layout preference. An unordered list would say the
+ * three are interchangeable.
+ */
+.routes {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: route;
+}
+
+.route {
+  counter-increment: route;
+  border-left: 2px solid var(--colour-border-strong);
+  padding-left: 1rem;
+}
+
+.route::before {
+  content: counter(route);
+  display: block;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: var(--text-xs);
+  color: var(--colour-ink-subtle);
+}
+
+.routeName {
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.routeText {
+  color: var(--colour-ink-muted);
+  max-width: 62ch;
+  margin-top: 0.25rem;
+}
+
+.unknowns {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.unknown {
+  color: var(--colour-ink-muted);
+  max-width: 62ch;
+  border-top: 1px solid var(--colour-border-strong);
+  padding-top: 0.75rem;
+}
+
+.faq {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin: 0;
+}
+
+.question {
+  font-weight: 600;
+}
+
+.answer {
+  color: var(--colour-ink-muted);
+  max-width: 62ch;
+  margin: 0.25rem 0 0;
+}
+
+.close {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: flex-start;
+  border-top: 1px solid var(--colour-border-strong);
+  padding-top: clamp(1.5rem, 1rem + 2vw, 2.5rem);
+}
+
+.note {
+  font-size: var(--text-sm);
+  color: var(--colour-ink-subtle);
+}
+
+/*
+ * The one piece of scroll-driven motion on this site.
+ *
+ * A progress timeline rather than a clock: the section's own position in the
+ * viewport drives it, so nothing starts before a reader has arrived and nothing
+ * is missed by arriving late. `both` with keyframes that END at the natural
+ * state is what makes every fallback correct: a browser without `view()`, a
+ * reader with prefers-reduced-motion, and a print stylesheet all get the
+ * finished section, because the finished section is what the element is
+ * without this rule.
+ *
+ * globals.css sets `animation-timeline: none !important` under
+ * prefers-reduced-motion. That line was added the same day as this rule and it
+ * is the reason this one is allowed to exist: forcing `animation-duration` to
+ * zero, which is what that block did before, does nothing at all to an
+ * animation a timeline drives.
+ */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .section {
+      animation: arrive linear both;
+      animation-timeline: view();
+      animation-range: entry 8% entry 42%;
+    }
+  }
+}
+
+/*
+ * Transform only. No opacity, and that is a correction rather than a taste.
+ *
+ * The first version faded each section in from zero, and axe found nineteen
+ * contrast failures on this page: text at partial opacity composites against
+ * the surface, and #bec3c7 on white is 1,77:1 where the token underneath it is
+ * measured and passes. The reported colours were the giveaway, because none of
+ * them is in globals.css at all.
+ *
+ * It is not only a checker being strict. Every one of those moments is a real
+ * one, on a real screen, for a reader whose eyes are already on the text. An
+ * animation may not make what it is revealing harder to read on the way in.
+ * A rise costs nothing in contrast, because moving text is still the same
+ * colour.
+ */
+@keyframes arrive {
+  from {
+    transform: translateY(0.9rem);
+  }
+  to {
+    transform: none;
+  }
+}

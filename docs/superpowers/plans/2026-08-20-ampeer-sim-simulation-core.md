@@ -2,6 +2,14 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Status on 2026-08-22: delivered.** Every file this plan names is in the tree,
+> which `tests/test_plans.py` asserts for all six plans and fails on the day one
+> of them stops being true. The checkboxes below were never ticked while the work
+> was carried out, so read them as the task list this plan was written with and
+> not as work that is waiting. What the test cannot say is whether each step was
+> carried out the way it is written here; that is what the commit history and the
+> suite are for.
+
 **Goal:** Build `ampeer_sim`, a standalone Python package that turns four to nine self-reported answers into a quarter-hourly energy simulation and a money figure with a measured uncertainty band, without any meter connection.
 
 **Architecture:** A pure-Python package with no I/O of its own. External data (NEDU standard consumption profiles, PVGIS production and temperature, day-ahead prices) enters through injected providers defined as `Protocol` types. Energy quantities are `float` in numpy arrays; money is `Decimal` and only appears in `economics/tariffs.py`. The package must never import Django; CI enforces this.

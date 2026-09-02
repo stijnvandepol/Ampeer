@@ -6,18 +6,39 @@ address forever and believe it was stored, and a typo in a real field name reads
 as an omission. And every number is bounded on both sides, because an unbounded
 number is not a wrong answer but a way to make the server compute.
 
-The Dutch strings here are validation messages, not advice. Advice sentences
-live only in ``ampeer_advice.nl``, keyed by rule id, because that package must
-not know an HTTP form exists.
+No Dutch is written here. The messages this module refuses with are validation
+messages rather than advice, so they cannot live in ``ampeer_advice.nl``, which
+must not know an HTTP form exists; they live in ``advice.nl`` instead, keyed by
+an English id, and this file names the id. Until 2026-08-26 they were typed out
+below, which put nine sentences a stranger reads inside the rules that decide
+what is refused. tests/test_advice_serializers.py fails if one comes back.
+
+One thing here runs the other way. ``year_field`` at the bottom validates what
+this service is about to send rather than what it just received, and it is the
+only function that turns an ``advice.series.EncodedYear`` into the object the
+response carries. It is a serializer and not a dict literal for two reasons:
+the published contract the frontend builds against is then declared in one
+place rather than described in a comment, and the rule that a measured
+quarter-hour series may not leave over a shareable token has somewhere to sit
+that every producer has to pass.
 """
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from typing import Any, ClassVar
 
 from rest_framework import serializers
 from rest_framework.settings import api_settings
 
+from advice.nl import message_for
+from advice.series import (
+    PROVENANCE,
+    PROVENANCE_KEY,
+    QUARTERS_PER_YEAR,
+    EncodedYear,
+    refuse_unless_shareable,
+)
 from ampeer_sim.types import EVChargingBehaviour
 
 # The four maxima below are safety bounds and nothing else: wide enough that no
@@ -71,6 +92,64 @@ MAX_POSTCODE4 = 9999
 #: and nobody knows their roof angle to better than a degree anyway.
 _ROUNDED_TO_WHOLE_DEGREES = ("azimuth_deg", "tilt_deg")
 
+#: And then grouped, which is the sentence above carried one step further. If a
+#: whole degree is already finer than anyone can answer, it is also finer than
+#: the cache in front of PVGIS should key on, and how wide that key is is not a
+#: storage question. ProductionCache sits in front of a call with a 20 second
+#: timeout, gunicorn runs three synchronous workers, and the fallback provider
+#: is only reached after that timeout expires, so one miss holds a third of the
+#: service for as long as PVGIS is slow. On whole degrees the reachable key
+#: space is 90 postcode areas x 361 azimuths x 91 tilts, which is a supply of
+#: misses no amount of traffic exhausts: a caller can always name a roof nobody
+#: has named yet. Grouped, the space is small enough that ordinary traffic
+#: fills it, and a filled cache has no misses left to hand out.
+#:
+#: Two widths rather than one, because the two questions are not answered
+#: equally badly. Azimuth is asked as one of eight compass directions
+#: (frontend RoofPicker.tsx), every one of which is a multiple of 15, so no
+#: answer the form can produce moves at all. Tilt is a slider, and 5 degrees is
+#: about the width of the mistake somebody makes guessing their own roof.
+AZIMUTH_BUCKET_DEG = 15
+TILT_BUCKET_DEG = 5
+
+
+def to_bucket(value: int, size: int) -> int:
+    """The nearest multiple of ``size``, in integer arithmetic only.
+
+    Integer arithmetic and not ``round(value / size) * size``, because the
+    float form lets the last bits of a division decide a bucket, and a value
+    that lands in two different buckets on two runs is two cache rows and two
+    PVGIS calls for one roof. The input is always an ``int`` here: DRF's
+    IntegerField has already run, so there is nothing left to be imprecise.
+
+    Exact ties go to the larger multiple. No integer input can reach one at
+    either width in use, since a tie needs a half degree, but the rule is
+    written down rather than left to whichever way the arithmetic happens to
+    fall.
+    """
+    return (2 * value + size) // (2 * size) * size
+
+
+def bucket_azimuth(value: int) -> int:
+    """Group one azimuth, and give north a single name.
+
+    A compass has no seam and this range has two ends. MIN_AZIMUTH_DEG and
+    MAX_AZIMUTH_DEG are both north and both legal, which ampeer_sim already
+    knows: FallbackProvider._azimuth_gap measures the short way round the
+    circle precisely so the two are not read as opposites. A cache key cannot
+    do that, because it compares for equality, so the two names for north would
+    be two rows holding the same series. They are folded onto one here, and the
+    one kept is the positive end because that is what RoofPicker.tsx sends for
+    north.
+    """
+    bucketed = to_bucket(value, AZIMUTH_BUCKET_DEG)
+    return MAX_AZIMUTH_DEG if bucketed == MIN_AZIMUTH_DEG else bucketed
+
+
+def bucket_tilt(value: int) -> int:
+    """Group one tilt. Nothing wraps: a roof lies between flat and vertical."""
+    return to_bucket(value, TILT_BUCKET_DEG)
+
 
 #: How many unknown field names one error response repeats back. Naming the
 #: offending field is the whole point of refusing rather than dropping it, and
@@ -89,7 +168,8 @@ class StrictSerializer(serializers.Serializer[dict[str, Any]]):
             unknown = sorted(set(data) - set(self.fields))
             if unknown:
                 errors: dict[str, Any] = {
-                    name: "onbekend veld" for name in unknown[:MAX_REPORTED_UNKNOWN_FIELDS]
+                    name: message_for("UNKNOWN_FIELD")
+                    for name in unknown[:MAX_REPORTED_UNKNOWN_FIELDS]
                 }
                 remaining = len(unknown) - MAX_REPORTED_UNKNOWN_FIELDS
                 if remaining > 0:
@@ -97,7 +177,7 @@ class StrictSerializer(serializers.Serializer[dict[str, Any]]):
                     # rather than to one field, so a client that walks the
                     # response per field never mistakes the count for one.
                     errors[api_settings.NON_FIELD_ERRORS_KEY] = [
-                        f"en nog {remaining} onbekende velden"
+                        message_for("MORE_UNKNOWN_FIELDS", count=remaining)
                     ]
                 raise serializers.ValidationError(errors)
         validated: dict[str, Any] = super().to_internal_value(data)
@@ -132,8 +212,21 @@ class EstimateInputSerializer(StrictSerializer):
     def validate_postcode4(self, value: str) -> str:
         """Refuse a four digit string that is not a Dutch postcode."""
         if not MIN_POSTCODE4 <= int(value) <= MAX_POSTCODE4:
-            raise serializers.ValidationError("geen Nederlandse postcode")
+            raise serializers.ValidationError(message_for("POSTCODE4_NOT_DUTCH"))
         return value
+
+    # The two below group and never refuse, and they run here rather than in
+    # to_internal_value below on purpose. Grouping before the range check would
+    # turn it into a way past it: a tilt of 91 is outside what the PV model
+    # accepts and would arrive as 90, which is inside. A field level validator
+    # runs after the field's own bounds, so the order is "refuse, then group"
+    # and cannot be read the other way round.
+
+    def validate_azimuth_deg(self, value: int) -> int:
+        return bucket_azimuth(value)
+
+    def validate_tilt_deg(self, value: int) -> int:
+        return bucket_tilt(value)
 
     def to_internal_value(self, data: Any) -> dict[str, Any]:
         # IntegerField refuses 34.6 outright. Rounding before validation keeps a
@@ -192,31 +285,113 @@ class RefineInputSerializer(EstimateInputSerializer):
         round trip teaches people to guess.
         """
         errors: dict[str, str] = {}
-        for flag, detail, required_message, forbidden_message in (
+        # Four English names per row and no sentence in sight. The table says
+        # which flag governs which detail; advice.nl says what the household
+        # reads when it is wrong. Read it as a rule table, because that is what
+        # it has to stay for a second language to cost one file.
+        for flag, detail, required_message_id, forbidden_message_id in (
             (
                 "has_ev",
                 "ev_behaviour",
-                "verplicht wanneer er een elektrische auto is",
-                "alleen toegestaan met een elektrische auto",
+                "EV_BEHAVIOUR_REQUIRED",
+                "EV_BEHAVIOUR_FORBIDDEN",
             ),
             (
                 "has_heat_pump",
                 "heat_demand_kwh",
-                "verplicht wanneer er een warmtepomp is",
-                "alleen toegestaan met een warmtepomp",
+                "HEAT_DEMAND_REQUIRED",
+                "HEAT_DEMAND_FORBIDDEN",
             ),
             (
                 "has_battery",
                 "battery_capacity_kwh",
-                "verplicht wanneer er een thuisbatterij is",
-                "alleen toegestaan met een thuisbatterij",
+                "BATTERY_CAPACITY_REQUIRED",
+                "BATTERY_CAPACITY_FORBIDDEN",
             ),
         ):
             present = attrs.get(detail) is not None
             if attrs[flag] and not present:
-                errors[detail] = required_message
+                errors[detail] = message_for(required_message_id)
             elif not attrs[flag] and present:
-                errors[detail] = forbidden_message
+                errors[detail] = message_for(forbidden_message_id)
         if errors:
             raise serializers.ValidationError(errors)
         return attrs
+
+
+class YearCeilingsSerializer(StrictSerializer):
+    """What each byte of 255 or 127 stands for, in kWh per quarter.
+
+    Three floats and not one, because export and offtake carry their own
+    ceiling: sharing one would spend the meter byte's seven bits on export,
+    which peaks more than three times as high, and leave offtake with a third
+    of the resolution it could have had for free.
+
+    Energy in kWh is float here and everywhere, which is the rule in CLAUDE.md
+    rather than a shortcut. These are the ends of a measured range, and no
+    amount in euro appears anywhere in this object.
+    """
+
+    own = serializers.FloatField(min_value=0.0)
+    export = serializers.FloatField(min_value=0.0)
+    grid = serializers.FloatField(min_value=0.0)
+
+
+class YearSerializer(StrictSerializer):
+    """The optional ``year`` object, which is the published contract for it.
+
+    Declared as a serializer rather than assembled as a dict so that the shape
+    a browser is built against is stated once, in a form that refuses anything
+    else. ``StrictSerializer`` carries that over: an extra key here would be a
+    key the frontend never learns about and nothing would say so.
+
+    The provenance rule is the reason this class exists at all. A synthetic
+    series is a national profile scaled to a figure the visitor typed, so it
+    holds nothing they did not enter themselves. A measured one comes off their
+    meter and says when somebody is home, and every advice is retrievable for
+    ninety days by anyone holding its link. Refusing the pairing costs three
+    lines today; in phase 2 it costs a migration over every stored advice and
+    leaves a gap between the first measured series and the control over it.
+
+    ``shareable_token`` defaults to True because every advice this service
+    stores is reachable by exactly such a token, so the safe reading is the
+    one a caller gets by saying nothing.
+    """
+
+    own = serializers.CharField()
+    meter = serializers.CharField()
+    ceilings = YearCeilingsSerializer()
+    provenance = serializers.ChoiceField(choices=sorted(PROVENANCE))
+    quarters = serializers.ChoiceField(choices=sorted(QUARTERS_PER_YEAR))
+
+    def __init__(self, *args: Any, shareable_token: bool = True, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.shareable_token = shareable_token
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        """Refuse a measured series on a payload anybody with the link can open."""
+        if self.shareable_token:
+            refuse_unless_shareable(attrs[PROVENANCE_KEY])
+        return attrs
+
+
+def year_field(encoded: EncodedYear, *, shareable_token: bool = True) -> dict[str, Any]:
+    """The one door an encoded year passes through on its way to a browser.
+
+    One door on purpose, and ``advice.series.EncodedYear`` carries no method of
+    its own that produces this dict, because a convenience beside the data
+    would be a second exit with no check on it. tests/test_advice_series.py
+    pins the two modules that may import ``advice.series`` at all, this one and
+    ``advice.assembly``, which is what keeps the door singular as the field is
+    wired up: a third module reaching into the format could build the object
+    itself and the check below would never see it.
+
+    ``shareable_token=False`` is the phase 2 caller: an advice reached through
+    an account rather than through a link its holder can forward. Nothing
+    passes False today, and the argument exists so that the phase in which a
+    measured series becomes serveable is a decision at a call site rather than
+    the deletion of this check.
+    """
+    serializer = YearSerializer(data=asdict(encoded), shareable_token=shareable_token)
+    serializer.is_valid(raise_exception=True)
+    return dict(serializer.validated_data)

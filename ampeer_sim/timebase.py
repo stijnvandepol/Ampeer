@@ -27,6 +27,15 @@ MINUTES_PER_DAY = 1_440
 #: Summer time starts and ends at 02:00 continuous winter time.
 DST_SWITCH_QUARTER = 8
 
+#: Where in its own hour a value sits when nothing says otherwise: the middle.
+#:
+#: This is the anchor of a series of true hourly means, and it is the default of
+#: ``YearGrid.hourly_to_quarters`` because it is the one thing that is true of a
+#: series carrying no stamp. A source that does stamp its rows says so instead,
+#: and ``PVGIS_STAMP_MINUTES_PAST_HOUR`` in ``ampeer_sim.production.pvgis`` is
+#: the one that does.
+HOURLY_MEAN_ANCHOR_MINUTES = 30.0
+
 
 def _last_sunday(year: int, month: int) -> date:
     last_day = calendar.monthrange(year, month)[1]
@@ -80,6 +89,33 @@ class YearGrid:
         """Local clock hour per quarter. Behaviour models use this, not UTC."""
         return ((self._local_minutes // 60) % HOURS_PER_DAY).astype(np.int8)
 
+    def window_mask(self, window: tuple[int, int]) -> np.ndarray:
+        """Quarters whose local clock hour falls inside ``window``.
+
+        One implementation, because there were three and they were not the
+        same. ``ampeer_sim.profiles.assets`` and ``ampeer_advice.facts`` each
+        carried a private copy with the branch below, pointing at each other in
+        comments, and ``ampeer_sim.profiles.presence`` carried one without it.
+
+        The branch is what a window like (23, 7) needs: a start later than its
+        end runs past midnight and wants the union rather than the
+        intersection. Without it such a window selects nothing, and selecting
+        nothing is not an error anywhere it was used. In presence.py it would
+        have made the shiftable block stay where it was, on every day of the
+        year, while every guard in that function reported a day with nowhere to
+        put its energy.
+
+        Nothing exercised that on 2026-08-23: the suite is red on the edit that
+        would trigger it, because the windows in use all read forwards. This is
+        about not resting on that.
+        """
+        start, end = window
+        if start < end:
+            inside: np.ndarray = (self.local_hour >= start) & (self.local_hour < end)
+            return inside
+        wrapped: np.ndarray = (self.local_hour >= start) | (self.local_hour < end)
+        return wrapped
+
     @cached_property
     def weekday(self) -> np.ndarray:
         """Monday is 0, Sunday is 6, in local time."""
@@ -96,18 +132,56 @@ class YearGrid:
         """
         return np.repeat(np.arange(self.days, dtype=np.int16), QUARTERS_PER_DAY)
 
-    def hourly_to_quarters(self, hourly: np.ndarray) -> np.ndarray:
+    def hourly_to_quarters(
+        self,
+        hourly: np.ndarray,
+        anchor_minutes_past_hour: float = HOURLY_MEAN_ANCHOR_MINUTES,
+    ) -> np.ndarray:
         """Interpolate an hourly series onto the quarter grid.
 
-        The hourly value is treated as the average over its hour, so its
-        midpoint sits at quarter position ``hour * 4 + 1.5``. Values outside the
-        first and last midpoint are clamped rather than extrapolated.
+        ``anchor_minutes_past_hour`` says where inside its own hour each value
+        sits. That is a fact about the series and never about the grid, which is
+        why it is an argument: a series of true hourly means sits in the middle
+        of its hour and takes the default, and a source that stamps its rows
+        says what its stamp is. Values outside the first and last anchor are
+        clamped rather than extrapolated.
+
+        Quarter ``q`` covers the fifteen minutes beginning at it, so its own
+        middle is ``(q + 0.5) * 15`` minutes into the day. An anchor of ``m``
+        minutes past hour ``k`` therefore lands at quarter position
+        ``4k + m / 15 - 0.5``: the default of thirty minutes gives the
+        ``4k + 1.5`` this function used unconditionally until 2026-08-27, and
+        PVGIS's ten past gives ``4k + 0.1667``.
+
+        Until that date there was no argument and every series was read as an
+        hourly mean. PVGIS stamps its rows ten minutes past the hour, so the one
+        series a visitor's answer is normally built from sat twenty minutes late
+        and no whole rotation could reach it, a rotation moving a series by
+        sixty minutes at a time and this being twenty. Measured on the reference
+        household of tests/test_calibration.py, that was 0.42 points of self
+        consumption and 3.92 euro, understating the shock. The figures and the
+        two provider side repairs that were measured and refused are above
+        ``UTC_TO_WINTER_TIME_HOURS`` in ``ampeer_sim.production.pvgis``.
+
+        The repair belongs here and not in a caller that rotates or resamples to
+        compensate, and that was measured rather than preferred. Moving a series
+        by a fraction of an hour before it arrives means interpolating twice,
+        once into the shift and once here, and the second low pass flattens the
+        midday peak: 9.41 euro on that household against the 3.92 it was
+        correcting. Saying where the value sits costs nothing extra, because it
+        replaces the interpolation this function already performs.
         """
         if hourly.shape != (self.hours,):
             raise ValueError(f"expected {self.hours} hourly values, got {hourly.shape}")
-        hour_midpoints = np.arange(self.hours, dtype=float) * QUARTERS_PER_HOUR + 1.5
+        if not 0.0 <= anchor_minutes_past_hour < 60.0:
+            raise ValueError(
+                f"an hourly value sits somewhere inside its own hour, and "
+                f"{anchor_minutes_past_hour} minutes past is not inside it"
+            )
+        anchor = anchor_minutes_past_hour / MINUTES_PER_QUARTER - 0.5
+        hour_anchors = np.arange(self.hours, dtype=float) * QUARTERS_PER_HOUR + anchor
         quarter_positions = np.arange(self.quarters, dtype=float)
-        interpolated: np.ndarray = np.interp(quarter_positions, hour_midpoints, hourly)
+        interpolated: np.ndarray = np.interp(quarter_positions, hour_anchors, hourly)
         return interpolated
 
     def align_hourly_year(self, hourly: np.ndarray, weather_year: int) -> np.ndarray:
@@ -116,10 +190,30 @@ class YearGrid:
         Production is not weekday dependent, so aligning on date rather than on
         weekday is correct and leaves the profile year in charge of the weekday
         structure.
+
+        ``weather_year`` is the caller's claim about where the series came
+        from. Until 2026-08-24 it sat in the signature and appeared nowhere in
+        the body: leapness was read off the length alone.
+
+        That was not a misalignment, and the first version of this paragraph
+        said it was. Measured: a series of 8760 values aligned onto a leap grid
+        puts a copy of 28 February on the 29th and every later day lands on its
+        own date. The dates were right.
+
+        What passed silently is the disagreement itself. A provider that
+        returns 8760 values for a leap year is a day of weather short, and the
+        model then runs a February day twice without anybody being told. That
+        is a fact about the data rather than about this function, which is
+        exactly the kind this package cannot report later, so the claim is
+        checked here instead of trusted.
         """
-        if hourly.shape[0] not in (8_760, 8_784):
-            raise ValueError(f"expected 8760 or 8784 hourly values, got {hourly.shape[0]}")
-        source_is_leap = hourly.shape[0] == 8_784
+        expected = 8_784 if calendar.isleap(weather_year) else 8_760
+        if hourly.shape[0] != expected:
+            raise ValueError(
+                f"weather year {weather_year} has {expected} hourly values and this "
+                f"series carries {hourly.shape[0]}"
+            )
+        source_is_leap = calendar.isleap(weather_year)
         if source_is_leap == self.is_leap:
             return hourly.astype(float, copy=False)
 

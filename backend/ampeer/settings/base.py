@@ -14,6 +14,8 @@ import traceback
 from pathlib import Path
 from typing import Any
 
+from ampeer_sim.simulate import DEFAULT_WEATHER_YEAR
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 INSTALLED_APPS = [
@@ -115,7 +117,14 @@ AMPEER_NEDU_PROFILE_PATH: str | None = os.environ.get("AMPEER_NEDU_PROFILE_PATH"
 
 #: The weather year and profile year every request is computed for. Both are
 #: closed years, so an advice is reproducible from its stored inputs.
-AMPEER_WEATHER_YEAR = 2023
+#:
+#: The weather year is taken from the kernel rather than written again. It was
+#: 2023 in three places on 2026-08-23, here and in ampeer_sim/simulate.py and
+#: ampeer_sim/validate.py, and raising one of them would have left the product
+#: computing one year while `python -m ampeer_sim.validate` checked another and
+#: reported the difference as a model that had drifted from reality. A
+#: deployment may still override this; doing so is now an edit that says so.
+AMPEER_WEATHER_YEAR = DEFAULT_WEATHER_YEAR
 AMPEER_PROFILE_YEAR = 2025
 
 #: How long a stored advice stays retrievable.

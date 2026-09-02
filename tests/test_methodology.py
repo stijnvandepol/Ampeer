@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from helpers.profiles import nedu_profile_path
 
 from ampeer_advice import tariffs
 from ampeer_advice.battery import MAX_ACCEPTABLE_PAYBACK_YEARS
@@ -32,6 +33,8 @@ from ampeer_sim.production.model import (
 from ampeer_sim.types import Household, PVSystem
 
 METHODOLOGY = Path(__file__).resolve().parent.parent / "docs" / "methodologie.md"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SERIALIZERS = REPO_ROOT / "backend" / "advice" / "serializers.py"
 TEXT = METHODOLOGY.read_text(encoding="utf-8")
 
 GOLDEN: dict[str, dict[str, Any]] = json.loads(
@@ -39,6 +42,26 @@ GOLDEN: dict[str, dict[str, Any]] = json.loads(
         encoding="utf-8"
     )
 )
+
+
+def _chapter(title_fragment: str) -> str:
+    """One chapter of the document, located by its title rather than its number.
+
+    Every one of these used to split on "## 13." and the number of the chapter
+    after it. Inserting a chapter then broke a handful of tests at once, and the
+    obvious repair is to bump the numbers, which is the repair that one day
+    lands on the wrong chapter and leaves an assertion passing against text it
+    was never about. A title moves only when somebody means to move it.
+    """
+    headings = [match for match in re.finditer(r"^## \d+\. (?P<title>.+)$", TEXT, re.MULTILINE)]
+    matching = [match for match in headings if title_fragment in match.group("title")]
+    assert len(matching) == 1, (
+        f"{len(matching)} chapters have a title containing {title_fragment!r}: "
+        f"{[m.group('title') for m in matching]}"
+    )
+    start = matching[0].end()
+    later = [match for match in headings if match.start() > start]
+    return TEXT[start : later[0].start()] if later else TEXT[start:]
 
 
 def _dutch(value: Decimal) -> str:
@@ -166,7 +189,13 @@ def test_the_document_says_which_way_those_assumptions_push() -> None:
     chapter = TEXT.split("Wat wij aannemen als wij het niet vragen", 1)[1]
     assert "Voorzichtig in de richting die ons goed uitkomt is niet voorzichtig" in chapter
     assert "conservatief" in chapter, "the chapter no longer says what word was wrong"
-    assert "634 euro" in chapter, "the chapter no longer quotes what it measured"
+    # The figure itself is not asserted here. It was, as a literal 623, and on
+    # 2026-08-29 the model moved it to 624 and this copy stayed behind while
+    # tests/test_advise.py, which computes the same figure and matches the whole
+    # sentence against the document, went red. Two places holding one number is
+    # how the wrong one survives; the computed one is the one that stays true,
+    # and it is in test_every_assumption_round_one_makes_pushes_the_answer_up
+    # together with all five rows of the table below it.
 
 
 def test_the_document_does_not_claim_the_payback_band_moves_the_price_alone() -> None:
@@ -178,7 +207,7 @@ def test_the_document_does_not_claim_the_payback_band_moves_the_price_alone() ->
     to prevent.
     """
     assert "alleen uit de prijs van de batterij" not in TEXT
-    chapter = TEXT.split("## 12.", 1)[1].split("## 13.", 1)[0]
+    chapter = _chapter("Twee soorten band")
     assert "p10" in chapter, "chapter 12 no longer explains which band is a percentile"
     assert "laag, midden en hoog" in chapter
 
@@ -192,7 +221,7 @@ def test_the_document_quotes_the_payback_band_the_model_produces() -> None:
     compares against is a number that goes stale silently.
     """
     rob = GOLDEN["rob_fixed_contract"]
-    chapter = TEXT.split("## 12.", 1)[1].split("## 13.", 1)[0]
+    chapter = _chapter("Twee soorten band")
     for key in (
         "battery_payback_low_years",
         "battery_payback_mid_years",
@@ -252,7 +281,7 @@ ASSEMBLY = METHODOLOGY.parent.parent / "backend" / "advice" / "assembly.py"
 FILLED_IN_BY_US = {
     "profile_category": "huizen zonder zonnepanelen",
     "shiftable_block_kwh": "Verplaatsbaar verbruik per dag",
-    "install_year": "Hoe oud je panelen zijn",
+    "install_year": "Hoe oud uw panelen zijn",
     "system_loss_fraction": "systeemverlies",
 }
 
@@ -332,7 +361,7 @@ def test_the_document_says_the_ageing_correction_is_not_applied() -> None:
     if "install_year" not in _filled_in_by_us():
         pytest.skip("the API now supplies the install year, so the caveat no longer applies")
     assert degradation_factor(None, 2025) == 1.0, "an unknown install year no longer means new"
-    chapter = TEXT.split("## 6.", 1)[1].split("## 7.", 1)[0]
+    chapter = _chapter("De opwek van uw dak")
     assert "gebruiken wij nu nooit" in chapter, (
         "chapter 6 no longer says the ageing correction is never applied"
     )
@@ -355,3 +384,809 @@ def test_the_document_spells_out_the_degradation_the_code_applies(value: float, 
     }
     assert value in known, f"{value} is no longer a figure the ageing model produces: {known}"
     assert words in TEXT, f"the document no longer spells out {value} as {words!r}"
+
+
+#: Every model dataclass the API builds, and the function in assembly.py that
+#: builds it. EV and HeatPump are constructed inside build_household, which is
+#: why two of them name the same builder.
+BUILT_MODELS = (
+    ("Household", "build_household"),
+    ("PVSystem", "build_pv_system"),
+    ("EV", "build_household"),
+    ("HeatPump", "build_household"),
+    ("BatterySpec", "build_battery_spec"),
+)
+
+#: Every field on those five that the API leaves at its default, the value it
+#: leaves it at, and the words this document uses about it.
+#:
+#: The value is written down beside the phrase on purpose. Keying only on the
+#: field name would let somebody change 12.000 kilometres to 20.000 while the
+#: document still said twelve and this test still passed, which is the failure
+#: the whole file exists for.
+#:
+#: Until 2026-08-21 this test looked at Household and PVSystem alone, so the
+#: nine defaults on the three nested models were invisible to it. Six of them
+#: were in no chapter of the document at all, including the size of the car:
+#: 12.000 km at 18 kWh per 100 km is 2160 kWh a year, against the 3500 kWh the
+#: reference household uses in total. A visitor who answered "yes, and it
+#: charges on my surplus" was given a car nobody described.
+ASSUMED_DEFAULTS = {
+    ("Household", "profile_category"): ("E1A", "huizen zonder zonnepanelen"),
+    ("Household", "shiftable_block_kwh"): (1.0, "Verplaatsbaar verbruik per dag"),
+    ("PVSystem", "install_year"): (None, "Hoe oud uw panelen zijn"),
+    ("PVSystem", "system_loss_fraction"): (0.14, "systeemverlies"),
+    ("EV", "annual_km"): (12_000, "12.000 kilometer"),
+    ("EV", "kwh_per_100km"): (18.0, "18 kWh per 100"),
+    ("EV", "charge_power_kw"): (3.7, "3,7 kilowatt"),
+    ("HeatPump", "base_temperature_c"): (15.0, "15 graden"),
+    ("HeatPump", "cop_at_7c"): (3.5, "3,5 bij 7 graden"),
+    ("HeatPump", "cop_slope_per_c"): (0.06, "0,06 daalt"),
+    ("BatterySpec", "round_trip_efficiency"): (0.90, "rendement van 90 procent"),
+    ("BatterySpec", "usable_dod"): (0.90, "diepte stellen wij op 90 procent"),
+    ("BatterySpec", "allow_grid_charging"): (False, "laadt nooit stroom van het net"),
+}
+
+
+def _model(name: str) -> type:
+    import ampeer_sim.types as types_module
+
+    model = getattr(types_module, name, None)
+    assert isinstance(model, type), f"ampeer_sim.types no longer defines {name}"
+    return model
+
+
+def _defaults_the_api_leaves(name: str, builder: str) -> dict[str, object]:
+    """Field name to default, for every field assembly.py does not pass."""
+    supplied = _fields_the_api_supplies(name, builder)
+    return {
+        field.name: field.default
+        for field in dataclasses.fields(_model(name))
+        if field.name not in supplied
+    }
+
+
+def test_the_list_of_assumed_defaults_is_the_one_the_code_produces() -> None:
+    """Two directions, because one of them is how this went wrong.
+
+    A default arriving on any of the five must appear here, and an entry here
+    must still be a default the API leaves. Without the second half a field the
+    API starts asking for keeps a line vouching for an assumption that is no
+    longer made.
+    """
+    found = {
+        (name, field)
+        for name, builder in BUILT_MODELS
+        for field in _defaults_the_api_leaves(name, builder)
+    }
+    assert found == set(ASSUMED_DEFAULTS), (
+        "the defaults the API leaves are not the ones listed here:\n"
+        f"  code only: {sorted(found - set(ASSUMED_DEFAULTS))}\n"
+        f"  list only: {sorted(set(ASSUMED_DEFAULTS) - found)}"
+    )
+
+
+@pytest.mark.parametrize(("key", "expected"), sorted(ASSUMED_DEFAULTS.items()))
+def test_every_assumed_default_is_still_the_value_the_document_describes(
+    key: tuple[str, str], expected: tuple[object, str]
+) -> None:
+    """The value and the sentence move together or this fails."""
+    name, field = key
+    value, phrase = expected
+    actual = _defaults_the_api_leaves(name, dict(BUILT_MODELS)[name])[field]
+    # An enum default is compared by its value, so the expected column reads as
+    # the profile name a person would recognise rather than as a repr.
+    actual = getattr(actual, "value", actual)
+    assert actual == value, (
+        f"{name}.{field} is now {actual!r} and the document still describes {value!r}"
+    )
+    assert phrase in TEXT, f"the document no longer says {phrase!r} about {name}.{field}"
+
+
+def test_the_document_says_the_battery_never_charges_from_the_grid() -> None:
+    """The engine can. The product does not, and the difference is the claim.
+
+    `allow_grid_charging` defaults to False, no caller outside the tests sets
+    it, and nothing outside the tests selects ARBITRAGE or HYBRID or supplies
+    prices per quarter. So a battery in an answer only ever stores surplus.
+    Chapter 8 used to open with what the engine does when it trades, which
+    invites a reader to assume the answer contains that, and a battery that
+    trades is the version a seller quotes.
+    """
+    import ampeer_sim.simulate as simulate_module
+
+    source = Path(simulate_module.__file__).read_text(encoding="utf-8")
+    assert "strategy: Strategy = Strategy.SELF_CONSUMPTION" in source, (
+        "the default strategy moved; chapter 8 says a battery only stores surplus"
+    )
+    chapter = _chapter("waarom onze getallen lager uitvallen")
+    assert "laadt nooit stroom van het net" in chapter
+    assert "handelt niet op de stroombeurs" in chapter
+
+
+def _class_attribute(source: Path, class_name: str, attribute: str) -> object:
+    """A ClassVar assigned a literal, read without importing Django."""
+    tree = ast.parse(source.read_text(encoding="utf-8"))
+    node = next(
+        item
+        for item in ast.walk(tree)
+        if isinstance(item, ast.ClassDef) and item.name == class_name
+    )
+    for statement in node.body:
+        target = None
+        value: ast.expr | None = None
+        if isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name):
+            target, value = statement.target.id, statement.value
+        elif isinstance(statement, ast.Assign) and isinstance(statement.targets[0], ast.Name):
+            target, value = statement.targets[0].id, statement.value
+        if target == attribute:
+            assert isinstance(value, ast.Constant), f"{class_name}.{attribute} is not a literal"
+            return value.value
+    raise AssertionError(f"{class_name} no longer sets {attribute}")
+
+
+def test_the_document_says_where_a_battery_gets_its_power() -> None:
+    """The fourth of the four things chapter 8 says it models.
+
+    Depth and efficiency had values, power did not, and power is derived rather
+    than asked: every battery on the capacity curve is modelled at half its
+    capacity in kilowatts. The constant carries a measurement saying the answer
+    does not move between 0.3 and 1.0, and that measurement is more useful to a
+    reader than the number, so the chapter carries both.
+    """
+    from ampeer_advice.advise import BATTERY_C_RATE
+
+    assert BATTERY_C_RATE == 0.5, (
+        f"a battery is now modelled at {BATTERY_C_RATE} C and chapter 8 says half"
+    )
+    chapter = _chapter("waarom onze getallen lager uitvallen")
+    assert "de helft ervan in kilowatt" in chapter
+    assert "5 kW bij een batterij van 10 kWh" in chapter
+    assert "0,3 en 1,0" in chapter, "the chapter no longer quotes the range that was measured"
+
+
+def test_the_document_explains_all_three_confidence_levels() -> None:
+    """A label on every answer, explained in one word until 2026-08-21.
+
+    The document named INDICATIVE in passing and said nothing about the other
+    two, so a household reading "indicatief" had no way to learn what the scale
+    was or how to move up it. The answer is short and worth printing: round one
+    or round two.
+    """
+    from ampeer_advice.confidence import GOOD_FIELD_COUNT
+
+    chapter = _chapter("indicatief")
+    for word in ("Indicatief", "Goed", "Precies"):
+        assert word in chapter, f"chapter 17 no longer names {word}"
+    assert GOOD_FIELD_COUNT == 5, (
+        f"the threshold is now {GOOD_FIELD_COUNT} and the chapter says five"
+    )
+    assert "de grens ligt bij vijf" in chapter
+
+    estimate = _class_attribute(SERIALIZERS, "EstimateInputSerializer", "QUESTION_COUNT")
+    refine = _class_attribute(SERIALIZERS, "RefineInputSerializer", "QUESTION_COUNT")
+    assert (estimate, refine) == (4, 9), (
+        f"the two forms now count {estimate} and {refine}; chapter 17 says four and nine"
+    )
+    assert "vier vragen van ronde 1" in chapter
+    assert "negen in totaal" in chapter
+
+
+def test_the_document_says_precise_cannot_be_reached_yet() -> None:
+    """The third level, and the third dead path found in this document.
+
+    `confidence_for` returns PRECISE only for has_meter_data, and nothing
+    outside ampeer_advice ever passes it, so no answer this version produces can
+    carry that word. Leaving the level in the scale is fine; leaving a reader to
+    discover it is unreachable is not.
+
+    Conditional, like the one about the ageing correction: the day the API
+    supplies meter data this stops applying and the sentence has to go.
+    """
+    supplied = any(
+        isinstance(node, ast.Call)
+        and any(keyword.arg == "has_meter_data" for keyword in node.keywords)
+        for path in (REPO_ROOT / "backend").rglob("*.py")
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+    )
+    if supplied:
+        pytest.skip("the API now supplies meter data, so PRECISE is reachable")
+    chapter = _chapter("indicatief")
+    assert "kunt u vandaag niet krijgen" in chapter, (
+        "nothing supplies meter data, so no answer can say PRECISE, and chapter 17 "
+        "has to keep saying so"
+    )
+
+
+def test_the_document_describes_the_table_used_when_pvgis_is_unreachable() -> None:
+    """A path a real visitor lands on, and the chapter did not say it existed.
+
+    backend/advice/production.py wraps PvgisProvider in a
+    ResilientProductionProvider with FallbackProvider behind it, so a network
+    failure produces an answer computed from a table rather than an error. The
+    answer itself says so through nl.py. Chapter 6 said only that we ask PVGIS,
+    which is the sentence somebody would quote back at us.
+
+    The annual total is recomputed from the table rather than read from its
+    docstring, so a rebuilt table cannot leave the document quoting the old one.
+    """
+    import calendar
+
+    from ampeer_sim.production.fallback_yield import MONTHLY_MEAN_PRODUCTION_W_PER_KWP
+
+    days = [calendar.monthrange(2023, month)[1] for month in range(1, 13)]
+    assert len(MONTHLY_MEAN_PRODUCTION_W_PER_KWP) == len(days)
+    annual = sum(
+        watts * count * 24 / 1000.0
+        for watts, count in zip(MONTHLY_MEAN_PRODUCTION_W_PER_KWP, days, strict=True)
+    )
+    chapter = _chapter("De opwek van uw dak")
+    assert f"{round(annual)} kWh per" in chapter, (
+        f"the fallback table totals {annual:.1f} kWh per kWp and chapter 6 quotes something else"
+    )
+
+    production = (REPO_ROOT / "backend" / "advice" / "production.py").read_text(encoding="utf-8")
+    assert "ResilientProductionProvider" in production, (
+        "nothing falls back any more, so chapter 6 describes a path that is gone"
+    )
+    assert "PVGIS niet bereikbaar" in TEXT or "PVGIS niet bereikbaar is" in chapter
+    assert "halve sinus" in chapter, "the chapter no longer states the weakness of the table"
+
+
+def test_the_document_says_which_of_the_three_household_profiles_is_used() -> None:
+    """Three exist in the enum, one is ever used, and the API cannot choose.
+
+    `Household.profile_category` defaults to E1A and assembly.py does not pass
+    it, so a household on a double tariff is modelled on a single tariff shape.
+    The figures in chapter 2 are the measured consequence rather than a worry:
+    the share of the year falling in the solar window differs by about one
+    point between the three, which is less than the tariff names suggest.
+    """
+    from ampeer_sim.types import ProfileCategory
+
+    assert [category.value for category in ProfileCategory] == ["E1A", "E1B", "E1C"], (
+        "the profile categories changed; chapter 2 says there are three"
+    )
+    chapter = _chapter("huizen zonder zonnepanelen")
+    assert "drie van deze profielen" in chapter
+    assert "enkel tarief" in chapter
+    for share in ("27,05", "26,63", "27,95"):
+        assert share in chapter, f"chapter 2 no longer quotes the measured share {share}"
+
+
+def test_the_measured_shares_in_chapter_two_are_the_ones_the_profiles_have() -> None:
+    """The one measurement in this document taken from the data file itself.
+
+    data/ is git-ignored, so this can only run where the NEDU file is present.
+    Skipping where it is absent is honest; asserting nothing would let the three
+    figures drift with the next profile year and say so nowhere.
+    """
+    import numpy as np
+
+    from ampeer_sim.profiles.nedu import NeduFileProvider
+    from ampeer_sim.types import ProfileCategory
+
+    profiles = nedu_profile_path(2025)
+    if not profiles.is_file():
+        pytest.skip("the NEDU profile file is not committed; see infra/README.md")
+
+    provider = NeduFileProvider(profiles)
+    chapter = _chapter("huizen zonder zonnepanelen")
+    for category in ProfileCategory:
+        fractions = provider.fractions(2025, category)
+        quarter_of_day = np.arange(len(fractions)) % 96
+        # 10:00 to 16:00, the window the sun and the argument are both about.
+        window = (quarter_of_day >= 40) & (quarter_of_day < 64)
+        share = fractions[window].sum() / fractions.sum() * 100
+        printed = f"{share:.2f}".replace(".", ",")
+        assert printed in chapter, (
+            f"{category.value} puts {printed} percent in the solar window and chapter 2 "
+            "quotes something else"
+        )
+
+
+RULES_SOURCE = REPO_ROOT / "ampeer_advice" / "rules.py"
+
+#: Every number inside a rule condition, and the words chapter 13 uses for it.
+#:
+#: These are the figures that decide what a household is told, and they were
+#: the blind spot in two earlier sweeps of this document: one walked dataclass
+#: defaults and one walked module level constants, and a literal inside a lambda
+#: is neither. Four of the five were in no chapter at all, and the fifth was in
+#: chapter 17 as an aside about something else.
+RULE_THRESHOLDS = {
+    ("SHIFT_FLEXIBLE_LOAD", 0.35): "minder dan 35 procent",
+    ("CHARGE_EV_ON_SURPLUS", 500.0): "meer dan 500 kWh",
+    ("CONSIDER_DYNAMIC_CONTRACT", 0.40): "meer dan 40 procent",
+    ("CONSIDER_BATTERY", 1500.0): "meer dan 1500 kWh",
+    ("CONSIDER_BATTERY", 3.0): "meer dan 3 kWh",
+}
+
+#: Numbers in a condition that are not a threshold a household could be on the
+#: wrong side of. One entry, and it is a guard rather than a judgement: a
+#: household with no panels would divide by zero computing its export share.
+#: Listed rather than filtered by value, so a second zero appearing somewhere
+#: meaningful cannot slip through as more of the same.
+NOT_A_THRESHOLD = {("CONSIDER_DYNAMIC_CONTRACT", 0)}
+
+
+def _thresholds_in_conditions() -> set[tuple[str, float]]:
+    tree = ast.parse(RULES_SOURCE.read_text(encoding="utf-8"))
+    found: set[tuple[str, float]] = set()
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and getattr(node.func, "id", "") == "Rule"):
+            continue
+        rule_id = next(
+            str(keyword.value.value)
+            for keyword in node.keywords
+            if keyword.arg == "rule_id" and isinstance(keyword.value, ast.Constant)
+        )
+        condition = next(keyword.value for keyword in node.keywords if keyword.arg == "condition")
+        for inner in ast.walk(condition):
+            if not isinstance(inner, ast.Constant):
+                continue
+            number = inner.value
+            # bool is a subclass of int, so it has to be excluded before the
+            # number check rather than after it.
+            if isinstance(number, bool) or not isinstance(number, (int, float)):
+                continue
+            found.add((rule_id, float(number)))
+    assert found, "no thresholds found; this test no longer reads what it thinks it does"
+    return found
+
+
+def test_the_thresholds_in_the_document_are_the_ones_the_rules_apply() -> None:
+    """Both directions.
+
+    A new threshold has to be written into chapter 13, and an entry here stops
+    being valid the day its rule stops testing that number. Without the second
+    half, a rule loosened from 35 to 25 percent leaves the chapter telling a
+    household something that is no longer true about the advice it just got.
+    """
+    listed = set(RULE_THRESHOLDS) | NOT_A_THRESHOLD
+    found = _thresholds_in_conditions()
+    assert found == listed, (
+        "the numbers inside the rule conditions are not the ones listed here:\n"
+        f"  code only: {sorted(found - listed)}\n"
+        f"  list only: {sorted(listed - found)}"
+    )
+
+
+@pytest.mark.parametrize(("key", "phrase"), sorted(RULE_THRESHOLDS.items()))
+def test_the_document_states_every_threshold_that_decides_an_advice(
+    key: tuple[str, float], phrase: str
+) -> None:
+    """`fired` in the response names a rule. This is what makes that a reason.
+
+    CLAUDE.md asks that every advice returns which rules fired so that it is
+    explainable. A rule id is only an explanation next to what the rule tests,
+    and until 2026-08-21 that lived in a lambda.
+    """
+    chapter = _chapter("Wanneer wij iets adviseren")
+    assert phrase in chapter, f"chapter 13 does not state {phrase!r} for {key[0]}"
+
+
+def test_the_document_says_the_thresholds_are_chosen_rather_than_measured() -> None:
+    """None of the five comes from a source, and the chapter has to say so.
+
+    The comments in rules.py argue for each of them and none of them cites
+    anything, which is honest for a design threshold and dishonest to leave out
+    of a document whose first rule is that a figure comes from a source or a
+    measurement. Saying "these are ours" is the third option and the true one.
+    """
+    chapter = _chapter("Wanneer wij iets adviseren")
+    assert "grenzen zijn keuzes van ons" in chapter
+    assert "niet uit een meting" in chapter
+
+
+def test_the_fallback_answers_every_postcode_with_the_same_series() -> None:
+    """The pinnable half of what chapter 6 now says about the table.
+
+    The euro figures beside it were measured against a live PVGIS and cannot be
+    checked here; this can, and it is the sentence a reader needs most. The
+    table holds one location, so it returns one answer for the whole country,
+    and the error it makes is therefore however far your own irradiance is from
+    Uden's.
+
+    The orientation is a separate matter and the chapter used to get it wrong.
+    A first draft said the table knows neither the postcode nor the roof
+    direction. It applies the direction; only the location is missing. Measured
+    here so the sentence cannot drift back.
+    """
+    import numpy as np
+
+    from ampeer_sim.production.pvgis import FallbackProvider
+    from ampeer_sim.types import ProductionSource
+
+    provider = FallbackProvider(2023)
+    uden, _, source = provider.hourly_series("5401", 0.0, 35.0)
+    groningen, _, _ = provider.hourly_series("9711", 0.0, 35.0)
+    east_facing, _, _ = provider.hourly_series("5401", 90.0, 35.0)
+
+    assert source is ProductionSource.FALLBACK
+    assert np.array_equal(uden, groningen), (
+        "the fallback now varies by postcode, so chapter 6 overstates what it does not know"
+    )
+    assert not np.array_equal(uden, east_facing), (
+        "the fallback ignores the roof direction too, and chapter 6 says it applies it"
+    )
+
+    chapter = _chapter("De opwek van uw dak")
+    assert "precies dezelfde reeks terug" in chapter
+    assert "Uw\ndakrichting en uw hellingshoek rekenen wij gewoon door" in chapter or (
+        "dakrichting en uw hellingshoek rekenen wij gewoon door" in chapter
+    )
+
+
+# ---------------------------------------------------------------------------
+# What the figure a visitor types is supposed to leave out
+# ---------------------------------------------------------------------------
+
+
+def _reference_shock(
+    annual_consumption_kwh: float,
+    ev: object | None = None,
+    hp: object | None = None,
+) -> Decimal:
+    """The end of net metering priced for the reference household of chapter 17.
+
+    3.5 kWp facing south at 35 degrees in postcode 5401, on the offline
+    provider so this never needs the network. The same household chapter 17
+    quotes 623 euro for.
+    """
+    import numpy as np
+
+    from ampeer_advice.tariffs import baseline_tariffs, scenario_2027_tariffs
+    from ampeer_sim.economics.tariffs import annual_cost
+    from ampeer_sim.engine.run import simulate
+    from ampeer_sim.production.model import production_series
+    from ampeer_sim.production.pvgis import FallbackProvider
+    from ampeer_sim.profiles.compose import compose_consumption
+    from ampeer_sim.timebase import YearGrid
+    from ampeer_sim.types import Household, PVSystem
+
+    grid = YearGrid.for_year(2025)
+    system = PVSystem(peak_power_wp=3_500, azimuth_deg=0.0, tilt_deg=35.0)
+    hourly, temperature, _ = FallbackProvider(2025).hourly_series("5401", 0.0, 35.0)
+    production = production_series(hourly, system, grid, weather_year=2025)
+    household = Household(
+        postcode4="5401",
+        annual_consumption_kwh=annual_consumption_kwh,
+        ev=ev,  # type: ignore[arg-type]
+        heat_pump=hp,  # type: ignore[arg-type]
+    )
+    consumption = compose_consumption(
+        household,
+        grid,
+        np.full(grid.quarters, 1.0 / grid.quarters),
+        temperature,
+        weather_year=2025,
+        production_kwh=production,
+    )
+    flows = simulate(consumption, production)
+    return annual_cost(flows, scenario_2027_tariffs(dynamic=False)) - annual_cost(
+        flows, baseline_tariffs()
+    )
+
+
+def test_the_document_says_the_car_is_added_to_the_figure_you_type() -> None:
+    """The question means something different than a visitor will read it as.
+
+    "Verbruik per jaar" is asked in round one. Whether the household has a car
+    is asked in round two, and the model adds the car's 2160 kWh on top of the
+    answer to the first question. So the figure being asked for is consumption
+    without the car, and until 2026-08-23 nothing said so anywhere: not at the
+    question, not in this document.
+
+    A visitor who charges at home and reads the total off their annual bill has
+    the car in that number already, and the model then counts it twice. Their
+    daytime consumption comes out too high, their self consumption looks better
+    than it is, and the figure at the top comes out too low. Measured on the
+    reference household: 447 euro instead of 623, which is 28 percent of the
+    answer.
+
+    Both figures are recomputed here rather than read from the chapter, so a
+    model change cannot leave the document quoting the old ones. They do not
+    pin the addition itself, and that is not an oversight: a car charging at
+    night draws nothing while the sun is up, so adding it moves no euro at all
+    on this household. The whole 176 comes from scaling the base profile to
+    5660 instead of 3500, which raises consumption in every hour including the
+    ones with production. The addition has its own test below.
+    """
+    from ampeer_sim.types import EV, EVChargingBehaviour
+
+    car = EV(behaviour=EVChargingBehaviour.NIGHT)
+    intended = _reference_shock(3_500.0, ev=car)
+    off_the_bill = _reference_shock(3_500.0 + car.annual_kwh, ev=car)
+
+    # Matched against the chapter with its line breaks collapsed. The document
+    # is hard wrapped, so any phrase long enough to be worth asserting on can
+    # have a newline in the middle of it, and an assertion that fails on a
+    # rewrap is one somebody loosens rather than fixes.
+    chapter = " ".join(_chapter("De elektrische auto").split())
+    assert f"in plaats van {round(intended)}" in chapter, (
+        f"the reference household now loses {intended} euro and chapter 4 quotes something else"
+    )
+    assert f"{round(off_the_bill)} euro" in chapter, (
+        f"entering the bill total now gives {off_the_bill} euro and chapter 4 quotes something else"
+    )
+    assert "tellen wij op bij het jaarverbruik dat u invult" in chapter, (
+        "chapter 4 no longer says the car's energy is added to the figure the visitor types"
+    )
+    assert "zonder het laden van de auto" in chapter, (
+        "chapter 4 no longer says which figure is being asked for"
+    )
+
+
+def test_the_car_really_is_added_on_top_rather_than_carved_out() -> None:
+    """The floor under the chapter, read off the code instead of the prose.
+
+    If the model ever starts subtracting the car from the figure a visitor
+    types, the chapter above becomes wrong in the more dangerous direction: it
+    would be telling people to leave out something the model already leaves out,
+    and they would enter a number that is short by 2160 kWh.
+    """
+    import numpy as np
+
+    from ampeer_sim.profiles.compose import compose_consumption
+    from ampeer_sim.timebase import YearGrid
+    from ampeer_sim.types import EV, EVChargingBehaviour, Household
+
+    grid = YearGrid.for_year(2025)
+    car = EV(behaviour=EVChargingBehaviour.NIGHT)
+    household = Household(postcode4="5401", annual_consumption_kwh=3_500.0, ev=car)
+    series = compose_consumption(
+        household,
+        grid,
+        np.full(grid.quarters, 1.0 / grid.quarters),
+        np.full(grid.hours, 20.0),
+        weather_year=2025,
+    )
+    assert float(series.sum()) == pytest.approx(3_500.0 + car.annual_kwh), (
+        "the car is no longer simply added to the figure the visitor types, and chapter 4 "
+        "says it is"
+    )
+
+
+def test_the_heat_pump_chapter_says_the_same_thing_about_its_own_figure() -> None:
+    """Same mechanism, and deliberately without a second euro figure.
+
+    How much the double count costs depends on the heat demand the visitor
+    enters, and unlike the car there is no assumed value to measure it against.
+    Chapter 17 makes the same argument about not putting a number beside
+    something it cannot place on the same footing.
+    """
+    chapter = " ".join(_chapter("De warmtepomp").split())
+    assert "tellen wij net als bij de auto op bij het jaarverbruik" in chapter
+    assert "zonder de pomp" in chapter, "chapter 5 no longer says which figure is being asked for"
+
+
+# ---------------------------------------------------------------------------
+# The clock the production series is placed on
+# ---------------------------------------------------------------------------
+
+#: The offset chapter 7 can describe, spelled the way Dutch prose spells it.
+#:
+#: Two entries and not one. A single entry would make this a restatement of the
+#: constant; the second is what a reader would reach for if somebody decided the
+#: grid should follow summer time for part of the year, and it is here so that
+#: such a change fails on the sentence rather than on a KeyError.
+_OFFSET_IN_WORDS = {1: "een uur", 2: "twee uur"}
+
+
+def test_the_document_names_the_engine_version_it_actually_describes() -> None:
+    """A line seven of this document that nothing had ever read.
+
+    "Motorversie waarop dit document slaat" is the sentence that tells a reader
+    which engine every figure below belongs to, and it is the only claim in the
+    document that decision 8 already has machinery for. It was hand written and
+    unchecked: on 2026-08-27 it still said 0.2.0 while the shipping engine was
+    0.3.0, and the version had moved the day before that on the same file
+    without the line following.
+
+    That is worse than an ordinary stale figure. Every other number here can be
+    checked by recomputing it; this one is the label that says which recompute
+    to do, so a stale label makes the rest unfalsifiable rather than wrong.
+    """
+    from ampeer_sim import ENGINE_VERSION
+
+    assert f"Motorversie waarop dit document slaat: {ENGINE_VERSION}." in TEXT, (
+        f"the shipping engine is {ENGINE_VERSION} and the document does not say so"
+    )
+
+
+def test_the_document_says_the_pvgis_series_is_moved_onto_the_grids_clock() -> None:
+    """Chapter 7 described a twenty minute rounding and not the hour beside it.
+
+    Until 2026-08-27 the chapter's only word about time said PVGIS stamps at ten
+    past the hour, that we read it as the hour's mean, and that the resulting
+    twenty minutes is negligible. Both halves were wrong together: the real
+    displacement was a full hour, because nothing converted PVGIS's UTC onto the
+    grid's continuous winter time, and an hour on a south facing array is not
+    negligible.
+
+    The offset is read from the engine rather than repeated, so the chapter
+    cannot keep saying "een uur" after somebody changes what the code does.
+    """
+    from ampeer_sim.production.pvgis import UTC_TO_WINTER_TIME_HOURS
+
+    chapter = " ".join(_chapter("Het jaar waarop wij rekenen").split())
+    assert UTC_TO_WINTER_TIME_HOURS in _OFFSET_IN_WORDS, (
+        f"the engine shifts by {UTC_TO_WINTER_TIME_HOURS} hours and this test has no Dutch "
+        "wording for that, so the chapter cannot be held to it"
+    )
+    assert _OFFSET_IN_WORDS[UTC_TO_WINTER_TIME_HOURS] in chapter, (
+        f"the engine moves the PVGIS series by {UTC_TO_WINTER_TIME_HOURS} hour and chapter 7 "
+        "does not say so"
+    )
+    for word in ("UTC", "wintertijd"):
+        assert word in chapter, f"chapter 7 no longer names {word}, so it names one clock only"
+
+
+def test_the_document_quotes_the_figures_the_engine_recorded_for_that_hour() -> None:
+    """Two places hold this measurement and neither can be checked from here.
+
+    It was taken against a live PVGIS, which no test in this suite may need, so
+    what is checkable is that the chapter and the comment above
+    UTC_TO_WINTER_TIME_HOURS still say the same thing. The failure mode this
+    refuses is the ordinary one: somebody remeasures, updates the code comment,
+    and the published document keeps quoting the old numbers at readers.
+
+    Read out of the source rather than restated here, the same way the compass
+    test in tests/test_pvgis_provider.py reads the form.
+    """
+    figures = (
+        "28,16",
+        "29,13",
+        "2583",
+        "2548",
+        "2487",
+        "2452",
+        "665,21",
+        "656,20",
+        # The twenty minutes the hour above does not reach, added 2026-08-27
+        # when the chapter stopped calling it ten minutes and negligible: what
+        # correct placement gives, and what sliding the series there instead of
+        # repairing the interpolation would cost.
+        "28,71",
+        "660,12",
+        "650,71",
+    )
+    chapter = " ".join(_chapter("Het jaar waarop wij rekenen").split())
+    source = (REPO_ROOT / "ampeer_sim" / "production" / "pvgis.py").read_text(encoding="utf-8")
+
+    missing_here = [figure for figure in figures if figure not in chapter]
+    assert not missing_here, f"chapter 7 no longer quotes {missing_here}"
+    missing_there = [figure for figure in figures if figure.replace(",", ".") not in source]
+    assert not missing_there, (
+        f"{missing_there} appear in chapter 7 and no longer beside UTC_TO_WINTER_TIME_HOURS, "
+        "so the document is quoting a measurement the engine has stopped claiming"
+    )
+
+
+def test_the_document_states_the_residual_the_engine_still_carries() -> None:
+    """The chapter was rewritten on 2026-08-27 and put a wrong residual in.
+
+    It had said the leftover was twenty minutes and negligible. Both halves were
+    wrong together, because the hour beside it was missing from the chapter
+    entirely, and the rewrite that added the hour replaced the twenty minutes
+    with ten and kept "negligible". That threw away the half that was right.
+
+    PVGIS stamps ten past the hour and the model anchors an hourly value half
+    past, so what is left after a whole hour rotation is twenty minutes, not
+    ten, and it is worth almost four euro on the reference household. A
+    published document that tells a reader a real displacement is negligible is
+    worse than one that does not mention it, because it closes the question.
+
+    Held against the engine rather than against a remembered sentence: the
+    minutes are computed from the two facts the source states, and the chapter
+    has to name that many.
+    """
+    source = (REPO_ROOT / "ampeer_sim" / "production" / "pvgis.py").read_text(encoding="utf-8")
+    assert "twenty minutes late" in source, (
+        "the provider no longer says the series is twenty minutes late, so either the "
+        "placement moved or the account of it did, and this chapter follows it"
+    )
+
+    chapter = " ".join(_chapter("Het jaar waarop wij rekenen").split())
+    assert "twintig minuten te laat" in chapter, (
+        "chapter 7 does not say the series is still twenty minutes late"
+    )
+    assert "hooguit die tien minuten" not in chapter, (
+        "chapter 7 is quoting the ten minute residual again, which is the stamp and not the "
+        "displacement: the displacement is the stamp against the model's half past"
+    )
+    for claim in ("interpolatie", "650,71"):
+        assert claim in chapter, (
+            f"chapter 7 no longer says {claim!r}, so it states a residual without saying "
+            "where the repair belongs or what the easy repair would cost"
+        )
+
+
+def test_the_question_really_says_what_chapters_four_and_five_claim_it_says() -> None:
+    """Both chapters now say the exclusion stands at the question. This is what
+    makes that a fact rather than a claim about another file.
+
+    The whole repair is one sentence in a form. A document that says the form
+    asks for consumption without the car, over a form that does not, is worse
+    than the situation it replaced: it reads as a fix, and the double count it
+    describes goes on happening. Measured on the reference household, that is
+    447 euro where the truth is 624.
+
+    Reading the frontend from a Python test is the same move
+    tests/test_frontend_contract.py makes on types.ts, and for the same reason:
+    the claim spans two trees, so a check inside either one proves half of it.
+    """
+    form = (REPO_ROOT / "frontend" / "src" / "app" / "berekenen" / "page.tsx").read_text(
+        encoding="utf-8"
+    )
+    assert "zonder auto en warmtepomp?" in form, (
+        "the consumption question no longer names what it excludes, and chapters 4, 5 "
+        "and 19 of docs/methodologie.md all say it does"
+    )
+    # The title alone is the half a visitor skims. The note under it is the half
+    # that says what to do about a car they already own, and without it the
+    # title reads as "if you have no car".
+    for phrase in ("ook als u die wel heeft", "Een schatting is genoeg"):
+        assert phrase in form, f"the note under the consumption question no longer says {phrase!r}"
+
+    for chapter_name in ("De elektrische auto", "De warmtepomp"):
+        chapter = " ".join(_chapter(chapter_name).split())
+        assert "bij de vraag" in chapter, f"chapter {chapter_name!r} no longer makes the claim"
+
+
+def test_the_sensitivity_chapter_four_quotes_is_the_one_the_model_has() -> None:
+    """ "Een schatting is genoeg" is a measurement, not reassurance.
+
+    It is the sentence that decides whether somebody who cannot produce an
+    exact figure estimates or abandons the question, and abandoning is the
+    expensive one. So the ratio it rests on is recomputed here rather than read
+    back out of the chapter: being 500 kWh out has to stay far cheaper than
+    entering the bill total, or the sentence is advice this model does not
+    support.
+    """
+    from ampeer_sim.types import EV, EVChargingBehaviour, HeatPump
+
+    car = EV(behaviour=EVChargingBehaviour.NIGHT)
+    pump = HeatPump(heat_demand_kwh=12_000.0)
+
+    correct_car = _reference_shock(3_500.0, ev=car)
+    slip_car = abs(_reference_shock(3_000.0, ev=car) - correct_car)
+    correct_pump = _reference_shock(3_500.0, hp=pump)
+    slip_pump = abs(_reference_shock(3_000.0, hp=pump) - correct_pump)
+    bill_car = correct_car - _reference_shock(3_500.0 + car.annual_kwh, ev=car)
+
+    chapter = " ".join(_chapter("De elektrische auto").split())
+    assert f"ongeveer {round(slip_car)} euro" in chapter, (
+        f"500 kWh out with a car now costs {slip_car} and chapter 4 quotes something else"
+    )
+    assert f"ongeveer {round(slip_pump)} euro" in chapter, (
+        f"500 kWh out with a heat pump now costs {slip_pump} and chapter 4 quotes something else"
+    )
+    # The claim the sentence actually makes: estimating is much cheaper than
+    # not answering the question as asked. Four times, per the chapter.
+    assert bill_car > 3 * slip_car, (
+        f"entering the bill total costs {bill_car} against {slip_car} for a 500 kWh slip, "
+        "so chapter 4 may no longer say a rough estimate is four times cheaper"
+    )
+
+
+def test_chapter_five_quotes_the_heat_pump_double_count_the_model_produces() -> None:
+    """The figure a household with a heat pump loses by entering their bill.
+
+    Chapter 4 has carried the car's pair since 2026-08-23 and chapter 5 carried
+    none, on the stated grounds that the heat pump has no fixed size to lay a
+    figure beside. It has one the moment the chapter names a heat demand, and
+    12000 kWh is the demand the chapter already uses.
+    """
+    from ampeer_sim.types import HeatPump
+
+    pump = HeatPump(heat_demand_kwh=12_000.0)
+    correct = _reference_shock(3_500.0, hp=pump)
+    off_the_bill = _reference_shock(3_500.0 + pump.heat_demand_kwh / 3.5, hp=pump)
+
+    chapter = " ".join(_chapter("De warmtepomp").split())
+    assert f"{round(off_the_bill)} euro in plaats van {round(correct)}" in chapter, (
+        f"the pair is now {round(off_the_bill)} against {round(correct)} and chapter 5 "
+        "quotes something else"
+    )

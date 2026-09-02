@@ -1,0 +1,183 @@
+/*
+ * The price gap.
+ *
+ * On the page's own surface rather than on the plate's ground: this is not an
+ * instrument reading a household's year, it is a statement about the tariff
+ * landscape, and giving it the plate's dark ground would claim a kinship with
+ * the year plate that it does not have.
+ */
+
+.figure {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.plot {
+  position: relative;
+  display: grid;
+  grid-template-columns: 3rem 1fr;
+  gap: 0.75rem;
+  height: clamp(13rem, 10rem + 12vw, 18rem);
+}
+
+.axis {
+  position: relative;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: var(--text-xs);
+  color: var(--colour-ink-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.tick,
+.zero {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  white-space: nowrap;
+}
+
+/*
+ * Zero is not a tick like the others. It is the line the lower band crosses,
+ * and a reader who does not notice it has missed the fact the whole figure is
+ * built to carry: at the unfavourable end, exporting costs money.
+ */
+.zero {
+  color: var(--colour-ink);
+  font-weight: 600;
+}
+
+/*
+ * The zero rule itself lives inside .lanes rather than growing out of this
+ * label. It was `width: 100vw` here, which drew a dashed line straight off the
+ * right edge of the page: correct at the left end, meaningless at the other,
+ * and the kind of thing that reads as an unfinished figure.
+ */
+.zeroLine {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed var(--colour-border-strong);
+  transform: translateY(-50%);
+}
+
+.lanes {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(1rem, 6vw, 4rem);
+}
+
+.lane {
+  position: relative;
+}
+
+.band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-radius: 0.25rem;
+}
+
+/*
+ * The movement, and the only one on this page. It is a band changing its
+ * position and its height at once, which is the figure's whole argument: the
+ * price falls AND stops being known. globals.css takes the duration to 0 under
+ * prefers-reduced-motion, and the caption below says in words what changed, so
+ * the reduced branch states the thing rather than stating it faster.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .band {
+    transition:
+      top var(--duration-considered) var(--ease-standard),
+      height var(--duration-considered) var(--ease-standard);
+  }
+}
+
+.self {
+  background: var(--colour-confidence-precise);
+}
+
+/*
+ * The band that moves, in the tone this palette uses for "we do not know this
+ * well". That is a claim about the figure and it is true: the self used price
+ * is a supply tariff a household can read off its own contract, and the export
+ * price after 2027 is a spread over gross rates and costs that no household
+ * has been quoted yet.
+ */
+.away {
+  background: var(--colour-confidence-indicative);
+}
+
+/*
+ * Under the plot and outside it. Inside a lane it sat below the grid row and
+ * was clipped away entirely, so the figure shipped two coloured bands with
+ * nothing saying which was which, which is the one thing it cannot afford:
+ * the whole argument is that these two used to be the same band.
+ */
+.names {
+  display: grid;
+  grid-template-columns: 3rem 1fr;
+  gap: 0.75rem;
+  font-size: var(--text-xs);
+  color: var(--colour-ink-muted);
+}
+
+.nameRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(1rem, 6vw, 4rem);
+}
+
+.control {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.choice {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--colour-border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--colour-ink-muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.choice[aria-pressed="true"] {
+  background: var(--colour-surface-sunken);
+  color: var(--colour-ink);
+  border-color: var(--colour-ink-subtle);
+}
+
+.choice:focus-visible {
+  outline: 2px solid var(--colour-focus);
+  outline-offset: 2px;
+}
+
+.caption {
+  font-size: var(--text-sm);
+  color: var(--colour-ink-muted);
+  max-width: 60ch;
+}
+
+.source,
+.range {
+  font-size: var(--text-xs);
+  color: var(--colour-ink-subtle);
+  max-width: 60ch;
+}
+
+/*
+ * Forced colors replaces the two band fills with one system colour, and the
+ * bands are told apart by fill alone. Same reasoning as day.module.css: these
+ * are measured tokens carrying data, not decoration.
+ */
+@media (forced-colors: active) {
+  .band {
+    forced-color-adjust: none;
+  }
+}

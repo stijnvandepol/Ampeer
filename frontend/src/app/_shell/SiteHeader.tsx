@@ -13,7 +13,7 @@ import { ThemeToggle } from "./ThemeToggle";
 export function SiteHeader() {
   return (
     <header className="border-b border-hairline">
-      <div className="mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-4 px-6 py-4">
+      <div className="mx-auto flex w-full max-w-[var(--shell-max)] flex-wrap items-center justify-between gap-4 px-6 py-4">
         <Link href="/" className="font-medium tracking-tight text-ink">
           Ampeer
         </Link>
@@ -31,6 +31,12 @@ export function SiteHeader() {
           aria-label="Hoofdnavigatie"
           className="flex flex-wrap items-center gap-x-5 gap-y-2"
         >
+          <Link
+            href="/einde-saldering/"
+            className="text-sm text-ink-muted underline-offset-4 hover:underline"
+          >
+            Einde saldering
+          </Link>
           <Link
             href="/berekenen/"
             className="text-sm text-ink-muted underline-offset-4 hover:underline"

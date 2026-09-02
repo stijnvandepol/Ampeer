@@ -29,3 +29,6 @@ frontend/test-results/
 # Neither belongs in a repository, and the second one is the shape somebody
 # edits into a real one.
 infra/fixtures/
+
+# Scratch output from a Playwright MCP browser session. Never part of the tree.
+.playwright-mcp/

@@ -1,0 +1,181 @@
+/*
+ * The landing page's figure.
+ *
+ * The strip is the instrument, so it takes the plate's ground rather than the
+ * page's surface: the same three colours mean the same three things here as on
+ * the advice page, and they were measured against that ground and no other.
+ */
+
+.figure {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.strip {
+  position: relative;
+  width: 100%;
+  height: clamp(4.5rem, 3rem + 8vw, 7.5rem);
+  background: var(--colour-carpet-ground);
+  border-radius: 0.375rem;
+  overflow: hidden;
+}
+
+/*
+ * Every cell is one ninety-sixth of the strip and sits at one of two places.
+ * `left` is the transition, and it is a percentage of a box the stylesheet
+ * owns, so nothing here needs to know a pixel.
+ */
+.cell {
+  position: absolute;
+  bottom: 0;
+  /*
+   * One pixel wider than its share, and that is not a rounding fudge. The
+   * cells are placed at percentages the browser resolves to fractional pixels,
+   * so at exactly 100%/96 each one leaves a sub-pixel seam and the strip reads
+   * as about twenty bands separated by hairlines rather than as ninety six
+   * quarters. Neighbours inside a block are the same colour, so the overlap is
+   * invisible everywhere except at a block edge, where one pixel of the later
+   * cell covers one pixel of the earlier one.
+   */
+  width: calc(100% / 96 + 1px);
+  left: var(--at-time);
+  /*
+   * Height carries magnitude, and colour carries state. That is deliberately
+   * one thing said twice: the plate on the advice page has no room for height
+   * and says it with brightness alone, but this figure has room, and a reader
+   * who cannot separate the three hues still sees the day's shape. The floor
+   * of 12 percent is so that a quarter of almost nothing is still a quarter
+   * that is there.
+   */
+  height: calc(12% + 88% * var(--size));
+}
+
+/*
+ * The floor of each state, for the moment before the lift is applied and for a
+ * reader whose browser ran no script. These are the tokens
+ * tests/design/contrast.test.ts measures, so the picture is correct rather
+ * than merely present in that state.
+ */
+.own {
+  background: var(--colour-carpet-own);
+}
+
+.offtake {
+  background: var(--colour-carpet-offtake);
+}
+
+.export {
+  background: var(--colour-carpet-export);
+}
+
+.strip[data-order="meter"] .cell {
+  left: var(--at-meter);
+}
+
+/*
+ * The movement, and the whole argument of the figure. globals.css takes the
+ * durations to 0ms under prefers-reduced-motion, so the cells arrive in their
+ * new order without travelling; the caption below still says what changed,
+ * which is the rule motion.ts states: the reduced branch has to say the thing
+ * rather than say it faster.
+ *
+ * The stagger is by position rather than by state, so the day appears to be
+ * read from midnight forwards. A stagger that ran by state would animate the
+ * three blocks one after another and assert an order the rule does not have.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .cell {
+    transition: left var(--duration-considered) var(--ease-standard);
+  }
+}
+
+.axis {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: var(--text-xs);
+  color: var(--colour-ink-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.control {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.choice {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--colour-border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--colour-ink-muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.choice[aria-pressed="true"] {
+  background: var(--colour-surface-sunken);
+  color: var(--colour-ink);
+  border-color: var(--colour-ink-subtle);
+}
+
+.choice:focus-visible {
+  outline: 2px solid var(--colour-focus);
+  outline-offset: 2px;
+}
+
+.caption {
+  font-size: var(--text-sm);
+  color: var(--colour-ink-muted);
+  max-width: 60ch;
+}
+
+/*
+ * The sorted view's axis. Each name is as wide as its own block, so the label
+ * sits under the cells it counts; a row of three equal thirds would put every
+ * name off the block it names, which on a figure about where things sit is the
+ * one mistake that matters.
+ */
+.blocks {
+  display: flex;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: var(--text-xs);
+  color: var(--colour-ink-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.block {
+  flex-basis: 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding-right: 0.5rem;
+}
+
+/*
+ * Windows high contrast, and any other forced-colors mode.
+ *
+ * Forced colors replaces every background with a system colour, and on this
+ * figure the background IS the datum: three states told apart by hue become
+ * one colour, and the picture says nothing at all. `forced-color-adjust: none`
+ * is the documented opt-out for exactly this case, a graphic whose meaning is
+ * carried by colour, and it is defensible here because these are not decorative
+ * colours: tests/carpet/palette.test.ts measures every one of them against the
+ * instrument's own ground, which is the same fixed dark ground in every theme,
+ * so opting out keeps a measured encoding rather than substituting an
+ * unmeasured one.
+ *
+ * The plate on the advice page needs no equivalent. It is a canvas, and a
+ * canvas is a bitmap that forced colors does not touch; only its legend
+ * swatches are DOM, and those carry this same rule in carpet.module.css.
+ */
+@media (forced-colors: active) {
+  .strip,
+  .cell {
+    forced-color-adjust: none;
+  }
+}

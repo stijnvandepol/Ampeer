@@ -105,6 +105,37 @@ SIZING_BASIS_TEXTS: dict[str, str] = {
     ),
 }
 
+#: Why the consumption the model used has no band, and what a reader should
+#: check when it does not look like their year.
+#:
+#: The figure is an echo of an input rather than an estimate of anything, so a
+#: band around it would be decoration. It is in the response at all because of
+#: what the question repair in decision 26 cannot do by itself: that repair asks
+#: for consumption WITHOUT the car and the heat pump, and its one failure mode
+#: is a visitor who reads the total off their annual bill anyway. That visitor
+#: is otherwise indistinguishable from a correct one. They lose between 26,5 and
+#: 59,2 percent of their answer and nothing reports a problem.
+#:
+#: Two entries and not one with the numbers substituted. Keeping them static
+#: keeps every Dutch sentence in this file whole and greppable, and the split
+#: says the thing the numbers would: with no assets the figure IS what was
+#: typed, so there is nothing to have gone wrong, and the sentence that warns
+#: about the bill total would be noise on the household it cannot happen to.
+MODELLED_CONSUMPTION_BASIS_TEXTS: dict[str, str] = {
+    "ENTERED_UNCHANGED": (
+        "Dit is het verbruik waarmee wij gerekend hebben. Het is precies het getal dat u "
+        "opgaf, want u gaf aan geen elektrische auto en geen warmtepomp te hebben. Er "
+        "staat geen marge omheen: het is uw eigen opgave en geen schatting van ons."
+    ),
+    "ENTERED_PLUS_ASSETS": (
+        "Dit is het verbruik waarmee wij gerekend hebben: het getal dat u opgaf, plus wat "
+        "wij er zelf bij optelden voor uw auto of uw warmtepomp. Herkent u dit niet als "
+        "uw jaarverbruik, kijk dan of u het totaal van uw jaarnota invulde. Daar zit het "
+        "laden of de pomp al in, en dan telt het bij ons een tweede keer mee en valt het "
+        "bedrag bovenaan te laag uit."
+    ),
+}
+
 #: How complete the input was. This label says nothing about the width of the
 #: band, and the two are shown next to each other so nobody has to guess.
 CONFIDENCE_LABELS: dict[Confidence, str] = {
@@ -142,9 +173,9 @@ INPUT_LABELS: dict[str, str] = {
     "feed_in_price": "de terugleververgoeding",
     "feed_in_cost_per_kwh": "de terugleverkosten",
     "battery_cost_per_kwh": "de prijs van de batterij",
-    "annual_consumption_kwh": "je jaarverbruik",
-    "shiftable_block_kwh": "hoeveel verbruik je kunt verschuiven",
-    "system_loss_fraction": "het verlies in je installatie",
+    "annual_consumption_kwh": "uw jaarverbruik",
+    "shiftable_block_kwh": "hoeveel verbruik u kunt verschuiven",
+    "system_loss_fraction": "het verlies in uw installatie",
 }
 
 
@@ -174,13 +205,13 @@ def label_for(input_id: str) -> str:
 #: promise of importing nothing from the simulation core. A test pairs the two.
 PRODUCTION_SOURCE_TEXTS: dict[str, str] = {
     "PVGIS": (
-        "De opbrengst van je dak is opgevraagd bij PVGIS, de rekentool van de Europese "
-        "Commissie, op basis van echte instralingsmetingen voor jouw postcodegebied."
+        "De opbrengst van uw dak is opgevraagd bij PVGIS, de rekentool van de Europese "
+        "Commissie, op basis van echte instralingsmetingen voor uw postcodegebied."
     ),
     "FALLBACK": (
         "PVGIS was niet bereikbaar, dus wij hebben gerekend met onze eigen tabel: het "
-        "gemiddelde van negen weerjaren voor Nederland. Dat is nauwkeurig genoeg om je "
-        "een antwoord te geven en minder nauwkeurig dan een berekening voor jouw eigen "
+        "gemiddelde van negen weerjaren voor Nederland. Dat is nauwkeurig genoeg om u "
+        "een antwoord te geven en minder nauwkeurig dan een berekening voor uw eigen "
         "postcodegebied. Vraag het advies later nog eens op voor een scherper getal."
     ),
 }

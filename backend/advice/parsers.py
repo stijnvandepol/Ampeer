@@ -9,6 +9,15 @@ in the error log for what is an ordinary bad request.
 The depth is not configurable here on purpose. json.load recurses once per
 level and the interpreter's own recursion limit is what stops it, so the limit
 already exists; what was missing was the answer it produces.
+
+No Dutch is written here. The sentence a caller reads lives in ``advice.nl``
+under ``TOO_DEEPLY_NESTED``, which is the same table the serializers name and
+for the same reason: this is a validation message rather than an advice, so
+``ampeer_advice.nl`` cannot hold it. It sat in this file as a module constant
+until 2026-08-27, and the scan that was meant to stop that read
+advice/serializers.py by name, so a second module holding Dutch was never
+looked at. tests/test_advice_serializers.py now reads every module in this
+package.
 """
 
 from __future__ import annotations
@@ -19,10 +28,7 @@ from typing import Any
 from rest_framework.exceptions import ParseError
 from rest_framework.parsers import JSONParser
 
-#: Dutch, because this reaches a caller. Advice sentences live in
-#: ampeer_advice.nl keyed by rule id; this is a validation message, the same
-#: category as the strings in serializers.py.
-TOO_DEEPLY_NESTED = "de JSON is te diep genest"
+from advice.nl import message_for
 
 
 class BoundedJSONParser(JSONParser):
@@ -40,4 +46,4 @@ class BoundedJSONParser(JSONParser):
             # Deliberately not chained into the response: ParseError renders its
             # own message and the traceback of a two hundred thousand frame
             # recursion is not something to put in a log line.
-            raise ParseError(TOO_DEEPLY_NESTED) from exc
+            raise ParseError(message_for("TOO_DEEPLY_NESTED")) from exc

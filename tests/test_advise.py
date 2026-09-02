@@ -14,6 +14,7 @@ import inspect
 import json
 import re
 import time
+from collections.abc import Sequence
 from decimal import Decimal
 from functools import cache
 from pathlib import Path
@@ -23,12 +24,25 @@ import numpy as np
 import pytest
 
 import ampeer_advice as ADVICE_PACKAGE
+import ampeer_sim as SIM_PACKAGE
 from ampeer_advice import ADVICE_VERSION
-from ampeer_advice.advise import _storage_verdict, advise, recommended_route
+from ampeer_advice.advise import (
+    FREE_ROUTE_ORDER,
+    FreeRouteOutcome,
+    _annual_costs,
+    _measure_free_routes,
+    _storage_verdict,
+    advise,
+    recommended_route,
+)
 from ampeer_advice.battery import CAPACITIES, MAX_ACCEPTABLE_PAYBACK_YEARS, battery_advice
 from ampeer_advice.nl import RULE_TEXTS
 from ampeer_advice.rules import RULES
-from ampeer_advice.tariffs import baseline_tariffs, scenario_2027_tariffs
+from ampeer_advice.tariffs import (
+    baseline_tariffs,
+    scenario_2027_levels,
+    scenario_2027_tariffs,
+)
 from ampeer_advice.types import (
     Advice,
     AdviceContext,
@@ -37,6 +51,7 @@ from ampeer_advice.types import (
     Route,
     ScenarioBand,
 )
+from ampeer_sim import ENGINE_VERSION
 from ampeer_sim.economics.tariffs import annual_cost
 from ampeer_sim.engine.run import simulate
 from ampeer_sim.production.model import production_series
@@ -57,6 +72,7 @@ from ampeer_sim.types import (
     Result,
 )
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
 GOLDEN_DIR = Path(__file__).parent / "golden"
 HOUSEHOLDS: dict[str, dict[str, Any]] = json.loads(
     (GOLDEN_DIR / "households.json").read_text(encoding="utf-8")
@@ -100,7 +116,11 @@ def _stub_result() -> Result:
     below does run the real thing, to prove the two compose.
     """
     return Result(
-        engine_version="0.1.0",
+        # The real one. A stub that carried a different string would make
+        # test_the_advice_carries_both_versions below pass on a literal nobody
+        # would notice going stale, which is what it did until 2026-08-26: it
+        # asserted "0.1.0" against this line rather than against the engine.
+        engine_version=ENGINE_VERSION,
         band=Band(Decimal("500"), Decimal("600"), Decimal("700"), runs=81),
         self_consumption_rate=0.3,
         production_source=ProductionSource.FALLBACK,
@@ -135,6 +155,7 @@ def _advise(
     has_meter_data: bool = False,
     dynamic_contract: bool = False,
     battery_spec: BatterySpec | None = None,
+    result: Result | None = None,
 ) -> Advice:
     household = _household(case)
     return advise(
@@ -144,7 +165,7 @@ def _advise(
         grid=GRID,
         profile_provider=FlatProfiles(),
         production_provider=FallbackProvider(WEATHER_YEAR),
-        result=_stub_result(),
+        result=_stub_result() if result is None else result,
         filled_fields=filled_fields,
         has_meter_data=has_meter_data,
         dynamic_contract=dynamic_contract,
@@ -192,6 +213,29 @@ def test_the_two_golden_files_describe_the_same_households() -> None:
     assert set(EXPECTED) == set(HOUSEHOLDS)
 
 
+#: Files outside nl.py that hold Dutch, and why each is still there.
+#:
+#: Empty as of 2026-08-26, when the API's validation messages moved into
+#: backend/advice/nl.py and the last entry stopped describing anything. Kept as
+#: a dict rather than deleted because the second assertion below is what caught
+#: that: an exception that no longer describes a file is one standing ready to
+#: wave through a file nobody meant, and an empty mapping is the only state in
+#: which that assertion is trivially satisfied for the right reason.
+#:
+#: Empty is not the same as clean, and on 2026-08-26 it was read as if it were.
+#: backend/advice/parsers.py held a Dutch message that day and this scan was
+#: green on it, because the word list below carried none of that sentence's
+#: words. It was found by a person reading the file. The list gained "de" and
+#: "te" on 2026-08-27 for that reason, which is a repair to one hole and not a
+#: reason to trust the rest of the list any further than before.
+#:
+#: Keyed on the path rather than on the words, so a second file cannot inherit
+#: an excuse written for the first. This is the shape tests/test_sensitivity.py
+#: had to move to after an exception keyed on a number alone let every file that
+#: stated the grid size drift to the wrong one.
+DUTCH_OUTSIDE_NL: dict[str, str] = {}
+
+
 def test_no_dutch_text_lives_outside_the_text_module() -> None:
     """The language boundary, enforced rather than agreed.
 
@@ -200,21 +244,77 @@ def test_no_dutch_text_lives_outside_the_text_module() -> None:
     second language a rewrite instead of a second file. The words below are ones
     that cannot plausibly appear in English prose about energy, so a hit is a
     sentence and not a false alarm.
+
+    "de" and "te" are the two the list was missing on 2026-08-26, and their
+    absence is what let "de JSON is te diep genest" sit in
+    backend/advice/parsers.py while this test was green: the list held three of
+    the four Dutch articles and not the most common one. Measured on 2026-08-27
+    over the sixty two modules this reads, both words match nothing outside
+    nl.py. The one cost worth naming is that `\\b` treats a hyphen as a boundary,
+    so an English "de-rate" or "de-duplicate" written here later would be a
+    false positive; nothing in the four trees writes one today.
+
+    Adding those two words did not repair the method, and on 2026-08-27 a review
+    proved it in one line: ``SERVICE_UNAVAILABLE_MESSAGE = "Aanvraag mislukt,
+    probeer straks opnieuw"`` in backend/advice/views.py is green here, and would
+    be green under any list of Dutch words anybody sits down and writes, because
+    the list has to be finished before the sentence is written. So read a pass
+    here as "no word I thought of turned up", never as "there is no Dutch". What
+    carries the boundary for backend/advice is
+    ``test_no_dutch_prose_is_left_anywhere_in_the_advice_package`` in
+    tests/test_advice_serializers.py, which decides prose by shape and then holds
+    it to the vocabulary of the language that is allowed, so it does not have to
+    guess what will be written next.
+
+    That scan stops at backend/advice and this one does not, which is why this
+    one stays. ampeer_sim, ampeer_advice and tools hold far more English prose
+    than the advice package does, so the allowed vocabulary there would be a set
+    too large to audit, and until somebody has a better instrument those three
+    trees have a wordlist and nothing else. Extending the stronger shape to them
+    is the open work, and it is worth saying so here rather than leaving a
+    reader to infer from a green run that all four trees are equally guarded.
     """
     dutch = re.compile(
         r"\b(uw|jij|jouw|wij|niet|stroom|batterij|thuisbatterij|verbruik|opwek"
         r"|zonnepanelen|zonnestroom|teruglevert|terugleverkosten|vaatwasser"
         r"|het|een|geen|deze|dat|wordt|worden|zijn|hebben|wettelijk|jaar"
-        r"|kosten|bedrag|prijs|meeste|grote|volgens|omdat|maar|ook|nog)\b",
+        r"|kosten|bedrag|prijs|meeste|grote|volgens|omdat|maar|ook|nog"
+        r"|de|te)\b",
         re.IGNORECASE,
     )
-    package = Path(ADVICE_PACKAGE.__file__ or "").parent
+    scanned = [
+        path
+        for root in (
+            Path(ADVICE_PACKAGE.__file__ or "").parent,
+            Path(SIM_PACKAGE.__file__ or "").parent,
+            REPO_ROOT / "backend",
+            REPO_ROOT / "tools",
+        )
+        for path in sorted(root.rglob("*.py"))
+        if "__pycache__" not in path.parts and path.name != "nl.py"
+    ]
     offenders = {
-        path.name: sorted(set(dutch.findall(path.read_text(encoding="utf-8"))))
-        for path in sorted(package.rglob("*.py"))
-        if path.name != "nl.py" and dutch.search(path.read_text(encoding="utf-8"))
+        path.relative_to(REPO_ROOT).as_posix(): sorted(
+            set(dutch.findall(path.read_text(encoding="utf-8")))
+        )
+        for path in scanned
+        if dutch.search(path.read_text(encoding="utf-8"))
+        and path.relative_to(REPO_ROOT).as_posix() not in DUTCH_OUTSIDE_NL
     }
     assert offenders == {}, f"Dutch outside nl.py: {offenders}"
+
+    # The other direction. An exception that no longer describes anything is one
+    # standing ready to wave through a file nobody meant.
+    hit = {
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in scanned
+        if dutch.search(path.read_text(encoding="utf-8"))
+    }
+    assert set(DUTCH_OUTSIDE_NL) <= hit, (
+        f"these exceptions no longer describe anything: {sorted(set(DUTCH_OUTSIDE_NL) - hit)}"
+    )
+
+    assert len(scanned) >= 30, f"only {len(scanned)} files were read, so this scanned nothing"
 
 
 def test_the_advice_carries_both_versions() -> None:
@@ -223,10 +323,95 @@ def test_the_advice_carries_both_versions() -> None:
     A recorded advice has to say which engine produced the numbers and which
     rule table judged them, because the two move independently: a rule threshold
     can change without the simulation changing a single kWh.
+
+    Both halves are read out of their own package rather than written down.
+    Until 2026-08-27 the engine half was the literal "0.2.0", so the engine
+    moving to 0.3.0 turned this red while the property the test is named for
+    held perfectly. That is the same defect ``_stub_result`` above records
+    against 2026-08-26, one line further along: the stub stopped carrying a
+    literal that day and the assertion comparing against one did not. Which
+    release the engine is on is pinned in ``tests/test_golden.py``, beside the
+    numbers that give a version its meaning, which is the only place a literal
+    version belongs.
     """
     advice = _golden_advice("rob_fixed_contract")
-    assert advice.engine_version == "0.1.0"
+    assert advice.engine_version == ENGINE_VERSION
     assert advice.advice_version == ADVICE_VERSION
+
+
+@pytest.mark.parametrize("name", sorted(HOUSEHOLDS))
+def test_the_advice_carries_out_the_year_it_was_decided_on(name: str) -> None:
+    """The simulated year leaves this package, and it is the first pass.
+
+    ``advise`` runs the household as it was described, then runs it again
+    having taken the free advice, then up to five more times for the capacity
+    curve. Only the first of those is a year anybody lived, and it was being
+    computed and dropped. Which one is carried out is asserted rather than
+    assumed, because every one of them is the right shape and only one is the
+    right answer: the free-route year would show a household the week it was
+    told to move to as though it had already moved.
+
+    Compared against the same call this function makes, run here, which is a
+    check on the wiring and not on the engine.
+    """
+    case = HOUSEHOLDS[name]
+    advice = _golden_advice(name)
+    household = _household(case)
+    system = PVSystem(peak_power_wp=case["peak_power_wp"], azimuth_deg=0.0, tilt_deg=35.0)
+
+    hourly, temperature, _ = FallbackProvider(WEATHER_YEAR).hourly_series(
+        household.postcode4, system.azimuth_deg, system.tilt_deg
+    )
+    production = production_series(hourly, system, GRID, weather_year=WEATHER_YEAR)
+    consumption = compose_consumption(
+        household,
+        GRID,
+        FlatProfiles().fractions(GRID.year, household.profile_category),
+        temperature,
+        weather_year=WEATHER_YEAR,
+        production_kwh=production,
+    )
+    expected = simulate(consumption, production)
+
+    assert advice.flows.consumption.shape == (GRID.quarters,)
+    assert np.array_equal(advice.flows.consumption, expected.consumption)
+    assert np.array_equal(advice.flows.self_consumption, expected.self_consumption)
+    assert np.array_equal(advice.flows.from_grid, expected.from_grid)
+    assert np.array_equal(advice.flows.to_grid, expected.to_grid)
+
+
+@pytest.mark.parametrize("name", sorted(HOUSEHOLDS))
+def test_no_quarter_of_a_golden_year_is_both_an_export_and_an_offtake(name: str) -> None:
+    """The assumption the wire format is built on, measured on real years.
+
+    ``backend/advice/series.py`` packs the meter into one byte with the
+    direction in its high bit, which is only possible because a quarter is a
+    surplus or a shortfall and never both. That module asserts the property on
+    the array it is handed, which turns a violation into a failed request. This
+    is the same property measured a step earlier, on every household the golden
+    set describes, so that a change to the engine that made both directions
+    possible in one quarter is a red test here rather than a 500 for a visitor.
+
+    It is a claim about the engine and it belongs in this package's tests: the
+    wire format did not invent it, it relies on it.
+    """
+    flows = _golden_advice(name).flows
+    both = int(((flows.total_export > 0) & (flows.total_import > 0)).sum())
+    assert both == 0, f"{both} of {GRID.quarters} quarters both exported and took off the grid"
+
+    # And the engine half has to be the version of the run that produced the
+    # numbers, not of the code rendering them. Those are the same string on
+    # every real call, and they would stay the same string if advise() read
+    # ENGINE_VERSION itself instead of the Result it was handed, so the only way
+    # to tell the two apart is to hand it a Result that disagrees. An advice
+    # recorded against an older engine has to keep saying which engine that was,
+    # or the version stops identifying the numbers and starts identifying the
+    # deploy that happened to re-render them.
+    older = dataclasses.replace(_stub_result(), engine_version="0.0.1-not-this-build")
+    assert (
+        _advise(HOUSEHOLDS["rob_fixed_contract"], result=older).engine_version
+        == "0.0.1-not-this-build"
+    )
 
 
 @pytest.mark.parametrize("name", sorted(HOUSEHOLDS))
@@ -431,13 +616,29 @@ def test_the_verdict_has_three_states_and_each_one_is_reachable() -> None:
 
 
 def test_no_reference_household_is_told_to_buy_a_battery() -> None:
-    """The state of the answer after the double count was removed.
+    """The property in the name, and beside it a record of today's verdicts.
 
-    This is not a rule and it must not become one. It is a record of what the
-    corrected model says today about six households: for every one of them that
-    exports enough to be shown a battery at all, storage does not earn itself
-    back inside its warranty. If a change ever makes one of them a yes, this
-    test fails and somebody has to look at why, which is the point.
+    The property is the half that is a rule: CONSIDER_BATTERY, the unconditional
+    yes, may not be what any reference household hears. That is the sentence
+    this product should be most reluctant to say, and the assertion on it is
+    unconditional.
+
+    The recorded set is the other half and it is not a rule. Until 2026-08-26 the
+    two were one assertion, an equality against `{BATTERY_DOES_NOT_PAY_BACK}`,
+    which made a household moving into the middle state read as a household
+    being sold a battery. It is not the same event and it happened: centring the
+    offline production model on solar noon brought `large_array_small_use` from
+    12.05 years to 11.46, back across the twelve year limit it had left, and its
+    verdict went from BATTERY_DOES_NOT_PAY_BACK to BATTERY_DEPENDS_ON_PRICE.
+    Nobody is told to buy anything; that household is told the answer depends on
+    the quote, which is what a band from 6.65 to 17.97 years supports.
+
+    So the equality stays, because a verdict moving is still something somebody
+    has to look at, and it now fails with the set in the message rather than
+    with a yes and a no collapsed into one another. Whether the middle state
+    should be reachable at all, when refusing on the middle of a band alone is
+    what keeps every other household out of it, is open in docs/decisions.md and
+    this is the household that question is about.
     """
     verdicts = {}
     for name in EXPECTED:
@@ -446,7 +647,14 @@ def test_no_reference_household_is_told_to_buy_a_battery() -> None:
         if storage:
             verdicts[name] = storage[0]
     assert verdicts, "no golden household reaches the storage route at all"
-    assert set(verdicts.values()) == {"BATTERY_DOES_NOT_PAY_BACK"}, verdicts
+    assert "CONSIDER_BATTERY" not in set(verdicts.values()), (
+        f"a reference household is being told to buy a battery outright: {verdicts}"
+    )
+    assert verdicts == {
+        "large_array_small_use": "BATTERY_DEPENDS_ON_PRICE",
+        "rob_fixed_contract": "BATTERY_DOES_NOT_PAY_BACK",
+        "sander_heat_pump": "BATTERY_DOES_NOT_PAY_BACK",
+    }, verdicts
 
 
 def test_an_unambiguous_buy_needs_the_whole_band_inside_the_limit() -> None:
@@ -732,10 +940,26 @@ def test_no_constant_is_defined_twice_in_the_package() -> None:
     saying twelve. Nothing pointed at the duplication, so this does.
 
     Uppercase module level names only, which is what a constant looks like here.
+
+    Both packages, not one. This walked ampeer_advice alone until 2026-08-23,
+    and two constants were duplicated across the boundary it could not see:
+    MIDDAY_WINDOW in presence.py and facts.py, and DEFAULT_WEATHER_YEAR in
+    simulate.py and validate.py. Both are now imported rather than restated.
+    Django's settings modules stay out of scope on purpose: redefining a setting
+    per environment is what they are for.
     """
     definitions: dict[str, list[str]] = {}
-    package = Path(ADVICE_PACKAGE.__file__ or "").parent
-    for path in sorted(package.rglob("*.py")):
+    packages = [
+        Path(ADVICE_PACKAGE.__file__ or "").parent,
+        Path(SIM_PACKAGE.__file__ or "").parent,
+    ]
+    scanned = [
+        path
+        for package in packages
+        for path in sorted(package.rglob("*.py"))
+        if "__pycache__" not in path.parts
+    ]
+    for path in scanned:
         for node in ast.parse(path.read_text(encoding="utf-8")).body:
             targets: list[str] = []
             if isinstance(node, ast.Assign):
@@ -744,9 +968,10 @@ def test_no_constant_is_defined_twice_in_the_package() -> None:
                 targets = [node.target.id]
             for name in targets:
                 if name.isupper():
-                    definitions.setdefault(name, []).append(path.name)
+                    definitions.setdefault(name, []).append(path.relative_to(REPO_ROOT).as_posix())
     duplicated = {name: files for name, files in definitions.items() if len(files) > 1}
     assert duplicated == {}, f"defined in more than one module: {duplicated}"
+    assert len(scanned) >= 20, f"only {len(scanned)} modules were read, so this scanned nothing"
 
 
 def test_every_measured_saving_arrives_as_a_band_that_names_its_own_limits() -> None:
@@ -839,3 +1064,236 @@ def test_an_advice_refuses_a_result_from_a_different_run() -> None:
             filled_fields=6,
             weather_year=WEATHER_YEAR,
         )
+
+
+#: The tolerance every payback comparison is allowed to use, in years.
+#:
+#: The figure lives per household in advice_households.json, beside the value it
+#: guards. That is a convenient shape and a dangerous one: when one case fails,
+#: widening its own tolerance is a one character edit in a data file, it turns
+#: the assertion for that household into nothing, and the diff looks like the
+#: golden file being updated, which is a thing that legitimately happens.
+#:
+#: tests/golden/README.md already says not to do it, and CLAUDE.md makes it one
+#: of the standing rules for this repository. Neither could fail a build. This
+#: constant is what makes them able to.
+#:
+#: It may be lowered and not raised, for the same reason the coverage floor may
+#: only go up. Raising it means editing this line, which is a diff in a test
+#: rather than in a data file, and it has to be argued for where somebody
+#: reviewing will see it.
+MAX_PAYBACK_TOLERANCE_YEARS = 0.25
+
+
+def _households_with_a_payback() -> dict[str, Any]:
+    return {
+        name: case
+        for name, case in EXPECTED.items()
+        if case.get("battery_payback_mid_years") is not None
+    }
+
+
+def test_no_household_carries_a_payback_tolerance_of_its_own() -> None:
+    """One number for all of them, so no single case can be loosened alone.
+
+    Measured on 2026-08-22: all three households that get a payback carry 0.25,
+    which is about two percent of the tightest of the three middles. Nothing is
+    loosened here; what changes is that loosening one of them now fails.
+    """
+    households = _households_with_a_payback()
+    assert households, "no golden household has a payback; this test reads nothing"
+    tolerances = {name: case["payback_tolerance_years"] for name, case in households.items()}
+    assert set(tolerances.values()) == {MAX_PAYBACK_TOLERANCE_YEARS}, (
+        "the golden households no longer share one payback tolerance, so at least one "
+        f"assertion has been loosened on its own: {tolerances}"
+    )
+
+
+def test_the_payback_tolerance_stays_small_against_the_figure_it_guards() -> None:
+    """A tolerance is only a tolerance while it is smaller than the answer.
+
+    Equality with a shared constant does not say the constant is sensible: all
+    three could carry a tolerance of ten years and agree perfectly. This is the
+    other half, and it is deliberately loose, because the point is not to pick a
+    percentage but to refuse a tolerance that has stopped meaning anything.
+    """
+    for name, case in _households_with_a_payback().items():
+        middle = float(case["battery_payback_mid_years"])
+        share = float(case["payback_tolerance_years"]) / middle
+        assert share < 0.05, (
+            f"{name} allows {share:.1%} of its own payback as slack, which is wide "
+            "enough to hide a change in the sentence a household acts on"
+        )
+
+
+# ---------------------------------------------------------------------------
+# What find_knee's early break rests on
+# ---------------------------------------------------------------------------
+
+
+def _marginal_savings(points: Sequence[tuple[float, Decimal]]) -> list[Decimal]:
+    """Euro per extra kWh for each step, the first one measured from no battery."""
+    out: list[Decimal] = []
+    previous_capacity, previous_saving = 0.0, Decimal("0")
+    for capacity, saving in points:
+        out.append((saving - previous_saving) / Decimal(str(capacity - previous_capacity)))
+        previous_capacity, previous_saving = capacity, saving
+    return out
+
+
+def test_a_step_below_the_knee_threshold_is_never_followed_by_one_above_it() -> None:
+    """The assumption that lets find_knee stop at the first failing step.
+
+    Its docstring says the curve only flattens, so nothing beyond the first
+    failing step can recover. Measured on 2026-08-23 that is not exactly true:
+    on large_array_small_use the marginal saving rises again, by up to 0.0005
+    euro per kWh. That cannot move a knee, because the thresholds in play are
+    tens of euro per kWh, but a claim that is nearly true is not one to keep
+    resting a battery recommendation on without checking.
+
+    What the early break actually needs is weaker and exactly this: the steps
+    that clear the threshold form an unbroken run from the start. A curve with a
+    second knee would size a household's battery on the first of them and never
+    look at the rest, and the direction of that mistake depends on the curve,
+    which is worse than a mistake with a known direction.
+
+    Read off the advice rather than recomputed, so it costs no simulation and so
+    it judges the curve the product actually builds: advise.py prices capacity
+    against the consumption left after the free routes, which is not the curve a
+    direct call to _capacity_curve produces.
+    """
+    checked, mixed = 0, 0
+    for name in sorted(HOUSEHOLDS):
+        battery = _golden_advice(name).battery
+        if battery is None:
+            continue
+        for level in ("low", "mid", "high"):
+            points = [(capacity, getattr(band, level)) for capacity, band in battery.curve]
+            marginal = _marginal_savings(points)
+            threshold = marginal[0] / 2
+            above = [step >= threshold for step in marginal]
+            checked += 1
+            if any(above) and not all(above):
+                mixed += 1
+            assert above == sorted(above, reverse=True), (
+                f"{name} at {level}: steps clearing the threshold are {above}, so the curve "
+                "recovers after falling and find_knee stops too early"
+            )
+    assert checked >= 9, f"only {checked} curve levels were judged"
+    assert mixed > 0, (
+        "every curve was entirely above or entirely below its own threshold, so nothing here "
+        "exercised the ordering this test is about"
+    )
+
+
+def test_enough_of_the_golden_households_reach_a_capacity_curve() -> None:
+    """The floor under the test above, which walks whatever curves exist.
+
+    Three of the six households get no battery advice at all, which is the
+    product working as intended. If the other three stopped getting one the test
+    above would pass over an empty set and say nothing.
+    """
+    with_curve = [name for name in HOUSEHOLDS if _golden_advice(name).battery is not None]
+    assert len(with_curve) >= 3, f"only {sorted(with_curve)} still reach a capacity curve"
+
+
+# ---------------------------------------------------------------------------
+# The chain the free route figures are measured along
+# ---------------------------------------------------------------------------
+
+
+@cache
+def _free_routes(name: str) -> tuple[Decimal, FreeRouteOutcome, np.ndarray]:
+    """Run _measure_free_routes the way advise() runs it, plus the starting cost.
+
+    Built here rather than read off the Advice because the Advice carries the
+    savings and not the two endpoints they are supposed to span.
+    """
+    case = HOUSEHOLDS[name]
+    household = _household(case)
+    system = PVSystem(peak_power_wp=case["peak_power_wp"], azimuth_deg=0.0, tilt_deg=35.0)
+    hourly, temperature, _ = FallbackProvider(WEATHER_YEAR).hourly_series(
+        household.postcode4, system.azimuth_deg, system.tilt_deg
+    )
+    production = production_series(hourly, system, GRID, weather_year=WEATHER_YEAR)
+    fractions = FlatProfiles().fractions(GRID.year, household.profile_category)
+    levels = dataclasses.replace(scenario_2027_levels(dynamic=False), mid=scenario_2027_tariffs())
+    alternative = dataclasses.replace(
+        scenario_2027_levels(dynamic=True), mid=scenario_2027_tariffs(dynamic=True)
+    )
+    free_ids = frozenset(
+        fired.rule_id for fired in _golden_advice(name).fired if fired.route is not Route.STORAGE
+    )
+    consumption = compose_consumption(
+        household,
+        GRID,
+        fractions,
+        temperature,
+        weather_year=WEATHER_YEAR,
+        production_kwh=production,
+    )
+    started_at = _annual_costs(simulate(consumption, production), levels)[1]
+    outcome = _measure_free_routes(
+        household=household,
+        grid=GRID,
+        fractions=fractions,
+        temperature=temperature,
+        production=production,
+        scenario=levels,
+        dynamic_scenario=alternative,
+        fired_ids=free_ids,
+        battery_spec=None,
+        weather_year=WEATHER_YEAR,
+    )
+    return started_at, outcome, production
+
+
+@pytest.mark.parametrize(
+    "name", ["rob_fixed_contract", "large_array_small_use", "marloes_ev_at_night"]
+)
+def test_the_free_route_savings_span_exactly_the_two_ends_they_claim_to(name: str) -> None:
+    """Each step measured from where the last one left off, to the cent.
+
+    The comment above FREE_ROUTE_ORDER says the figures are additive by
+    construction, and FreeRouteOutcome's own docstring calls the failure this
+    prevents the most expensive defect this package has had: the same kilowatt
+    hours sold twice, once as a free saving and again as a reason to buy a
+    battery. Additive by construction means the three savings telescope, so
+    their total is the distance between the household that did nothing and the
+    household that did everything.
+
+    The existing invariant is an upper bound, that the total cannot exceed the
+    headline. That is necessary and it is not this. Measured on 2026-08-23:
+    dropping one of the running_cost assignments, so a step is measured from the
+    original household again instead of from the previous step, leaves the upper
+    bound satisfied and the whole suite green except one frontend fixture
+    comparison, which says a number moved and not which claim broke.
+    """
+    started_at, outcome, production = _free_routes(name)
+    assert outcome.savings, f"{name} took no free routes, so there is no chain to check"
+
+    total = sum(band.mid for band in outcome.savings.values())
+    ended_at = _annual_costs(simulate(outcome.consumption, production), outcome.scenario)[1]
+    assert total == started_at - ended_at, (
+        f"{name}: the three savings add up to {total} while the household moved from "
+        f"{started_at} to {ended_at}, a distance of {started_at - ended_at}"
+    )
+
+
+def test_the_measured_free_routes_are_the_ones_the_module_lists() -> None:
+    """FREE_ROUTE_ORDER is read by nothing, so it is a second copy of an order.
+
+    _measure_free_routes applies its three routes in hand written if blocks. The
+    tuple above it names the same three in the same order and no code consults
+    it, which means a reordering or a fourth route can leave the two disagreeing
+    with nothing to say so. The order is not decoration: each step is measured
+    on top of the last, so which one runs first decides how the same total is
+    split between them.
+    """
+    import inspect as _inspect
+
+    body = _inspect.getsource(_measure_free_routes)
+    guarded = re.findall(r'"([A-Z_]+)" in fired_ids', body)
+    assert guarded == list(FREE_ROUTE_ORDER), (
+        f"the function applies {guarded}, which is not what FREE_ROUTE_ORDER says"
+    )

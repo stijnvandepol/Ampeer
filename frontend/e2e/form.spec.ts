@@ -83,7 +83,16 @@ test("the roof question arrives with no direction chosen for the visitor", async
   // anybody has answered, and it is then the one direction that cannot be
   // given as an answer: a click on an already checked radio fires no change
   // event, so the only way forward was to pick a wrong roof and come back.
-  for (const radio of await page.getByRole("radio").all()) {
+  const radios = await page.getByRole("radio").all();
+  // Without this the loop below is a test that passes on a page with no radio
+  // on it: "none of them is checked" is trivially true of none of them. The
+  // compass has eight points, and any number above zero means the picker
+  // rendered and the claim is about something.
+  expect(
+    radios.length,
+    "the roof picker rendered no radio, so the check below reads nothing",
+  ).toBeGreaterThan(0);
+  for (const radio of radios) {
     await expect(radio).not.toBeChecked();
   }
 });

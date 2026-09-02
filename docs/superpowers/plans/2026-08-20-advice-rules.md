@@ -2,6 +2,14 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Status on 2026-08-22: delivered.** Every file this plan names is in the tree,
+> which `tests/test_plans.py` asserts for all six plans and fails on the day one
+> of them stops being true. The checkboxes below were never ticked while the work
+> was carried out, so read them as the task list this plan was written with and
+> not as work that is waiting. What the test cannot say is whether each step was
+> carried out the way it is written here; that is what the commit history and the
+> suite are for.
+
 **Goal:** Turn a simulation result into an explainable advice: which of three routes applies, which rules fired, what it is worth, and how sure we are.
 
 **Architecture:** A second pure-Python package beside `ampeer_sim`, with the same boundary and the same reason. Rules are data in an ordered table, they judge derived facts rather than numpy arrays, and they return rule ids rather than sentences. Dutch text lives in one file keyed by those ids, so a copy change and a behaviour change cannot break the same test.

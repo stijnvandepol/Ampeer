@@ -8,6 +8,7 @@ import pytest
 
 from ampeer_sim.production.pvgis import FallbackProvider
 from ampeer_sim.validate import (
+    REQUIRED_FIELDS,
     Deviation,
     FlatProfileProvider,
     check,
@@ -84,3 +85,78 @@ def test_cli_warns_when_no_profile_file_is_given(
 ) -> None:
     main([str(_write(tmp_path, STATEMENT)), "--tolerance", "1000", "--source", "offline"])
     assert "flat profile" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# What a statement cannot say, and what happens when it tries
+# ---------------------------------------------------------------------------
+
+
+def test_a_statement_describing_a_heat_pump_is_refused_rather_than_ignored(
+    tmp_path: Path,
+) -> None:
+    """The field was dropped without a word, and the run looked clean.
+
+    ``check`` has no way to model a heat pump: REQUIRED_FIELDS has no place for
+    one and the Household it builds carries neither an EV nor a pump. Until
+    2026-08-23 a statement that mentioned one was read as if it had not, the
+    comparison ran, and the two lines of output described a household that is
+    not the one on the statement.
+
+    Measured with a flat profile on a household of 6969 kWh of which 3469 is a
+    heat pump: offtake comes out 8.4 percent low and feed-in 23.2 percent low
+    against a default tolerance of 10 percent. So the feed-in line reads OFF and
+    somebody goes looking in the production model, which is not where the
+    problem is. That is why this raises rather than warns.
+    """
+    with_pump = dict(STATEMENT, heat_pump_kwh=12_000.0)
+    with pytest.raises(ValueError, match="does not use"):
+        load_statement(_write(tmp_path, with_pump))
+
+
+def test_a_misspelled_field_is_refused_too(tmp_path: Path) -> None:
+    """The other half of the same silence, and the more likely one.
+
+    A statement is a small file somebody writes by hand. "measured_feedin_kwh"
+    used to be dropped as an unknown field while "measured_feed_in_kwh" came
+    back missing, so the error named the absence and never the typo that caused
+    it. Both halves are now reported.
+    """
+    typo = {key: value for key, value in STATEMENT.items() if key != "daytime_occupancy"}
+    typo["daytime_occupancie"] = False
+    with pytest.raises(ValueError) as raised:
+        load_statement(_write(tmp_path, typo))
+    message = str(raised.value)
+    assert "daytime_occupancie" in message, (
+        f"the message names the field that is absent and not the typo that caused it: {message}"
+    )
+    assert "daytime_occupancy" in message, f"the message no longer says what is missing: {message}"
+
+
+def test_a_statement_holding_exactly_the_required_fields_still_loads(tmp_path: Path) -> None:
+    """The floor, since the check above is a raise on a set difference.
+
+    A guard comparing against the wrong set would refuse every statement, and
+    the two tests above would both still pass.
+    """
+    statement = load_statement(_write(tmp_path, STATEMENT))
+    assert statement.postcode4 == "5401"
+    assert set(STATEMENT) == set(REQUIRED_FIELDS), (
+        "the fixture no longer holds exactly the required fields, so it stopped being the "
+        "case this floor is about"
+    )
+
+
+def test_the_cli_says_which_household_it_assumed(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Printed on every run, because the tool cannot tell whether it applies.
+
+    It has no field to read, which is the whole point: a household with a heat
+    pump cannot say so, so the only honest moment to mention it is always.
+    """
+    main([str(_write(tmp_path, STATEMENT)), "--tolerance", "1000", "--source", "offline"])
+    output = capsys.readouterr().out
+    assert "no electric car and no heat pump" in output, (
+        "the run no longer says which household it modelled"
+    )
