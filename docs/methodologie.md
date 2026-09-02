@@ -30,7 +30,7 @@ uw batterij moet hebben maakt het wel uit, en daar zijn wij dus voorzichtiger.
 **Bron:** de standaardverbruiksprofielen elektriciteit voor toepassingsjaar 2025, versie
 1.00, vastgesteld door het Platform Verbruiksprofielen op 3 juli 2024 en gepubliceerd
 door MFFBAS, met de bestanden zelf op Energiedatawijzer.
-<https://www.mffbas.nl/nieuws/profielen-elektriciteit-en-aardgas-2025-plus-wegingsfactoren-gepubliceerd/>
+https://www.mffbas.nl/nieuws/profielen-elektriciteit-en-aardgas-2025-plus-wegingsfactoren-gepubliceerd/
 Er komt elk jaar een nieuwe set, dus het jaar hoort bij het getal.
 
 Twee dingen over die bron die u hoort te weten. Ten eerste noemen wij ze NEDU-profielen
@@ -180,7 +180,7 @@ PVGIS-SARAH3, die satellietmetingen bevat over de jaren 2005 tot en met 2023. Ve
 reikt die reeks niet, en dat is de bovengrens van het weerjaar waarop wij kunnen rekenen.
 Het JRC schrijft over PVGIS: "It is completely free to use, with no restrictions on what
 the results can be used for, and with no registration necessary."
-<https://joint-research-centre.ec.europa.eu/photovoltaic-geographical-information-system-pvgis/getting-started-pvgis/pvgis-user-manual_en>,
+https://joint-research-centre.ec.europa.eu/photovoltaic-geographical-information-system-pvgis/getting-started-pvgis/pvgis-user-manual_en,
 gelezen op 2 september 2026.
 
 Dat is een bewuste keuze. Wij hebben het eerst zelf uitgerekend uit de instralingsgetallen
@@ -385,7 +385,7 @@ beweegt niet mee met een kilowattuur meer of minder.
 btw in de eerste schijf, van 0 tot 2.900 kWh, dus 0,11085 euro per kWh inclusief btw, en
 de belastingvermindering is 519,80 euro per aansluiting per jaar exclusief btw
 (Belastingdienst, tarieven energiebelasting 2026,
-<https://www.belastingdienst.nl/wps/wcm/connect/bldcontentnl/belastingdienst/zakelijk/overige_belastingen/belastingen_op_milieugrondslag/energiebelasting/energiebelasting>,
+https://www.belastingdienst.nl/wps/wcm/connect/bldcontentnl/belastingdienst/zakelijk/overige_belastingen/belastingen_op_milieugrondslag/energiebelasting/energiebelasting,
 gelezen op 2 september 2026). Het leveringstarief, de terugleverkosten en de
 batterijprijzen komen uit landelijke prijsoverzichten en gepubliceerde
 leverancierstarieven, opgezocht op 20 augustus 2026. Die datum staat in de code naast
@@ -424,9 +424,9 @@ wij gebruiken als u dat niet doet.
 
 ## 11. De terugleververgoeding is lager dan vaak gedacht
 
-**Eerst de datum, want daar hangt alles aan.** De salderingsregeling stopt op 1 januari
-2027. Dat is geen verwachting van ons en geen voornemen van een minister, het staat in
-een wet die al is aangenomen en gepubliceerd. Hij stopt bovendien in één keer en niet in
+**Eerst de datum, want daar hangt alles aan.** De salderingsregeling stopt
+op 1 januari 2027. Dat is geen verwachting van ons en geen voornemen van een
+minister, het staat in een wet die al is aangenomen en gepubliceerd. Hij stopt bovendien in één keer en niet in
 stapjes, en dat is het punt waarop veel oudere artikelen iets anders zeggen dan wat er nu
 geldt.
 
@@ -434,11 +434,11 @@ geldt.
 beëindiging van de salderingsregeling voor elektriciteit en enkele technische
 wijzigingen, Staatsblad 2025, 17, uitgegeven op 29 januari 2025. Artikel V: "Deze wet
 treedt in werking met ingang van 1 januari 2027."
-<https://zoek.officielebekendmakingen.nl/stb-2025-17.html> Aangenomen door de Tweede
+https://zoek.officielebekendmakingen.nl/stb-2025-17.html Aangenomen door de Tweede
 Kamer op 14 november 2024 en door de Eerste Kamer op 17 december 2024. Een eerder
 voorstel, Kamerstuk 35594, bouwde de regeling juist geleidelijk af tussen 2025 en 2031;
 de Eerste Kamer verwierp dat op 13 februari 2024, en dat is dus niet de wet.
-<https://www.eerstekamer.nl/wetsvoorstel/35594_afbouw_salderingsregeling> Gelezen op
+https://www.eerstekamer.nl/wetsvoorstel/35594_afbouw_salderingsregeling Gelezen op
 2 september 2026.
 
 U leest vaak dat u na 2027 nog drie tot acht cent per teruggeleverde kWh krijgt. Dat is
@@ -476,7 +476,7 @@ kleinverbruiker een vast bedrag per jaar en bewegen niet mee per kilowattuur.
 bodem. Bij de wet die de saldering beëindigt is geregeld dat de redelijke vergoeding tot
 1 januari 2030 niet lager mag zijn dan 50 procent van de overeengekomen leveringsprijs
 (amendement bij wetsvoorstel 36611, nr. 17).
-<https://www.eerstekamer.nl/wetsvoorstel/36611_wet_beeindiging> Wat er ná 1 januari 2030
+https://www.eerstekamer.nl/wetsvoorstel/36611_wet_beeindiging Wat er ná 1 januari 2030
 geldt, weet niemand, en dat staat ook in hoofdstuk 19. Gelezen op 2 september 2026.
 
 Waar het op neerkomt: waar u nu ongeveer 27 cent bespaart op elke kWh die u zelf
