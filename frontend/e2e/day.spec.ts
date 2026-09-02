@@ -67,17 +67,33 @@ test.describe("the day figure", () => {
 
   test("paints each cell with the plate's own colours", async ({ page }) => {
     await page.goto("/");
-    const shades = await page
-      .locator(`${STRIP} > span`)
-      .evaluateAll(
-        (cells) =>
-          new Set(cells.map((cell) => getComputedStyle(cell).backgroundColor))
-            .size,
-      );
-    // Three states, each lifted by its own magnitude. One flat colour would be
-    // a strip that lost the day's shape, and three would be the lift not
-    // running at all.
-    expect(shades).toBeGreaterThan(20);
+    // Polled rather than read once, because the thing being measured is
+    // applied in an effect. DayCounting renders the three floor colours on the
+    // server on purpose, so the markup React hydrates against is the markup it
+    // produced, and lifts each cell to its own magnitude after paint. A single
+    // read right after goto is therefore a race against hydration, and it lost
+    // one in CI on 2026-09-02: run 33599078353 reported 3 shades, which is the
+    // floor and exactly what the comment below calls the lift not running.
+    // The product was fine; the measurement was early.
+    await expect
+      .poll(
+        async () =>
+          page
+            .locator(`${STRIP} > span`)
+            .evaluateAll(
+              (cells) =>
+                new Set(
+                  cells.map((cell) => getComputedStyle(cell).backgroundColor),
+                ).size,
+            ),
+        {
+          // Three states, each lifted by its own magnitude. One flat colour
+          // would be a strip that lost the day's shape, and three would be the
+          // lift not running at all.
+          message: "the cells never lifted past the three floor colours",
+        },
+      )
+      .toBeGreaterThan(20);
   });
 
   test("passes axe in both palettes", async ({ page }) => {
