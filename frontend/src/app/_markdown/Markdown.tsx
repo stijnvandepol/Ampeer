@@ -35,8 +35,15 @@ function renderBlock(block: Block, key: number): ReactNode {
     );
   }
   if (block.kind === "paragraph") {
+    // `break-words` because the document carries source citations, and a URL is
+    // one word that no line can break on its own. Without it a single citation
+    // sets the width of the whole page: e2e/rules.spec.ts measured
+    // /methodologie/ at 1365px inside a 360px viewport on 2026-09-02, which is
+    // the phone reading the document sideways. The table below has had its own
+    // scroller for the same reason since it was written; this is the other
+    // block that can carry something wider than the column.
     return (
-      <p key={key} className="mt-4 text-ink-muted">
+      <p key={key} className="mt-4 break-words text-ink-muted">
         {renderSpans(block.spans)}
       </p>
     );
@@ -45,7 +52,7 @@ function renderBlock(block: Block, key: number): ReactNode {
     return (
       <ul
         key={key}
-        className="mt-4 flex list-disc flex-col gap-2 pl-5 text-ink-muted"
+        className="mt-4 flex list-disc flex-col gap-2 break-words pl-5 text-ink-muted"
       >
         {block.items.map((item, index) => (
           <li key={index}>{renderSpans(item)}</li>

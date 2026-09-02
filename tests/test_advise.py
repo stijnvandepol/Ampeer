@@ -89,7 +89,13 @@ WEATHER_YEAR = 2025
 #: a tolerance wide enough to hide a rounding change would be a tolerance wide
 #: enough to hide the defect that put a rounding rule for euro amounts inside a
 #: constant named after a payback time.
-BREAK_EVEN_TOLERANCE_EUR = 0.01
+#:
+#: It used to be `pytest.approx(abs=0.01)`, which is "within a cent" and not
+#: "to the cent": it accepts a recorded figure that is a whole cent away from
+#: the one the model produces. On 2026-09-02 it was absorbing exactly that.
+#: `rob_fixed_contract`'s high break even stood at 557.11 against a computed
+#: 557.1024, and no run could say so. The comparison below is now equality
+#: after rounding to the cent, which is what this paragraph always claimed.
 
 #: The advice must complete inside this, excluding the capacity curve. The curve
 #: costs five more year simulations through the Python timestep loop and is only
@@ -497,17 +503,29 @@ def test_the_golden_battery_sizing_is_stable(name: str) -> None:
     # Recorded and asserted. It sat in the golden file unread until 2026-08-21,
     # which made it a number nothing could contradict: the figure the Dutch text
     # tells the reader to compare a quote against was pinned by no test at all.
-    assert float(battery.break_even_cost_per_kwh.mid) == pytest.approx(
-        expected["battery_break_even_mid_cost_per_kwh"], abs=BREAK_EVEN_TOLERANCE_EUR
+    assert round(float(battery.break_even_cost_per_kwh.mid), 2) == round(
+        float(expected["battery_break_even_mid_cost_per_kwh"]), 2
+    ), (
+        f"break even mid is recorded as "
+        f"{expected['battery_break_even_mid_cost_per_kwh']} and the model produces "
+        f"{float(battery.break_even_cost_per_kwh.mid):.4f}"
     )
     # The low end decides the unconditional yes: a battery is worth it at every
     # combination we price only when the break even price clears the top of the
     # cost band at the tariff level where storage earns least.
-    assert float(battery.break_even_cost_per_kwh.low) == pytest.approx(
-        expected["battery_break_even_low_cost_per_kwh"], abs=BREAK_EVEN_TOLERANCE_EUR
+    assert round(float(battery.break_even_cost_per_kwh.low), 2) == round(
+        float(expected["battery_break_even_low_cost_per_kwh"]), 2
+    ), (
+        f"break even low is recorded as "
+        f"{expected['battery_break_even_low_cost_per_kwh']} and the model produces "
+        f"{float(battery.break_even_cost_per_kwh.low):.4f}"
     )
-    assert float(battery.break_even_cost_per_kwh.high) == pytest.approx(
-        expected["battery_break_even_high_cost_per_kwh"], abs=BREAK_EVEN_TOLERANCE_EUR
+    assert round(float(battery.break_even_cost_per_kwh.high), 2) == round(
+        float(expected["battery_break_even_high_cost_per_kwh"]), 2
+    ), (
+        f"break even high is recorded as "
+        f"{expected['battery_break_even_high_cost_per_kwh']} and the model produces "
+        f"{float(battery.break_even_cost_per_kwh.high):.4f}"
     )
 
 
@@ -926,6 +944,44 @@ def test_every_assumption_round_one_makes_pushes_the_answer_up() -> None:
     # what their end costs is unchanged by it.
     night_car = shock(dataclasses.replace(household, ev=EV(behaviour=EVChargingBehaviour.NIGHT)))
     assert night_car == assumed
+
+
+def test_the_offline_table_chapter_quotes_the_figure_the_fallback_produces() -> None:
+    """Chapter 6 prints what the offline model costs against a live PVGIS.
+
+    The PVGIS column cannot be checked without a network call. The other column
+    can: it is this household's shock on `FallbackProvider`, and the chapter
+    prints it three times because the table does not know where the roof is.
+    Nothing read it until 2026-09-02, and by then it had gone stale. The figure
+    moved to 624 on 2026-08-29 when the production anchor changed, chapter 16
+    was corrected because a test computed it, and this table was not because no
+    test did. It said 623,50 against a model producing 623,71.
+
+    The percentages are checked against the two columns rather than recorded,
+    so the row has to stay arithmetic even if somebody re-measures the PVGIS
+    side and edits one number.
+    """
+    fallback = _central_shock("rob_fixed_contract")
+    printed = f"{fallback:.2f}".replace(".", ",")
+    document = (Path(__file__).resolve().parent.parent / "docs" / "methodologie.md").read_text(
+        encoding="utf-8"
+    )
+    rows = re.findall(
+        r"^\| (\d{4}, [A-Za-z]+) \| ([\d,]+) \| ([\d,]+) \| ([\d,]+) procent lager \|$",
+        document,
+        re.MULTILINE,
+    )
+    assert len(rows) == 3, f"chapter 6 no longer has three postcode rows, it has {len(rows)}"
+    for place, offline, pvgis, percent in rows:
+        assert offline == printed, (
+            f"{place} quotes {offline} for the offline model and it produces {printed}"
+        )
+        live = Decimal(pvgis.replace(",", "."))
+        claimed = Decimal(percent.replace(",", "."))
+        actual = (live - fallback) / live * 100
+        assert abs(actual - claimed) < Decimal("0.05"), (
+            f"{place} says {percent} procent lager and its own two columns give {actual:.2f}"
+        )
 
 
 def test_no_constant_is_defined_twice_in_the_package() -> None:

@@ -18,9 +18,9 @@
     ],
     "recommended_route": "SHIFT_BEHAVIOUR",
     "battery_capacity_kwh": 3.0,
-    "battery_payback_mid_years": 11.46,
+    "battery_payback_mid_years": 11.47,
     "battery_payback_low_years": 6.65,
-    "battery_payback_high_years": 17.97,
+    "battery_payback_high_years": 17.98,
     "payback_tolerance_years": 0.25,
     "note": "Seven kWp on 2200 kWh of demand: the archetypal loser of the 2027 change, exporting 89 percent of what it makes. The curve flattens hard above 5 kWh because the whole house only uses about 6 kWh a day, so a larger battery has nothing to discharge into. Payback 9.2 years at the central cost, which is why the positive rule stands.",
     "battery_break_even_mid_cost_per_kwh": 706.29,
@@ -70,7 +70,7 @@
     "concern": "Corrected on 2026-08-21. The capacity curve was priced on the household as it arrived, not as it stands after the free routes it was just told to take, and against the contract it was told to leave. The storage gate already read the residual export, so the decision to show a battery at all was honest while every figure behind it was not: the same kilowatt hours were sold once as a free saving and again as a reason to buy storage. Every figure below moved in the same direction, away from the battery. Rob was the household that moved between price dependent and a clear no three times as the model was corrected, always by a few tenths of a year. He is no longer near the line: 7.0 kWh at 11.62 years became 5.0 kWh at 16.80, and the break even price fell from 696.82 to 482.13 euro per installed kWh. The middle state was not wrong to exist, but it was being reached on figures that double counted the free advice above it.\n\nRevised on 2026-08-21, second pass. No figure below changed value; the names did, and one figure that was recorded here was never asserted by anything. battery_payback_p50_years is now battery_payback_mid_years and battery_break_even_cost_per_kwh is now battery_break_even_mid_cost_per_kwh, because p50 claimed a percentile of a distribution that was never sampled: the payback band is the extremes of nine priced combinations of the installed price and the tariff level, not the tenth, fiftieth and ninetieth percentile of 243 runs the way the headline is. The break even price was recorded here and read by no test at all, so the one figure the Dutch text tells a reader to hold a quote against was pinned by nothing; it is asserted from now on. The payback band itself widened, and that is a change in the answer rather than in a name. It used to move the installed price only, holding the tariffs at their central value, so its optimistic end read as payback at the cheapest quote in the market under tariffs assumed to be exactly right, which is the end that favours buying. The saving now moves with the tariff band as well. The middle is untouched, so no verdict moved: 16.8 years stands, and every reference household is still told a battery does not pay back. The ends recorded below are new, not moved. The break even price gained the two ends of its own band here as well. It is a band in the response now, because it is the annual saving times the twelve year limit and that saving depends on tariffs nobody knows, and the low end is the one the unconditional yes is decided on: a battery is worth it at every combination only if the break even price clears 900 euro per kWh at the tariff level where storage earns least. Recording only the middle would have left that end unpinned.\n\nRevised on 2026-08-26, engine 0.2.0. Not a correction to the advice. The offline production model was centred on solar noon rather than on 12:00, where it had been sitting 38 minutes early, and its daily shape is now scaled by what it sums to rather than by a closed form that ran 0.29 percent high. Every household exports at slightly different hours as a result, so every figure that is priced off an export series moved. No rule, threshold or tolerance moved. The reference household moved least in the direction that matters. Payback 16.80 to 16.71 years and break even 482.13 to 484.68 euro per installed kWh, both a fraction of a percent, and the capacity stayed at 5.0 kWh. He is still told a battery does not pay back, and he is still nowhere near the line he used to cross three times.",
     "battery_break_even_mid_cost_per_kwh": 484.68,
     "battery_break_even_low_cost_per_kwh": 412.26,
-    "battery_break_even_high_cost_per_kwh": 557.11
+    "battery_break_even_high_cost_per_kwh": 557.10
   },
   "sander_heat_pump": {
     "fired": [
@@ -79,9 +79,9 @@
     ],
     "recommended_route": "SMART_CONTROL",
     "battery_capacity_kwh": 7.0,
-    "battery_payback_mid_years": 20.07,
-    "battery_payback_low_years": 11.64,
-    "battery_payback_high_years": 31.47,
+    "battery_payback_mid_years": 20.08,
+    "battery_payback_low_years": 11.65,
+    "battery_payback_high_years": 31.48,
     "payback_tolerance_years": 0.25,
     "note": "Somebody home during the day plus a heat pump. Self consumption is already 47 percent so the shifting rule stays silent, correctly: there is little left to move and the presence check blocks it anyway. The heat pump load falls in winter when there is no surplus to store, so the battery saves only 321 euro a year against a 4725 euro invoice and does not pay back.",
     "battery_break_even_mid_cost_per_kwh": 403.3,

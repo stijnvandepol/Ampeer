@@ -1190,3 +1190,163 @@ def test_chapter_five_quotes_the_heat_pump_double_count_the_model_produces() -> 
         f"the pair is now {round(off_the_bill)} against {round(correct)} and chapter 5 "
         "quotes something else"
     )
+
+
+# --------------------------------------------------------------------------
+# Sources for the facts this document states about the world
+# --------------------------------------------------------------------------
+#
+# Most of this file checks the document against the code, because most of the
+# document describes the model. Five chapters do not: they state a fact about
+# the Netherlands, and the code cannot confirm any of them. A wrong figure
+# there is the failure mode this project keeps deleting, a plausible number
+# with nothing behind it, and the only defence a document has is to say where
+# the number came from and when it was true.
+
+SETTINGS_BASE = REPO_ROOT / "backend" / "ampeer" / "settings" / "base.py"
+
+#: The chapters that explain something about the world rather than about this
+#: model, located by title the way ``_chapter`` is. Listed rather than derived,
+#: because "does this paragraph make a claim about the world" is a judgement and
+#: a scan that guessed would either nag about every chapter or about none.
+SOURCED_CHAPTERS = (
+    "Waar de vorm van uw verbruik vandaan komt",
+    "De opwek van uw dak",
+    "Waar onze tariefgetallen vandaan komen",
+    "De terugleververgoeding is lager dan vaak gedacht",
+)
+
+#: The label a source line carries. One string, so that a chapter cannot half
+#: satisfy this by mentioning a publisher in passing.
+SOURCE_LABEL = "**Bron:**"
+
+_URL = re.compile(r"https?://[^\s>)]+")
+
+#: A year in the source line, which is the vintage of the figure. A citation
+#: without one cannot be re-checked: the reader can find the document and still
+#: not know which edition of it the number came out of.
+_VINTAGE = re.compile(r"\b(?:19|20)\d{2}\b")
+
+
+def _source_paragraphs(chapter: str) -> list[str]:
+    """Every paragraph in a chapter that begins with the source label."""
+    return [
+        paragraph
+        for paragraph in re.split(r"\n\s*\n", chapter)
+        if paragraph.lstrip().startswith(SOURCE_LABEL)
+    ]
+
+
+def _module_constant(source: Path, name: str) -> object:
+    """One module level constant, read from the file rather than imported.
+
+    ``backend/ampeer/settings/base.py`` cannot be imported without Django's
+    settings machinery, and this suite deliberately runs without a database.
+    """
+    tree = ast.parse(source.read_text(encoding="utf-8"))
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == name:
+                    return ast.literal_eval(node.value)
+    raise AssertionError(f"{source.name} no longer defines {name}")
+
+
+@pytest.mark.parametrize("fragment", SOURCED_CHAPTERS)
+def test_every_chapter_that_states_an_external_fact_names_its_source(fragment: str) -> None:
+    """A claim about the world carries a publisher, a link and a vintage.
+
+    Not a claim that the figure is right. A test cannot know that. It is a
+    refusal of the shape of claim that cannot be checked at all, which is the
+    one this repository has removed everywhere else.
+    """
+    chapter = _chapter(fragment)
+    paragraphs = _source_paragraphs(chapter)
+    assert paragraphs, (
+        f"chapter {fragment!r} states a fact about the world and carries no "
+        f"{SOURCE_LABEL} line, so a reader has only our word for it"
+    )
+    for paragraph in paragraphs:
+        flat = " ".join(paragraph.split())
+        assert _URL.search(flat), f"the source line in {fragment!r} names no URL: {flat[:120]!r}"
+        assert _VINTAGE.search(flat), (
+            f"the source line in {fragment!r} carries no year, so the figure has no "
+            f"vintage and cannot be re-checked: {flat[:120]!r}"
+        )
+
+
+def test_the_document_names_the_law_that_ends_netting() -> None:
+    """The whole product rests on one date, and the date is in the Staatsblad.
+
+    Wet van 18 december 2024, Staatsblad 2025, 17, article V: "Deze wet treedt
+    in werking met ingang van 1 januari 2027." Every figure this document
+    produces is the difference between the rules before that date and after it,
+    and until 2026-09-02 the document named neither the law nor the date.
+    """
+    chapter = " ".join(_chapter("De terugleververgoeding is lager").split())
+    for phrase in ("Staatsblad 2025, 17", "1 januari 2027", "18 december 2024"):
+        assert phrase in chapter, (
+            f"chapter 11 no longer names {phrase!r}, so the end of netting rests on "
+            "our own authority again"
+        )
+
+
+def test_the_document_says_the_phase_out_plan_is_not_the_law() -> None:
+    """An earlier bill phased netting out between 2025 and 2031 and was rejected.
+
+    Kamerstuk 35594, rejected by the Eerste Kamer on 13 February 2024. It is
+    still what a great deal of published material describes, so a reader who
+    checks this document against a two year old article needs to be told which
+    of the two is law.
+    """
+    chapter = " ".join(_chapter("De terugleververgoeding is lager").split())
+    assert "35594" in chapter, "chapter 11 no longer names the rejected phase-out bill"
+    assert "13 februari 2024" in chapter, (
+        "chapter 11 no longer says when the phase-out plan was rejected"
+    )
+
+
+def test_the_supply_price_chapter_says_what_is_in_the_price() -> None:
+    """Four things separate 27 cent from 5 cent, and three of them are taxes.
+
+    ``SUPPLY_PRICE`` is documented in the code as "energy plus energy tax plus
+    VAT". A household cannot check a figure quoted with no statement of what is
+    inside it, and network costs in particular are the component a reader will
+    assume is in there: for a small connection they are a fixed annual amount
+    per connection, so a kWh saved does not touch them.
+    """
+    chapter = " ".join(_chapter("Waar onze tariefgetallen vandaan komen").split())
+    for component in ("leveringstarief", "energiebelasting", "btw", "netbeheerkosten"):
+        assert component in chapter, (
+            f"chapter 10 no longer says whether {component} is inside the all-in price"
+        )
+
+
+def test_the_document_names_the_pvgis_version_the_provider_calls() -> None:
+    """The chapter about PVGIS must describe the PVGIS the code actually asks.
+
+    Read from the provider rather than repeated here, so a move to a later API
+    version or a different radiation database turns this red instead of leaving
+    the document describing an endpoint nobody calls.
+    """
+    from ampeer_sim.production.pvgis import PVGIS_URL, RADIATION_DATABASE
+
+    chapter = " ".join(_chapter("De opwek van uw dak").split())
+    assert PVGIS_URL in chapter, f"chapter 6 does not name the endpoint {PVGIS_URL}"
+    assert RADIATION_DATABASE in chapter, (
+        f"chapter 6 does not name the radiation database {RADIATION_DATABASE}"
+    )
+
+
+def test_the_profile_chapter_names_the_year_the_backend_configures() -> None:
+    """The profiles have an application year and the document must name that one.
+
+    ``AMPEER_PROFILE_YEAR`` decides which file is read. A chapter that cited the
+    profiles without a year would be a citation nobody can follow to a number,
+    since a new set is established annually.
+    """
+    year = _module_constant(SETTINGS_BASE, "AMPEER_PROFILE_YEAR")
+    chapter = " ".join(_chapter("Waar de vorm van uw verbruik vandaan komt").split())
+    assert f"toepassingsjaar {year}" in chapter, (
+        f"the backend reads the profiles for {year} and chapter 1 cites another year"
+    )
