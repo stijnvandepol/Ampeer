@@ -65,7 +65,7 @@ def test_download_returns_the_response_body(monkeypatch: pytest.MonkeyPatch) -> 
         def raise_for_status(self) -> None:
             return None
 
-    monkeypatch.setattr(ingest_profiles.requests, "get", lambda url, timeout: _Response())
+    monkeypatch.setattr("tools.ingest_profiles.requests.get", lambda url, timeout: _Response())
     assert ingest_profiles._download("https://example.invalid/profiles.zip") == b"zipbytes"
 
 
@@ -76,7 +76,7 @@ def test_download_propagates_an_http_error(monkeypatch: pytest.MonkeyPatch) -> N
         def raise_for_status(self) -> None:
             raise requests.HTTPError("404 Not Found")
 
-    monkeypatch.setattr(ingest_profiles.requests, "get", lambda url, timeout: _Response())
+    monkeypatch.setattr("tools.ingest_profiles.requests.get", lambda url, timeout: _Response())
     with pytest.raises(requests.HTTPError):
         ingest_profiles._download("https://example.invalid/profiles.zip")
 

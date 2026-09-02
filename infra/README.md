@@ -301,9 +301,26 @@ that starts and immediately exits:
 | api container | `Restarting (1)` | `Restarting (1)` |
 | first red step | `migrate`, two steps later | `up -d` itself |
 
-It costs about ninety seconds to go red on a broken image, which is the api
-healthcheck's twenty second start period plus three failed probes, and it costs
-availability on a good one. Measured over a probe every 0.23 seconds across a
+How long it costs to go red depends on how the image is broken, and the two
+cases are far enough apart to be worth telling apart. Both measured on
+2026-08-21 against the local stack, from the moment `up -d` was invoked:
+
+| The release | `up -d` fails after | The api container |
+|---|---|---|
+| starts and exits immediately | **4.7 s** | `Restarting (1)` |
+| stays up and never becomes healthy | **84.3 s** | `Up (unhealthy)` |
+
+The second number is the healthcheck's twenty second start period plus its
+retries, and it is the one this paragraph used to quote for both. It does not
+apply to the first: a container that has exited is not unhealthy, it is gone,
+and compose stops waiting for it rather than running the probe three more
+times. The table above this one describes a container in `Restarting (1)`, so
+it was the fast case being described with the slow case's arithmetic.
+
+Operationally the slow one is the one to know about. A release that crashes is
+caught in seconds; a release that runs and does not work holds the deploy for a
+minute and a half before anything says so. It also costs availability on a good
+release. Measured over a probe every 0.23 seconds across a
 release that changes both image tags: the window in which nothing served went
 from **0.74 s** to **3.29 s**, because `web` now starts after the api's first
 successful probe instead of immediately.
@@ -332,6 +349,29 @@ Three things about that fallback are worth knowing before you need it:
 
 On a first deploy there is no running container to read a tag from, so there is
 nothing to fall back to. The job says so and stops.
+
+**Rehearsed rather than reasoned about**, on 2026-08-21 against the local stack,
+because this is machinery that only ever runs during an outage and had never
+been executed. A release was built that keeps the real image's healthcheck and
+exits on start, and then deployed:
+
+- `up -d` exited **1**, which is what the fallback's condition reads. A failure
+  that exited zero would leave the step conditioned on nothing.
+- The tag of the running release was read off the container before it was
+  replaced, which is the whole of the fallback: `ghcr.io/...ampeer-api:smoke`
+  gives `smoke`.
+- The failed deploy left **no web container at all**, so the site was down
+  rather than degraded. That is worth expecting: there is nothing to serve a
+  page from while the api will not start.
+- The fallback command brought the site back **5.3 s** after it was invoked, and
+  all three services returned.
+- `.env` was untouched, so a reboot would have brought back the same release.
+
+So the automatic fallback turns "down until somebody notices" into roughly ten
+seconds of outage, if the job runs the failed start and the fallback back to
+back. Measured on a developer machine where both images were already present;
+on the host the previous image is also already there, so nothing is pulled in
+that path either, but the host is not this machine.
 
 ### Every deploy is a short outage, and `migrate` runs before it
 
@@ -371,6 +411,73 @@ lives with whoever writes the migration rather than with this file:
 That rule is not enforceable from a workflow, and nothing here pretends to
 enforce it. What the ordering does guarantee is that a migration which fails
 stops the deploy while the previous release is still whole.
+
+**Rehearsed on 2026-08-21**, because that last sentence had never been executed
+either. A migration was mounted into the api image that adds a column and then
+asks for an index on a column that does not exist, and it was run the way the
+deploy runs it, with the site being probed four times a second throughout:
+
+- `migrate` exited **1**, so the job stops there and never reaches `up -d`.
+- The site served **every one of the eleven probes** taken while it ran. The
+  previous release was untouched, because nothing had been switched.
+- The database was untouched as well. The column the migration had already
+  added was gone afterwards and the migration was not recorded as applied.
+  PostgreSQL runs DDL inside a transaction and Django wraps each migration in
+  one, so a migration that fails leaves nothing of itself behind.
+
+**That last point holds per migration and not per release**, which is the part
+worth knowing before it matters. The same rehearsal with two migrations, the
+first adding a column and the second failing, left the first applied: its column
+was present and its name was in `django_migrations`. Only the failing one rolled
+back.
+
+So an aborted deploy can leave the previous release running against a schema
+that is part of the way to the next one. It keeps serving, and it keeps serving
+for exactly as long as those migrations only added, which is the rule above.
+That is a second reason for it, and a better one than the window between
+`migrate` and `up -d`: the window lasts seconds, and this state lasts until
+somebody deploys again.
+
+### The digest check, and the window it closes
+
+`docker-compose.yml` pulls `:${AMPEER_VERSION}`, and between the build job and
+the pull sits the `production` review, which can take hours. A tag is a name:
+anyone holding `packages: write` on the repository can repoint
+`ampeer-api:v0.1.0` while that review is open, and the reviewer then approves
+the run they read while the host pulls whatever the tag says at pull time.
+Nothing in the run would look wrong.
+
+So the pull is checked rather than pinned. `pull` has already resolved the tag,
+and the step reads the digest the daemon recorded for what it fetched and
+compares it with the digest the build job says it pushed.
+
+**Rehearsed on 2026-08-21**, because a control that has never been run is a
+control nobody has seen work. The step was lifted out of the workflow unchanged
+and driven with two locally built images standing in for a good release and a
+repointed one:
+
+| The tag points at | The step |
+|---|---|
+| what the build published | exits 0 |
+| a different image | exits 1, printing both digests and naming what happened |
+| nothing, because the build published no digest | exits 1, saying so |
+| an image the host does not have | exits 1, on the daemon's own error |
+
+All three failures are closed rather than open, which is the property that
+matters for a control whose whole job is to refuse.
+
+One thing that surprises a person rehearsing this locally: an image built here
+and never pushed still reports a `RepoDigests` entry, so the check runs against
+it happily. On the host nothing is built, so the digest there is always the one
+the registry handed over with the pull, and this only matters when reading the
+output of a local rehearsal and wondering why it looks like a real pull.
+
+**What this does not cover**, stated rather than implied: a rollback. That is an
+operator running `docker compose up -d` with an older `AMPEER_VERSION`, with no
+build job in that path to say what the digest should be and no CI run at all, so
+a tag repointed weeks ago is pulled without anything objecting. It is the price
+of the tag being usable while CI is not, and it is the operation the tag exists
+to make easy, so it is the one to be careful with.
 
 ### `web` cannot start while `api` does not resolve
 
@@ -473,6 +580,84 @@ The containers are called `ampeer-local-api-1`, `ampeer-local-web-1` and
 `ampeer-local-db-1`, not `ampeer-api-1`. That is the override's `name:` line and
 it is the next paragraph's whole subject; where a verify step elsewhere in this
 file names `ampeer-web-1`, locally it is `ampeer-local-web-1`.
+
+### A database for the test suite, without building the stack
+
+About a tenth of the suite talks to Postgres. Without one those tests do not
+fail, they **error**, and pytest reports them separately from failures at the
+bottom of a long run. A local run that looks fine at a glance can be missing
+them entirely: measured on 2026-08-21, the same suite reported `749 passed` with
+89 errors against no database and `838 passed` against one.
+
+That matters more than usual while GitHub Actions minutes are exhausted, because
+a local run is then the only run there is.
+
+None of the images have to be built for this. The suite needs a server, not the
+stack:
+
+```sh
+IMAGE=$(grep -A1 '^  db:' infra/docker-compose.yml | grep image: | sed 's/.*image: //')
+docker run -d --name ampeer-devtest -p 5433:5432 \
+  -e POSTGRES_USER=ampeer -e POSTGRES_PASSWORD=devtest -e POSTGRES_DB=ampeer "$IMAGE"
+```
+
+The image is read out of `docker-compose.yml` rather than written here, so this
+is the same server version the host runs and stays that way when the pin moves.
+If the grep ever stops matching, `IMAGE` is empty and docker says so on the next
+line rather than quietly starting something else.
+
+Port **5433**, not 5432. A development machine often already has a Postgres on
+the default port belonging to another project, and that one answers a connection
+probe and then refuses the login, which turns the whole suite red for a reason
+that has nothing to do with the code.
+
+Then:
+
+```sh
+POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5433 POSTGRES_DB=ampeer \
+POSTGRES_USER=ampeer POSTGRES_PASSWORD=devtest \
+  uv run pytest -q
+```
+
+`scripts/gates.sh` reads the same five variables and runs the same command as
+part of a full local run. It refuses to guess a password, so without them it
+reports `pytest` as NOT RUN rather than passing over a tenth of the suite.
+
+### The same gates, on the operating system that decides them
+
+```sh
+POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5433 POSTGRES_DB=ampeer POSTGRES_USER=ampeer POSTGRES_PASSWORD=devtest   bash scripts/gates_linux.sh
+```
+
+Development happens on Windows and the pipeline runs on Linux, and a green run
+here is not a green run there. Three tests skip on this filesystem with "this
+filesystem does not carry POSIX modes": they are the ones asserting a dump is
+`0600` inside a `0700` directory, which is a claim `docs/dpia.md` makes about
+who can read a backup. Until 2026-08-22 they had never run anywhere.
+
+The script defines no gates of its own. It builds a container from the Python
+and uv versions this project already pins, puts the git index into it and runs
+`scripts/gates.sh` there, so there is one place that says what a gate is. It
+runs the Python half; the frontend half needs Node and its behaviour does not
+differ between the two systems, so that is left to CI.
+
+The index and not the working tree, because the checks that ask git what it
+tracks read the index. Running the gates before `git add` says nothing about
+what a commit will contain, which is how a red test reached the branch tip on
+2026-08-22. Without Docker the script reports NOT RUN and exits zero, the same
+answer `scripts/gates.sh` gives for a gate it cannot reach.
+
+With a database, a browser and gitleaks present, a full local run leaves nothing
+NOT RUN. That matters more than it sounds while GitHub Actions is unavailable,
+because the local run is then the only run there is. The browser comes from
+`pnpm exec playwright install --with-deps chromium` in `frontend/`, and gitleaks
+needs no separate install: `pre-commit install-hooks` fetches the version
+`.pre-commit-config.yaml` pins, which is the one the `secrets` job downloads,
+and the runner finds it in that cache.
+
+The container holds nothing worth keeping. `docker rm -f ampeer-devtest` when
+you are done, and start it again next time; the suite creates and drops its own
+test database on every run.
 
 ### `down -v` deletes a database, and the project name decides which one
 
@@ -663,8 +848,10 @@ compromised job into a permanent foothold, and it is why the deploy job ends
 with `docker logout` under `if: always()`.
 
 `tests/test_pipeline_contract.py` refuses every job that says `self-hosted`,
-because `ci.yml` and `security.yml` trigger on push to `feat/**` where no
-ruleset applies. The deploy job is the single named exception, and it is only
+because `ci.yml` triggers on push to `feat/**`, where no ruleset applies.
+`security.yml` is narrower and its earliest trigger is a pull request; the
+refusal covers both anyway, because a rule about the whole repository is easier
+to keep true than one that has to be rechecked per workflow. The deploy job is the single named exception, and it is only
 defensible because it triggers on a tag, declares `environment: production`,
 checks nothing out and builds nothing. The exception list is asserted to hold
 exactly one job.

@@ -146,3 +146,112 @@ def test_a_household_that_never_exports_pays_no_per_kwh_feed_in_charge() -> None
         feed_in_cost_per_kwh=Decimal("0.075"),
     )
     assert annual_cost(_flows(1_000.0, 0.0), tariffs) == Decimal("260.000")
+
+
+# ---------------------------------------------------------------------------
+# A tariff set that says two things this function cannot honour at once
+# ---------------------------------------------------------------------------
+
+QUARTERS_PER_DAY = 96
+
+
+def _shaped_year() -> tuple[EnergyFlows, np.ndarray]:
+    """A year with the export at midday, the offtake in the evening peak.
+
+    Flat is the wrong fixture here and it is what the rest of this file uses.
+    With one price all year, netting kilowatt hours and pricing them separately
+    come to the same euro, so the term below is worth nothing and the fixture
+    proves nothing. What makes saldering valuable is exactly that the exported
+    kilowatt hour and the offtaken one are worth different amounts, which needs
+    a day shape to exist.
+    """
+    steps = 365 * QUARTERS_PER_DAY
+    quarter = np.arange(steps) % QUARTERS_PER_DAY
+    midday = (quarter >= 40) & (quarter < 64)
+    evening = (quarter >= 68) & (quarter < 88)
+
+    export = np.where(midday, 1.0, 0.0)
+    offtake = np.where(evening, 1.0, 0.0)
+    export *= 2_600.0 / export.sum()
+    offtake *= 3_500.0 / offtake.sum()
+
+    prices = 0.10 + 0.22 * evening - 0.05 * midday
+    zeros = np.zeros(steps)
+    flows = EnergyFlows(
+        consumption=offtake,
+        production=export,
+        self_consumption=zeros,
+        from_grid=offtake,
+        to_grid=export,
+        battery_charge=zeros,
+        battery_discharge=zeros,
+    )
+    return flows, prices
+
+
+def test_net_metering_on_a_dynamic_tariff_is_refused_rather_than_dropped() -> None:
+    """Both flags set is not a caller's mistake, and the branch dropped one.
+
+    Saldering applies whatever the contract until 1 January 2027, so for a 2026
+    household on a dynamic contract ``dynamic=True, net_metering=True`` is the
+    accurate description. Until 2026-08-23 ``annual_cost`` took the dynamic
+    branch of an if/elif and never looked at the netting, and returned a figure
+    with no sign that half of what it was told had been ignored.
+
+    Refusing rather than picking a reading. The netting settles a volume over a
+    year and the dynamic path settles 35040 quarters, and which price the netted
+    residual is worth is a question the supplier's terms answer rather than this
+    function.
+    """
+    flows, prices = _shaped_year()
+    contradictory = TariffSet(
+        supply_price=Decimal("0.1333"),
+        feed_in_price=Decimal("0.1333"),
+        net_metering=True,
+        dynamic=True,
+    )
+    with pytest.raises(ValueError, match="not modelled"):
+        annual_cost(flows, contradictory, prices_per_quarter=prices)
+
+
+def test_each_flag_on_its_own_still_prices() -> None:
+    """The floor under the refusal, which is a raise on a conjunction.
+
+    A guard on the wrong operator would refuse every dynamic tariff and every
+    net metered one, and the suite would still be green on the test above.
+    """
+    flows, prices = _shaped_year()
+    dynamic_only = TariffSet(
+        supply_price=Decimal("0.1333"), feed_in_price=Decimal("0.1333"), dynamic=True
+    )
+    netting_only = TariffSet(
+        supply_price=Decimal("0.1333"), feed_in_price=Decimal("0.1333"), net_metering=True
+    )
+    assert isinstance(annual_cost(flows, dynamic_only, prices_per_quarter=prices), Decimal)
+    assert isinstance(annual_cost(flows, netting_only), Decimal)
+
+
+def test_the_dropped_term_was_worth_refusing_over() -> None:
+    """Why this is a raise and not a comment saying the flag wins.
+
+    The two readings of that one tariff set, measured on 2026-08-23: pricing
+    every quarter at the market price comes to 990 euro, netting the year and
+    settling the residual comes to 119.97. A caller who wrote both flags got the
+    first and asked for something that includes the second.
+
+    Pinned as a floor rather than to the cent, so the fixture can be made more
+    realistic without this becoming a number to update. What must not change is
+    the order of magnitude: if this term ever shrinks to a rounding difference,
+    the raise above is overreacting and should be revisited rather than kept.
+    """
+    flows, prices = _shaped_year()
+    average = Decimal("0.1333")
+    dynamic_only = TariffSet(supply_price=average, feed_in_price=average, dynamic=True)
+    netting_only = TariffSet(supply_price=average, feed_in_price=average, net_metering=True)
+
+    priced_per_quarter = annual_cost(flows, dynamic_only, prices_per_quarter=prices)
+    netted_over_the_year = annual_cost(flows, netting_only)
+    assert priced_per_quarter - netted_over_the_year > Decimal("500"), (
+        f"the two readings are {priced_per_quarter - netted_over_the_year} euro apart, which is "
+        "small enough that refusing to choose between them is heavier than the problem"
+    )

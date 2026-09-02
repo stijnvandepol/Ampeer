@@ -4,9 +4,11 @@ name: deploy
 # and the only one that can change what is running on the host.
 #
 # tests/test_pipeline_contract.py refuses every job that says `self-hosted`,
-# because ci.yml and security.yml trigger on push to feat/** where no ruleset
-# applies, so such a job would run whatever somebody pushed inside the owner's
-# own network. This workflow is the single named exception to that rule, and it
+# because ci.yml triggers on push to feat/**, where no ruleset applies, so such
+# a job would run whatever somebody pushed inside the owner's own network.
+# security.yml is narrower and its earliest trigger is a pull request; the
+# refusal covers both anyway, because a rule about the whole repository is
+# easier to keep true than one that has to be rechecked per workflow. This workflow is the single named exception to that rule, and it
 # is only defensible because of the four properties below. Each one has a test.
 #
 #   1. It triggers on a tag and on nothing else. No branch, no pull request, no
@@ -219,7 +221,7 @@ jobs:
       # drift from the repository. Changing that file therefore means changing
       # this line in the same commit, which is the point: it can then only
       # disagree with the host.
-      COMPOSE_SHA256: 17b9fdcd4cd84b09fe07b6f1472ad38b05452be4000f83a2142ab8e1ef3dd10f
+      COMPOSE_SHA256: 90947f4e98bbed6dd7c3e9a96e4c964118b32d45f2d50bd651c7292f0b1208ed
       # The sha256 of scripts/backup_db.sh in this repository at this tag, for
       # the same reason as the two above. This one guards a retention window:
       # an older copy on the host keeps a different number of dumps and allows

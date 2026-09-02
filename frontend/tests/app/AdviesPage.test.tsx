@@ -104,6 +104,43 @@ describe("the advice page", () => {
     expect(screen.getByText(/niets meer te halen/i)).toBeInTheDocument();
   });
 
+  it("has an answer for a household with nothing left to gain", async () => {
+    // The shape two of the six golden households produce: no rule fires in any
+    // route, so `battery` is null as well, because a battery is only priced for
+    // a household some storage rule reached. Each half is covered above and
+    // neither half is this: a page with nothing at all to say had never been
+    // rendered, and it is the answer somebody who already uses 94 percent of
+    // their own production receives.
+    const nothingToGain = {
+      ...fixture,
+      routes: fixture.routes.map((route) => ({ ...route, rules: [] })),
+      battery: null,
+    };
+    vi.stubGlobal("fetch", respondWith(nothingToGain));
+    const { container } = render(<AdviesPage />);
+    await screen.findByText(fixture.confidence_label);
+
+    // What it still owes them: the figure, its band and how sure it is.
+    expect(screen.getByText(fixture.confidence_label)).toBeInTheDocument();
+    expect(
+      container.querySelector('[data-band-kind="percentile"]'),
+    ).not.toBeNull();
+
+    // All three routes, in order, each saying so for itself rather than the
+    // page hiding what it found nothing in.
+    expect(container.querySelectorAll("[data-route]")).toHaveLength(3);
+    expect(screen.getAllByText(/niets meer te halen/i)).toHaveLength(3);
+
+    // And no battery. A household just told there is nothing to gain from
+    // storage must not then be shown a battery sized and priced for them; that
+    // is the one place where this product could read as selling something.
+    // data-role and not a data-battery attribute: the first version of this
+    // line asserted on one that does not exist anywhere in the source, which
+    // would have passed whether the block rendered or not.
+    expect(container.querySelector('[data-role="battery-detail"]')).toBeNull();
+    expect(screen.queryByText(/doorgerekend/i)).toBeNull();
+  });
+
   it("gives the bandless capacity its own sentence and no invented margin", async () => {
     vi.stubGlobal("fetch", respondWith(fixture));
     const { container } = render(<AdviesPage />);
@@ -127,16 +164,24 @@ describe("the advice page", () => {
     expect(scenario).toHaveLength(expected);
   });
 
-  it("keeps the battery block shut when the model said it does not pay back", async () => {
+  it("keeps the battery block shut when the model is not recommending one", async () => {
     // Measured on the built page at 1280x900 before this: the headline band was
     // 345px, the two free routes 313px each, and "De batterij, doorgerekend"
     // 1365px, which is 38.5% of the page and 2.2 times the two free routes
-    // together, on a household whose verdict is BATTERY_DOES_NOT_PAY_BACK and
-    // whose rule text says "niet de moeite waard". It passed all five rules,
-    // because "free routes first" was implemented as DOM order, and order is
-    // the weakest form of precedence there is. Reading the page, it said no and
-    // then handed over a sizing menu with prices in it.
-    expect(fixture.battery.verdict).toBe("BATTERY_DOES_NOT_PAY_BACK");
+    // together, on a household the model was not recommending a battery to. It
+    // passed all five rules, because "free routes first" was implemented as DOM
+    // order, and order is the weakest form of precedence there is. Reading the
+    // page, it said no and then handed over a sizing menu with prices in it.
+    //
+    // The guard is on the property and not on one id. It read
+    // BATTERY_DOES_NOT_PAY_BACK until 2026-08-26, when the fixture household
+    // crossed the twelve year line and became BATTERY_DEPENDS_ON_PRICE. That is
+    // still not a recommendation, so the behaviour under test is unchanged and
+    // only the guard had to be, which is the sign it was written one id too
+    // narrow. An empty or unknown verdict still fails it.
+    expect(["BATTERY_DOES_NOT_PAY_BACK", "BATTERY_DEPENDS_ON_PRICE"]).toContain(
+      fixture.battery.verdict,
+    );
     vi.stubGlobal("fetch", respondWith(fixture));
     const { container } = render(<AdviesPage />);
     await screen.findByText(fixture.confidence_label);
@@ -303,9 +348,16 @@ describe("the advice page", () => {
     render(<AdviesPage />);
     await screen.findByText(fixture.confidence_label);
     expect(screen.getByText("Motorversie")).toBeInTheDocument();
-    // Two versions that happen to be the same string today, which is why this
-    // counts them rather than looking one up.
-    expect(screen.getAllByText(fixture.engine_version)).toHaveLength(2);
+    // One assertion per version, each on its own value. This counted both at
+    // once until 2026-08-26, when the engine moved to 0.2.0 and the advice
+    // version stayed at 0.1.0. The comment here used to say the two "happen to
+    // be the same string today", which was true and was the whole reason a
+    // count could stand in for two lookups; the day that stopped being true,
+    // the page was showing both correctly and the test was the thing that
+    // failed. Looked up separately, a page that dropped one of them fails too.
+    expect(screen.getByText(fixture.engine_version)).toBeInTheDocument();
+    expect(screen.getByText(fixture.advice_version)).toBeInTheDocument();
+    expect(fixture.engine_version).not.toBe(fixture.advice_version);
     expect(screen.getByText(String(fixture.weather_year))).toBeInTheDocument();
     // The Dutch sentence, never the enum. "FALLBACK" in front of a reader is
     // the language boundary being crossed by the frontend, and which of the two
@@ -314,5 +366,37 @@ describe("the advice page", () => {
       screen.getByText(fixture.production_source_text),
     ).toBeInTheDocument();
     expect(screen.queryByText(fixture.production_source)).toBeNull();
+  });
+
+  it("shows the consumption it modelled, so a doubled figure can be caught", async () => {
+    // The visibility half of decision 26. The question asks for consumption
+    // WITHOUT a car and a heat pump, and its one failure mode is a visitor who
+    // enters the total off their annual bill anyway: they are otherwise
+    // indistinguishable from a correct one and lose between a quarter and half
+    // of their answer with nothing reporting it. This figure is the only place
+    // they can recognise the number the model actually used, or fail to.
+    vi.stubGlobal("fetch", respondWith(fixture));
+    render(<AdviesPage />);
+    await screen.findByText(fixture.confidence_label);
+    const modelled = fixture.modelled_consumption_kwh;
+    expect(modelled).toBeDefined();
+    expect(screen.getByText(`${modelled!.value} kWh`)).toBeInTheDocument();
+    // The sentence with it, from the API. Without it the figure is a number in
+    // a list of versions and a reader has no reason to check it against
+    // anything. The basis enum stays out of sight, same boundary as the
+    // production source above.
+    expect(screen.getByText(modelled!.basis_text)).toBeInTheDocument();
+    expect(screen.queryByText(modelled!.basis)).toBeNull();
+  });
+
+  it("renders the page it rendered before the field existed when it is absent", async () => {
+    // Optional on the wire, like `year`. A build talking to an older API shows
+    // no gap where the figure would be.
+    const { modelled_consumption_kwh: _absent, ...without } = fixture;
+    vi.stubGlobal("fetch", respondWith(without));
+    render(<AdviesPage />);
+    await screen.findByText(fixture.confidence_label);
+    expect(screen.queryByText("Verbruik")).toBeNull();
+    expect(screen.getByText("Motorversie")).toBeInTheDocument();
   });
 });

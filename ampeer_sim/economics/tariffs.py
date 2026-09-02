@@ -30,6 +30,27 @@ def annual_cost(
     prices_per_quarter: np.ndarray | None = None,
 ) -> Decimal:
     """Return the annual electricity cost in euro. Negative means a net payout."""
+    if tariffs.dynamic and tariffs.net_metering:
+        # The branch below would take the dynamic path and drop the netting
+        # without saying so, and the netting is not a correction term. Measured
+        # on 2026-08-23, on a household taking 3500 kWh and feeding in 2600 with
+        # export around midday and offtake in the evening peak, the term this
+        # flag controls is worth 870 euro a year. A silent drop of it lands in
+        # the direction that inflates the shock this project exists to quantify.
+        #
+        # Refusing rather than picking, because for 2026 the combination is the
+        # correct description of a household on a dynamic contract, not a
+        # caller's mistake: saldering applies whatever the contract. Modelling
+        # it means netting volumes over the year and then deciding at which of
+        # 35040 prices the residual is settled, and that question has an answer
+        # in the supplier's terms rather than in this function. Until it is
+        # modelled, an error is the honest output.
+        raise ValueError(
+            "net metering on a dynamic tariff is not modelled: the annual netting "
+            "would have to settle its residual at one of the quarter-hour prices "
+            "and this function has no rule for choosing"
+        )
+
     offtake_series = flows.total_import
     feed_in_series = flows.total_export
     offtake = _to_decimal(offtake_series.sum(), KWH_PRECISION)

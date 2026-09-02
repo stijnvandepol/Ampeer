@@ -10,9 +10,9 @@ machine verlaat. Elk feit hierin is uit de code gelezen of gemeten, niet
 onthouden, en `tests/test_dpia.py` houdt de getallen hieronder naast de plek in
 de code waar ze vandaan komen. Verandert er een, dan valt die test om.
 
-Dit is geen juridisch advies en het is niet ondertekend. Vier dingen zijn
-beslissingen van de verwerkingsverantwoordelijke en staan in hoofdstuk 9 met de
-informatie die nodig is om ze te nemen.
+Dit is geen juridisch advies en het is niet ondertekend. Vijf dingen zijn
+beslissingen van de verwerkingsverantwoordelijke en staan in hoofdstuk 10 met
+de informatie die nodig is om ze te nemen.
 
 ## 1. Is een DPIA hier verplicht
 
@@ -35,8 +35,8 @@ geen stelselmatige observatie en het is geen grootschalige monitoring van een
 openbare ruimte.
 
 De afweging is dus: waarschijnlijk niet verplicht in fase 0.5, wel verstandig,
-en verplicht zodra fase 1 begint. Hoofdstuk 8 zet uiteen wat er dan verandert.
-Hoofdstuk 9 laat de conclusie zelf aan de verwerkingsverantwoordelijke.
+en verplicht zodra fase 1 begint. Hoofdstuk 9 zet uiteen wat er dan verandert.
+Hoofdstuk 10 laat de conclusie zelf aan de verwerkingsverantwoordelijke.
 
 ## 2. Wat wij verwerken
 
@@ -45,11 +45,13 @@ Alles hieronder komt uit `backend/advice/models.py` en
 
 ### Wat de bezoeker invult
 
-De eerste ronde stelt vier vragen: viercijferige postcode, jaarverbruik in kWh,
-vermogen aan panelen in wattpiek, en dakrichting en hellingshoek. Een tweede
-ronde kan daar zeven antwoorden aan toevoegen: overdag thuis, elektrische auto
-en het laadmoment, warmtepomp en warmtevraag, contractvorm, thuisbatterij en de
-omvang daarvan.
+De eerste ronde stelt vier vragen en levert vijf antwoorden op: viercijferige
+postcode, jaarverbruik in kWh, vermogen aan panelen in wattpiek, en dakrichting
+en hellingshoek, die samen een vraag zijn en apart worden opgeslagen. Een
+tweede ronde stelt vijf vragen erbij en levert acht antwoorden: overdag thuis,
+elektrische auto en het laadmoment, warmtepomp en warmtevraag, contractvorm,
+thuisbatterij en de omvang daarvan. Negen vragen in totaal, en dat getal
+bepaalt ook het betrouwbaarheidsniveau in hoofdstuk 17 van de methodologie.
 
 **De postcode wordt op vier cijfers gevalideerd en er is geen veld waar meer in
 past.** Dat is niet een afspraak maar een reguliere expressie in de serializer:
@@ -76,8 +78,18 @@ is geen model met een adresveld en geen logregel die er een bewaart.
 ### Het auditlogboek
 
 `AuditEvent` is append-only en legt vandaag precies een soort gebeurtenis vast:
-dat er een advies is gegenereerd, met het token en de viercijferige postcode
-erbij. De andere gebeurtenissen die dit project wil vastleggen, een inlog, een
+dat er een advies is gegenereerd. Wat er bij die regel staat is een sha256 van
+het token, het viercijferige postcodegebied, het betrouwbaarheidsniveau en de
+twee versienummers van de motor en de regeltabel.
+
+**Niet het token zelf.** Het token is geen verwijzing naar een advies, het is
+de enige sleutel die het opent, en deze tabel wordt nooit opgeruimd. Een token
+in platte tekst zou hier dus als permanente regel blijven staan met een
+werkende link naar een advies dat na negentig dagen weg had moeten zijn. De
+hash houdt waar het logboek voor is: wie de link legitiem heeft kan hem hashen
+en zijn eigen regel terugvinden.
+
+De andere gebeurtenissen die dit project wil vastleggen, een inlog, een
 koppeling, een gegeven of ingetrokken toestemming, een verstuurde lead, een
 export of een verwijdering, bestaan nog niet, omdat de handelingen zelf nog niet
 bestaan. Een logboek dat ze nu al noemde zou een verwerking beschrijven die er
@@ -85,8 +97,9 @@ niet is.
 
 Dat logboek heeft geen bewaartermijn, met opzet. Een auditlogboek dat verloopt
 is geen auditlogboek. Wat het draagt verliest wel zijn zeggingskracht: zodra het
-advies na negentig dagen weg is, wijst het token in het logboek nergens meer
-naar, en wat overblijft is een postcodegebied en een tijdstip.
+advies na negentig dagen weg is, wijst de hash in het logboek nergens meer
+naar, en wat overblijft is een postcodegebied, een tijdstip en twee
+versienummers.
 
 ## 3. Waarom, en waarom niet meer
 
@@ -95,7 +108,7 @@ instralingsreeks, het jaarverbruik schaalt het profiel, en wattpiek en
 dakopstelling bepalen de opwek. Er is geen vraag die alleen voor de statistiek
 gesteld wordt.
 
-De grondslag hoort bij de verwerkingsverantwoordelijke en staat in hoofdstuk 9.
+De grondslag hoort bij de verwerkingsverantwoordelijke en staat in hoofdstuk 10.
 Feitelijk relevant is dat de bezoeker de gegevens zelf invult om er een antwoord
 voor terug te krijgen, dat er niets gebeurt zonder die invoer, en dat er geen
 tweede doel is: geen advertenties, geen profielopbouw, geen doorverkoop, en geen
@@ -113,9 +126,12 @@ teruggeeft en niet meer kan vinden. Dat is de belofte waar een deelbare link,
 een inzageverzoek en een verwijderverzoek alle drie over gaan.
 
 **Sinds 21 augustus 2026 is er een tweede kopie**, en dat is een bewuste ruil.
-Er wordt dagelijks een dump gemaakt en die dumps worden zeven dagen bewaard, dus
-een advies dat de dienst niet meer teruggeeft kan nog ten hoogste een week in een
-back-upbestand staan. Drie dingen begrenzen dat, en het zijn eigenschappen van
+Er wordt dagelijks een dump gemaakt en `KEEP_DAYS` staat op zeven, dus
+een advies dat de dienst niet meer teruggeeft kan nog ten hoogste acht dagen in
+een back-upbestand staan. Acht en niet zeven, en dat is geen afronding maar hoe
+het opruimen telt: `find -mtime +7` verwijdert pas vanaf acht volle dagen, dus
+naast de dump van vandaag blijven die van dag een tot en met zeven staan. Op
+schijf staan er daarmee ten hoogste acht. Drie dingen begrenzen dat, en het zijn eigenschappen van
 het script en de timer en geen beloften:
 
 1. de dump draait een uur na de opruiming, dus een dump bevat nooit advies dat
@@ -142,11 +158,41 @@ de stack; de tunnelverbinding wordt van binnenuit opgezet. De enige weg naar de
 gegevens loopt via de API, en die geeft op een token precies een advies terug.
 
 Op de host kan root bij alles, en dat is de verwerkingsverantwoordelijke.
-Toegang tot de host is geen onderwerp van dit document en hoort bij hoofdstuk 9.
+Toegang tot de host is geen onderwerp van dit document en hoort bij hoofdstuk 10.
 
-Er is geen verwerker. Niets wordt uitbesteed, er draait geen dienst van derden
-mee in de stack behalve de tunnelverbinding die het verkeer doorgeeft, en er
-gaat geen gegeven naar een advertentie- of analysepartij.
+**Cloudflare Inc. is een verwerker.** De tunnelverbinding geeft het verkeer niet
+alleen door. Cloudflare beeindigt TLS aan de rand en de connector spreekt daarna
+gewoon HTTP tegen deze machine. Dat staat zo in `infra/nginx/nginx.conf`, als de
+reden dat `X-Forwarded-Proto` daar een constante mag zijn: `$scheme` is op elk
+verzoek `http`, ook op de verzoeken die over https binnenkwamen. De versleuteling
+loopt dus tot Cloudflare en niet tot hier.
+
+Cloudflare ziet daarmee op elk verzoek twee dingen in leesbare vorm:
+
+- **Het pad.** Dat is `GET /advies/<token>/` en `GET /api/advice/<token>/`. Dat
+  token is niet een verwijzing naar een advies, het is de enige sleutel die het
+  opent, en het is precies wat vier voorzieningen in deze stack uit de logboeken
+  houden: het `map`-blok in `infra/nginx/nginx.conf` dat een pad met een token
+  door een label vervangt, `error_log crit` op de twee locaties die tokens
+  dragen, `RedactedFormatter` in `backend/ampeer/settings/base.py` en
+  `server_side_binding` in `backend/ampeer/settings/prod.py`. Die vier houden het
+  token uit de logboeken van deze machine. Ze zeggen niets over de rand.
+- **Het IP-adres van de bezoeker.** Hoofdstuk 2 zegt dat er geen tabel is met een
+  adresveld, en dat klopt: `backend/advice/throttling.py` hasht het adres met een
+  HMAC onder `SECRET_KEY` voordat het een teller wordt. Die moeite gaat over deze
+  machine. Bij Cloudflare komt het adres onvermijdelijk binnen, want het is de
+  partij die de verbinding aanneemt.
+
+Dat maakt Cloudflare een verwerker in de zin van artikel 4 lid 8 AVG, en artikel
+28 eist voor een verwerker een schriftelijke verwerkersovereenkomst. Cloudflare
+publiceert een standaardovereenkomst die bij het account hoort. Of die is
+aanvaard en of hij deze verwerking dekt, is niet nagegaan en nergens vastgelegd,
+en dat is wat hier ontbreekt. Hoofdstuk 10 zet het bij de
+verwerkingsverantwoordelijke, naast de privacyverklaring en het
+verwerkersregister.
+
+Verder wordt niets uitbesteed. Er draait geen andere dienst van derden mee in de
+stack en er gaat geen gegeven naar een advertentie- of analysepartij.
 
 ## 6. Wat de machine verlaat
 
@@ -164,7 +210,158 @@ levert alleen gevalideerde parameters, en de postcode gaat als tweecijferig
 gebied naar een middelpunt. Er is geen enkele plek waar de backend een door de
 gebruiker aangeleverde URL ophaalt.
 
-## 7. Risico's, en wat ertegen staat
+### Het jaar in kwartieren, en waarom dat hier staat
+
+Het antwoord draagt sinds 27 augustus 2026 een veld `year`: uw hele jaar in
+kwartieren, zodat het scherm het als een plaat kan tekenen. Dat zijn twee
+reeksen van 35040 bytes, base64 gecodeerd, met drie plafonds in kWh per
+kwartier erbij en een telling van het aantal kwartieren. De eerste byte per
+kwartier zegt hoeveel van de eigen opwek u in dat kwartier zelf hebt gebruikt,
+de tweede is de meter, met de richting in de hoogste bit.
+
+Wat dat kost om te versturen, gemeten op 27 augustus 2026 op het
+referentiehuishouden van `tests/test_advice_series.py`: het veld is 93.608
+bytes aan JSON, en 45.242 bytes zodra nginx het inpakt op compressieniveau 1,
+de standaard die `infra/nginx/` niet overschrijft.
+
+Het eerste getal ligt vast in de vorm: 35040 bytes per reeks worden 46720
+tekens base64, en verder varieren alleen de drie plafonds. Het tweede hangt af
+van uw gegevens en beweegt dus mee met elke correctie aan het opwekmodel.
+Daarom houdt `tests/test_dpia.py` beide binnen twee procent van een verse
+meting in plaats van op de letter. Een eerdere versie van dit hoofdstuk noemde
+ongeveer 43 kB voor het ingepakte veld. Dat getal hoorde bij de gepakte bytes
+voordat er base64 overheen ging, dus bij iets wat niemand ontvangt.
+
+Het veld is optioneel. Een advies dat voor 27 augustus 2026 is opgeslagen draagt
+het niet, en de tokenroute geeft terug wat er staat, dus in de negentig dagen
+daarna komen beide vormen voor. Datzelfde antwoord wordt ook opgeslagen, dus
+een advies van vandaag beslaat in de database ongeveer 91 kB in plaats van
+enkele kilobytes. Dat is dezelfde reeks achter dezelfde link en geen tweede
+verwerking, maar het is wel een grotere kopie, en hoofdstuk 4 beschrijft hoe
+lang die blijft staan.
+
+**Waarom dit vandaag geen nieuw persoonsgegeven is.** De reeks is synthetisch.
+Hij wordt opgebouwd uit een landelijk NEDU-standaardprofiel, geschaald naar het
+jaarverbruik dat u zelf hebt ingevuld, plus wat het model voor een auto of een
+warmtepomp optelt, en een opwekreeks voor het tweecijferige postcodegebied. Er
+staat niets in over dit huishouden dat dit huishouden niet zelf heeft
+ingetypt. Wie de reeks terugrekent, komt uit bij de antwoorden uit hoofdstuk 2
+en niet bij een dag thuis. Het is dus geen nieuwe verwerking maar een andere
+weergave van wat al achter dezelfde link stond.
+
+**De zin waarmee dat verandert.** Zodra hetzelfde veld een reeks draagt die van
+de meter van dit huishouden zelf komt, is het wel een persoonsgegeven. Het is
+bovendien precies het persoonsgegeven waarover hoofdstuk 1 zegt dat het de hele
+afweging omdraait: uit kwartierdata over verbruik is af te leiden wanneer
+iemand thuis is, wanneer iemand op vakantie gaat en wanneer een huishouden van
+samenstelling verandert. De vorm van het veld is dan gelijk, de resolutie is
+gelijk, en de gevoeligheid is dat niet.
+
+**Wat ertussen staat.** Het veld draagt zelf waar zijn getallen vandaan komen,
+in `provenance`, met twee mogelijke waarden: `SYNTHETIC` of `MEASURED`. De API
+weigert een antwoord samen te stellen dat een gemeten reeks combineert met een
+deelbaar token. Dat is de combinatie waar het om gaat, want een token is een
+sleutel zonder account erachter, negentig dagen geldig, en iedereen aan wie de
+link ooit is doorgestuurd kan lezen wat erachter staat.
+
+De weigering staat in `backend/advice/serializers.py`, in de enige functie die
+dit veld kan opbouwen, en `tests/test_advice_series.py` valt om zodra een
+gemeten reeks over de tokenroute te halen zou zijn. Voor fase 2 is er een
+uitgang, `shareable_token=False`, bedoeld voor een advies dat achter een
+account wordt opgehaald in plaats van achter een doorstuurbare link. Niets
+gebruikt die uitgang vandaag, en een test valt om zodra iets dat wel doet.
+
+Die weigering staat bij het schrijven en niet bij het lezen, en dat is een
+eigenschap om te kennen in plaats van een detail. De tokenroute zoekt een rij
+op en geeft terug wat erin staat; hij kijkt niet naar `provenance` en filtert
+niets. Wat er dus eenmaal in staat, is negentig dagen lang leesbaar voor
+iedereen aan wie de link is doorgestuurd, en een controle die later aan de
+leeskant wordt toegevoegd laat elke rij van daarvoor ongemoeid. Daarom zit de
+deur voor het opslaan.
+`tests/test_advice_api.py` doet dat na op de echte route: met een gemeten reeks
+mislukt het verzoek, de rij die al was aangemaakt blijft leeg, en er is dus
+niets om op te halen. `tests/test_advice_series.py` legt de andere helft vast,
+namelijk dat de tokenroute een gemeten reeks die iemand er rechtstreeks in zou
+schrijven wel degelijk zou uitleveren.
+
+Dat dit nu is gebouwd en niet in fase 2 is een keuze met een reden. Vandaag
+kost het drie regels. Op het moment dat de eerste gemeten reeks bestaat kost
+het een migratie over elk opgeslagen advies, en tussen die twee momenten zit
+een periode waarin deze regel in dit document staat en nergens wordt
+afgedwongen. Hoofdstuk 9 telt op wat er in die fase verder verandert.
+
+## 7. Wat een bezoeker kan uitoefenen, en wat vandaag niet kan
+
+Een beoordeling die opsomt wat een dienst bewaart en niet zegt wat de betrokkene
+daarmee kan, is de helft van een beoordeling. Dit hoofdstuk ontbrak in de eerste
+versie van dit document.
+
+De API kent vandaag drie handelingen: twee die rekenen en opslaan, en een die op
+een token teruggeeft wat er staat. Er is geen vierde. `tests/test_dpia.py` leest
+de routes en valt om zodra dat verandert, want dan klopt dit hoofdstuk niet meer.
+
+### Inzage werkt, maar niet volledig
+
+Wie de link heeft, opent het advies. Dat is inzage zonder verzoek, zonder
+wachttijd en zonder dat iemand een identiteit hoeft aan te tonen, en dat kan
+juist omdat het token het enige is dat de rij aanwijst.
+
+Er is wel een verschil dat eerlijk benoemd hoort te worden. De dienst bewaart
+naast het advies ook de antwoorden waarmee het gemaakt is, en de API geeft
+alleen het advies terug. Wie wil weten wat er precies over hem is opgeslagen,
+ziet dus de uitkomst en niet de invoer. Dat is te herleiden, want het advies is
+uit die invoer gemaakt, maar het is niet hetzelfde als het tonen ervan.
+
+### Overdraagbaarheid volgt daaruit
+
+Het antwoord is JSON en dus machineleesbaar. Er is geen knop die het exporteert,
+maar er is ook geen tussenkomst nodig: de link teruggeeft is het bestand.
+Dezelfde beperking geldt, namelijk dat de opgeslagen invoer er niet in zit.
+
+### Rectificatie voegt toe in plaats van te wijzigen
+
+Een antwoord dat verkeerd is ingevuld, is niet te corrigeren. Opnieuw rekenen
+maakt een nieuw advies met een nieuw token, en het oude blijft staan tot het
+verloopt. Een correctie voegt dus een rij toe waar een lezer een vervanging zou
+verwachten.
+
+### Verwijderen kan niet, en dat is een keuze om te nemen
+
+Er is geen verwijderknop en geen verwijderendpoint. Wie zijn advies eerder weg
+wil hebben dan na negentig dagen, kan dat vandaag niet zelf, en er staat ook
+geen contactadres op de site om het te vragen.
+
+`CLAUDE.md` zet de export- en verwijderknop bij de fase waarin accounts bestaan.
+Dat is een verdedigbare fasering voor een knop en het is niet hetzelfde als de
+vraag of het recht nu al uitgeoefend kan worden. De feiten die daarbij horen:
+
+- het advies verdwijnt sowieso na negentig dagen, en dat is geen jaar
+- het token is het enige dat de rij aanwijst, dus wie de link heeft is de enige
+  die om verwijdering zou kunnen vragen, en precies daarom is bezit van het
+  token ook de enige denkbare autorisatie voor een verwijdering
+- een verwijderendpoint zou daarmee onvermijdelijk niet-geauthenticeerd zijn, en
+  iedereen aan wie de link ooit is doorgestuurd zou het advies kunnen weggooien
+- wat er dan verdwijnt is herberekenbaar, want de bezoeker heeft zijn eigen
+  antwoorden nog
+
+Hoofdstuk 10 legt de keuze bij de verwerkingsverantwoordelijke, met die vier
+feiten erbij. Dit document doet er geen aanbeveling over, omdat de fasering in
+`CLAUDE.md` van hem is en niet van dit bestand.
+
+### Een geautomatiseerd besluit is het niet
+
+Het advies komt volledig geautomatiseerd tot stand. Het heeft geen rechtsgevolg
+en het treft niemand in vergelijkbare mate: het is een berekening waar de
+bezoeker zelf om vroeg, er wordt niets op geweigerd of toegekend, en er gaat
+geen gegeven naar een partij die er iets mee doet.
+
+Wat artikel 22 zou eisen als het wel zo was, doet de dienst overigens al. Elk
+advies geeft terug welke regels gevuurd hebben, elk bedrag draagt een
+bandbreedte, en het betrouwbaarheidsniveau staat in het eerste scherm in plaats
+van in een voetnoot. Dat staat er niet omdat het moet maar omdat het het product
+is, en het is de reden dat dit hoofdstuk kort kan zijn.
+
+## 8. Risico's, en wat ertegen staat
 
 | Risico | Wat ertegen staat |
 |---|---|
@@ -172,10 +369,12 @@ gebruiker aangeleverde URL ophaalt.
 | Een deelbare link belandt bij iemand anders, bijvoorbeeld in een doorgestuurd bericht | Dit is inherent aan een link zonder account. De link verloopt na negentig dagen. Wat erachter staat is een postcodegebied en een jaarverbruik, geen naam |
 | Het IP-adres van een bezoeker wordt bewaard | Het wordt gehasht voordat het teller wordt, en er is geen tabel met een adresveld |
 | De volledige postcode bereikt de dienst | De serializer weigert alles wat geen vier cijfers is, in plaats van af te kappen |
-| Een back-upbestand lekt | `0600` in een map `0700`, ten hoogste zeven bestanden, en de deploy weigert door te gaan als een van beide ruimer staat |
-| Verwijderde gegevens leven voort in een back-up | Ten hoogste zeven dagen, en de dagelijkse opruiming haalt herleefde rijen na een terugzetting weer weg |
+| Een back-upbestand lekt | `0600` in een map `0700`, ten hoogste acht bestanden, en de deploy weigert door te gaan als een van beide ruimer staat |
+| Verwijderde gegevens leven voort in een back-up | Ten hoogste acht dagen, en de dagelijkse opruiming haalt herleefde rijen na een terugzetting weer weg |
 | De opruiming stopt zonder dat iemand het merkt | De deploy draait een controle die rood wordt zodra er iets over datum is, en de timer zelf faalt zichtbaar |
 | Een derde partij krijgt het surfgedrag van de bezoeker | Geen enkel verzoek buiten de eigen oorsprong, afgedwongen door een test |
+| Een gemeten kwartierreeks bereikt iemand aan wie de link is doorgestuurd | Het veld `year` draagt zijn herkomst mee, en de enige functie die het kan opbouwen weigert een gemeten reeks achter een deelbaar token. Vandaag bestaat er nog geen gemeten reeks |
+| Het token staat in het pad van elk verzoek en is dus leesbaar voor Cloudflare | Niets structureels. Het token hoort in het pad, en Cloudflare beeindigt TLS aan de rand, dus het pad is daar leesbaar. Wat het begrenst is dat de link na negentig dagen verloopt. De oplossing staat onder deze tabel en is niet gebouwd |
 | Het advies wordt gestuurd door een commercieel belang | Geen advertenties, geen leads, geen eigen contract en geen hardwareverkoop. Elke regel die vuurt komt terug in het antwoord, dus een advies is na te lopen |
 
 **Wat hier niet tegen staat.** Er is geen kopie buiten de host, dus een storing
@@ -183,14 +382,33 @@ die de machine meeneemt neemt de gegevens en de back-ups mee. Dat is een
 beschikbaarheidsrisico en geen vertrouwelijkheidsrisico, en het is opgeschreven
 in hoofdstuk 8 van `infra/README.md` in plaats van hier opgelost.
 
-## 8. Wat er verandert bij fase 1 en 2
+**De oplossing voor de regel over Cloudflare, en waarom die er nog niet is.** Het
+token hoeft niet in het pad te staan. Een URL-fragment wordt door geen enkele
+browser naar een server gestuurd, dus `/advies/#<token>` blijft in de browser, en
+het token kan daarna in een `Authorization`-header naar de API. Dan leest
+Cloudflare het niet meer. Dat is ook wat OWASP ASVS v5.0.0 in 14.2.1 op niveau 1
+eist: "the URL and query string do not contain sensitive information, such as an
+API key or session token". Het ontwerp van vandaag voldoet daar niet aan.
+
+Dat is in deze wijziging niet gedaan, en de kosten zijn de reden om het apart te
+doen. `frontend/src/lib/api.ts` bouwt vandaag `/api/advice/<token>/` en zou een
+header moeten sturen; de route onder `frontend/src/app/advies/` leest het token
+uit het pad en zou het uit het fragment moeten lezen; en de API zou de header
+naast de padvorm moeten aannemen zolang er links van voor de wijziging rondgaan.
+Die links leven negentig dagen, dus de padvorm kan niet in een keer weg. Zolang
+dat niet is gebeurd, staat de regel hierboven in de tabel zonder iets ernaast.
+
+## 9. Wat er verandert bij fase 1 en 2
 
 Dit document beschrijft fase 0.5 en houdt op te kloppen zodra er een account of
 een meterkoppeling bestaat. Wat er dan bij komt:
 
 - **Kwartierdata uit de P1-poort.** Dat is de verwerking die dit document in
   hoofdstuk 1 als afwezig aanmerkt en die de afweging omdraait. Daaruit is af te
-  leiden wanneer iemand thuis is.
+  leiden wanneer iemand thuis is. Het veld waarin die reeks het antwoord zou
+  verlaten bestaat al, met de weigering erin die hoofdstuk 6 beschrijft, zodat
+  er geen periode is waarin de eerste gemeten reeks bestaat en de regel erover
+  nog niet.
 - **Accounts.** Een e-mailadres, een wachtwoord, inlogpogingen, en daarmee de
   gebeurtenissen die het auditlogboek vandaag nog niet kent.
 - **Twee aparte toestemmingen**, voor datakoppeling en voor leadgeneratie, geen
@@ -200,9 +418,9 @@ een meterkoppeling bestaat. Wat er dan bij komt:
 Bij elk van die vier hoort dit document opnieuw geschreven te worden, en op dat
 moment is de beoordeling waarschijnlijk wel verplicht.
 
-## 9. Wat bij Stijn ligt
+## 10. Wat bij Stijn ligt
 
-Vier dingen kan dit document niet voor de verwerkingsverantwoordelijke
+Vijf dingen kan dit document niet voor de verwerkingsverantwoordelijke
 beslissen.
 
 1. **Of de conclusie in hoofdstuk 1 wordt overgenomen.** De feiten staan er; de
@@ -213,9 +431,18 @@ beslissen.
 3. **De back-upruil uit hoofdstuk 4.** Zeven dagen is een keuze die ik heb
    gemaakt en verantwoord; korter maakt de kopie kleiner en het herstel
    krapper, en alleen het auditlogboek dumpen laat de dienst onherstelbaar.
-4. **Toegang tot de host**, en of `web2` ephemeer wordt. Die staat los van dit
+4. **Of verwijderen op verzoek mogelijk wordt voor fase 1.** Hoofdstuk 7 zet de
+   vier feiten op een rij. De keuze is tussen het laten zoals het is, met
+   negentig dagen als enige weg, en een endpoint dat op bezit van het token
+   verwijdert en dus door iedereen met de link te gebruiken is. `CLAUDE.md` zet
+   de knop bij de fase waarin accounts bestaan, dus dit is een wijziging van die
+   fasering en daarom niet aan mij.
+5. **Toegang tot de host**, en of `web2` ephemeer wordt. Die staat los van dit
    document en is elders opgeschreven.
 
-Er is verder geen privacyverklaring en geen verwerkersregister. Allebei zijn ze
-nodig voordat de dienst publiek gaat, en allebei vallen ze buiten wat uit deze
-repository te schrijven is.
+Er is verder geen privacyverklaring, geen verwerkersregister en geen vastgelegde
+verwerkersovereenkomst met Cloudflare. Alle drie zijn ze nodig voordat de dienst
+publiek gaat, en alle drie vallen ze buiten wat uit deze repository te schrijven
+is. De verwerkersovereenkomst is wel de enige van de drie die over een verwerking
+gaat die vandaag al draait: hoofdstuk 5 beschrijft wat Cloudflare op elk verzoek
+te zien krijgt.

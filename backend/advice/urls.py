@@ -1,4 +1,8 @@
-"""The three routes, mounted under /api/advice/ by the root URL configuration."""
+"""The four routes, mounted under /api/advice/ by the root URL configuration.
+
+Three answer a visitor and one answers the container runtime. Which of them
+is allowed to skip the rate limit is pinned in tests/test_backend_settings.py.
+"""
 
 from __future__ import annotations
 

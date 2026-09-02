@@ -2,6 +2,14 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Status on 2026-08-22: delivered.** Every file this plan names is in the tree,
+> which `tests/test_plans.py` asserts for all six plans and fails on the day one
+> of them stops being true. The checkboxes below were never ticked while the work
+> was carried out, so read them as the task list this plan was written with and
+> not as work that is waiting. What the test cannot say is whether each step was
+> carried out the way it is written here; that is what the commit history and the
+> suite are for.
+
 **Goal:** Serve an explainable advice over HTTP from four answers, without an account, and let the visitor come back to it later through a shareable link.
 
 **Architecture:** A Django project in `backend/` that imports the two pure packages and never the other way round. The request path is synchronous: validate, assemble domain objects, run the engine, render, store, audit. Every source of external data enters through the provider protocols that already exist, so the API adds a cache and a boundary and no second engine.
@@ -867,9 +875,7 @@ def test_the_stored_record_holds_no_field_that_could_identify_a_person() -> None
 def test_the_purge_command_deletes_only_what_has_expired() -> None:
     live = StoredAdvice.create(inputs=INPUTS, advice=ADVICE)
     dead = StoredAdvice.create(inputs=INPUTS, advice=ADVICE)
-    StoredAdvice.objects.filter(pk=dead.pk).update(
-        expires_at=timezone.now() - timedelta(days=1)
-    )
+    StoredAdvice.objects.filter(pk=dead.pk).update(expires_at=timezone.now() - timedelta(days=1))
     call_command("purge_expired_advice")
     assert list(StoredAdvice.objects.values_list("pk", flat=True)) == [live.pk]
 
@@ -918,13 +924,23 @@ def test_a_production_cache_row_is_unique_per_roof_and_year() -> None:
     from django.db.utils import IntegrityError
 
     ProductionCache.objects.create(
-        postcode4="5401", azimuth_deg=0, tilt_deg=35, weather_year=2023,
-        production_w_per_kwp=b"a", temperature_c=b"b", source="PVGIS",
+        postcode4="5401",
+        azimuth_deg=0,
+        tilt_deg=35,
+        weather_year=2023,
+        production_w_per_kwp=b"a",
+        temperature_c=b"b",
+        source="PVGIS",
     )
     with pytest.raises(IntegrityError):
         ProductionCache.objects.create(
-            postcode4="5401", azimuth_deg=0, tilt_deg=35, weather_year=2023,
-            production_w_per_kwp=b"c", temperature_c=b"d", source="PVGIS",
+            postcode4="5401",
+            azimuth_deg=0,
+            tilt_deg=35,
+            weather_year=2023,
+            production_w_per_kwp=b"c",
+            temperature_c=b"d",
+            source="PVGIS",
         )
 ```
 
@@ -2081,7 +2097,9 @@ from ampeer_advice.types import (
 )
 from ampeer_sim.types import Band, ProductionSource, Result
 
-BAND = Band(p10_eur=Decimal("561.11"), p50_eur=Decimal("700.08"), p90_eur=Decimal("846.90"), runs=243)
+BAND = Band(
+    p10_eur=Decimal("561.11"), p50_eur=Decimal("700.08"), p90_eur=Decimal("846.90"), runs=243
+)
 
 RESULT = Result(
     engine_version="0.1.0",
@@ -2752,9 +2770,7 @@ def test_reading_a_link_is_allowed_far_more_often_than_computing_one() -> None:
     cache.clear()
     client = APIClient()
     token = client.post(reverse("advice-estimate"), ESTIMATE, format="json").json()["token"]
-    codes = [
-        client.get(reverse("advice-detail", args=[token])).status_code for _ in range(30)
-    ]
+    codes = [client.get(reverse("advice-detail", args=[token])).status_code for _ in range(30)]
     assert set(codes) == {200}, "sharing a link must not hit the compute limit"
 
 

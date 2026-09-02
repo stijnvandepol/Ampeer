@@ -81,6 +81,7 @@ def test_a_grid_charge_plan_shows_up_as_extra_offtake() -> None:
         battery_spec=TRADING_SPEC,
         charge_plan=plan,
     )
+    assert flows.grid_charge is not None, "a trading battery reported no grid charging"
     assert flows.grid_charge.sum() > 0.0
     assert flows.from_grid.sum() == pytest.approx(0.0)
     assert flows.total_import.sum() > 0.0
@@ -93,6 +94,7 @@ def test_a_battery_that_may_not_grid_charge_ignores_the_plan() -> None:
     flows = simulate(
         consumption=np.zeros(96), production=np.zeros(96), battery_spec=SPEC, charge_plan=plan
     )
+    assert flows.grid_charge is not None, "a battery with a plan reported no grid charging"
     assert flows.grid_charge.sum() == pytest.approx(0.0)
 
 
@@ -108,6 +110,7 @@ def test_a_discharge_plan_shows_up_as_extra_feed_in() -> None:
         charge_plan=charge,
         discharge_plan=discharge,
     )
+    assert flows.grid_discharge is not None, "a trading battery reported no grid discharge"
     assert flows.grid_discharge.sum() > 0.0
     assert flows.total_export.sum() > 0.0
     assert_energy_balance(flows)

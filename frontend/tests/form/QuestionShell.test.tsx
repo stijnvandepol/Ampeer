@@ -7,12 +7,14 @@ function shell(
   step: number,
   title: string,
   handlers: { onBack: () => void; onNext: () => void },
+  busy = false,
 ) {
   return (
     <QuestionShell
       step={step}
       of={4}
       title={title}
+      busy={busy}
       onBack={handlers.onBack}
       onNext={handlers.onNext}
     >
@@ -48,12 +50,30 @@ describe("the question shell", () => {
     expect(screen.getByRole("heading", { name: "Een" })).not.toHaveFocus();
   });
 
-  it("does not advance when Enter is pressed in a field", async () => {
-    // A form with one input submits implicitly. Somebody pressing Enter to
-    // confirm what they typed would skip to the next question with a value
-    // they had not finished checking.
+  it("advances when Enter is pressed in a field", async () => {
+    /*
+     * Reversed on 2026-09-01. It used to refuse, on the argument that somebody
+     * pressing Enter to confirm what they typed would skip ahead with a value
+     * they had not finished checking. What it actually produced was a key that
+     * did NOTHING: no advance, no message, no focus change. On a form with one
+     * question per screen, Enter is the gesture that means "I am done here",
+     * and a silent no-op teaches a visitor the page is broken. The stated risk
+     * costs one press of Terug and the value is kept.
+     *
+     * It goes through the same handler as the button, and the flow above
+     * refuses an incomplete question and says so, so nothing new slips past.
+     */
     const handlers = { onBack: vi.fn(), onNext: vi.fn() };
     render(shell(1, "Een", handlers));
+    await userEvent.type(screen.getByLabelText("Iets"), "3500{Enter}");
+    expect(handlers.onNext).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not advance on Enter while the answer is being computed", async () => {
+    // The button goes dead for the length of the request and Enter has to go
+    // dead with it, or the one path that was guarded is reopened by a key.
+    const handlers = { onBack: vi.fn(), onNext: vi.fn() };
+    render(shell(1, "Een", handlers, true));
     await userEvent.type(screen.getByLabelText("Iets"), "3500{Enter}");
     expect(handlers.onNext).not.toHaveBeenCalled();
   });

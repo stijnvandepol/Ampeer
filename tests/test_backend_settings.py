@@ -10,9 +10,12 @@ from __future__ import annotations
 import importlib
 import sys
 from types import ModuleType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
+
+if TYPE_CHECKING:  # the runtime import stays inside the function, like every
+    from rest_framework.views import APIView  # other Django import in this file
 
 REQUIRED_ENV = {
     "DJANGO_SECRET_KEY": "x" * 50,
@@ -69,6 +72,53 @@ def test_production_sets_the_transport_and_framing_headers(
     assert prod.CSRF_COOKIE_SECURE is True
     assert prod.SECURE_CONTENT_TYPE_NOSNIFF is True
     assert prod.X_FRAME_OPTIONS == "DENY"
+    # Added 2026-08-23. It was set beside the seven above and asserted by
+    # nothing: neither this file nor `manage.py check --deploy`, which only
+    # warns when the policy is unset and not when it is a permissive value.
+    # Measured: "unsafe-url" left the deploy check and the whole suite green.
+    assert prod.SECURE_REFERRER_POLICY == "same-origin"
+
+
+def test_django_trusts_the_forwarded_header_nginx_actually_sets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two files that have to agree, and only one of them was checked.
+
+    prod.py decides a request is secure by reading one header name out of
+    SECURE_PROXY_SSL_HEADER. infra/nginx/nginx.conf sets that header to a
+    constant, and tests/test_nginx_config.py asserts the nginx half: that it is
+    set rather than passed through, and that it is not $scheme. Nothing tied the
+    two together, so renaming or dropping the setting broke the pairing quietly.
+
+    Quietly is arguable in one direction and not the other. Dropping the setting
+    makes Django see every request as insecure and SECURE_SSL_REDIRECT answers
+    301 to the same URL, which the tunnel delivers back: a redirect loop that
+    shows up on the first request. Pointing it at a header the proxy does not
+    overwrite is the silent half, because then a caller can assert its own
+    request is secure.
+
+    The expected value is derived from the nginx file rather than written here,
+    so this fails when the two disagree rather than when either one moves.
+    """
+    import re as _re
+    from pathlib import Path as _Path
+
+    conf = (_Path(__file__).resolve().parent.parent / "infra" / "nginx" / "nginx.conf").read_text(
+        encoding="utf-8"
+    )
+    directives = chr(10).join(
+        line for line in conf.splitlines() if not line.lstrip().startswith("#")
+    )
+    sent = _re.findall(r"proxy_set_header\s+(\S+)\s+([^;]+);", directives)
+    proto = [(name, value.strip()) for name, value in sent if name == "X-Forwarded-Proto"]
+    assert proto, "nginx no longer sets X-Forwarded-Proto, so there is nothing to trust"
+
+    name, value = proto[0]
+    expected = (f"HTTP_{name.upper().replace('-', '_')}", value)
+    assert _load_prod(monkeypatch).SECURE_PROXY_SSL_HEADER == expected, (
+        f"nginx sets {name}: {value} and prod.py trusts "
+        f"{_load_prod(monkeypatch).SECURE_PROXY_SSL_HEADER}"
+    )
 
 
 def test_production_allows_only_the_hosts_it_was_given(
@@ -81,6 +131,26 @@ def test_production_allows_only_the_hosts_it_was_given(
 
 
 def test_nothing_authenticates_because_there_is_nothing_to_log_in_to() -> None:
+    """Absent on purpose, which is worth saying because two named requirements
+    are absent with them.
+
+    CLAUDE.md lists Argon2id hashing and django-axes under security that holds
+    in every phase, and neither is configured. That follows from this test
+    rather than contradicting it: base.py leaves out auth, sessions and admin
+    because an installed app is attack surface whether or not a URL points at
+    it, and a brute force defence with no login to defend is the same thing.
+
+    What makes the absence safe today also makes it dangerous later. Django
+    supplies AUTHENTICATION_BACKENDS and PASSWORD_HASHERS whether or not
+    anything uses them, and its defaults are ModelBackend alone and
+    PBKDF2PasswordHasher first, measured on 2026-08-22. So the day accounts
+    arrive, passwords are hashed with PBKDF2 unless somebody changes it, and
+    nothing raises. Argon2 does not replace a blank, it replaces a working
+    default, which is the harder kind of thing to remember.
+
+    test_authentication_never_arrives_without_its_defences, lower in this file,
+    is what fails on that day.
+    """
     from django.conf import settings
 
     assert settings.REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"] == []
@@ -95,6 +165,98 @@ def test_both_public_throttle_scopes_are_configured() -> None:
     rates = settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]
     assert rates["advice-compute"] == "20/hour"
     assert rates["advice-read"] == "120/hour"
+
+
+#: The routes that answer without a rate limit, and the reason each is allowed to.
+#:
+#: The readiness endpoint is the only one. Its own docstring gives the reason:
+#: in production the throttle counter lives in Postgres, so leaving the throttle
+#: on would turn a check that runs every thirty seconds into the database query
+#: it exists to avoid. Adding a second entry here is a decision that shows up in
+#: a test diff rather than as an attribute somebody forgot to write.
+UNTHROTTLED_ROUTES = frozenset({"api/advice/health/"})
+
+
+def _routed_views() -> list[tuple[str, type[APIView]]]:
+    """Every route the URL configuration actually serves, with its view class.
+
+    Read through the resolver rather than by listing views.py, because what
+    matters is what is reachable. A view class that exists and is not routed
+    cannot be called; a view that is routed is public whether or not anybody
+    remembered to write it down.
+
+    The class comes off the callback, so an attribute inherited from a base
+    class resolves the way DRF will resolve it at request time. EstimateView
+    declares no throttle_scope of its own and gets one from _ComputeView, which
+    a scan of the source text would have to reimplement to see.
+    """
+    from django.urls import URLPattern, URLResolver, get_resolver
+
+    def walk(patterns: list[object], prefix: str = "") -> list[tuple[str, type[APIView]]]:
+        found: list[tuple[str, type[APIView]]] = []
+        for entry in patterns:
+            if isinstance(entry, URLResolver):
+                found.extend(walk(list(entry.url_patterns), prefix + str(entry.pattern)))
+            elif isinstance(entry, URLPattern):
+                view = getattr(entry.callback, "cls", None)
+                assert view is not None, (
+                    f"{prefix}{entry.pattern} is served by {entry.callback}, which is not "
+                    "a DRF view. DRF throttling runs inside APIView.initial, so a plain "
+                    "Django view mounted here answers with no rate limit at all."
+                )
+                found.append((prefix + str(entry.pattern), view))
+        return found
+
+    return walk(list(get_resolver().url_patterns))
+
+
+def test_every_public_route_is_rate_limited() -> None:
+    """CLAUDE.md asks for rate limiting on all public endpoints. All is the word.
+
+    The test above pins the two rates, which says the scopes are configured. It
+    does not say anything answers under one. DRF decides that per view, and the
+    way it decides is the problem:
+
+        # If a view does not have a `throttle_scope` always allow the request
+        if not self.scope:
+            return True
+
+    That is ScopedRateThrottle.allow_request, quoted from the installed version.
+    A view added without throttle_scope is not throttled loosely, it is not
+    throttled at all, and the omission is one missing attribute that raises
+    nothing, logs nothing, and passes every test that checks what the endpoint
+    returns. The endpoints here compute for about half a second of CPU each.
+
+    So the guard is written to fail on the absence rather than on a wrong value:
+    every route the resolver serves has to name a scope that has a rate, or be
+    on the exemption list above with the throttle explicitly switched off.
+    """
+    from django.conf import settings
+
+    rates = settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]
+    routes = _routed_views()
+    assert len(routes) >= 4, f"the resolver walk found {routes}; it is not reading the URLconf"
+    assert any(route.endswith("estimate/") for route, _ in routes), (
+        "the estimate endpoint is not among the routes found, so this test is looking "
+        "somewhere other than at this service"
+    )
+
+    for route, view in routes:
+        if route in UNTHROTTLED_ROUTES:
+            assert tuple(view.throttle_classes) == (), (
+                f"{route} is on the exemption list but {view.__name__} still carries "
+                f"{view.throttle_classes}. An exemption has to be switched off on "
+                "purpose, so that it cannot be confused with an attribute nobody wrote."
+            )
+            continue
+        scope = getattr(view, "throttle_scope", None)
+        assert scope in rates, (
+            f"{route} is served by {view.__name__} with throttle_scope={scope!r}, which "
+            f"has no rate in {sorted(rates)}. DRF answers such a view without any limit."
+        )
+        assert view.throttle_classes, (
+            f"{view.__name__} names a scope but has no throttle classes, so nothing reads the scope"
+        )
 
 
 def test_the_root_urlconf_named_in_the_settings_actually_loads() -> None:
@@ -437,3 +599,199 @@ class TestWhatTheProcessIsAllowedToWriteDown:
         assert "django.request" in line, line
         assert "500" in line, line
         assert "test_backend_settings.py" in line, line
+
+
+def test_timestamps_are_stored_in_utc() -> None:
+    """CLAUDE.md says every timestamp is stored in UTC. Two settings decide it.
+
+    Neither was asserted anywhere, in a file that pins twelve other settings
+    because they decide a security property. This one decides an integrity
+    property, and the way it fails is quiet.
+
+    With USE_TZ off, `timezone.now()` returns naive local time, and the four
+    DateTimeFields in advice/models.py store that. Three of them are ordinary
+    and would only drift by an hour twice a year. The fourth is `occurred_at` on
+    the append-only audit log, and local time gives October an hour that happens
+    twice: two rows an hour apart can carry the same wall clock and the ordering
+    the model declares stops answering when something happened. An audit log
+    that cannot order itself is the one table in this service that cannot be
+    rebuilt from anything.
+
+    Asserted as the effect rather than the constant. Reading TIME_ZONE back
+    would prove the file says UTC; asking `timezone.now()` proves what the code
+    actually writes.
+    """
+    from django.conf import settings
+    from django.utils import timezone
+
+    assert settings.USE_TZ is True, "USE_TZ is off, so datetimes are stored naive"
+    assert settings.TIME_ZONE == "UTC", (
+        f"TIME_ZONE is {settings.TIME_ZONE!r}; storage is UTC in this project"
+    )
+
+    now = timezone.now()
+    assert now.tzinfo is not None, "timezone.now() is naive, whatever the settings say"
+    offset = now.utcoffset()
+    assert offset is not None and offset.total_seconds() == 0, (
+        f"timezone.now() carries an offset of {offset}, so it is not UTC"
+    )
+
+
+def test_every_stored_datetime_field_is_aware() -> None:
+    """The other end of the same property, at the models rather than the clock.
+
+    Django decides awareness per connection from USE_TZ, so this cannot drift
+    from the test above on its own. It is here because it names the fields, and
+    a fifth DateTimeField added later is covered without anybody remembering to
+    add it.
+
+    Nothing here asserts a display timezone. CLAUDE.md asks for Europe/Amsterdam
+    on screen and the frontend currently renders no timestamp at all, so there
+    is nothing to check and saying so is better than a test that passes because
+    it looks at nothing.
+    """
+    import django
+
+    django.setup()
+    from django.apps import apps
+    from django.db import models as django_models
+
+    model_classes = apps.get_app_config("advice").get_models()
+    fields = [
+        (model.__name__, field.name)
+        for model in model_classes
+        for field in model._meta.get_fields()
+        if isinstance(field, django_models.DateTimeField)
+    ]
+    assert len(fields) >= 4, f"only found {fields}; this test is no longer reading the models"
+
+    from django.conf import settings
+
+    assert settings.USE_TZ, f"these fields would all be stored naive: {fields}"
+
+
+# ---------------------------------------------------------------------------
+# The defences that arrive with the first account
+# ---------------------------------------------------------------------------
+
+#: The app whose presence means this service has something to log in to.
+AUTH_APP = "django.contrib.auth"
+
+#: What django-axes needs before it protects anything, from its own install
+#: instructions: the app, its backend ahead of the others so a locked out
+#: attempt never reaches them, and its middleware.
+AXES_APP = "axes"
+AXES_BACKEND = "axes.backends.AxesStandaloneBackend"
+AXES_MIDDLEWARE = "axes.middleware.AxesMiddleware"
+
+
+def _missing_login_defences(
+    installed: set[str], backends: list[str], hashers: list[str], middleware: list[str]
+) -> list[str]:
+    """What CLAUDE.md requires of a service that has accounts, and is absent.
+
+    A function rather than a chain of assertions, so that the branch which does
+    not run today can still be exercised. A conditional test of the shape "if
+    auth is installed then check the rest" is green on a service with no auth
+    without having checked anything, and green-because-not-applicable is the
+    failure this whole suite is written against.
+    """
+    if AUTH_APP not in installed:
+        return []
+    missing = []
+    if AXES_APP not in installed:
+        missing.append(f"{AXES_APP} is not in INSTALLED_APPS")
+    if not backends or backends[0] != AXES_BACKEND:
+        missing.append(f"{AXES_BACKEND} is not the first AUTHENTICATION_BACKENDS entry")
+    if AXES_MIDDLEWARE not in middleware:
+        missing.append(f"{AXES_MIDDLEWARE} is not in MIDDLEWARE")
+    if not hashers or "Argon2" not in hashers[0]:
+        missing.append("the first PASSWORD_HASHERS entry is not an Argon2 hasher")
+    return missing
+
+
+def test_the_rule_about_login_defences_recognises_a_setup_that_lacks_them() -> None:
+    """Both branches of the check above, run rather than reasoned about.
+
+    Without this the assertion below would be a statement about a condition
+    that is false, which is the same as no statement at all. Here the rule is
+    handed a service that has accounts and nothing else, and has to name all
+    four; then one that has everything, and has to name none.
+    """
+    bare = _missing_login_defences({AUTH_APP}, [], [], [])
+    assert len(bare) == 4, f"the rule found only {bare} wrong with a bare auth setup"
+
+    complete = _missing_login_defences(
+        {AUTH_APP, AXES_APP},
+        [AXES_BACKEND, "django.contrib.auth.backends.ModelBackend"],
+        ["django.contrib.auth.hashers.Argon2PasswordHasher"],
+        [AXES_MIDDLEWARE],
+    )
+    assert complete == [], f"a correctly defended login is reported as missing {complete}"
+
+    ordering = _missing_login_defences(
+        {AUTH_APP, AXES_APP},
+        ["django.contrib.auth.backends.ModelBackend", AXES_BACKEND],
+        ["django.contrib.auth.hashers.Argon2PasswordHasher"],
+        [AXES_MIDDLEWARE],
+    )
+    assert ordering, (
+        "axes behind the model backend is reported as fine, and it is not: a lockout "
+        "that runs second is a lockout the attempt has already got past"
+    )
+
+
+def test_authentication_never_arrives_without_its_defences() -> None:
+    """The requirement, aimed at the phase that will introduce it.
+
+    Phase 1 brings accounts. The day `django.contrib.auth` goes into
+    INSTALLED_APPS, this fails unless axes and Argon2 go in with it, and it
+    names each thing that is missing rather than leaving somebody to reread
+    CLAUDE.md.
+
+    Two of the four security requirements about logging in are checked here.
+    The third, JWT in httpOnly SameSite=Strict cookies with refresh rotation,
+    is not visible in settings alone and belongs with the view that issues
+    them. Saying so is better than implying this covers it.
+    """
+    from django.conf import settings
+
+    missing = _missing_login_defences(
+        set(settings.INSTALLED_APPS),
+        list(getattr(settings, "AUTHENTICATION_BACKENDS", [])),
+        list(getattr(settings, "PASSWORD_HASHERS", [])),
+        list(settings.MIDDLEWARE),
+    )
+    assert not missing, (
+        "this service has accounts and CLAUDE.md asks for these before it does:\n  "
+        + "\n  ".join(missing)
+    )
+
+
+def test_the_deployment_computes_the_weather_year_the_model_was_validated_on() -> None:
+    """One year, and until 2026-08-23 it was written down three times.
+
+    ampeer_sim/simulate.py holds it as the weather year the model relies on,
+    ampeer_sim/validate.py held its own copy as the default for the validation
+    CLI, and base.py held a third as the year every request is computed for.
+    Raising one alone was measured to leave the whole suite green.
+
+    That is the shape this repository has been bitten by before. The product
+    would compute one year while `python -m ampeer_sim.validate` checked
+    another, and the difference would read as a model that had drifted from
+    reality rather than as two years being compared. A validation tool pointing
+    at the wrong subsystem is the failure that module already carries a note
+    about.
+
+    The other two copies are gone: both now import the kernel constant. This is
+    what keeps a fourth from being written here as a literal, which the import
+    alone cannot prevent. A deployment that genuinely needs another year changes
+    this test in the same commit, and that is the point.
+    """
+    from ampeer.settings import base
+    from ampeer_sim.simulate import DEFAULT_WEATHER_YEAR
+
+    assert base.AMPEER_WEATHER_YEAR == DEFAULT_WEATHER_YEAR, (
+        f"the deployment computes {base.AMPEER_WEATHER_YEAR} and the model relies on "
+        f"{DEFAULT_WEATHER_YEAR}"
+    )

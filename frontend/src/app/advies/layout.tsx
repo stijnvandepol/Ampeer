@@ -14,6 +14,22 @@ import type { Metadata } from "next";
  */
 export const metadata: Metadata = {
   title: "Uw advies",
+  /*
+   * Not in any index, and not followed out of.
+   *
+   * Every advice lives at a bearer token URL, and nginx answers 200 for any
+   * path under /advies/, so the space is unbounded: measured on 2026-08-31,
+   * /advies/dit-bestaat-niet/ returns the advice shell with a 200. Two things
+   * follow. A crawler would map an endless set of soft 404s, and a token
+   * somebody pastes in public would be indexed, which undoes from the other
+   * side the care nginx.conf takes to keep tokens out of its own access log.
+   *
+   * A meta tag and NOT a Disallow in robots.txt, and the difference decides
+   * whether this works. A disallowed URL is never fetched, so the noindex on it
+   * is never read, and a page can still be indexed from an inbound link alone.
+   * The tag is the control that a crawler has to come in to obey.
+   */
+  robots: { index: false, follow: false },
 };
 
 export default function AdviesLayout({ children }: LayoutProps<"/advies">) {

@@ -19,6 +19,11 @@ describe("a number question", () => {
     );
     const field = screen.getByLabelText(/wattpiek/i);
     await userEvent.type(field, "999999");
+    // The message waits for blur. It used to appear on the first keystroke,
+    // which put "Vul minstens 1000 in." under the visitor's fingers after one
+    // digit and, because it is a live region, announced it again on every
+    // character. The refusal below does NOT wait: the flow is told at once.
+    await userEvent.tab();
     expect(screen.getByRole("alert")).toBeInTheDocument();
     // Refusing means not reporting it upwards either, so a caller cannot send
     // on a number this component has just told the visitor is impossible.
@@ -38,6 +43,7 @@ describe("a number question", () => {
       />,
     );
     await userEvent.type(screen.getByLabelText(/wattpiek/i), "999999");
+    await userEvent.tab();
     expect(screen.getByRole("alert").textContent).toMatch(/30000|30\.000/);
   });
 
@@ -54,6 +60,7 @@ describe("a number question", () => {
       />,
     );
     await userEvent.type(screen.getByLabelText(/wattpiek/i), "3");
+    await userEvent.tab();
     const message = screen.getByRole("alert").textContent ?? "";
     expect(message).toMatch(/500/);
     expect(message).not.toMatch(/30000|30\.000/);
@@ -73,6 +80,7 @@ describe("a number question", () => {
     );
     const field = screen.getByLabelText(/wattpiek/i);
     await userEvent.type(field, "999999");
+    await userEvent.tab();
     expect(field).toHaveAttribute(
       "aria-describedby",
       expect.stringContaining("wp"),
@@ -121,7 +129,10 @@ describe("a number question", () => {
     );
     const field = screen.getByLabelText(/wattpiek/i);
     await userEvent.type(field, "999999");
-    expect(field).toHaveValue(999999);
+    // A string, because the field is type="text" with inputmode="numeric". A
+    // number input silently discards anything it cannot parse, which on the
+    // postcode field meant "3811 EP" left an EMPTY box with no message.
+    expect(field).toHaveValue("999999");
   });
 
   it("takes a value the parent changed from somewhere else", () => {
@@ -148,7 +159,7 @@ describe("a number question", () => {
         onChange={() => {}}
       />,
     );
-    expect(screen.getByLabelText(/wattpiek/i)).toHaveValue(4200);
+    expect(screen.getByLabelText(/wattpiek/i)).toHaveValue("4200");
   });
 
   it("shows its error in the colour every other error on this site uses", async () => {
@@ -167,6 +178,7 @@ describe("a number question", () => {
       />,
     );
     await userEvent.type(screen.getByLabelText(/wattpiek/i), "999999");
+    await userEvent.tab();
     expect(screen.getByRole("alert")).toHaveClass("text-danger");
   });
 
@@ -197,6 +209,85 @@ describe("a number question", () => {
     expect(onRefusal).toHaveBeenLastCalledWith(false);
   });
 
+  it("keeps the digits when somebody writes a Dutch postcode", async () => {
+    /*
+     * The defect this component was rewritten for, measured in a browser on
+     * 2026-09-01 on the first field of the flow. With type="number", typing
+     * "3811 EP", which is how a Dutch postcode is written, left the field
+     * EMPTY with aria-invalid="false" and no message at all: a number input
+     * reports what it cannot parse as the empty string, so the 3811 went with
+     * the letters and the "Vul een getal in" branch could never fire.
+     */
+    const onChange = vi.fn();
+    render(
+      <NumberQuestion
+        id="pc"
+        label="Postcode"
+        value={null}
+        min={1000}
+        max={9999}
+        unit=""
+        integer
+        onChange={onChange}
+      />,
+    );
+    const field = screen.getByLabelText(/postcode/i);
+    await userEvent.type(field, "3811 EP");
+    expect(field).toHaveValue("3811 EP");
+    await userEvent.tab();
+    expect(screen.getByRole("alert").textContent).toMatch(/getal/i);
+    expect(onChange).toHaveBeenLastCalledWith(null);
+  });
+
+  it("does not step its own value on the arrow keys", async () => {
+    /*
+     * The other half of the same defect. A number input steps on ArrowUp and
+     * ArrowDown, so a keyboard visitor scrolling the page silently edited their
+     * postcode: measured, 3811 became 3810 on one press, with nothing on screen
+     * saying so.
+     */
+    const onChange = vi.fn();
+    render(
+      <NumberQuestion
+        id="pc"
+        label="Postcode"
+        value={null}
+        min={1000}
+        max={9999}
+        unit=""
+        integer
+        onChange={onChange}
+      />,
+    );
+    const field = screen.getByLabelText(/postcode/i);
+    await userEvent.type(field, "3811");
+    await userEvent.keyboard("{ArrowDown}");
+    expect(field).toHaveValue("3811");
+    expect(onChange).toHaveBeenLastCalledWith(3811);
+  });
+
+  it("says the range it accepts before anything is typed", async () => {
+    // The bounds were props all along and were secret until a visitor broke
+    // one. The NL Design System asks for valid values to be stated up front.
+    render(
+      <NumberQuestion
+        id="pc"
+        label="Postcode"
+        value={null}
+        min={1000}
+        max={9999}
+        unit=""
+        onChange={() => {}}
+      />,
+    );
+    expect(screen.getByText("1000 tot 9999")).toBeInTheDocument();
+    // And no double space where the unit is empty, which is what
+    // "Vul minstens 1000  in." used to read.
+    await userEvent.type(screen.getByLabelText(/postcode/i), "1");
+    await userEvent.tab();
+    expect(screen.getByRole("alert").textContent).toBe("Vul minstens 1000 in.");
+  });
+
   it("is labelled, so the field can be reached by its name", () => {
     render(
       <NumberQuestion
@@ -209,7 +300,7 @@ describe("a number question", () => {
         onChange={() => {}}
       />,
     );
-    expect(screen.getByLabelText(/wattpiek/i)).toHaveValue(7000);
+    expect(screen.getByLabelText(/wattpiek/i)).toHaveValue("7000");
   });
 });
 
@@ -232,6 +323,7 @@ describe("a number question for an integer field", () => {
       />,
     );
     await userEvent.type(screen.getByLabelText(/wattpiek/i), "3500.5");
+    await userEvent.tab();
     expect(screen.getByRole("alert").textContent).toMatch(/heel getal/i);
     expect(onChange).toHaveBeenLastCalledWith(null);
   });

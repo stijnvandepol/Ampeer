@@ -7,6 +7,18 @@ playwright-report/
 test-results/
 pnpm-lock.yaml
 
+# The advice fixture. tests/helpers/advice_fixture.py writes it from the real
+# renderer, and json.dump puts every array element on its own line while
+# Prettier folds a short one back onto a single line. So the generator and the
+# formatter disagree by construction, and following the documented regeneration
+# command left `pnpm format:check` red on 2026-08-21.
+#
+# Ignored rather than formatted afterwards, because a two step procedure that
+# nobody is reminded of is the same trap one turn later. tests/test_frontend_contract.py
+# compares the parsed shape and, since the same day, the bytes against a fresh
+# run of the generator, so this file cannot drift by hand either.
+tests/fixtures/advice-response.json
+
 # The language-boundary allowlist. Its format is a position-sensitive header
 # followed by sorted data, and e2e/language.spec.ts compares it byte for byte
 # against what it extracts. A formatter is exactly the thing that would rewrite

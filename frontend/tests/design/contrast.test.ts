@@ -14,26 +14,20 @@
 
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
+import { contrast as ratio, fromHex } from "./wcag";
 
 const css = readFileSync("src/app/globals.css", "utf-8");
 
 // --- WCAG 2.2 relative luminance and contrast, straight from the definition ---
+//
+// The formula lives in ./wcag.ts, because the plate's own contrast test asks
+// the same question of colours that are never in this stylesheet. The two
+// anchors at the bottom of this file are what prove it is the real formula,
+// and they now prove it for both callers.
 
-function channel(eight: number): number {
-  const c = eight / 255;
-  return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-}
-
-function luminance(hex: string): number {
-  const digits = hex.replace("#", "");
-  const [r, g, b] = [0, 2, 4].map((at) =>
-    Number.parseInt(digits.slice(at, at + 2), 16),
-  );
-  return (
-    0.2126 * channel(r ?? 0) +
-    0.7152 * channel(g ?? 0) +
-    0.0722 * channel(b ?? 0)
-  );
+/** The shared ratio, over the hex strings this file reads out of the CSS. */
+function contrast(a: string, b: string): number {
+  return ratio(fromHex(a), fromHex(b));
 }
 
 /** Two opaque colours, blended. `share` of the first, the rest of the second. */
@@ -48,12 +42,6 @@ function mix(front: string, back: string, share: number): string {
       .padStart(2, "0");
   }
   return out;
-}
-
-function contrast(a: string, b: string): number {
-  const [x, y] = [luminance(a), luminance(b)];
-  const [lighter, darker] = x > y ? [x, y] : [y, x];
-  return (lighter + 0.05) / (darker + 0.05);
 }
 
 // --- reading the four theme blocks out of the stylesheet ---
@@ -123,6 +111,9 @@ const TEXT_PAIRS: readonly (readonly [string, string])[] = [
   ["on-tone", "confidence-good"],
   ["on-tone", "confidence-precise"],
   ["on-tone", "band-track"],
+  // The plate's own labels: hour and month axes, legend and readout, all drawn
+  // on the instrument rather than on the page.
+  ["on-carpet", "carpet-ground"],
   ["danger", "surface"],
   ["danger", "surface-raised"],
   ["danger", "surface-sunken"],
@@ -149,6 +140,22 @@ const GRAPHIC_PAIRS: readonly (readonly [string, string])[] = [
   ["confidence-good", "surface-raised"],
   ["confidence-precise", "surface"],
   ["confidence-precise", "surface-raised"],
+  /*
+   * The three states of the year plate, against the instrument they are drawn
+   * on. Colour is the entire encoding there: a cell is one pixel and carries no
+   * label, no shape and no position of its own, so if two states are not
+   * distinguishable the picture says nothing.
+   *
+   * Each name is the FLOOR of its state and not a representative of it.
+   * src/components/carpet/palette.ts only lightens a state towards white, so
+   * the dimmest cell it can draw is exactly the token measured here. That is
+   * the property tests/carpet/palette.test.ts pins by walking every cell the
+   * wire format can hold; without it these three rows would measure a colour
+   * that happens to be in the stylesheet rather than the worst one on screen.
+   */
+  ["carpet-own", "carpet-ground"],
+  ["carpet-offtake", "carpet-ground"],
+  ["carpet-export", "carpet-ground"],
 ];
 
 /** Never drawn against text or used as a control boundary. */
@@ -269,20 +276,41 @@ describe("the palette", () => {
     expect(unused, "declared, measured, and drawn by nothing").toEqual([]);
   });
 
-  it("lets the band's own stylesheet state no colour of its own", () => {
+  it("lets no component stylesheet state a colour of its own", () => {
     // band.module.css used to carry a hex fallback beside every var(), and one
     // of them, #5b8def, was in neither palette. A confidence level this build
     // did not know produced var(undefined), React dropped the property, and the
     // band was drawn in that colour: never measured, never in a theme, and
     // close enough to the PRECISE navy to read as more certain than PRECISE.
-    const band = readFileSync(
-      "src/components/band/band.module.css",
-      "utf-8",
-    ).replace(/\/\*[\s\S]*?\*\//g, "");
-    const literals = [
-      ...band.matchAll(/#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(/g),
-    ].map((found) => found[0]);
-    expect(literals, "a colour with one definition, in one theme").toEqual([]);
+    //
+    // Every module rather than that one file, as of 2026-08-27. The old form
+    // named `src/components/band/band.module.css` and nothing else, so the
+    // second component stylesheet in this tree would have been free to carry
+    // exactly the literal the first one was forbidden. A rule that holds for
+    // one named path is not a rule about the codebase.
+    const modules = readdirSync("src", {
+      recursive: true,
+      encoding: "utf-8",
+    }).filter((name) => name.endsWith(".module.css"));
+    // Non-vacuous: a glob that matched nothing would agree with every
+    // stylesheet in the tree, including one written entirely in hex.
+    expect(
+      modules.length,
+      "no component stylesheet was found to check",
+    ).toBeGreaterThan(1);
+    const offenders: string[] = [];
+    for (const name of modules) {
+      const source = readFileSync(`src/${name}`, "utf-8").replace(
+        /\/\*[\s\S]*?\*\//g,
+        "",
+      );
+      for (const found of source.matchAll(
+        /#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(/g,
+      )) {
+        offenders.push(`${name}: ${found[0]}`);
+      }
+    }
+    expect(offenders, "a colour with one definition, in one theme").toEqual([]);
   });
 
   it("keeps every point of the band's gradient above 3:1 against the page", () => {

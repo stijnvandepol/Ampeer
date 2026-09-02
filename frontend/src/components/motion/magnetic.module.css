@@ -1,0 +1,42 @@
+/*
+ * The magnetic wrapper.
+ *
+ * TUNING: --magnet-ease is how long the child takes to come back to centre.
+ * The travel itself is in Magnetic.tsx (PULL and RANGE_PX), because it is a
+ * function of where the pointer is rather than of time.
+ */
+
+.magnet {
+  --magnet-ease: 320ms;
+
+  display: inline-block;
+  /* transform only. Nothing here lays out, so nothing thrashes. */
+  will-change: auto;
+}
+
+/*
+ * Eased on the way back and not on the way there.
+ *
+ * A transition while following the cursor puts the child permanently behind it,
+ * which reads as lag. Releasing is the opposite: a snap back to centre reads as
+ * a glitch, and a quarter of a second reads as weight.
+ */
+.magnet[data-leaning="false"] {
+  transition: transform var(--magnet-ease) var(--ease-standard);
+}
+
+/*
+ * The hint, only while the child is actually displaced. The attribute is
+ * written by the component on the first move and cleared on leave, so the
+ * compositor layer exists for the seconds it is used and not for the session.
+ */
+.magnet[data-leaning="true"] {
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .magnet {
+    transition: none;
+    transform: none !important;
+  }
+}

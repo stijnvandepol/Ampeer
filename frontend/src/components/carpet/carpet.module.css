@@ -1,0 +1,267 @@
+/*
+ * The plate, drawn.
+ *
+ * Every colour here is a token from globals.css and there is not one literal in
+ * the file, which tests/design/contrast.test.ts enforces over every component
+ * stylesheet in this tree. The reason is written up beside the band's own
+ * stylesheet: a hex fallback that is in no palette is a colour nobody ever
+ * measured, and it renders perfectly.
+ *
+ * The instrument is dark in both themes because it is a device rather than a
+ * surface. A reader who switches theme has to be looking at the same
+ * measurement, and the five ratios measured for it hold in both for the same
+ * reason.
+ */
+
+.instrument {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--colour-carpet-ground);
+  color: var(--colour-on-carpet);
+}
+
+.intro {
+  margin: 0;
+  color: var(--colour-ink-muted);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-medium);
+}
+
+/*
+ * The hour gutter and the plate itself. The gutter is a fixed column so the
+ * canvas starts at the same place whatever the labels say, and `minmax(0, 1fr)`
+ * rather than `1fr` so the canvas can be narrower than its own intrinsic width:
+ * a grid track defaults to min-content, which for a 365 pixel canvas is 365
+ * pixels, and that is a page that scrolls sideways at 360.
+ */
+.plate {
+  display: grid;
+  grid-template-columns: 2.2rem minmax(0, 1fr);
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.hours {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: right;
+  padding-block: 0.1rem;
+}
+
+.months {
+  grid-column: 2;
+  display: flex;
+  overflow: hidden;
+}
+
+/*
+ * Each month is as wide as it is long. Twelve equal columns would put every
+ * label after February up to two days wide of the block it names.
+ */
+.month {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/*
+ * One pixel per quarter of an hour, scaled up by this rule and by nothing else.
+ * `pixelated` is the whole point: smoothing would interpolate between two
+ * quarters and draw a value the model never produced.
+ *
+ * `height: auto` keeps the 365 by 96 shape the data has. Stretching it to a
+ * chosen height would make a quarter of an hour taller than a day is wide,
+ * which is a claim about the data rather than about the layout.
+ */
+/*
+ * The canvas and the crosshair share one grid cell, so the overlay can sit on
+ * the plate without being in the layout. Nothing here is drawn on the canvas
+ * itself: a crosshair painted into the image would be scaled by
+ * `image-rendering: pixelated` along with the data and would arrive as a
+ * two pixel wide staircase, and it would also have to be redrawn at 60Hz on
+ * every pointer move over 35040 cells.
+ */
+.canvasCell {
+  grid-column: 2;
+  position: relative;
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+  image-rendering: pixelated;
+  cursor: crosshair;
+}
+
+/*
+ * What the plate does while it is being read.
+ *
+ * Until this was added the plate did nothing at all when a reader moved over
+ * it: only the sentence underneath changed, so the eye had to travel away from
+ * the quarter it was pointing at to find out which quarter that was. The two
+ * lines answer that where the question is asked, and they carry the keyboard
+ * cursor as well, which had no visible position of any kind.
+ *
+ * Not a tooltip, and that is the same decision the readout records: an overlay
+ * that appears on hover is additional content under WCAG 2.2 SC 1.4.13 and owes
+ * the reader a way to dismiss it and a way to hover it. Two hairlines and a box
+ * say where, and the words stay in the paragraph below where they can be read
+ * without a pointer.
+ */
+.crosshair {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--duration-quick) ease-out;
+}
+
+.crosshair[data-reading="true"] {
+  opacity: 1;
+}
+
+.day,
+.quarter {
+  position: absolute;
+  background: var(--colour-on-carpet);
+  opacity: 0.5;
+}
+
+.day {
+  inset-block: 0;
+  width: 1px;
+}
+
+.quarter {
+  inset-inline: 0;
+  height: 1px;
+}
+
+/*
+ * The cell under the cursor, boxed rather than filled, because filling it would
+ * hide the one quarter the reader is asking about.
+ */
+.mark {
+  position: absolute;
+  width: var(--space-3);
+  height: var(--space-3);
+  margin: calc(var(--space-3) / -2) 0 0 calc(var(--space-3) / -2);
+  border: 1px solid var(--colour-on-carpet);
+  border-radius: var(--radius-sm);
+}
+
+/*
+ * The three glide rather than jump, so a reader dragging across the plate keeps
+ * hold of where they are, and so an arrow key reads as a step along an axis
+ * rather than as a new position appearing somewhere else.
+ *
+ * Guarded rather than global: globals.css switches motion off wholesale under
+ * the preference, and a crosshair that teleports is the correct behaviour
+ * there, not a degraded one.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .day,
+  .quarter,
+  .mark {
+    transition:
+      left var(--duration-quick) cubic-bezier(0.2, 0.8, 0.2, 1),
+      top var(--duration-quick) cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+}
+
+/*
+ * The focus ring, in the instrument's own ink rather than the page's focus
+ * colour. --colour-focus is measured against the three page surfaces and
+ * against nothing else; on this ground it is the one element of the design
+ * that would be sitting on a background its ratio was never computed for.
+ */
+.canvas:focus-visible {
+  outline: var(--focus-ring-width) solid var(--colour-on-carpet);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/*
+ * The readout, and the one thing about it that is a decision rather than a
+ * layout: it is always here.
+ *
+ * A tooltip that appears on hover is additional content under WCAG 2.2 SC
+ * 1.4.13, which then has to be dismissible without moving the pointer and
+ * hoverable without vanishing, and a pointer-driven overlay over the plate is
+ * neither. Text that is always present and whose words change is not additional
+ * content at all. The reserved height is the other half: a line that grows from
+ * nothing when the pointer arrives moves the rest of the page under the reader.
+ */
+.readout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  align-items: baseline;
+  min-height: 3rem;
+  margin: 0;
+  padding-block: var(--space-2);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.when {
+  font-weight: var(--weight-medium);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+}
+
+.entry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.swatch {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  flex: none;
+  border-radius: 2px;
+}
+
+.own {
+  background: var(--colour-carpet-own);
+}
+
+.offtake {
+  background: var(--colour-carpet-offtake);
+}
+
+.export {
+  background: var(--colour-carpet-export);
+}
+
+/*
+ * Forced colors replaces every background, which would make the three legend
+ * swatches one colour and leave three labels naming a distinction the reader
+ * cannot see. The swatches are the key to the plate beside them, so the colour
+ * is the content. See the longer note in day.module.css; the same reasoning
+ * and the same measured tokens.
+ */
+@media (forced-colors: active) {
+  .swatch {
+    forced-color-adjust: none;
+  }
+}

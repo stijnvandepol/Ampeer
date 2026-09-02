@@ -9,7 +9,7 @@ from ampeer_sim.profiles.assets import (
     ev_solar_profile,
     heat_pump_profile,
 )
-from ampeer_sim.timebase import YearGrid
+from ampeer_sim.timebase import QUARTERS_PER_DAY, QUARTERS_PER_HOUR, YearGrid
 from ampeer_sim.types import EV, EVChargingBehaviour, HeatPump
 
 GRID = YearGrid.for_year(2025)
@@ -137,3 +137,80 @@ def test_heat_pump_efficiency_never_drops_below_a_resistive_heater() -> None:
     arctic = np.full(GRID.hours, -30.0)
     series = heat_pump_profile(pump, arctic, GRID, weather_year=2025)
     assert series.sum() == pytest.approx(6_000.0, rel=1e-6)
+
+
+#: Charge powers to hold the invariant below against, from a wall box down to a
+#: household socket. The API asks for none of them: it asks whether there is a
+#: car and when it charges, and takes 3.7 kW from the dataclass default. The
+#: lower ones are here because the reason the invariant holds gets thinner as
+#: the power falls, and a check that only ever sees the comfortable case is not
+#: holding anything.
+CHARGE_POWERS_KW = (3.7, 2.3, 1.4, 0.7)
+
+
+@pytest.mark.parametrize("charge_power_kw", CHARGE_POWERS_KW)
+def test_a_solar_charged_car_never_draws_more_than_its_charger(charge_power_kw: float) -> None:
+    """The two halves of solar charging are capped apart and summed together.
+
+    ``compose_consumption`` adds ``ev_solar_profile`` and ``ev_grid_topup``,
+    and each caps itself at the charge power. Nothing caps the sum. That is the
+    same shape as the battery bug fixed on 2026-08-23, where a rating was
+    enforced per call while the loop called twice, and it is worth pinning here
+    because this path runs for every household that says it charges on its own
+    surplus.
+
+    It holds today, and not by the arithmetic. ``_allocate_daily`` places the
+    shortfall in the night window and spills outward when a day needs more than
+    the window holds, so an overrun needs a quarter where the sun charged and
+    the spill landed. Those cannot be the same quarter often, because the
+    shortfall is largest exactly on the days the sun gave least: the two series
+    are anti-correlated by construction rather than kept apart by a rule.
+
+    Which is why this is a test rather than a comment. A change to the window,
+    to the order ``_charging_priority`` fills it in, or to the kilometres the
+    API assumes would break the coincidence quietly, and the result would be a
+    car drawing more than its charger can deliver, which flatters solar
+    charging in the direction this project is most careful about.
+    """
+    ev = EV(
+        behaviour=EVChargingBehaviour.SOLAR,
+        annual_km=12_000,
+        charge_power_kw=charge_power_kw,
+    )
+    # A surplus that is present on some days and absent on others, so the
+    # shortfall varies the way a real year makes it vary. Flat sunshine would
+    # never produce a spill and would leave this passing on the easy case.
+    quarters = np.arange(GRID.quarters)
+    daylight = (quarters % QUARTERS_PER_DAY >= 40) & (quarters % QUARTERS_PER_DAY < 64)
+    dull_day = (quarters // QUARTERS_PER_DAY) % 3 == 0
+    surplus = np.where(daylight & ~dull_day, 1.0, 0.0)
+
+    from_sun = ev_solar_profile(ev, GRID, surplus_kwh=surplus)
+    from_grid = ev_grid_topup(ev, GRID, from_sun)
+    cap = charge_power_kw / QUARTERS_PER_HOUR
+
+    together = from_sun + from_grid
+    worst = int(np.argmax(together))
+    assert together[worst] <= cap + 1e-12, (
+        f"quarter {worst} draws {together[worst]:.4f} kWh from a charger that can deliver "
+        f"{cap:.4f}: {from_sun[worst]:.4f} from the sun and {from_grid[worst]:.4f} from the grid"
+    )
+
+
+def test_the_surplus_this_invariant_is_measured_against_is_not_flat() -> None:
+    """The floor under the check above, which is a maximum over a series.
+
+    A surplus that never runs out means the grid top-up is never asked for
+    anything, and then the sum it is asserting about has one term in it. The
+    case has to contain both a day the sun covered and a day it did not.
+    """
+    ev = EV(behaviour=EVChargingBehaviour.SOLAR, annual_km=12_000, charge_power_kw=3.7)
+    quarters = np.arange(GRID.quarters)
+    daylight = (quarters % QUARTERS_PER_DAY >= 40) & (quarters % QUARTERS_PER_DAY < 64)
+    dull_day = (quarters // QUARTERS_PER_DAY) % 3 == 0
+    surplus = np.where(daylight & ~dull_day, 1.0, 0.0)
+
+    from_sun = ev_solar_profile(ev, GRID, surplus_kwh=surplus)
+    from_grid = ev_grid_topup(ev, GRID, from_sun)
+    assert from_sun.sum() > 0.0, "the sun charged nothing, so only one term is being summed"
+    assert from_grid.sum() > 0.0, "the grid topped up nothing, so only one term is being summed"

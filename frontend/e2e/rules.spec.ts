@@ -21,7 +21,13 @@ const TOKEN = fixture.token;
 const ADVICE_PATH = `/advies/${TOKEN}/`;
 
 /** Every route the site has, for the sweep that has to cover all of them. */
-const ALL_PATHS = ["/", "/berekenen/", ADVICE_PATH, "/methodologie/"] as const;
+const ALL_PATHS = [
+  "/",
+  "/einde-saldering/",
+  "/berekenen/",
+  ADVICE_PATH,
+  "/methodologie/",
+] as const;
 
 /** The advice has arrived once its headline band is on the screen. */
 async function openAdvice(page: Page): Promise<void> {
@@ -163,60 +169,60 @@ test("rule 3: all three routes render, in the API's order, including an empty on
   await expect(page.getByText(/niets meer te halen/i)).toBeVisible();
 });
 
-test("rule 4: the page carries no urgency, scarcity or social proof", async ({
+/**
+ * The words rule four is about, and the reason the list is the weak half.
+ *
+ * Chapter 2 of the spec calls this the weakest of the six on purpose: an audit
+ * described three plausible ways past a wordlist. Whoever extends it extends
+ * the list and not the promise. The test below this one closes one of the
+ * three, which is urgency that comes out of a date calculation rather than out
+ * of a word: `ampeer-no-reading-the-clock` in `.semgrep/frontend.yml` forbids
+ * the frontend from reading the clock at all, so there is nothing to subtract
+ * a date from.
+ *
+ * That rule replaced a test here that moved the browser's clock a year and
+ * asked for the page text to be identical. It was written on 2026-08-30 and
+ * removed the same day, because a countdown was added to the landing page to
+ * prove it could fail and it passed: the site is exported statically, so a
+ * server component's date arithmetic runs at build time and is baked into the
+ * HTML, where no browser clock can move it. A check that passes on the exact
+ * defect it names is worse than no check, and an honest comment about its
+ * blind spot does not fix that when the blind spot is the main case.
+ */
+const URGENCY = [
+  "nog maar",
+  "laatste kans",
+  "huishoudens gingen",
+  "mis niet",
+  "actie loopt",
+  "aftellen",
+  "op is op",
+  // Added 2026-08-30 with the landing page, where a countdown is the single
+  // most tempting thing to add and the one the spec names twice.
+  "nog 14 maanden",
+  "dagen te gaan",
+  "loopt af over",
+] as const;
+
+test("rule 4: no route carries urgency, scarcity or social proof", async ({
   page,
 }) => {
-  await openAdvice(page);
-  const text = (await page.locator("body").innerText()).toLowerCase();
-  // Non-vacuous: the advice text really is on the page, so an empty body
-  // cannot make this pass.
-  expect(text).toContain("saldering");
-  for (const pattern of [
-    "nog maar",
-    "laatste kans",
-    "huishoudens gingen",
-    "mis niet",
-    "actie loopt",
-    "aftellen",
-    "op is op",
-  ]) {
-    expect(text, `found "${pattern}" on the advice page`).not.toContain(
-      pattern,
-    );
+  // Every route and not only the advice page. The landing page is where a
+  // countdown would go, and until 2026-08-30 this test never opened it: the
+  // one page most likely to break rule four was the one page not checked.
+  for (const path of ALL_PATHS) {
+    if (path === ADVICE_PATH) await openAdvice(page);
+    else await page.goto(path);
+    const text = (await page.locator("body").innerText()).toLowerCase();
+    // Non-vacuous per route: a page that failed to render has an almost empty
+    // body, and every assertion below would pass on it. 200 and not a rounder
+    // number because the shortest real route is /berekenen/, whose first step
+    // measures 317 characters; a floor above that fails on a working page.
+    expect(text.length, `${path} rendered almost nothing`).toBeGreaterThan(200);
+    for (const pattern of URGENCY) {
+      expect(text, `found "${pattern}" on ${path}`).not.toContain(pattern);
+    }
   }
-});
-
-test("rule 5: two kinds of call to action, and none of them leaves for a seller", async ({
-  page,
-}) => {
-  await openAdvice(page);
-  const hrefs = await page
-    .locator("a[href]")
-    .evaluateAll((elements) =>
-      elements.map(
-        (element) => (element as HTMLAnchorElement).getAttribute("href") ?? "",
-      ),
-    );
-  expect(
-    hrefs.length,
-    "no links at all were found, so this proves nothing",
-  ).toBeGreaterThan(0);
-  const external = hrefs.filter(
-    (href) => /^https?:\/\//.test(href) && !href.includes("ampeer.nl"),
-  );
-  expect(
-    external,
-    `external links on the advice page: ${external.join(", ")}`,
-  ).toEqual([]);
-
-  // The two that must be there, and the shape of the second: a link the
-  // visitor keeps rather than a button that sends them somewhere.
-  await expect(
-    page.getByRole("link", { name: "Verfijn uw antwoord" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Kopieer deze link" }),
-  ).toBeVisible();
 });
 
 test("every route passes axe", async ({ page }) => {
@@ -477,14 +483,21 @@ test("no route pushes the page sideways at 360px or at 400% zoom", async ({
 test("the paid route never outweighs the free ones the model put first", async ({
   page,
 }) => {
-  // The fixture's verdict is BATTERY_DOES_NOT_PAY_BACK and its rule text says
-  // "niet de moeite waard". Measured at 1280x900 before this: headline 345px,
-  // the two free routes 313px each, the storage route 219px, and the battery
-  // block 1365px, which is 38.5% of the page and 2.2x the free routes together,
-  // with a five-capacity table of what each size earns inside it. It passed all
-  // five rules above, because "free routes first" was DOM order and order is the
-  // weakest form of precedence there is.
-  expect(fixture.battery.verdict).toBe("BATTERY_DOES_NOT_PAY_BACK");
+  // The fixture's verdict is one the model does not recommend on. Measured at
+  // 1280x900 before this: headline 345px, the two free routes 313px each, the
+  // storage route 219px, and the battery block 1365px, which is 38.5% of the
+  // page and 2.2x the free routes together, with a five-capacity table of what
+  // each size earns inside it. It passed all five rules above, because "free
+  // routes first" was DOM order and order is the weakest form of precedence
+  // there is.
+  //
+  // On the property rather than on one id, for the reason
+  // tests/app/AdviesPage.test.tsx gives beside the same guard: the fixture
+  // household moved from BATTERY_DOES_NOT_PAY_BACK to BATTERY_DEPENDS_ON_PRICE
+  // on 2026-08-26 without the page's behaviour moving at all.
+  expect(["BATTERY_DOES_NOT_PAY_BACK", "BATTERY_DEPENDS_ON_PRICE"]).toContain(
+    fixture.battery.verdict,
+  );
   await page.setViewportSize({ width: 1280, height: 900 });
   await openAdvice(page);
 

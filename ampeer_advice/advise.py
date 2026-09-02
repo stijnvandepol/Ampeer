@@ -95,6 +95,23 @@ def _storage_verdict(battery: BatteryAdvice) -> str:
     - not worth it even at the middle of it
     - and in between, where the honest answer is that it depends on the quote,
       which is the one variable the reader can actually go and find out
+
+    The two sides are deliberately not symmetric, and this is the part worth
+    seeing before changing anything here. Recommending requires the whole band
+    to clear the limit. Refusing requires only the middle to miss it. So a
+    household whose band runs from well inside the limit to well outside is
+    told no rather than told it depends.
+
+    Measured on 2026-08-23: large_array_small_use pays back between 6.99 and
+    18.89 years with a middle of 12.05, and is told the battery does not pay
+    back. At 450 euro per kWh that battery pays for itself in seven years.
+
+    The case for the asymmetry is that this product must be reluctant to
+    recommend a purchase and free to refuse one, since refusing sells nothing.
+    The case against is the argument three paragraphs up, which says a single
+    number must not decide the most consequential sentence here, and which is
+    applied to one side only. It has not been settled; docs/decisions.md
+    carries it as a question for the owner rather than as something taken.
     """
     if battery.payback_years.high <= MAX_ACCEPTABLE_PAYBACK_YEARS:
         return "CONSIDER_BATTERY"
@@ -471,6 +488,15 @@ def advise(
         fired=fired,
         routes=ROUTES,
         battery=battery,
+        # The first pass, which is this household as it was described. The
+        # simulation was already being run for the rules to read and its result
+        # was dropped on the floor; carrying it out costs nothing and is the
+        # only quarter-hour series in this function that describes a year
+        # somebody actually lived. `outcome.consumption` is the household that
+        # took the free advice and the capacity curve runs five more years that
+        # are each a different battery, and none of those is a picture to show
+        # a visitor of their own year.
+        flows=flows,
     )
 
 

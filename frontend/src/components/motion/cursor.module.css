@@ -1,0 +1,73 @@
+/*
+ * The pointer ring.
+ *
+ * TUNING:
+ *   --ring-size    diameter at rest
+ *   --ring-grown   diameter over a link, button or field
+ *   --ring-ease    how long the size change takes
+ *   --ring-follow  how long the ring takes to reach the pointer. 0 pins it
+ *                  exactly; the shipped value gives it a little weight.
+ */
+
+.ring {
+  --ring-size: 14px;
+  --ring-grown: 40px;
+  --ring-ease: 200ms;
+  --ring-follow: 90ms;
+  --ring-x: 50vw;
+  --ring-y: 50vh;
+  --ring-over: 0;
+  --ring-shown: 0;
+
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  pointer-events: none;
+  width: var(--ring-size);
+  height: var(--ring-size);
+  margin: calc(var(--ring-size) / -2) 0 0 calc(var(--ring-size) / -2);
+  border: 1px solid var(--colour-ink-subtle);
+  border-radius: var(--radius-pill);
+  opacity: var(--ring-shown);
+  /*
+   * translate3d and not top/left. Those two lay out and paint on every pointer
+   * move, which on a page this long is the difference between 60fps and a
+   * visible stutter while scrolling.
+   */
+  transform: translate3d(var(--ring-x), var(--ring-y), 0)
+    scale(
+      calc(1 + var(--ring-over) * (var(--ring-grown) / var(--ring-size) - 1))
+    );
+  transition:
+    transform var(--ring-follow) linear,
+    opacity var(--ring-ease) var(--ease-standard),
+    border-color var(--ring-ease) var(--ease-standard);
+  will-change: transform;
+}
+
+/* Over something you can use, it takes the accent and opens up. */
+.ring {
+  border-color: color-mix(
+    in srgb,
+    var(--colour-accent) calc(var(--ring-over) * 100%),
+    var(--colour-ink-subtle)
+  );
+}
+
+/*
+ * Only where there is a cursor to decorate. `pointer: fine` and not a width
+ * query: a phone has a wide viewport in landscape and still no pointer, and a
+ * laptop with a touchscreen has both.
+ */
+@media (pointer: coarse), (prefers-reduced-motion: reduce) {
+  .ring {
+    display: none;
+  }
+}
+
+/*
+ * Forced colors mode replaces the border colour with a system one, which is
+ * correct: the ring is chrome, not content, and it should look like the rest of
+ * the chrome the visitor has chosen.
+ */

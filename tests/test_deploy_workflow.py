@@ -8,8 +8,8 @@ preflight is the only thing standing between a missing variable and a container
 in a restart loop.
 
 The exception itself is the point. `tests/test_pipeline_contract.py` refuses any
-job that selects the self-hosted runner, because the workflows trigger on push
-to `feat/**` where no ruleset applies. That rule now has an exception, and an
+job that selects the self-hosted runner, because `ci.yml` triggers on push to
+`feat/**` where no ruleset applies. That rule now has an exception, and an
 exception that is not bounded is the gate being removed slowly, so the bound is
 asserted here: exactly one workflow, exactly one job, and that job has to earn
 it by triggering only on a tag and waiting for a review.
@@ -17,6 +17,7 @@ it by triggering only on a tag and waiting for a review.
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import os
 import re
@@ -28,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from helpers.shell import shell_int
 
 # Reused rather than re-derived. `_workflows` is the same parse the pipeline
 # contract reads, and SELF_HOSTED_EXCEPTIONS is the exception itself: importing
@@ -80,7 +82,7 @@ def _job(name: str) -> dict[str, Any]:
     return job
 
 
-def _triggers(document: dict[str, Any]) -> dict[str, Any]:
+def _triggers(document: dict[Any, Any]) -> dict[str, Any]:
     """The `on:` block, fetched past a YAML trap that would make this vacuous.
 
     PyYAML resolves an unquoted `on` key to the boolean True, so
@@ -195,7 +197,18 @@ def test_the_deploy_job_needs_the_build_job() -> None:
 
 
 def _steps(job: str) -> list[dict[str, Any]]:
+    """Every step of a job, refusing a job that has none.
+
+    `_job` already refuses a name that is not there. What it cannot refuse is a
+    job whose shape changed: a job that calls a reusable workflow carries `uses`
+    at job level and no steps, and twenty assertions here read as "no step does
+    X", every one of which passes over an empty list.
+    """
     steps: list[dict[str, Any]] = _job(job).get("steps", [])
+    assert steps, (
+        f"the {job!r} job declares no steps, so every check over them below would "
+        "pass without reading anything"
+    )
     return steps
 
 
@@ -1157,3 +1170,253 @@ def test_the_backup_timer_runs_after_the_purge() -> None:
         "the backup runs before the purge, so every dump is a snapshot of rows "
         f"the purge is about to delete: {minutes}"
     )
+
+
+#: A schedule this test is willing to reduce to a period: every day, once, at a
+#: fixed time. Anything else is refused rather than guessed at, because the
+#: number it feeds is a threshold and a wrong period silently makes a health
+#: check either useless or permanently red.
+_DAILY_SCHEDULE = re.compile(r"^OnCalendar=\*-\*-\* \d{2}:\d{2}:\d{2}$")
+
+
+def _timer_period_hours(name: str) -> int:
+    """How often a timer fires, for the one shape that can be read off."""
+    text = (REPO_ROOT / "infra" / "systemd" / name).read_text(encoding="utf-8")
+    schedules = [line.strip() for line in text.splitlines() if line.startswith("OnCalendar=")]
+    assert len(schedules) == 1, (
+        f"{name} declares {len(schedules)} OnCalendar lines; systemd takes the union of "
+        "them and this test cannot reduce that to a period"
+    )
+    assert _DAILY_SCHEDULE.match(schedules[0]), (
+        f"{name} is scheduled as {schedules[0]!r}, which is no longer the daily shape "
+        "this test can decide. MAX_AGE_HOURS in scripts/backup_db.sh has to be "
+        "re-derived by hand and this test taught to read the new shape."
+    )
+    return 24
+
+
+def test_the_staleness_threshold_clears_the_timer_it_is_measured_against() -> None:
+    """MAX_AGE_HOURS and the timer decide each other, in two files.
+
+    The constant says so itself: it has to be more than the timer's period or
+    --check goes red every day in the minutes before the run, and the timer
+    unit says the same thing from the other side. Two comments agreeing is not
+    a check, and the failure they describe is the loud kind: a health check
+    that is red every morning is one somebody turns off.
+
+    Both bounds matter and they come from the same sentence in the script.
+    Above the period, or the check is red before every run. Below twice the
+    period, or a single missed run no longer fails it, which is the thing the
+    check exists for. Twenty six against a daily timer sits in the middle with
+    room for AccuracySec and a slow dump.
+    """
+    hours = shell_int(BACKUP, "MAX_AGE_HOURS")
+    period = _timer_period_hours("ampeer-backup.timer")
+
+    assert hours > period, (
+        f"--check calls a dump stale after {hours} hours and the timer only runs every "
+        f"{period}, so the deploy would refuse a backup that is working"
+    )
+    assert hours < 2 * period, (
+        f"--check tolerates {hours} hours against a timer that runs every {period}, so a "
+        "whole missed run passes as healthy, and a check that survives the failure it "
+        "is for is not a check"
+    )
+
+
+def test_the_purge_timer_is_the_shape_the_retention_promise_assumes() -> None:
+    """The other daily timer, held to the same reading.
+
+    docs/dpia.md promises the service stops answering after ninety days, and
+    that promise rests on the read path filtering on expires_at rather than on
+    this timer, which is why it is exact. What the timer decides is how long a
+    dead row stays on disk after that, and chapter 4 describes it as daily.
+    A weekly timer would leave a purged advice in the table for six more days
+    while the document went on calling the task daily.
+    """
+    assert _timer_period_hours("ampeer-purge.timer") == 24, (
+        "the purge no longer runs daily, and docs/dpia.md chapter 4 calls it 'een dagelijkse taak'"
+    )
+
+
+# --------------------------------------------------------------------------
+# The purge timer and the check that watches for its silence.
+#
+# Three properties, each argued at length in the unit file and none of them
+# asserted anywhere until 2026-08-23. Every one was measured to leave the whole
+# suite green when reversed.
+# --------------------------------------------------------------------------
+
+PURGE_COMMAND = (
+    REPO_ROOT / "backend" / "advice" / "management" / "commands" / "purge_expired_advice.py"
+)
+
+
+def _python_int(path: Path, name: str) -> int:
+    """A module level integer constant, read without importing the module.
+
+    Importing it would need Django configured, and the question here is what the
+    source says, which is also what a reviewer reads.
+    """
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    found = [
+        node.value.value
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, int)
+        for target in node.targets
+        if isinstance(target, ast.Name) and target.id == name
+    ]
+    assert len(found) == 1, f"{path.name} defines {name} {len(found)} times"
+    return int(found[0])
+
+
+def test_the_purge_grace_clears_the_timer_it_is_measured_against() -> None:
+    """GRACE_DAYS and the timer period decide each other, in two files.
+
+    The unit file says it in as many words: the check mode allows exactly
+    GRACE_DAYS of slack, so the period there and this constant are one number
+    seen from two sides, and changing one means moving the other. Two comments
+    agreeing is not a check. The same pairing already exists for the backup
+    timer and MAX_AGE_HOURS, one file over, and this one was missing.
+
+    Both bounds, and they are the same two the backup pairing uses. At least the
+    period, or a healthy stack is red in the minutes before every run, and a
+    check that is red every morning is one somebody turns off. Under twice the
+    period, or a whole missed run passes as healthy, which is the failure the
+    check exists for.
+
+    The lower bound is met exactly, by design rather than by luck. A row expires
+    at most one run before it is deleted, so the worst case sits just under the
+    period, and AccuracySec is the entire margin. That is why the two tests
+    below are not decoration.
+    """
+    grace_hours = _python_int(PURGE_COMMAND, "GRACE_DAYS") * 24
+    period = _timer_period_hours("ampeer-purge.timer")
+
+    assert grace_hours >= period, (
+        f"--check calls the timer dead after {grace_hours} hours and the timer only runs "
+        f"every {period}, so a working host is reported broken before every run"
+    )
+    assert grace_hours < 2 * period, (
+        f"--check tolerates {grace_hours} hours against a timer that runs every {period}, so "
+        "a whole missed run passes as healthy, and a check that survives the failure it is "
+        "for is not a check"
+    )
+
+
+#: Both units, because both carry the same two sentences and the backup one
+#: says so explicitly: it has no RandomizedDelaySec "for the same reason
+#: ampeer-purge.timer" has none.
+TIMERS = ("ampeer-purge.timer", "ampeer-backup.timer")
+
+
+def _timer_directives(name: str) -> list[str]:
+    text = (REPO_ROOT / "infra" / "systemd" / name).read_text(encoding="utf-8")
+    return [line.strip() for line in text.splitlines() if not line.lstrip().startswith("#")]
+
+
+@pytest.mark.parametrize("timer", TIMERS)
+def test_the_timer_adds_no_jitter_to_a_window_that_has_none_to_give(timer: str) -> None:
+    """RandomizedDelaySec is absent on purpose and nothing said so.
+
+    The unit explains it: the grace above is met exactly, so any delay added
+    here pushes the worst case past the window and turns a healthy stack red for
+    the length of the jitter. Adding an hour of it was measured to leave the
+    whole suite green.
+    """
+    jitter = [line for line in _timer_directives(timer) if line.startswith("RandomizedDelaySec=")]
+    assert not jitter, (
+        f"{timer} declares {jitter}, which widens the worst case past the window its own "
+        "--check allows, so a working host would be reported as broken"
+    )
+
+
+@pytest.mark.parametrize("timer", TIMERS)
+def test_the_timer_catches_up_on_a_day_the_host_was_off(timer: str) -> None:
+    """Persistent=true, and the unit says what its absence costs.
+
+    Without it systemd skips a missed run rather than running it after the next
+    boot, so a weekend of downtime extends the retention window by two days and,
+    in the unit's own words, nothing anywhere says so. That was true of this
+    sentence too: setting it to false left the whole suite green.
+
+    docs/dpia.md promises deletion on a schedule. A promise that quietly waits
+    for the host to be awake is a different promise.
+    """
+    assert "Persistent=true" in _timer_directives(timer), (
+        f"{timer} no longer catches up after downtime, so a day the host was off silently "
+        "extends the window its own check measures"
+    )
+
+
+# --------------------------------------------------------------------------
+# What the two units say about their own command lines.
+#
+# Both were measured on 2026-08-24 and both left the suite green when reversed.
+# --------------------------------------------------------------------------
+
+UNITS = REPO_ROOT / "infra" / "systemd"
+
+
+def _unit_directives(name: str) -> list[str]:
+    text = (UNITS / name).read_text(encoding="utf-8")
+    return [line.strip() for line in text.splitlines() if not line.lstrip().startswith("#")]
+
+
+def test_the_purge_overrides_the_entrypoint_it_would_otherwise_inherit() -> None:
+    """Without this the unit starts a web server and deletes nothing.
+
+    The api image's entrypoint execs gunicorn and ignores its arguments, so
+    `compose run --rm api backend/manage.py purge_expired_advice` runs a server
+    rather than a management command. Overriding the entrypoint is what makes
+    this a purge at all, and the unit says so.
+
+    Both invocations, because ExecStartPost runs the same image the same way to
+    ask whether anything is still past its date. A check that inherited the
+    entrypoint would answer a question nobody asked.
+
+    --env-file with them, from the same paragraph: docker-compose.yml
+    interpolates nine variables and gives none of them a default, so without
+    the file the unit fails while resolving it instead of connecting somewhere
+    unintended, which is the right way round.
+    """
+    calls = [
+        line
+        for line in _unit_directives("ampeer-purge.service")
+        if line.startswith(("ExecStart=", "ExecStartPost="))
+    ]
+    assert len(calls) == 2, f"the unit declares {len(calls)} commands, not the pair this reads"
+    for call in calls:
+        assert "--entrypoint python" in call, (
+            f"{call.split('=', 1)[0]} inherits the image's entrypoint, which execs gunicorn "
+            "and ignores its arguments"
+        )
+        assert "--env-file /srv/ampeer/.env" in call, (
+            f"{call.split('=', 1)[0]} resolves compose without the env file, and nothing in "
+            "that file has a default"
+        )
+
+
+@pytest.mark.parametrize("unit", ["ampeer-purge.service", "ampeer-backup.service"])
+def test_no_unit_puts_a_credential_where_the_host_can_read_it(unit: str) -> None:
+    """The backup unit says it sets no environment on purpose, and neither does.
+
+    Its own note: pg_dump runs inside the db container through `sh -c`, so
+    POSTGRES_USER and POSTGRES_DB expand there and never appear on a command
+    line on this host. systemd hands a unit a clean environment, which is what
+    makes that true, and an Environment= line here would undo it: systemd unit
+    files are world readable and `systemctl show` prints their values.
+
+    Adding Environment=POSTGRES_PASSWORD to the backup unit was measured to
+    leave the whole suite green.
+    """
+    directives = _unit_directives(unit)
+    carried = [line for line in directives if line.startswith(("Environment=", "EnvironmentFile="))]
+    assert not carried, (
+        f"{unit} carries {carried}; the credentials this stack uses expand inside the db "
+        "container and are not meant to reach the host's process table or systemctl show"
+    )
+    passwords = [line for line in directives if "PASSWORD" in line or "SECRET" in line]
+    assert not passwords, f"{unit} names a secret on a directive line: {passwords}"

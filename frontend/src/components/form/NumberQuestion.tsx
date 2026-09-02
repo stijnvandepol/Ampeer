@@ -23,15 +23,26 @@ function parse(raw: string): number | null {
 function messageFor(raw: string, limits: Limits): string | null {
   if (raw.trim() === "") return null;
   const parsed = parse(raw);
-  if (parsed === null) return "Vul een getal in.";
+  if (parsed === null) return "Vul een getal in, zonder letters of spaties.";
   if (parsed < limits.min)
-    return `Vul minstens ${limits.min} ${limits.unit} in.`;
+    return `Vul minstens ${bound(limits.min, limits)} in.`;
   if (parsed > limits.max)
-    return `Vul hoogstens ${limits.max} ${limits.unit} in.`;
+    return `Vul hoogstens ${bound(limits.max, limits)} in.`;
   if (limits.integer && !Number.isInteger(parsed)) {
     return "Vul een heel getal in, zonder cijfers achter de komma.";
   }
   return null;
+}
+
+/**
+ * A bound with its unit, and without a double space when it has none.
+ *
+ * The postcode field passes an empty unit, so the message read
+ * "Vul minstens 1000  in." with two spaces in the middle, on the first screen
+ * of the flow.
+ */
+function bound(value: number, limits: Limits): string {
+  return limits.unit === "" ? String(value) : `${value} ${limits.unit}`;
 }
 
 interface Limits {
@@ -64,6 +75,24 @@ interface Props {
    * visitor never asked for. The bound they broke is named here instead.
    */
   readonly integer?: boolean;
+  /**
+   * The autofill token for this field, where one honestly exists.
+   *
+   * Only the postcode has one. There is no autofill name for "watt-peak on my
+   * roof", and inventing one would put a browser's saved address data into a
+   * field that is not an address.
+   */
+  readonly autoComplete?: string | undefined;
+  /**
+   * Anything else already describing this field, by id.
+   *
+   * The consumption question's note is the case this exists for. It is the
+   * sentence that stops a visitor entering their annual bill total instead of
+   * their base consumption, which is worth 176 to 184 euro of accuracy, and it
+   * sat in a paragraph that nothing pointed at: a screen reader user tabbing
+   * into the field heard the label and the unit and never the warning.
+   */
+  readonly describedBy?: string | undefined;
   readonly onChange: (value: number | null) => void;
   /**
    * Told whether this field is refusing what it holds.
@@ -82,7 +111,35 @@ interface Props {
  *
  * "Ongeldige waarde" tells somebody that they are wrong and not what would be
  * right, which turns a form into guessing. The message says which end of the
- * range was passed and what that end is.
+ * range was passed and what that end is, and the accepted range is on the
+ * screen before anything is typed rather than only after it is broken.
+ *
+ * IT IS NOT type="number", AND THAT WAS A DEFECT RATHER THAN A PREFERENCE.
+ * Measured in a browser on 2026-09-01, on the postcode field, which is the
+ * first thing anybody touches:
+ *
+ *   typing "3811 EP", which is how a Dutch postcode is written, left the field
+ *   EMPTY with aria-invalid="false" and no message. A number input reports a
+ *   value it cannot parse as the empty string, so the 3811 went too, the
+ *   controlled draft became "", and the "Vul een getal in" branch below could
+ *   never fire for any of the five fields in this flow.
+ *
+ *   typing "3811" and pressing ArrowDown once gave 3810. A number input steps
+ *   on the arrow keys, so a keyboard visitor scrolling the page silently
+ *   edited their own postcode, and on the consumption field the same key moves
+ *   a four figure number by one, which looks like nothing happened at all.
+ *
+ * GOV.UK says not to use type="number" unless research shows a need, for these
+ * two reasons by name. `inputmode` is what actually decides the phone keyboard,
+ * and it is unchanged.
+ *
+ * VALIDATION WAITS FOR blur. It used to run on every keystroke, so typing the
+ * first digit of a postcode put "Vul minstens 1000 in." under the visitor's
+ * fingers, and because the message is a live region a screen reader announced
+ * it again on every character: 1, 12, 123. The NL Design System asks for blur
+ * or submit; Nielsen Norman calls validating before an entry is finished a
+ * hostile pattern. The value is still reported upward on every keystroke, so
+ * nothing downstream waits.
  */
 export function NumberQuestion({
   id,
@@ -92,6 +149,8 @@ export function NumberQuestion({
   max,
   unit,
   integer = false,
+  autoComplete,
+  describedBy,
   onChange,
   onRefusal,
 }: Props) {
@@ -99,6 +158,14 @@ export function NumberQuestion({
     value === null ? "" : String(value),
   );
   const [seen, setSeen] = useState<number | null>(value);
+  /**
+   * Whether this field has been left at least once.
+   *
+   * The message is withheld until it has. Not the refusal: the flow is told on
+   * every keystroke, so the forward button behaves the same as before and the
+   * only thing that waits is the sentence a visitor reads.
+   */
+  const [left, setLeft] = useState(false);
 
   // The parent owns the value, but it may reject what was typed (by reporting
   // null for an out-of-range number), and when it does the visitor still has to
@@ -115,13 +182,14 @@ export function NumberQuestion({
   const limits: Limits = { min, max, unit, integer };
   const errorId = `${id}-error`;
   const hintId = `${id}-hint`;
-  const error = messageFor(draft, limits);
+  const refusal = messageFor(draft, limits);
+  const error = left ? refusal : null;
 
   function handleChange(raw: string) {
     setDraft(raw);
-    const refusal = messageFor(raw, limits);
-    onRefusal?.(refusal !== null);
-    onChange(refusal === null ? parse(raw) : null);
+    const next = messageFor(raw, limits);
+    onRefusal?.(next !== null);
+    onChange(next === null ? parse(raw) : null);
   }
 
   return (
@@ -130,18 +198,34 @@ export function NumberQuestion({
       <div className="flex items-baseline gap-2">
         <input
           id={id}
-          type="number"
+          /*
+           * text, with inputMode deciding the phone keyboard. See the note on
+           * the component: a number input eats what it cannot parse and steps
+           * on the arrow keys, and both of those were measured here rather
+           * than assumed.
+           */
+          type="text"
           inputMode={integer ? "numeric" : "decimal"}
-          min={min}
-          max={max}
-          step={integer ? 1 : "any"}
+          spellCheck={false}
+          autoComplete={autoComplete ?? "off"}
           value={draft}
           aria-invalid={error !== null}
-          aria-describedby={error === null ? hintId : `${hintId} ${errorId}`}
+          aria-describedby={
+            [hintId, describedBy, error === null ? null : errorId]
+              .filter((part) => part !== null && part !== undefined)
+              .join(" ") || undefined
+          }
           onChange={(event) => handleChange(event.target.value)}
+          onBlur={() => setLeft(true)}
         />
-        <span id={hintId} className="text-sm">
-          {unit}
+        {/*
+          The unit and the accepted range, before anything is typed rather than
+          only after it is broken. The NL Design System asks for valid values to
+          be stated up front and not left in a placeholder; the bounds were
+          already props here and were secret until a visitor tripped over one.
+        */}
+        <span id={hintId} className="text-sm text-ink-muted">
+          {unit === "" ? `${min} tot ${max}` : `${unit}, ${min} tot ${max}`}
         </span>
       </div>
       {/*

@@ -59,7 +59,14 @@ test("a visitor answers four questions and lands on an advice", async ({
   await stubApi(page, recorded);
 
   await page.goto("/");
-  await page.getByRole("link", { name: "Beantwoord vier vragen" }).click();
+  // `.first()`, because the landing page offers the way in twice: once closing
+  // the first screen and once closing the page. Two is the ceiling and a test
+  // in tests/app/pages.test.tsx holds it there; this walk takes the one a
+  // visitor meets first.
+  await page
+    .getByRole("link", { name: "Beantwoord vier vragen" })
+    .first()
+    .click();
   await expect(page).toHaveURL(/\/berekenen\/$/);
 
   // Question one, and the refusal to skip it. The button is not disabled, so
@@ -125,6 +132,18 @@ test("the shareable link opens the advice in a browser that has never been here"
   await expect(page.locator('[data-band-kind="percentile"]')).toBeVisible();
   // Every fired rule from the fixture reached the page, keyed by its own id,
   // so the advice stays traceable back to the rule that produced it.
+  // Counted rather than flattened: flatMap widens the per-route element type
+  // to a union and the loop below stops type checking. A fixture with no rule
+  // in it would make that loop assert nothing while still reading as a check
+  // that every fired rule reached the page.
+  const fired = fixture.routes.reduce(
+    (total, route) => total + route.rules.length,
+    0,
+  );
+  expect(
+    fired,
+    "the fixture fires no rule, so the loop below would check nothing",
+  ).toBeGreaterThan(0);
   for (const route of fixture.routes) {
     for (const rule of route.rules) {
       await expect(

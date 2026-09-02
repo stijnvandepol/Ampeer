@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChoiceQuestion } from "@/components/form/ChoiceQuestion";
 import { NumberQuestion } from "@/components/form/NumberQuestion";
@@ -8,7 +9,7 @@ import {
   ALL_QUESTION_COUNT,
   ROUND_ONE_QUESTION_COUNT,
 } from "@/components/form/Progress";
-import { QuestionShell } from "@/components/form/QuestionShell";
+import { NOTE_ID, QuestionShell } from "@/components/form/QuestionShell";
 import { RoofPicker } from "@/components/form/RoofPicker";
 import { postEstimate, postRefine } from "@/lib/api";
 import { BOUNDS, type Bound } from "@/lib/validation";
@@ -51,7 +52,37 @@ const ROUND_ONE_TITLES = [
   "Wat zijn de eerste vier cijfers van uw postcode?",
   "Hoeveel wattpiek aan zonnepanelen ligt er?",
   "Hoe ligt het dak?",
-  "Hoeveel stroom verbruikt u per jaar?",
+  "Hoeveel stroom verbruikt u per jaar, zonder auto en warmtepomp?",
+] as const;
+
+/**
+ * What a question means, where the title alone can be read two ways.
+ *
+ * Only one question has one, and it is the question this whole mechanism was
+ * added for. The model scales the base profile to the figure entered here and
+ * then ADDS the car and the heat pump on top, so the figure being asked for is
+ * consumption without them. A visitor who charges at home and reads the total
+ * off their annual bill has the car in that number already, and the model then
+ * counts it twice: measured on the reference household, 447 euro where the
+ * truth is 624, and four of six golden households also lose a fired rule.
+ *
+ * Saying it here is the whole repair. It was chosen over carving the assets
+ * back out inside the model, which produces the same figure to the cent but
+ * puts the largest single correction in the product where the visitor cannot
+ * see it. See decision 26 in docs/decisions.md.
+ *
+ * "Een schatting is genoeg" is measured rather than reassuring. Chapter 4 of
+ * docs/methodologie.md carries the sensitivity, remeasured on the shipping
+ * model on 2026-08-31: being 500 kWh out costs about 31 euro with a heat pump
+ * and 46 with a car, against the 176 to 184 that entering the bill total
+ * costs. A visitor who abandons the question because they cannot produce an
+ * exact figure is worse off than one who estimates, by a factor of about four.
+ */
+const ROUND_ONE_NOTES: readonly (string | undefined)[] = [
+  undefined,
+  undefined,
+  undefined,
+  "Zonder het laden van een elektrische auto en zonder een warmtepomp, ook als u die wel heeft. Daar vragen wij zo apart naar en wij tellen ze er dan zelf bij op. Staan ze op uw jaarnota, haal ze er dan af. Een schatting is genoeg.",
 ] as const;
 
 const ROUND_TWO_TITLES = [
@@ -137,7 +168,7 @@ export default function BerekenenPage() {
     // Not a blank page and not a spinner. The one thing this state can say
     // truthfully is that it is about to show questions, so it says that.
     return (
-      <div className="mx-auto w-full max-w-2xl px-6 py-16">
+      <div className="mx-auto w-full max-w-[var(--shell-max)] px-6 py-16">
         <p role="status">De vragen worden klaargezet.</p>
       </div>
     );
@@ -147,6 +178,51 @@ export default function BerekenenPage() {
   const round: 1 | 2 = wantedRound === "2" ? 2 : 1;
   const titles = round === 1 ? ROUND_ONE_TITLES : ROUND_TWO_TITLES;
   const last = index === titles.length - 1;
+
+  /*
+   * Round two with no round one behind it, caught before it starts.
+   *
+   * The answers live in sessionStorage, which is per tab, and the advice page's
+   * only route onward is a link to `?ronde=2`. So somebody who saves their
+   * link, closes the tab and comes back the next day, which is the journey the
+   * product asks them to make, arrives here with nothing stored.
+   *
+   * What happened before 2026-09-01: the five questions were asked and
+   * answered, the progress bar claimed "Vraag 5 van 9" for four questions that
+   * were never answered, and pressing Bereken on the last one produced
+   * "Beantwoord deze vraag om verder te gaan" over a question that visibly was.
+   * `toRefineInput` returned null because the base was missing, and the flow
+   * reported that against whichever question happened to be on screen. Terug
+   * walked back through five answered questions and then off the form. Nothing
+   * anywhere named the actual problem.
+   *
+   * Checked here rather than at submit, because the honest moment to say "this
+   * needs the first four questions" is before asking five more.
+   */
+  if (round === 2 && toEstimateInput(answers) === null) {
+    return (
+      <div className="mx-auto w-full max-w-[var(--shell-max)] px-6 py-16">
+        <div className="flex w-full max-w-2xl flex-col gap-4">
+          <h1 className="text-2xl">De eerste vier vragen ontbreken nog</h1>
+          <p className="max-w-[60ch] text-ink-muted">
+            De vijf vragen hierna maken een antwoord scherper dat er al is, en
+            in dit browservenster staat dat antwoord er nog niet. Dat gebeurt
+            als u uw bewaarde link in een nieuw venster opent of op een ander
+            apparaat.
+          </p>
+          <p className="max-w-[60ch] text-ink-muted">
+            Beantwoord eerst de vier vragen over uw huis. Daarna kunt u
+            verfijnen.
+          </p>
+          <p>
+            <Link href="/berekenen/" className="button-accent">
+              Beantwoord vier vragen
+            </Link>
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   async function submit() {
     setBusy(true);
@@ -234,6 +310,11 @@ export default function BerekenenPage() {
           key="postcode4"
           id="postcode4"
           label="Postcode, alleen de vier cijfers"
+          // The one field in this flow with an honest autofill token. There is
+          // no autocomplete name for "watt-peak on my roof", and inventing one
+          // would hand a browser's saved address data to a field that is not an
+          // address.
+          autoComplete="postal-code"
           value={answers.postcode4}
           min={range.min}
           max={range.max}
@@ -298,7 +379,12 @@ export default function BerekenenPage() {
       <NumberQuestion
         key="annual-consumption-kwh"
         id="annual-consumption-kwh"
-        label="Verbruik per jaar"
+        label="Verbruik per jaar, zonder auto en warmtepomp"
+        // The note above this question is the sentence that stops a visitor
+        // entering their annual bill total, which is worth 176 to 184 euro of
+        // accuracy. It sat in a paragraph nothing pointed at, so a screen
+        // reader user tabbing into the field never heard it.
+        describedBy={NOTE_ID}
         value={answers.annualConsumptionKwh}
         min={range.min}
         max={range.max}
@@ -426,8 +512,17 @@ export default function BerekenenPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-16">
-      {/*
+    /*
+      The frame is the site's width and the column inside it is a form's width.
+      Both were max-w-2xl and centred, so the questions sat 176 pixels to the
+      right of the wordmark above them on a 1440 wide screen: two centred
+      columns of different widths never share an edge. A form should not be
+      1024 pixels wide, and it should start where everything else on the site
+      starts.
+    */
+    <div className="mx-auto w-full max-w-[var(--shell-max)] px-6 py-16">
+      <div className="flex w-full max-w-2xl flex-col gap-6">
+        {/*
         The flow is the page; each question is a section of it. So the h1 names
         the task and stays put, and QuestionShell's h2 is the question that
         changes underneath it. Without this the route had no first-level
@@ -435,33 +530,35 @@ export default function BerekenenPage() {
         the project uses excludes page-has-heading-one. A gate that is green
         because a rule is switched off is not a gate.
       */}
-      <h1 className="text-sm font-medium uppercase tracking-wide text-ink-muted">
-        Uw gegevens
-      </h1>
-      <QuestionShell
-        step={round === 1 ? index + 1 : ROUND_ONE_QUESTION_COUNT + index + 1}
-        of={round === 1 ? ROUND_ONE_QUESTION_COUNT : ALL_QUESTION_COUNT}
-        title={titles[index] ?? ""}
-        nextLabel={last ? "Bereken" : "Volgende"}
-        busy={busy}
-        onBack={back}
-        onNext={next}
-      >
-        {round === 1 ? roundOne() : roundTwo()}
-        {missing && (
-          <p role="alert" className="text-danger">
-            Beantwoord deze vraag om verder te gaan.
-          </p>
-        )}
-        {busy && (
-          <p role="status">Uw jaar wordt doorgerekend. Dit duurt even.</p>
-        )}
-        {failure !== null && (
-          <p role="alert" className="text-danger">
-            {failure}
-          </p>
-        )}
-      </QuestionShell>
+        <h1 className="text-sm font-medium uppercase tracking-wide text-ink-muted">
+          Uw gegevens
+        </h1>
+        <QuestionShell
+          step={round === 1 ? index + 1 : ROUND_ONE_QUESTION_COUNT + index + 1}
+          of={round === 1 ? ROUND_ONE_QUESTION_COUNT : ALL_QUESTION_COUNT}
+          title={titles[index] ?? ""}
+          note={round === 1 ? ROUND_ONE_NOTES[index] : undefined}
+          nextLabel={last ? "Bereken" : "Volgende"}
+          busy={busy}
+          onBack={back}
+          onNext={next}
+        >
+          {round === 1 ? roundOne() : roundTwo()}
+          {missing && (
+            <p role="alert" className="text-danger">
+              Beantwoord deze vraag om verder te gaan.
+            </p>
+          )}
+          {busy && (
+            <p role="status">Uw jaar wordt doorgerekend. Dit duurt even.</p>
+          )}
+          {failure !== null && (
+            <p role="alert" className="text-danger">
+              {failure}
+            </p>
+          )}
+        </QuestionShell>
+      </div>
     </div>
   );
 }

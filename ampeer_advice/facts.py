@@ -15,32 +15,20 @@ from __future__ import annotations
 import numpy as np
 
 from ampeer_advice.types import AdviceContext, Confidence
+from ampeer_sim.profiles.presence import MIDDAY_WINDOW
 from ampeer_sim.timebase import YearGrid
 from ampeer_sim.types import BatterySpec, EnergyFlows, EVChargingBehaviour, Household, Result
 
 #: Evening and night is 17:00 up to 07:00 local time. It wraps past midnight,
-#: which is why ``_window_mask`` has two branches. This is the window a battery
+#: which is why ``YearGrid.window_mask`` has two branches. This is the window a battery
 #: has to serve: demand while the sun is gone.
 EVENING_NIGHT_WINDOW = (17, 7)
 
-#: Midday is 11:00 up to 15:00 local time, the same window
-#: ``ampeer_sim.profiles.presence.MIDDAY_WINDOW`` uses, so a load that the
-#: presence model moves into the midday window lands in the surplus this module
-#: measures.
-MIDDAY_WINDOW = (11, 15)
-
-
-def _window_mask(grid: YearGrid, window: tuple[int, int]) -> np.ndarray:
-    """Quarters whose local clock hour falls inside ``window``.
-
-    Same shape as ``ampeer_sim.profiles.assets._window_mask``: a window whose
-    start is later than its end wraps past midnight and needs the union rather
-    than the intersection.
-    """
-    start, end = window
-    if start < end:
-        return (grid.local_hour >= start) & (grid.local_hour < end)
-    return (grid.local_hour >= start) | (grid.local_hour < end)
+#: Imported rather than restated. The comment here used to say this was the same
+#: window ``presence.MIDDAY_WINDOW`` holds, which was true and which nothing
+#: could contradict, and this module's own docstring asks for one definition of
+#: what a window means. A load the presence model moves into midday has to land
+#: in the surplus this module measures, and one constant is how that is settled.
 
 
 def build_context(
@@ -58,8 +46,8 @@ def build_context(
     input, so the facts describe the year that was actually simulated. The
     metered totals are used, because that is what a supplier bills.
     """
-    evening_night = _window_mask(grid, EVENING_NIGHT_WINDOW)
-    midday = _window_mask(grid, MIDDAY_WINDOW)
+    evening_night = grid.window_mask(EVENING_NIGHT_WINDOW)
+    midday = grid.window_mask(MIDDAY_WINDOW)
 
     # Surplus is production above consumption at that same quarter. Taking
     # ``to_grid`` instead would hide the surplus a battery already absorbed,

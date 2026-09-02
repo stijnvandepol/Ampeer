@@ -7,6 +7,25 @@ parts of the URL itself. That is what keeps the project SSRF rule intact.
 PVGIS is asked to do the photovoltaic physics, for one kWp and with zero system
 loss. Everything we apply on top of that is linear, so a whole sensitivity
 analysis costs one call rather than one call per variation.
+
+Every provider here returns its series on the grid's time base, which is the
+continuous winter time ``ampeer_sim.timebase`` documents. That is the contract,
+not an accident of what each source happens to hand over: ``FallbackProvider``
+builds its day around solar noon in winter time and ``PvgisProvider`` converts
+out of the UTC that PVGIS stamps its rows with. Everything after a provider is
+index against index, so a series that arrives on the wrong time base is never
+noticed again, and the price of getting it wrong is in
+``UTC_TO_WINTER_TIME_HOURS`` below.
+
+That contract is kept to the minute and not only to the hour, as of
+2026-08-27. Both providers here answer one signature, so both have to agree
+about where inside its hour a value sits or the model cannot read them the same
+way. The convention is PVGIS's ten past, in ``PVGIS_STAMP_MINUTES_PAST_HOUR``
+below, because a stamp on a measurement cannot be moved and the offline shape is
+an integral that can be taken over any hour asked for. What the twenty minutes
+was worth while nothing said any of this, and why the offline shape moved rather
+than the anchor, are in the second half of the comment above
+``UTC_TO_WINTER_TIME_HOURS``.
 """
 
 from __future__ import annotations
@@ -21,6 +40,7 @@ from ampeer_sim.production.fallback_yield import (
     MONTHLY_MEAN_PRODUCTION_W_PER_KWP,
     MONTHLY_MEAN_TEMPERATURE,
     ORIENTATION_FACTORS,
+    TABLE_LONGITUDE,
 )
 from ampeer_sim.providers import ProductionProvider
 from ampeer_sim.timebase import HOURS_PER_DAY
@@ -33,9 +53,193 @@ RADIATION_DATABASE = "PVGIS-SARAH3"
 REFERENCE_PEAK_POWER_KW = 1.0
 REFERENCE_LOSS_PERCENT = 0.0
 
-#: Hours of daylight the crude fallback shape spreads its energy over.
-FALLBACK_DAYLIGHT_HOURS = 12
-FALLBACK_SUNRISE_HOUR = 6
+#: Minutes past the hour that PVGIS stamps a row with, which is the answer to
+#: "where inside its hour does this value sit" for every series this module
+#: fetches. Read off a live SARAH3 response on 2026-08-27: 8760 rows for 2023 at
+#: Uden, the first stamped 20230101:0010 and the last 20231231:2310.
+#:
+#: This is the fact the grid needs and cannot know. ``YearGrid.hourly_to_quarters``
+#: defaults to the middle of the hour, which is what a series of true hourly
+#: means is, and ``ampeer_sim.production.model`` and ``ampeer_sim.profiles.assets``
+#: hand it this instead, because what they carry in the shipping path is a PVGIS
+#: response and both of its columns come off these rows. What that is worth is
+#: below, in the second half of the comment above UTC_TO_WINTER_TIME_HOURS.
+PVGIS_STAMP_MINUTES_PAST_HOUR = 10.0
+
+#: Hours a PVGIS stamp sits behind the grid's clock. PVGIS timestamps its rows in
+#: UTC and ``YearGrid`` runs in continuous winter time, which is UTC plus one, so
+#: the value PVGIS calls hour i belongs at hour i + 1 of the grid.
+#:
+#: Until 2026-08-27 nothing shifted, so hour i of the response was placed at hour
+#: i of the grid and the whole production series sat an hour early. Measured on
+#: 2026-08-27 on the reference household of tests/test_calibration.py, 3500 kWh
+#: and 3.5 kWp facing south at 35 degrees in postcode 5401, weather year 2023,
+#: profile year 2025, against a flat consumption shape:
+#:
+#:     self consumption   28.16 percent   ->   29.13 percent
+#:     export             2583 kWh        ->   2548 kWh
+#:     offtake            2487 kWh        ->   2452 kWh
+#:     end of net metering, 2027 tariffs   665.21 euro   ->   656.20 euro
+#:
+#: So the early series understated self consumption by about a point and
+#: overstated both meter directions, which under the 2027 tariffs overstates the
+#: shock by nine euro. That is the direction that flatters a battery, which is
+#: the bias this product exists against.
+#:
+#: Here and not in ampeer_sim/production/model.py, for three reasons. "PVGIS
+#: stamps in UTC" is a fact about PVGIS, and this is the module that knows about
+#: PVGIS. ``production_series`` receives a bare array with no idea which source
+#: produced it, so putting the shift there would mean threading the source
+#: through every call site to answer a question only this file can answer. And
+#: it would move the offline shape too, which is already in winter time by
+#: construction: FALLBACK_SOLAR_NOON_HOUR below centres it on 12:38 winter time,
+#: so a second hour would put it 38 minutes past solar noon instead of on it.
+#:
+#: The shift is a rotation rather than a shift with a fill, so nothing is dropped
+#: and nothing is invented, and the annual total PVGIS reports survives to the
+#: last digit. What it does is wrap one hour: the last row of the response is
+#: 31 December 23:00 UTC, which is midnight winter time, and it lands on the
+#: grid's 1 January 00:00. Strictly that is the following year's first hour
+#: rather than this one's, so the grid's first hour holds a midwinter midnight
+#: from the other end of the same year. It moves no energy: measured on the same
+#: call, PVGIS puts 0.0 W per kWp at that hour and 0.0 W at the hour it
+#: displaces, and the sun is below the horizon at midnight on both dates
+#: whatever the weather did. The temperature it carries is 8.45 C against the
+#: 15.76 C of 1 January 00:00 UTC, one hour in 8760, and the only consumer of
+#: the temperature series spreads a year of heat demand across all of them.
+#:
+#: What a whole hour could not reach, repaired on 2026-08-27 in the anchor.
+#: PVGIS stamps a row ten minutes past the hour, which the response says itself:
+#: a live call on that date returned 8760 rows for 2023, the first stamped
+#: 20230101:0010 and the last 20231231:2310. ``YearGrid.hourly_to_quarters``
+#: used to anchor hourly value k half past grid hour k unconditionally, because
+#: an hourly value was read there as the mean of its hour. So the value PVGIS
+#: puts at k:10 UTC, which is (k+1):10 in winter time, was placed at (k+1):30
+#: and arrived twenty minutes late. No whole rotation could do better: rotating
+#: by n leaves (n - 1) * 60 + 20 minutes, so n = 1 was the smallest displacement
+#: available and n = 0 would have been forty minutes early.
+#:
+#: Measured on 2026-08-27 against a live PVGIS SARAH3 call for Uden at 51.66 and
+#: 5.61 east, 2023, one kWp, zero loss, 35 degrees facing south, 1194.66 kWh per
+#: kWp, carried through the reference household of tests/test_calibration.py:
+#: 3500 kWh and 3.5 kWp in postcode 5401, profile year 2025, flat consumption.
+#: The last column is the energy centroid of the modelled year over the hour of
+#: the day, in winter time:
+#:
+#:     hour i at hour i, before 0.3.0   28.16%   2583   2487   665.21   11.8885
+#:     one whole hour, 0.3.0            29.13%   2548   2452   656.20   12.8885
+#:     on PVGIS's own stamps, 0.4.0     28.71%   2564   2468   660.12   12.5551
+#:
+#: So the residual was worth 0.42 points of self consumption and 3.92 euro, and
+#: it understated the shock where the hour above it overstated it. Twenty
+#: minutes is not negligible on a south facing array, because the crossover
+#: where production overtakes a household's demand is steep and moving the day
+#: across it moves more than a third of a percent of the year.
+#:
+#: It is a stated offset and not a smaller rotation, and that was measured
+#: rather than preferred. Moving a series by a fraction of an index means
+#: interpolating between hourly values, and the model then interpolates a second
+#: time on its way to quarters. Measured on 2026-08-27 on the same household,
+#: against the 660.12 euro correct placement gives:
+#:
+#:     twenty minutes late, 0.3.0              29.13%   656.20   off by 3.92
+#:     resampled linearly onto the half past   29.73%   650.71   off by 9.41
+#:     resampled with a Catmull-Rom kernel     28.93%   658.12   off by 1.92
+#:
+#: The linear resample lands two and a half times further from the truth than
+#: the defect it removes, because a second low pass over an hourly series
+#: flattens the midday peak and a flattened peak is self consumed. The cubic one
+#: keeps the peak, still misses by half the defect, and puts 904 of 8760 hours
+#: below zero, down to -32.2 W per kWp, which is not a quantity of sunlight.
+#:
+#: Where it belongs is the anchor, and that is where it now is:
+#: PVGIS_STAMP_MINUTES_PAST_HOUR above is handed to
+#: ``YearGrid.hourly_to_quarters`` by ampeer_sim/production/model.py and
+#: ampeer_sim/profiles/assets.py, so there is one interpolation, from PVGIS's
+#: own stamps straight onto the quarter grid. It costs nothing in smoothing
+#: because it replaces the interpolation the model already performs rather than
+#: adding one, which is the whole reason this is not one of the two rows above.
+#:
+#: It also asked what the offline shape's anchor is, and the answer moved that
+#: shape rather than the anchor. FallbackProvider built hour means, which belong
+#: at half past, so a single anchor of ten past would have put the offline path
+#: twenty minutes early: 623.50 euro becomes 628.07 on the household above, 4.57
+#: euro, which is larger than the 3.92 this repair removes and is refused by
+#: MAX_FALLBACK_SHAPE_OFFSET_MINUTES in tests/test_calibration.py. Repairing
+#: that by threading the provider's identity through every caller of
+#: production_series was the alternative and it is four files wide;
+#: ``FallbackProvider._day_shape`` instead takes its integral over the hour
+#: centred on this same stamp, which is free because the shape is analytic. The
+#: offline day did not move: 12.6263 in winter time before and 12.6262 after,
+#: and the month still carries exactly the table's energy.
+UTC_TO_WINTER_TIME_HOURS = 1
+
+#: Solar noon at the table's location, on the continuous winter time the grid
+#: runs in. Winter time is UTC plus one hour and true solar noon is 12:00 minus
+#: four minutes per degree of eastward longitude, so Uden's is 12:38.
+#:
+#: The fallback shape was centred on 12:00 until 2026-08-26, which put its whole
+#: day 38 minutes early. That is most of the evening problem recorded in
+#: docs/decisions.md: the model exported nothing after 17:00 while the country
+#: still exported 0.0295 of its year at 18:00.
+#:
+#: The larger error this sat next to is repaired as of 2026-08-27, in
+#: UTC_TO_WINTER_TIME_HOURS above rather than here: the PVGIS path, which is the
+#: one a visitor normally gets, placed every kilowatt hour a full hour early
+#: because nothing converted PVGIS's UTC stamps onto the grid. Measured on
+#: 2026-08-26 over the nine years of the yield table: PVGIS's own peak hour is
+#: 11:00 UTC, which is 12:00 winter time and where solar noon at 11:38 UTC
+#: belongs, and the model read it as 11:00. That is also why the old fallback
+#: shape, centred on 12:00, agreed with the PVGIS path so well for a year. They
+#: shared the error, and correcting one of them without the other is what made
+#: the second correction findable.
+#:
+#: The equation of time is not modelled. It moves solar noon by at most a
+#: quarter of an hour either way over the year and averages to nothing, which is
+#: below what a table of monthly means can resolve.
+FALLBACK_SOLAR_NOON_HOUR = 13.0 - TABLE_LONGITUDE / 15.0
+
+
+#: Hours of daylight the crude fallback shape spreads its energy over. It is
+#: also the plain mean of the 365 day lengths at this latitude, which is where
+#: the number came from.
+#:
+#: Not moved on 2026-08-26, and the measurement that kept it is worth more than
+#: the one that would have moved it. A longer window is tempting, because the
+#: national feed-in profile is wider than this shape and lengthening it closes
+#: the gap on both families at once. Measured on the reference household of
+#: tests/test_calibration.py, worst hourly and worst monthly bucket:
+#:
+#:     12.00 h centred on 12:00   0.0490 at 17:00     0.0230 in July
+#:     12.00 h centred on noon    0.0333 at 11:00     0.0233 in July
+#:     13.28 h centred on noon    0.0299 at 11:00     0.0218 in July
+#:
+#: 13.28 is the mean day length weighted by the energy each day carries, which
+#: is a defensible derivation and still the wrong answer. The national profile
+#: is wide because it averages every roof orientation in the country, which
+#: tests/test_calibration.py says in as many words, and this shape describes one
+#: south facing plane. Asking the thing it stands in for gives the opposite
+#: verdict. Against PVGIS's own hour of the day for that plane, nine years, as
+#: the sum of the absolute difference over the 24 hours and the worst single
+#: hour:
+#:
+#:     12.00 h centred on 12:00   0.2291   0.0352
+#:     13.28 h centred on noon    0.1576   0.0253
+#:     12.00 h centred on noon    0.0759   0.0172
+#:     11.57 h centred on noon    0.0677   0.0142   the best fitting length
+#:
+#: So the centring is worth a factor of three, 0.2291 down to 0.0759, and the
+#: lengthening would have handed back more than half of it. A half sine over the
+#: real day length, which varies with the
+#: season, was measured too: it scores 0.0337 hourly and 0.0389 monthly against
+#: the country, and the second is over its ceiling. Widening to fit an aggregate
+#: of orientations this model does not have would have made the fallback agree
+#: with a curve it is not describing.
+#:
+#: The best fitting 11.57 is not adopted either. It buys a tenth of the
+#: remaining disagreement by making the evening shorter, which is the direction
+#: this shape is already wrong in, and 12 has a meaning where 11.57 has a fit.
+FALLBACK_DAYLIGHT_HOURS = 12.0
 
 #: Coarse centroid per postcode century, good enough because irradiance barely
 #: varies over a few kilometres. Keys are the first two digits of the postcode.
@@ -143,7 +347,21 @@ def postcode4_to_latlon(postcode4: str) -> tuple[float, float]:
 
 
 class PvgisProvider:
-    """Fetch an hourly production and temperature series from PVGIS."""
+    """Fetch an hourly production and temperature series from PVGIS.
+
+    The series comes back on the grid's continuous winter time, not on the UTC
+    PVGIS answers in. The conversion is one rotation and its whole argument,
+    including what the wrapped hour costs, is above UTC_TO_WINTER_TIME_HOURS.
+
+    It is right to the minute as well, as of 2026-08-27. The rows keep the ten
+    past stamp PVGIS gave them and the model is told about it rather than
+    reading them as hour means, so nothing here resamples and nothing arrives
+    twenty minutes late. That residual, what it was worth and the two provider
+    side repairs measured and refused before it went into the anchor are in the
+    second half of the same comment, and
+    tests/test_pvgis_provider.py pins the placement end to end so it cannot
+    quietly become something else again.
+    """
 
     def __init__(
         self,
@@ -177,15 +395,45 @@ class PvgisProvider:
         hourly = response.json()["outputs"]["hourly"]
         production = np.array([row["P"] for row in hourly], dtype=float)
         temperature = np.array([row["T2m"] for row in hourly], dtype=float)
-        return production, temperature, ProductionSource.PVGIS
+        # Both columns come off the same rows and carry the same UTC stamp, so
+        # both move together. Shifting the production alone would leave the
+        # outside temperature an hour early, which is a heat pump's demand curve
+        # an hour early, on the one household shape that has a temperature in it.
+        return (
+            np.roll(production, UTC_TO_WINTER_TIME_HOURS),
+            np.roll(temperature, UTC_TO_WINTER_TIME_HOURS),
+            ProductionSource.PVGIS,
+        )
 
 
 class FallbackProvider:
     """Build an hourly series from monthly means, with no network access.
 
-    The daily shape is a half sine between sunrise and sunset, scaled so the
-    monthly mean matches the table. This is deliberately crude; its only job is
-    to keep the advice available when PVGIS is not.
+    The daily shape is a half sine centred on solar noon at the table's
+    location, scaled so the monthly mean matches the table. This is deliberately
+    crude; its only job is to keep the advice available when PVGIS is not.
+
+    Nothing here shifts, and that is not an omission. This shape is built in the
+    grid's own winter time already, which is what FALLBACK_SOLAR_NOON_HOUR is
+    measured in, so it is on the time base every provider promises before it
+    starts. Only PVGIS speaks UTC.
+
+    What this shape does keep is the other half of that contract, the one that
+    says where inside its hour a value sits. Each value is the mean over the
+    hour centred on PVGIS_STAMP_MINUTES_PAST_HOUR rather than over the clock
+    hour, so a caller reading these values and a caller reading a PVGIS response
+    are reading the same kind of thing. ``_day_shape`` says why that side gave
+    way rather than the anchor, and it costs this shape nothing: the day sits
+    where it sat and the month carries what it carried.
+
+    The shape is the reference plane's, south at 35 degrees, whatever roof it is
+    asked about; the orientation only scales it. That is wrong for a west roof,
+    whose real day runs later, and it is the price of a table with one shape in
+    it. Deriving the shape from the roof's own plane was measured on 2026-08-26
+    and does not work here: a beam cosine on a north facing plane at 35 degrees
+    is zero all winter, because the sun never comes round to it, and the month
+    would then have no shape to scale. Getting that right needs a diffuse term,
+    which is a sky model, which is what PVGIS is for.
     """
 
     def __init__(self, weather_year: int) -> None:
@@ -211,22 +459,114 @@ class FallbackProvider:
         )
 
     @staticmethod
+    def _azimuth_gap(one: float, other: float) -> float:
+        """Degrees between two compass directions, the short way round.
+
+        A plain subtraction calls 180 and -180 opposites when they are the same
+        direction, and the API declares both legal: MIN_AZIMUTH_DEG is -180 and
+        MAX_AZIMUTH_DEG is 180.
+        """
+        return abs((one - other + 180.0) % 360.0 - 180.0)
+
+    @staticmethod
     def _orientation_factor(azimuth_deg: float, tilt_deg: float) -> float:
+        """The nearest entry in the table, with azimuth measured on the circle.
+
+        Until 2026-08-23 the azimuth term was a plain difference, so the table's
+        north entry at 180 sat 355 degrees away from a roof at -175 and could
+        never win. Everything from -180 to -136, which is north through
+        north-north-east, took the east factor of 0.85 instead of the north one
+        of 0.62: a yield overstated by 37 percent, and overstating yield
+        overstates both the export a household loses in 2027 and what a battery
+        is worth to them.
+
+        Nothing the form emits moved. ``COMPASS_AZIMUTH_DEG`` in RoofPicker.tsx
+        writes north as 180 rather than -180 and says why, so all eight
+        directions it can send return what they returned before. This was
+        reachable by anything else that posts to the API, which is a public
+        endpoint and not the form's private back door.
+
+        Ties are still broken by the order of ``ORIENTATION_FACTORS``, and as of
+        2026-08-26 no whole azimuth can reach one at 35 degrees: the table has a
+        row for all eight compass directions, so a tie needs a roof at exactly
+        22.5, 67.5, 112.5 or 157.5 degrees and the API rounds azimuth to whole
+        degrees on the way in. Tilt can still tie. A roof at 25 degrees sits ten
+        from both 15 and 35 and takes 35, which is the more generous of the two.
+        """
         nearest = min(
             ORIENTATION_FACTORS,
-            key=lambda key: abs(key[0] - azimuth_deg) + abs(key[1] - tilt_deg),
+            key=lambda key: (
+                FallbackProvider._azimuth_gap(key[0], azimuth_deg) + abs(key[1] - tilt_deg)
+            ),
         )
         return ORIENTATION_FACTORS[nearest]
 
     @staticmethod
     def _day_shape(mean_power: float) -> list[float]:
-        """A half sine over the daylight hours, averaging to ``mean_power``."""
-        peak = mean_power * HOURS_PER_DAY / FALLBACK_DAYLIGHT_HOURS * (math.pi / 2)
-        values = [0.0] * HOURS_PER_DAY
-        for offset in range(FALLBACK_DAYLIGHT_HOURS):
-            phase = (offset + 0.5) / FALLBACK_DAYLIGHT_HOURS * math.pi
-            values[FALLBACK_SUNRISE_HOUR + offset] = peak * math.sin(phase)
-        return values
+        """A half sine centred on solar noon, averaging to ``mean_power``.
+
+        Each value holds the half sine's mean over the hour its own stamp sits
+        in the middle of, integrated rather than sampled at the midpoint. The
+        window does not start on an hour boundary, so a midpoint sample would
+        drop the part of the first and last hour that falls inside it and pick
+        up nothing in exchange.
+
+        The hour a value speaks for is centred on ``PVGIS_STAMP_MINUTES_PAST_HOUR``
+        and not on the clock hour, which is what makes this series and a PVGIS
+        response the same kind of thing. Until 2026-08-27 nothing in the package
+        distinguished the two, because everything read every hourly series as
+        the mean of its clock hour; the model now says where inside its hour a
+        value sits and says PVGIS's stamp, since a PVGIS response is what it
+        carries wherever a visitor's answer comes from. Two providers answering
+        one signature had to agree about that or the offline path would land
+        twenty minutes early, which is 4.57 euro on the reference household of
+        tests/test_calibration.py and is refused by
+        MAX_FALLBACK_SHAPE_OFFSET_MINUTES there.
+
+        Agreeing costs this shape nothing, which is why the convention is
+        PVGIS's rather than the other way round. PVGIS's stamp is a fact about a
+        measurement and cannot be moved; this shape is an integral of a sine and
+        can be taken over any hour asked for. The day still sits where it sat:
+        the window moves twenty minutes earlier and the anchor puts it twenty
+        minutes later, so the modelled centre stays at 12.6263 in winter time
+        and the month still carries exactly the table's energy, because the
+        twenty four windows tile the day and both ends of the tiling are dark.
+
+        The scaling is a division by what the shape actually sums to, not a
+        closed form for what it should sum to. The closed form was there until
+        2026-08-26 and it was 0.29 percent high, because it integrated the sine
+        and then evaluated it at twelve points: the annual total came out at
+        1224.09 kWh per kWp where the table says 1220.60, and the docstring of
+        fallback_yield.py says 1221.
+        """
+        start = FALLBACK_SOLAR_NOON_HOUR - FALLBACK_DAYLIGHT_HOURS / 2.0
+        end = start + FALLBACK_DAYLIGHT_HOURS
+        stamp = PVGIS_STAMP_MINUTES_PAST_HOUR / 60.0
+        # The span the twenty four windows cover between them, which is the day
+        # slid by the stamp. Judged against that rather than against midnight to
+        # midnight: the windows are what the energy is spread over, so a window
+        # of daylight outside them is energy dropped and silently scaled back up.
+        first, last = stamp - 0.5, HOURS_PER_DAY - 1 + stamp + 0.5
+        if start < first or end > last:
+            raise ValueError(
+                f"a {FALLBACK_DAYLIGHT_HOURS:.2f} hour window centred on "
+                f"{FALLBACK_SOLAR_NOON_HOUR:.2f} runs outside the {first:.2f} to {last:.2f} "
+                "the day's hours cover, so part of the month's energy would be dropped "
+                "and the rest silently scaled up"
+            )
+        scale = FALLBACK_DAYLIGHT_HOURS / math.pi
+
+        def swept(until: float) -> float:
+            return -scale * math.cos((until - start) / FALLBACK_DAYLIGHT_HOURS * math.pi)
+
+        values = [
+            swept(min(hour + stamp + 0.5, end)) - swept(max(hour + stamp - 0.5, start))
+            if hour + stamp + 0.5 > start and hour + stamp - 0.5 < end
+            else 0.0
+            for hour in range(HOURS_PER_DAY)
+        ]
+        total = sum(values)
+        return [value * mean_power * HOURS_PER_DAY / total for value in values]
 
 
 class ResilientProductionProvider:

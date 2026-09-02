@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { SiteFooter } from "./_shell/SiteFooter";
 import { SiteHeader } from "./_shell/SiteHeader";
+import { SiteJsonLd } from "./_shell/JsonLd";
+import { SITE_ORIGIN } from "./_shell/site";
 import { THEME_BOOTSTRAP } from "./_shell/theme";
 
 const geistSans = Geist({
@@ -30,6 +32,35 @@ export const metadata: Metadata = {
   title: { default: "Ampeer", template: "%s | Ampeer" },
   description:
     "Reken uit wat het einde van de salderingsregeling uw huishouden kost, met de marge erbij.",
+  /*
+   * Without this every relative URL Next resolves stays relative, and the one
+   * that matters is `og:image`: a statically exported page ships it pointing at
+   * http://localhost:3000, and the only sign is a warnOnce during the build.
+   * It also decides whether `canonical` gains the trailing slash from
+   * `trailingSlash: true`, which it does only once the URL is absolute and
+   * same origin.
+   */
+  metadataBase: new URL(SITE_ORIGIN),
+  /*
+   * An `openGraph` key has to EXIST before Next copies `title` and
+   * `description` into it. Measured on the built site on 2026-08-31:
+   * out/index.html carried a title, a description, a favicon link and not one
+   * og: or twitter: tag, because this object was absent and the inheritance in
+   * resolve-metadata.js is guarded by `if (target)`. An empty object would be
+   * enough to trigger it; these three fields are the ones inheritance cannot
+   * supply.
+   *
+   * NOTHING BELOW THIS MAY BE PARTIALLY OVERRIDDEN. Metadata merging is
+   * shallow: a route that sets `openGraph: { title }` replaces this whole
+   * object and silently drops siteName, locale and type for that route. A
+   * route either restates all of it or touches none of it, and every one of
+   * them currently touches none.
+   */
+  openGraph: {
+    siteName: "Ampeer",
+    locale: "nl_NL",
+    type: "website",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -57,6 +88,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
          * and this needs no exception to it.
          */}
         <script>{THEME_BOOTSTRAP}</script>
+        {/*
+          Who publishes this site, once, on every page. Plain script children
+          rather than dangerouslySetInnerHTML, which .semgrep/frontend.yml
+          forbids and which Next's own guide for this uses; see the note in
+          _shell/JsonLd.tsx.
+        */}
+        <SiteJsonLd />
         <a className="skip-link" href={`#${MAIN_ID}`}>
           Naar de inhoud
         </a>

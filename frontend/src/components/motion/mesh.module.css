@@ -1,0 +1,121 @@
+/*
+ * The gradient mesh.
+ *
+ * TUNING:
+ *   --mesh-period    one full drift, per blob. Slower reads as atmosphere,
+ *                    faster reads as a screensaver. 90s shipped.
+ *   --mesh-travel    how far a blob wanders from its start, in percent.
+ *   --mesh-strength  opacity of the whole field.
+ *   --mesh-size      blob diameter, as a share of the hero's width.
+ */
+
+.mesh {
+  --mesh-period: 90s;
+  --mesh-travel: 9%;
+  --mesh-strength: 0.4;
+  --mesh-size: 55%;
+
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: var(--mesh-strength);
+  /*
+   * The field fades out towards the bottom of the hero rather than stopping at
+   * an edge. A hard edge on a soft field is the one thing that makes it read as
+   * a rectangle somebody placed there.
+   */
+  mask-image: linear-gradient(to bottom, black 55%, transparent);
+}
+
+.blob {
+  position: absolute;
+  width: var(--mesh-size);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  filter: blur(60px);
+  /*
+   * transform only. Animating `left` or `top` would lay out and paint on every
+   * frame; a translate is composited and never touches layout.
+   */
+  transform: translate3d(0, 0, 0);
+}
+
+.one {
+  top: -18%;
+  left: -8%;
+  background: radial-gradient(
+    circle,
+    var(--colour-confidence-precise),
+    transparent 68%
+  );
+}
+
+.two {
+  top: 6%;
+  right: -12%;
+  background: radial-gradient(
+    circle,
+    var(--colour-confidence-good),
+    transparent 68%
+  );
+}
+
+.three {
+  top: 34%;
+  left: 28%;
+  background: radial-gradient(
+    circle,
+    var(--colour-confidence-indicative),
+    transparent 68%
+  );
+}
+
+/*
+ * Three periods that do not divide into each other, so the field never returns
+ * to an arrangement a reader has already seen. Equal periods make three blobs
+ * that visibly loop together, which is what turns atmosphere into a GIF.
+ */
+[data-drifting="true"] .one {
+  animation: drift-a var(--mesh-period) ease-in-out infinite alternate;
+}
+
+[data-drifting="true"] .two {
+  animation: drift-b calc(var(--mesh-period) * 1.37) ease-in-out infinite
+    alternate;
+}
+
+[data-drifting="true"] .three {
+  animation: drift-c calc(var(--mesh-period) * 0.83) ease-in-out infinite
+    alternate;
+}
+
+@keyframes drift-a {
+  to {
+    transform: translate3d(
+      var(--mesh-travel),
+      calc(var(--mesh-travel) * 0.6),
+      0
+    );
+  }
+}
+
+@keyframes drift-b {
+  to {
+    transform: translate3d(
+      calc(var(--mesh-travel) * -1),
+      calc(var(--mesh-travel) * 0.8),
+      0
+    );
+  }
+}
+
+@keyframes drift-c {
+  to {
+    transform: translate3d(
+      calc(var(--mesh-travel) * 0.7),
+      calc(var(--mesh-travel) * -1),
+      0
+    );
+  }
+}

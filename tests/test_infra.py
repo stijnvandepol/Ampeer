@@ -47,13 +47,15 @@ PUBLISHED_KEY = re.compile(r"^\s*published\s*:", re.MULTILINE)
 
 
 def compose() -> dict[str, Any]:
-    return yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))
+    loaded: dict[str, Any] = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))
+    return loaded
 
 
 def service(name: str) -> dict[str, Any]:
     services = compose()["services"]
     assert name in services, f"no service {name!r}: {sorted(services)}"
-    return services[name]
+    definition: dict[str, Any] = services[name]
+    return definition
 
 
 def test_the_stack_has_the_four_services_it_needs() -> None:
@@ -323,3 +325,400 @@ def test_every_manage_py_call_resolves_inside_the_image() -> None:
                     f"{final}, which resolves to {resolved}"
                 )
     assert seen >= 2, f"found only {seen} manage.py call sites; the check found nothing to check"
+
+
+# ---------------------------------------------------------------------------
+# The log ceiling, which the file argues for at length and nothing read
+# ---------------------------------------------------------------------------
+
+
+def _log_options(spec: dict[str, Any]) -> dict[str, str]:
+    logging = spec.get("logging")
+    assert isinstance(logging, dict), f"no logging block: {logging!r}"
+    assert logging.get("driver") == "json-file", f"driver is {logging.get('driver')!r}"
+    options = logging.get("options")
+    assert isinstance(options, dict), f"no logging options: {options!r}"
+    return {str(key): str(value) for key, value in options.items()}
+
+
+def test_every_service_caps_how_much_log_it_can_keep() -> None:
+    """The property the compose file says was missing, and then never checked.
+
+    Its own comment: everything in this stack writes to stdout, Docker's
+    json-file driver keeps every byte until the container is removed, and
+    `restart: unless-stopped` means these containers are not removed, so
+    "until it is removed" is "for as long as the machine lives". The two
+    options were added so that no log on this host can grow without bound.
+
+    A fifth service added without `logging: *logging` would be exactly the case
+    that argument is about, and nothing said so. The anchor makes it one edit to
+    get right and one omission to get wrong, which is why this asks every
+    service rather than the anchor.
+    """
+    for name, spec in compose()["services"].items():
+        options = _log_options(spec)
+        assert "max-size" in options and "max-file" in options, f"{name}: {options}"
+
+
+def test_the_log_ceiling_is_the_one_the_file_works_out() -> None:
+    """The arithmetic in the comment, held against the values under it.
+
+    The comment derives two figures from max-size and max-file: fifty megabytes
+    per service and two hundred for the whole stack. Both depend on the number
+    of services as well as on the options, so a fifth service would make the
+    second sentence wrong while every option stayed correct.
+
+    max-file above one is the other half and it is argued for in the same
+    paragraph: rotation has to discard a fifth at a time instead of everything,
+    which is what keeps the oldest file readable while the newest is written. A
+    single file turns every rotation into a full loss.
+    """
+    services = compose()["services"]
+    options = {name: _log_options(spec) for name, spec in services.items()}
+    sizes = {options[name]["max-size"] for name in options}
+    counts = {int(options[name]["max-file"]) for name in options}
+    assert len(sizes) == 1 and len(counts) == 1, (
+        f"the services no longer share one ceiling: {options}"
+    )
+
+    size_mb = int(sizes.pop().removesuffix("m"))
+    count = counts.pop()
+    assert count > 1, (
+        f"max-file is {count}, so a rotation discards everything rather than a fraction"
+    )
+
+    # The comment is hard wrapped and prefixed, so "200 MB" can sit at the end
+    # of one line with "for the whole stack" starting the next. Matched against
+    # the prose with its hashes and line breaks taken out, because an assertion
+    # that fails on a rewrap is one somebody loosens rather than fixes. The
+    # first version of this test failed on exactly that.
+    prose = " ".join(
+        line.lstrip().lstrip("#").strip()
+        for line in COMPOSE.read_text(encoding="utf-8").splitlines()
+        if line.lstrip().startswith("#")
+    )
+    per_service = size_mb * count
+    whole_stack = per_service * len(services)
+    assert f"{per_service} MB per service" in prose, (
+        f"the options come to {per_service} MB per service and the comment says otherwise"
+    )
+    assert f"{whole_stack} MB for the whole stack" in prose, (
+        f"{len(services)} services at {per_service} MB is {whole_stack} MB and the comment "
+        "says otherwise"
+    )
+
+
+def test_the_build_uses_the_interpreter_the_image_already_carries() -> None:
+    """Two settings api.Dockerfile calls load bearing, and nothing read them.
+
+    Left to itself uv downloads a managed CPython into the build stage's home
+    directory and writes that path into .venv/pyvenv.cfg. The second stage does
+    not have that directory, so every process in the final image would fail to
+    start on a path that exists only in a layer that was thrown away.
+
+    That is a build that succeeds and an image that cannot run, which is the
+    worst place for it: the failure arrives on the host. Measured on
+    2026-08-24, setting UV_PYTHON_DOWNLOADS to automatic left the whole suite
+    green.
+
+    UV_PYTHON is asserted with it because the pair is what makes the promise.
+    Forbidding the download while naming no interpreter leaves uv with nothing
+    to use.
+    """
+    dockerfile = (INFRA / "api.Dockerfile").read_text(encoding="utf-8")
+    directives = [
+        line.strip() for line in dockerfile.splitlines() if not line.lstrip().startswith("#")
+    ]
+    joined = " ".join(directives)
+    assert "UV_PYTHON_DOWNLOADS=never" in joined, (
+        "uv may fetch its own interpreter again, and the path it writes into the venv "
+        "does not survive into the final stage"
+    )
+    interpreter = re.findall(r"UV_PYTHON=(\S+)", joined)
+    assert interpreter == ["/usr/local/bin/python3.12"], (
+        f"UV_PYTHON names {interpreter}, and with downloads off uv needs an interpreter "
+        "this image actually carries"
+    )
+    # The version in that path has to be the one the base images carry. With
+    # downloads off, naming an interpreter this image does not have is a build
+    # that fails, and naming the wrong version is a venv built against one
+    # interpreter and run on another.
+    version = interpreter[0].rsplit("python", 1)[1]
+    bases = [line for line in directives if line.startswith("FROM python:")]
+    assert bases, "no FROM names a python base image; this test read nothing"
+    assert all(base.startswith(f"FROM python:{version}-") for base in bases), (
+        f"UV_PYTHON names python{version} and the stages build on {bases}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The gunicorn command line, which the entry point argues for and nothing read
+# ---------------------------------------------------------------------------
+
+ENTRYPOINT = INFRA / "entrypoint-api.sh"
+
+
+def _gunicorn_command() -> str:
+    """The exec line that serves, with its continuations joined and comments out."""
+    lines = [
+        line.strip()
+        for line in ENTRYPOINT.read_text(encoding="utf-8").splitlines()
+        if not line.lstrip().startswith("#")
+    ]
+    joined = " ".join(lines).replace(r"\ ", " ")
+    marker = "exec gunicorn"
+    assert marker in joined, f"{ENTRYPOINT.name} no longer execs gunicorn"
+    return joined[joined.index(marker) :]
+
+
+def test_the_server_writes_no_access_log() -> None:
+    """The other half of a promise the nginx config is held to in detail.
+
+    gunicorn's access log writes the request line, and the request line for a
+    shared advice is /api/advice/<token>/. tests/test_nginx_config.py spends
+    four tests keeping exactly that pairing out of the access log, and the same
+    path through gunicorn was a comment.
+
+    Where it would land makes it worse rather than better. The container log
+    goes to Docker's json-file driver, so the token would sit beside a client
+    address in a file that survives every deploy, and the default gunicorn
+    format carries both. Errors still reach stderr, where they belong and where
+    they carry no token.
+
+    Measured on 2026-08-24: adding --access-logfile left the whole suite green.
+    """
+    command = _gunicorn_command()
+    for flag in ("--access-logfile", "--access-logformat"):
+        assert flag not in command, (
+            f"{flag} puts /api/advice/<token>/ into the container log, which is what "
+            "infra/nginx/nginx.conf goes out of its way not to write"
+        )
+
+
+def test_the_request_timeout_outlasts_the_one_call_a_request_can_make() -> None:
+    """Two timeouts in two packages, and the outer one has to be the larger.
+
+    A request that misses the production cache fetches from PVGIS inside the
+    worker. ResilientProductionProvider exists to fall back to the offline table
+    when that call times out, and it can only do that if the process is still
+    alive to catch requests.Timeout. A gunicorn timeout under the PVGIS one
+    kills the worker mid-fetch, so the fallback never runs and the visitor gets
+    nothing rather than a coarser answer.
+
+    The inner number is read from the provider rather than repeated, so raising
+    it without raising this one is what fails.
+    """
+    import inspect
+
+    from ampeer_sim.production.pvgis import PvgisProvider
+
+    inner = inspect.signature(PvgisProvider).parameters["timeout_s"].default
+    declared = re.findall(r"--timeout (\d+)", _gunicorn_command())
+    assert len(declared) == 1, f"the server declares {declared} timeouts"
+    outer = int(declared[0])
+
+    assert outer > inner, (
+        f"gunicorn kills a worker after {outer}s and one PVGIS call may take {inner}s, so "
+        "the fallback that exists for exactly that case never gets to run"
+    )
+    # The upper side is a judgement rather than a measurement: the frontend has
+    # no client-side abort, so this number is the only thing that ends a hung
+    # request, and "well below a visitor's patience" is not a figure anything
+    # here measured. Pinned so raising it is a commit that says why.
+    assert outer == 30, (
+        f"the request timeout is now {outer}s. Nothing measured that number; it is the "
+        "only thing that ends a hung request while the frontend has no abort, so a change "
+        "belongs in a commit that argues for it"
+    )
+
+
+def test_the_server_runs_more_than_one_worker() -> None:
+    """A computation is CPU bound for about half a second, says the file.
+
+    One worker serialises every request behind that, so two visitors arriving
+    together make the second wait for the first. The upper bound is the box's
+    cores and is not something this file can check.
+    """
+    workers = re.findall(r"--workers (\d+)", _gunicorn_command())
+    assert len(workers) == 1, f"the server declares {workers} worker counts"
+    assert int(workers[0]) > 1, "one worker serialises every advice behind the one before it"
+
+
+def _services() -> dict[str, Any]:
+    loaded: dict[str, Any] = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))
+    services: dict[str, Any] = loaded["services"]
+    return services
+
+
+def test_the_tunnel_can_reach_the_web_container_and_nothing_else() -> None:
+    """The one container facing the internet is not on the network the others share.
+
+    Cloudflare Tunnel makes every request to the origin internally between
+    `cloudflared` and the origin, so ``REMOTE_ADDR`` is always a bridge address
+    and there is no peer signal separating "arrived through nginx" from
+    "arrived from anything else on the bridge". While all four services sat on
+    one implicit default network, anything holding a position there could reach
+    ``api:8000`` around nginx and forge ``X-Forwarded-Proto``, which is
+    Django's only TLS signal, and ``X-Forwarded-For``, which is what the
+    throttle counts. Django's own ``SECURE_PROXY_SSL_HEADER`` documentation
+    makes "your proxy strips the header from all incoming requests" a
+    precondition for setting it, and a direct connection to the api does not
+    satisfy it.
+
+    ``tunnel`` is the likeliest holder of that position: the only image here not
+    built from this repository, and the only one that talks to the internet.
+    """
+    services = _services()
+    tunnel = set(services["tunnel"]["networks"])
+    api = set(services["api"]["networks"])
+    db = set(services["db"]["networks"])
+    web = set(services["web"]["networks"])
+
+    assert tunnel == {"edge"}, f"the tunnel is on {sorted(tunnel)} and should be on edge alone"
+    assert not tunnel & api, "the tunnel shares a network with the api and can reach it directly"
+    assert not tunnel & db, "the tunnel shares a network with the database"
+    # nginx is the bridge, and the only one.
+    assert tunnel & web, "the tunnel cannot reach nginx, so nothing can be served"
+    assert api & web, "nginx cannot reach the api, so nothing can be served"
+
+
+def test_every_service_says_which_network_it_is_on() -> None:
+    """A service with no `networks` key joins the default one silently.
+
+    That is how all four ended up sharing a network in the first place: nobody
+    wrote it down, so nobody read it. An addition made without this key would
+    quietly undo the split above and no assertion in this file would notice,
+    because the two tests there only look at the four services that exist
+    today.
+    """
+    missing = [name for name, body in _services().items() if "networks" not in body]
+    assert not missing, f"these services join the default network by omission: {missing}"
+
+
+def test_the_backend_network_can_still_reach_the_outside() -> None:
+    """`internal: true` on the back network would be a plausible tightening and
+    would break the product.
+
+    The api calls PVGIS, which is one of the three sources CLAUDE.md's allowlist
+    permits, and an internal network has no route out. The finding the split
+    above fixes is about INGRESS, which containers are reachable from the one
+    facing the internet, and marking the network internal answers a different
+    question by breaking the answer to this one.
+    """
+    loaded: dict[str, Any] = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))
+    back = loaded["networks"]["back"] or {}
+    assert not back.get("internal"), (
+        "back is marked internal, so the api can no longer reach PVGIS; see the "
+        "comment on the networks block"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Container hardening, and the credential that was in argv
+# ---------------------------------------------------------------------------
+
+#: Every service in the compose file, read once at collection time so the
+#: parametrisations below are derived from the document rather than typed out.
+#:
+#: Typed-out names are how `test_every_service_says_which_network_it_is_on` came
+#: to exist: all four services shared a network by omission, and the two tests
+#: that looked at networking only looked at the four that were there. A fifth
+#: service added tomorrow without `security_opt`, without a memory ceiling, or
+#: with a token in its command line has to fail here on the day it is added,
+#: and it only does that if the list of cases comes from the file.
+SERVICE_NAMES: tuple[str, ...] = tuple(sorted(_services()))
+
+#: What a credential looks like in a variable name. Matched case insensitively
+#: against the whole command line, so `${CLOUDFLARE_TUNNEL_TOKEN}`,
+#: `--api-secret`, and `PGPASSWORD=...` are all one finding.
+CREDENTIAL_WORDS = ("token", "password", "secret", "credential", "apikey", "api_key")
+
+
+def _command_words(spec: dict[str, Any]) -> str:
+    """One string holding everything this service puts in a process's argv.
+
+    `command:` and `entrypoint:` both land in argv and both accept the string
+    form and the list form, so all four shapes are flattened here rather than
+    at three call sites.
+    """
+    parts: list[str] = []
+    for key in ("entrypoint", "command"):
+        value = spec.get(key)
+        if value is None:
+            continue
+        if isinstance(value, str):
+            parts.append(value)
+        else:
+            parts.extend(str(item) for item in value)
+    return " ".join(parts)
+
+
+@pytest.mark.parametrize("name", SERVICE_NAMES)
+def test_every_service_forbids_privilege_escalation(name: str) -> None:
+    """`no-new-privileges` is the one flag that holds when everything else fails.
+
+    Without it a setuid binary inside the image can still raise the privileges
+    of a process that started unprivileged, which makes `USER ampeer` in
+    api.Dockerfile and the `cap_drop` below advisory rather than binding: the
+    whole point of running as uid 10001 is that a bug in gunicorn cannot become
+    root, and a setuid helper left in a base image is exactly the path back.
+
+    Docker does not set it by default and there is no way to set it once for
+    the stack, so it is four identical lines and one omission away from being
+    absent on the service that needs it most.
+    """
+    options = [str(option) for option in _services()[name].get("security_opt") or []]
+    assert "no-new-privileges:true" in options, (
+        f"{name} does not set no-new-privileges, so a setuid binary in its image can "
+        f"still raise privilege: security_opt is {options}"
+    )
+
+
+@pytest.mark.parametrize("name", SERVICE_NAMES)
+def test_every_service_states_a_memory_ceiling(name: str) -> None:
+    """A container with no ceiling can take the host, and Postgres with it.
+
+    Docker gives a container the whole machine unless told otherwise. The api
+    is the one that will find out: three gunicorn workers, each holding up to
+    27 cached `EnergyFlows` of nine 35040-point float64 series, is 65 MB of
+    live array per worker before the timestep loop's own lists. A leak or a
+    hostile input in that path grows until the kernel's OOM killer picks a
+    victim, and the victim it picks is whichever process is largest, which on
+    this host is as likely to be Postgres as the process that caused it.
+
+    The ceiling is what turns that into one restarting container. Both spellings
+    are accepted because both work under `docker compose up`; what is refused is
+    neither.
+    """
+    spec = _services()[name]
+    limits = ((spec.get("deploy") or {}).get("resources") or {}).get("limits") or {}
+    ceiling = spec.get("mem_limit") or limits.get("memory")
+    assert ceiling, (
+        f"{name} declares no memory ceiling, so it may use the whole host; set "
+        "mem_limit or deploy.resources.limits.memory"
+    )
+    assert re.fullmatch(r"\d+[mg]", str(ceiling)), (
+        f"{name}: {ceiling!r} is not a byte size compose reads, such as '768m'"
+    )
+
+
+@pytest.mark.parametrize("name", SERVICE_NAMES)
+def test_no_credential_is_passed_on_a_command_line(name: str) -> None:
+    """argv is world readable, and the environment is not.
+
+    The tunnel token used to sit in `command:`. infra/.env.example already says
+    what that credential is worth: whoever reads it can run a connector for this
+    tunnel. In argv it is additionally in `docker inspect` output and in
+    /proc/<pid>/cmdline, which is mode 0444, so every local account on the LXC
+    can read it; /proc/<pid>/environ is 0400 and owner only.
+
+    This asks the question of every service rather than of the tunnel, because
+    the next credential to be passed this way will be in a different service and
+    will look reasonable at the time.
+    """
+    command = _command_words(_services()[name])
+    found = [word for word in CREDENTIAL_WORDS if word in command.lower()]
+    assert not found, (
+        f"{name} names {found} on its command line, where /proc/<pid>/cmdline makes it "
+        f"readable by every local account: {command!r}. Pass it in `environment:` instead."
+    )
