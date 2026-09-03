@@ -147,3 +147,29 @@ def test_a_broken_production_balance_is_detected() -> None:
 def test_mismatched_input_lengths_are_rejected() -> None:
     with pytest.raises(ValueError, match="same length"):
         simulate(consumption=np.zeros(96), production=np.zeros(95))
+
+
+def test_simulate_checks_its_own_balance_without_a_battery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``assert_energy_balance`` is exercised by tests either way; the point
+    of this one is that ``simulate`` itself calls it, on the live path, not
+    only that the function works when a test calls it directly."""
+
+    def always_broken(flows: object, tolerance: float = 1e-9) -> None:
+        raise EnergyBalanceError("planted by the test")
+
+    monkeypatch.setattr("ampeer_sim.engine.run.assert_energy_balance", always_broken)
+    with pytest.raises(EnergyBalanceError, match="planted by the test"):
+        simulate(consumption=np.zeros(96), production=np.zeros(96))
+
+
+def test_simulate_checks_its_own_balance_with_a_battery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def always_broken(flows: object, tolerance: float = 1e-9) -> None:
+        raise EnergyBalanceError("planted by the test")
+
+    monkeypatch.setattr("ampeer_sim.engine.run.assert_energy_balance", always_broken)
+    with pytest.raises(EnergyBalanceError, match="planted by the test"):
+        simulate(consumption=np.full(96, 0.1), production=np.zeros(96), battery_spec=SPEC)

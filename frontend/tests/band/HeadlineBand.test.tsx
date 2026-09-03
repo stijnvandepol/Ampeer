@@ -6,6 +6,7 @@ import { HeadlineBand } from "@/components/band/HeadlineBand";
 import { dutchAmount } from "@/components/band/format";
 import {
   axisPercentage,
+  bandIsRightPinned,
   bandOffsetFraction,
   bandSpanFraction,
   LABEL_ANCHOR_PROPERTY,
@@ -70,7 +71,14 @@ describe("the headline band", () => {
     expect(fill.style.width).toBe("0%");
     const offset = bandOffsetFraction(advice.headline.p10, advice.headline.p90);
     expect(offset).toBeGreaterThan(0);
-    expect(fill.style.left).toBe(`${offset * 100}%`);
+    // This fixture's low end is positive, so its right edge, not its left, is
+    // pinned to the axis's own end (see bandIsRightPinned): the fill is
+    // anchored by `right`, and `left` is left for the browser to compute.
+    expect(bandIsRightPinned(advice.headline.p10)).toBe(true);
+    expect(fill.style.left).toBe("");
+    expect(fill.style.right).toBe(
+      `${Math.max(0, (1 - offset - expected) * 100)}%`,
+    );
     const figure = container.querySelector("[data-band-span]");
     expect(Number(figure?.getAttribute("data-band-span"))).toBeCloseTo(
       expected,
@@ -112,9 +120,14 @@ describe("the headline band", () => {
     const low = labelAnchor(offset * 100)[LABEL_ANCHOR_PROPERTY];
     const high = labelAnchor((offset + span) * 100)[LABEL_ANCHOR_PROPERTY];
     expect(anchorOf(ends[0] ?? null)).toBe(low);
-    // The same string the fill is drawn at, not a second computation of it.
-    expect(anchorOf(ends[0] ?? null)).toBe(fill.style.left);
     expect(anchorOf(ends[1] ?? null)).toBe(high);
+    // This fixture's low end is positive, so the fill is anchored by `right`,
+    // not `left` (see bandIsRightPinned): the edge that cannot be a second,
+    // independently drifting computation of a label's position is now the
+    // high end and the fill's own right, rather than the low end and left.
+    expect(bandIsRightPinned(advice.headline.p10)).toBe(true);
+    const highFromFill = 100 - Number.parseFloat(fill.style.right);
+    expect(labelAnchor(highFromFill)[LABEL_ANCHOR_PROPERTY]).toBe(high);
   });
 
   it("anchors the middle label and the axis's zero by the same mechanism", () => {

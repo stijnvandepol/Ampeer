@@ -33,17 +33,29 @@ const DEFAULT_ANSWERS: Readonly<Record<string, boolean>> = {
   "(pointer: fine)": true,
 };
 
+/**
+ * Returned by `installMatchMedia` so a test can simulate the query itself
+ * changing after render, the way an OS-level setting can: `matches` is read
+ * fresh on every call the hook makes, so mutating it here and then notifying
+ * whoever subscribed is the live equivalent of the visitor's own toggle,
+ * distinct from installing a different starting value before render.
+ */
+export interface MatchMediaControl {
+  fireReducedMotionChange(next: boolean): void;
+}
+
 export function installMatchMedia(
   reduceMotion: boolean,
   answers: Readonly<Record<string, boolean>> = {},
-): void {
+): MatchMediaControl {
   const resolved = { ...DEFAULT_ANSWERS, ...answers };
+  let currentReduceMotion = reduceMotion;
   const listeners = new Set<(event: MediaQueryListEvent) => void>();
   const query = (media: string): MediaQueryList =>
     ({
       media,
       matches: media.includes("prefers-reduced-motion")
-        ? reduceMotion
+        ? currentReduceMotion
         : (resolved[media] ?? false),
       onchange: null,
       addEventListener: (
@@ -68,4 +80,13 @@ export function installMatchMedia(
     writable: true,
     value: query,
   });
+
+  return {
+    fireReducedMotionChange(next: boolean): void {
+      currentReduceMotion = next;
+      for (const listener of listeners) {
+        listener({ matches: next } as MediaQueryListEvent);
+      }
+    },
+  };
 }

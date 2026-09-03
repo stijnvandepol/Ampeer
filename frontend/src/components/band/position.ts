@@ -106,6 +106,31 @@ export function axisPercentage(
 }
 
 /**
+ * Whether a band's right edge, not its left, sits at the axis's own extreme.
+ *
+ * `axisFor` puts the axis max at the band's own high end whenever that end is
+ * positive, so a band with a non-negative low end always has its right edge
+ * at exactly 100 percent of the track: `offset + span` reduces to `high /
+ * high`. A band with a non-positive high end is the mirror, pinned to 0
+ * percent on the left instead. A band that straddles zero occupies the whole
+ * axis either way, so it does not matter which edge the caller treats as
+ * pinned for it.
+ *
+ * This is what `.fill`'s `min-width` in band.module.css needs to grow the
+ * right way when a band's true width would round below the track's own
+ * height: a box anchored by the pinned edge and left free on the other grows
+ * into the track, while a box anchored by the wrong edge grows past it. See
+ * band.module.css for where that went wrong the first time: min-width alone,
+ * with every band anchored by `left`, pushed a near-certain answer's fill
+ * past the track's own right edge because that edge, not the left one, is
+ * where such a band actually sits.
+ */
+export function bandIsRightPinned(lowText: string): boolean {
+  const low = readAmount(lowText);
+  return low !== null && low >= 0;
+}
+
+/**
  * The custom property `.anchored` in band.module.css reads. One number reaches
  * the stylesheet and the stylesheet derives both declarations from it, so the
  * offset along the track and the offset into the label are the same number by

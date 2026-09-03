@@ -114,6 +114,18 @@ export function QuestionShell({
   const heading = useRef<HTMLHeadingElement>(null);
   const mounted = useRef(false);
   const reducedMotion = useReducedMotion();
+  // Read inside the effect instead of listed as a dependency: the OS-level
+  // setting this tracks can change mid-form (Focus mode, a Control Centre
+  // toggle) without the step changing, and a visitor mid-keystroke in a field
+  // should never have focus and scroll pulled away from them by a setting
+  // that has nothing to do with which question is on screen. Kept current by
+  // its own effect rather than written during render, which React refuses:
+  // a ref is a value for event handlers and effects, not for the render
+  // that computes what to show.
+  const reducedMotionRef = useRef(reducedMotion);
+  useEffect(() => {
+    reducedMotionRef.current = reducedMotion;
+  }, [reducedMotion]);
 
   useEffect(() => {
     // Not on the first render: moving focus and scroll on arrival would take
@@ -126,9 +138,9 @@ export function QuestionShell({
     heading.current?.focus({ preventScroll: true });
     section.current?.scrollIntoView({
       block: "start",
-      behavior: reducedMotion ? "instant" : "smooth",
+      behavior: reducedMotionRef.current ? "instant" : "smooth",
     });
-  }, [step, reducedMotion]);
+  }, [step]);
 
   return (
     <section

@@ -44,12 +44,25 @@ def simulate(
     charge_plan: np.ndarray | None = None,
     discharge_plan: np.ndarray | None = None,
 ) -> EnergyFlows:
-    """Run the quarter-hour simulation and return the resulting energy flows."""
+    """Run the quarter-hour simulation and return the resulting energy flows.
+
+    Checked against its own energy balance before returning, not just in
+    tests. Both residuals are computed as remainders of the same values that
+    feed into them, so they hold by construction today; the check exists for
+    the day a change computes ``to_grid`` or ``from_grid`` some other way and
+    stops that remainder relationship holding. Every caller in
+    ``ampeer_advice`` prices whatever this returns, so that kind of bug has to
+    fail loudly at this one seam instead of turning into a plausible wrong
+    euro figure three layers up, caught only if a golden household happens to
+    move.
+    """
     if consumption.shape != production.shape:
         raise ValueError("consumption and production must have the same length")
 
     if battery_spec is None:
-        return _without_battery(consumption, production)
+        flows = _without_battery(consumption, production)
+        assert_energy_balance(flows)
+        return flows
 
     steps = consumption.shape[0]
     battery = Battery(battery_spec)
@@ -103,7 +116,7 @@ def simulate(
         from_grid[step] = deficit
         to_grid[step] = surplus
 
-    return EnergyFlows(
+    flows = EnergyFlows(
         consumption=consumption,
         production=production,
         self_consumption=np.asarray(self_consumption),
@@ -114,6 +127,8 @@ def simulate(
         grid_charge=np.asarray(grid_charge),
         grid_discharge=np.asarray(grid_discharge),
     )
+    assert_energy_balance(flows)
+    return flows
 
 
 def assert_energy_balance(flows: EnergyFlows, tolerance: float = 1e-9) -> None:
