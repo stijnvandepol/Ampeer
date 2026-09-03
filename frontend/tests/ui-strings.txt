@@ -487,6 +487,10 @@ euro per kWh
 export
 feb
 force-static
+funnel_question_1
+funnel_question_2
+funnel_question_3
+funnel_question_4
 gaf het terug aan het net en
 gele kwartieren zaten er nooit in: die kwamen nooit langs de meter. Vanaf 2027 zijn dat juist de kwartieren die tellen.
 graden
