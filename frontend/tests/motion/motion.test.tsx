@@ -7,7 +7,6 @@ import { Cursor } from "@/components/motion/Cursor";
 import { HeroHeading } from "@/components/motion/HeroHeading";
 import { Magnetic } from "@/components/motion/Magnetic";
 import { Mesh } from "@/components/motion/Mesh";
-import { Rail } from "@/components/motion/Rail";
 import { SpotlightCard } from "@/components/motion/SpotlightCard";
 
 /** A box with a size, because jsdom measures every element as zero. */
@@ -302,17 +301,5 @@ describe("Cursor", () => {
       }),
     );
     expect(ring.style.getPropertyValue("--ring-x")).toBe("");
-  });
-});
-
-describe("Rail", () => {
-  it("keeps the track inside a sticky box inside a tall one", () => {
-    // That nesting is the whole mechanism: the browser scrolls as it always
-    // does, and only a transform is driven by how far through the tall box the
-    // reader is. Nothing cancels a wheel event.
-    const { container } = render(<Rail>kaart</Rail>);
-    const rail = container.querySelector("[data-role='rail']")!;
-    const sticky = rail.firstElementChild!;
-    expect(sticky.firstElementChild?.textContent).toBe("kaart");
   });
 });

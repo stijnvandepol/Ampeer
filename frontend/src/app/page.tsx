@@ -7,7 +7,6 @@ import { Cursor } from "@/components/motion/Cursor";
 import { HeroHeading } from "@/components/motion/HeroHeading";
 import { Magnetic } from "@/components/motion/Magnetic";
 import { Mesh } from "@/components/motion/Mesh";
-import { Rail } from "@/components/motion/Rail";
 import { SpotlightCard } from "@/components/motion/SpotlightCard";
 import { PageJsonLd } from "./_shell/JsonLd";
 import reveal from "@/components/motion/reveal.module.css";
@@ -138,8 +137,14 @@ const STEPS: readonly (readonly [string, string])[] = [
  *
  * WHERE THE MOTION IS TUNED. Each component owns its own timing and says so at
  * the top of its file: HeroHeading, Mesh, SpotlightCard, CountUp, Beam,
- * Magnetic, Cursor, Rail, and reveal.module.css for the section wipe. Nothing
- * on this page reaches into another component's numbers.
+ * Magnetic, Cursor, and reveal.module.css for the section wipe. Nothing on
+ * this page reaches into another component's numbers.
+ *
+ * Rail was the ninth and is gone. It put the four facts on a scroll driven
+ * sideways track, which held up on a phone only because a phone never got it:
+ * every part of the effect sat behind a 60rem breakpoint and the fallback
+ * below it was the grid they now use everywhere. See the note above `.facts`
+ * in home.module.css for what the desktop version actually cost.
  */
 export default function Home() {
   return (
@@ -193,7 +198,7 @@ export default function Home() {
 
       <div className={styles.page}>
         <h2 className={styles.heading}>Waar het antwoord op rust</h2>
-        <Rail className={reveal.reveal}>
+        <div className={`${styles.facts} ${reveal.reveal}`} data-role="facts">
           {FACTS.map((fact) => (
             <SpotlightCard key={fact.unit} className={styles.fact}>
               <p className={styles.factValue}>
@@ -207,7 +212,7 @@ export default function Home() {
               <p className={styles.factText}>{fact.text}</p>
             </SpotlightCard>
           ))}
-        </Rail>
+        </div>
 
         {/*
           The paragraph that stood here explained the regeling, and

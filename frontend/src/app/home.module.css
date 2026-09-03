@@ -8,7 +8,9 @@
  *
  * The motion lives with its components. Each of them says at the top of its own
  * file what it does and which values to turn: HeroHeading, Mesh, SpotlightCard,
- * CountUp, Beam, Magnetic, Cursor, Rail, and reveal.module.css.
+ * CountUp, Beam, Magnetic, Cursor, and reveal.module.css. Rail was one of
+ * them and was removed on 2026-09-02; the four facts it carried are the
+ * `.facts` grid below.
  */
 
 /* ---- the first screen ---- */
@@ -114,11 +116,34 @@
   max-width: 62ch;
 }
 
-/* ---- the rail of facts ---- */
+/* ---- the four facts ---- */
+
+/*
+ * A grid and not a rail. Until 2026-09-02 these four sat in a scroll driven
+ * sideways track: 150vh of container with a sticky viewport inside it, so the
+ * cards travelled left as the reader scrolled. It worked exactly as designed
+ * and the design did not survive a desktop screen. Measured at 1440x900: the
+ * section cost 1350 pixels of scrolling to deliver four one line facts, the
+ * heading above them had scrolled away before the first card finished moving,
+ * two thirds of the viewport was empty for the whole travel, and the fourth
+ * card was off screen for most of it.
+ *
+ * The rail's own fallback was already this layout. Below 60rem, and in any
+ * browser without `animation-timeline`, and under prefers-reduced-motion, the
+ * track wrapped into rows, which is why the phone always looked right and only
+ * the desktop did not. So this is not a new design; it is the one the
+ * component already fell back to, made the only one.
+ *
+ * Same shape as `.features` below on purpose. Two grids on one page that mean
+ * the same thing should not be spelled two ways.
+ */
+.facts {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+}
 
 .fact {
-  width: min(22rem, 78vw);
-  flex: none;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -132,6 +157,14 @@
 }
 
 .factUnit {
+  /*
+   * Its own line, always. Inline it fits beside "4" and "0" and wraps under
+   * "35.014" and "243", so the four cards disagreed about where the unit goes
+   * and the row read as broken rather than as varied. A block settles it in
+   * one rule and keeps settling it whatever the numbers become, which matters
+   * because two of them are computed rather than written.
+   */
+  display: block;
   font-size: var(--text-sm);
   font-weight: 400;
   color: var(--colour-ink-muted);
