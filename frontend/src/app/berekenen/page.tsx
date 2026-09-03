@@ -115,7 +115,7 @@ const ROUND_ONE_NOTES: readonly (string | undefined)[] = [
   undefined,
   "Dit staat op de offerte of de factuur van uw installateur, en meestal ook in de app van uw omvormer. Weet u het niet: tel uw panelen en reken ongeveer 400 wattpiek per paneel. Twaalf panelen is dan ongeveer 4.800.",
   "De richting van uw dak ziet u op een satellietfoto van uw adres, bijvoorbeeld in Google Maps. Voor de hoek: een gewoon schuin dak in Nederland ligt rond de 35 graden, en panelen op een plat dak staan meestal op 10 tot 15 graden.",
-  "Dit staat op uw jaarnota, of in uw account bij uw energieleverancier. Reken zonder het laden van een elektrische auto en zonder warmtepomp: daar vragen wij zo apart naar en wij tellen ze er zelf bij op. Staan ze wel op uw jaarnota, haal ze er dan af. Een schatting is genoeg: zonder auto en zonder warmtepomp zit een huishouden vaak tussen 2.000 en 3.500 kWh.",
+  "Dit staat op uw jaarnota, of in uw account bij uw energieleverancier. Reken zonder het laden van een elektrische auto en zonder een warmtepomp, ook als u die wel heeft. Daar vragen wij zo apart naar en wij tellen ze er dan zelf bij op. Staan ze op uw jaarnota, haal ze er dan af. Een schatting is genoeg: zonder auto en zonder warmtepomp zit een huishouden vaak tussen 2.000 en 3.500 kWh.",
 ] as const;
 
 const ROUND_TWO_TITLES = [
