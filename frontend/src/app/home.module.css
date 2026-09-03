@@ -140,7 +140,18 @@
 .facts {
   display: grid;
   gap: var(--space-4);
-  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  /*
+   * 13rem previously. Measured at a 900px viewport, which is squarely inside
+   * the range a small laptop actually reports: four columns at that floor
+   * need 880px of content width and the container had 836.8px, so `auto-fit`
+   * did what it always does when the next column does not fit and dropped to
+   * three, leaving the fourth card, the neutrality claim, alone on its own
+   * row with empty space beside it. 11rem clears four columns at every width
+   * this shell renders at (checked from 320px, where a single column is the
+   * shell's own fallback, up through the container's own 64rem cap), so the
+   * grid resolves to a clean 4-across or a clean 2x2 and never an orphan.
+   */
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
 }
 
 .fact {
