@@ -16,7 +16,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import BaseThrottle
 from rest_framework.views import APIView
 
-from advice.models import StoredAdvice
+from advice.models import DailyCounter, StoredAdvice
 from advice.profiles import profile_provider
 from advice.serializers import EstimateInputSerializer, RefineInputSerializer
 from advice.service import compute_and_store
@@ -104,3 +104,39 @@ class HealthView(APIView):
             # something to hand out.
             return Response({"status": "unavailable"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         return Response({"status": "ok"})
+
+
+class CountView(_NoStoreAPIView):
+    """One increment of one named counter, and no answer worth reading.
+
+    Deliberately the smallest public write in this repository. It takes a name
+    out of a fixed list, adds one to today's row, and returns 204 with no body.
+    It stores no address, no session, no identifier and nothing derived from
+    one, so there is no record here that belongs to anybody.
+
+    The name is checked against `DailyCounter.CLIENT_NAMES` rather than against
+    a pattern, so a caller cannot open a new column of behaviour by inventing a
+    string, and a typo in the frontend fails loudly instead of quietly counting
+    into a name nobody reads. The outcome counters are not in that set on
+    purpose: they are written by the server from what it decided, so the one
+    distribution this product would be tempted to flatter cannot be moved from
+    outside.
+
+    Refusing an unknown name with 400 rather than ignoring it is the choice
+    that makes the frontend's own tests able to fail.
+    """
+
+    throttle_scope = "advice-count"
+
+    def post(self, request: Request) -> Response:
+        name = request.data.get("name") if isinstance(request.data, dict) else None
+        if not isinstance(name, str) or name not in DailyCounter.CLIENT_NAMES:
+            # English, and that is not an oversight. Nothing renders this: the
+            # browser silences every failure of this call on purpose, because a
+            # counter that can break the form it measures is worse than no
+            # counter. So the only reader is a developer holding a response,
+            # and the language rule sends Dutch a visitor reads to nl.py and
+            # leaves English an operator reads where it is.
+            return Response({"detail": "unknown counter name"}, status=status.HTTP_400_BAD_REQUEST)
+        DailyCounter.bump(name)
+        return Response(status=status.HTTP_204_NO_CONTENT)

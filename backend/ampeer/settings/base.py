@@ -91,6 +91,14 @@ REST_FRAMEWORK: dict[str, Any] = {
         "advice-compute": "20/hour",
         # Opening and sharing a link must not require thinking about it.
         "advice-read": "120/hour",
+        # Funnel counters. A real visitor sends at most eight of these in a
+        # sitting and they cost a single UPDATE, so this is set to stop somebody
+        # inflating a number rather than to protect the machine. It has to be
+        # loose enough that a visitor who goes back and forth through the
+        # questions is never refused: nothing on the page depends on the
+        # response, but a 429 in the console on a working form is noise that
+        # costs somebody an afternoon.
+        "advice-count": "120/hour",
     },
     "UNAUTHENTICATED_USER": None,
 }
