@@ -5,6 +5,10 @@ export default defineConfig({
   // The site is statically built, so the tests run against the built output
   // rather than a dev server. That is what ships, and a dev server behaves
   // differently enough that testing it proves less than it looks.
+  // Runs before the server starts, so a stale export fails with a sentence
+  // that names the problem instead of surfacing as a mismatched string three
+  // tests later. See the file for the run that made this necessary.
+  globalSetup: "./playwright.global-setup.ts",
   webServer: {
     // -c ../serve.json, resolved relative to the directory being served, so
     // this is frontend/serve.json. It holds one rewrite and that rewrite is

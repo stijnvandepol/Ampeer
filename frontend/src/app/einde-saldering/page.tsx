@@ -240,18 +240,28 @@ export default function EindeSalderingPage() {
 
       <section className={styles.section} aria-labelledby="nietdoen">
         <h2 id="nietdoen" className={styles.heading}>
-          Wat wij niet doen en waar wij niets aan verdienen
+          Wat wij niet doen
         </h2>
         <p className={styles.body}>
           Wij verkopen geen zonnepanelen, geen thuisbatterijen en geen
-          energiecontract. Wij sturen u niet door naar een partij die dat wel
-          doet, wij plaatsen geen advertenties en wij verkopen geen leads. Er is
-          geen knop op deze site die naar een verkopende partij leidt.
+          energiecontract. Wij plaatsen geen advertenties. Er is geen knop op
+          deze site die naar een verkopende partij leidt.
         </p>
         <p className={styles.body}>
-          Dat is ook waarom &quot;nu geen batterij&quot; bij ons een geldige
-          uitkomst is. Een adviseur die aan batterijen verdient kan die zin niet
-          schrijven.
+          Wat er niet in zit, is het belangrijkste: niemand betaalt ons voor de
+          uitkomst die u krijgt. Er is geen installateur, geen leverancier en
+          geen fabrikant die er beter van wordt als hier &quot;wel een
+          batterij&quot; uitkomt. Dat is ook waarom &quot;nu geen batterij&quot;
+          bij ons een geldige uitkomst is. Een adviseur die aan batterijen
+          verdient kan die zin niet schrijven.
+        </p>
+        <p className={styles.body}>
+          Wij zeggen niet dat Ampeer nooit geld gaat verdienen. Wat wij wel
+          vastleggen is dat uw antwoord er niet van afhangt: code die het advies
+          laat meebewegen met een commerciele afspraak geldt in dit project als
+          een fout, en dat staat zo in de projectafspraken. Verandert er iets
+          aan hoe Ampeer betaald wordt, dan staat het op deze pagina en op
+          &quot;over ons&quot; voordat het gebeurt.
         </p>
         <p className={styles.body}>
           Op dit webadres zat eerder een andere dienst, die wel Nederlandse

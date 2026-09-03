@@ -18,6 +18,8 @@ import {
   axisPercentage,
   bandOffsetFraction,
   bandSpanFraction,
+  LABEL_ANCHOR_PROPERTY,
+  labelAnchor,
 } from "@/components/band/position";
 
 describe("the width of a band", () => {
@@ -96,5 +98,39 @@ describe("where the middle sits", () => {
 
   it("falls back to the centre only when it has nothing to compute from", () => {
     expect(axisPercentage("onbekend", "1", "2")).toBe(50);
+  });
+});
+
+describe("how a label is put over the point it names", () => {
+  it("hands the stylesheet the point, as a percentage of the track", () => {
+    // The stylesheet sets left to this and translates the label by the same
+    // percentage of its own width, so a label at 0 is flush left, one at 100 is
+    // flush right, and one in between has its own 40% mark over the axis's 40%
+    // mark. That is what makes a label cover its value at every width without
+    // anything having to know what either measures.
+    expect(labelAnchor(0)).toEqual({ [LABEL_ANCHOR_PROPERTY]: "0%" });
+    expect(labelAnchor(100)).toEqual({ [LABEL_ANCHOR_PROPERTY]: "100%" });
+    expect(labelAnchor(40)).toEqual({ [LABEL_ANCHOR_PROPERTY]: "40%" });
+  });
+
+  it("returns one number and not a pair of CSS strings", () => {
+    // One value, so the offset along the track and the offset into the label
+    // cannot be written apart. A custom property rather than a translate
+    // literal because the language boundary walk in e2e/language.spec.ts reads
+    // a returned string as text the visitor might see, and CSS in
+    // tests/ui-strings.txt is noise in the one file that has to stay readable.
+    expect(LABEL_ANCHOR_PROPERTY.startsWith("--")).toBe(true);
+    for (const at of [0, 12.5, 50, 70.375, 99.9, 100]) {
+      const anchor = labelAnchor(at);
+      expect(Object.keys(anchor)).toEqual([LABEL_ANCHOR_PROPERTY]);
+      expect(anchor[LABEL_ANCHOR_PROPERTY]).toBe(`${at}%`);
+    }
+  });
+
+  it("refuses to place a label off the track", () => {
+    // A percentage outside the axis would push the page sideways, which is a
+    // reflow failure on the phone this site is mostly read on.
+    expect(labelAnchor(140)).toEqual({ [LABEL_ANCHOR_PROPERTY]: "100%" });
+    expect(labelAnchor(-20)).toEqual({ [LABEL_ANCHOR_PROPERTY]: "0%" });
   });
 });

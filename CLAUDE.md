@@ -4,10 +4,28 @@ Ampeer is een neutrale energie-adviseur voor Nederlandse huishoudens met zonnepa
 Domein: ampeer.nl
 
 ## Het probleem
-De salderingsregeling stopt op 1 januari 2027. Ruim 3 miljoen huishoudens met
-zonnepanelen krijgen dan nog 3 tot 8 cent per teruggeleverde kWh in plaats van de
-circa 27 cent die ze besparen door die kWh zelf te gebruiken. Vanaf 1 januari 2029
-komt daar een tijdsafhankelijk nettarief bij met vier prijsniveaus en vijf tijdsblokken.
+De salderingsregeling stopt op 1 januari 2027, in een keer en niet in stappen
+(Wet van 18 december 2024, Staatsblad 2025 nr. 17, artikel V; het eerdere
+afbouwplan 35594 is op 13 februari 2024 door de Eerste Kamer verworpen).
+Bijna 3 miljoen woningen hebben zonnepanelen (CBS, cijfer voor 2024, StatLine
+85005NED; dat telt installaties op en rond woningen en niet huishoudens, en de
+twee zijn niet hetzelfde). Zij krijgen dan nog 3 tot 8 cent per teruggeleverde
+kWh in plaats van de circa 26 cent die ze besparen door die kWh zelf te
+gebruiken. Die 26 is `SUPPLY_PRICE.mid` in `ampeer_advice/tariffs.py`: dit
+document en de code horen hetzelfde middenscenario te noemen. Vanaf 1 januari
+2029 komt daar een tijdsafhankelijk nettarief bij met vijf wegingsfactoren en
+vijf tijdsblokken, waarvan er per dag maximaal vier tegelijk gelden en in de
+winter drie (Netbeheer Nederland BR-2026-2242, 1 mei 2026, bijlage 5). Die
+datum is een verzoek en geen feit: er staan twee uitwijkmogelijkheden naar
+1 januari 2030 in, en de ACM had het voorstel op 2 september 2026 nog niet
+beoordeeld.
+
+Alle drie de correcties hierboven komen uit de bronnenronde van 2026-09-02.
+Dit document zei ruim 3 miljoen huishoudens waar CBS bijna 3 miljoen woningen
+zegt, circa 27 cent waar de constante 0,26 is, en vier prijsniveaus waar de
+codetekst er vijf vastlegt. De volledige lezing staat in
+`docs/analysis/2026-08-24-tou-tariff-2029.md` en de bronnen bij elke claim in
+`docs/methodologie.md`.
 
 ## Wat Ampeer doet
 Berekenen wat het einde van saldering een specifiek huishouden kost, en welke van
@@ -29,8 +47,28 @@ gebruikersgroep wil niets installeren.
 - Geen advertenties
 - Geen apparaten aansturen (adviseren, niet ingrijpen)
 
-De neutraliteit is het product. Elk stuk code dat het advies laat afhangen van een
-commerciele relatie is een bug.
+De neutraliteit is het product, en op 2026-09-02 is vastgelegd waar die precies
+op rust. Niet op de afwezigheid van inkomsten: dat is een feit over een
+bankrekening en het overleeft geen verdienmodel. Wel op de afwezigheid van een
+belanghebbende. Niemand betaalt voor de uitkomst die een huishouden krijgt.
+Geen installateur, geen leverancier en geen fabrikant wordt er beter van als er
+"wel een batterij" uit komt.
+
+Elk stuk code dat het advies laat afhangen van een commerciele relatie is een
+bug. Dat is de regel die de zin hierboven waar houdt, en hij geldt onverkort
+als er wel geld binnenkomt.
+
+Hoe Ampeer betaald gaat worden is een open vraag. De vier bovenstaande regels
+gaan over producten en blijven staan; ze zeggen niets over een betaald rapport,
+een abonnement of een white-label licentie, en die zijn geen van drieen in
+strijd met de zin hierboven omdat de betaler daarbij geen belang heeft bij de
+uitkomst. Doorverwijzing tegen vergoeding is dat wel, en dat is precies waarom
+het onder "Later" staat en niet onder "Wat Ampeer doet": het kan eerlijk, maar
+alleen als de site het zelf benoemt in plaats van het weg te laten.
+
+De website mag daarom niet beweren dat er nooit geld verdiend wordt. Tot
+2026-09-02 deed hij dat op vijf plaatsen. Wat er nu staat is wat vandaag waar
+is, plus de belofte dat een verandering er eerst komt te staan.
 
 ## Fasering
 - Fase 0: publieke rekenmachine, valideren of de vraag bestaat

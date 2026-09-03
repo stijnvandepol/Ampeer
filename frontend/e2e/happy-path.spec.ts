@@ -79,11 +79,19 @@ test("a visitor answers four questions and lands on an advice", async ({
     "Beantwoord deze vraag om verder te gaan.",
   );
 
-  await page.getByLabel("Postcode, alleen de vier cijfers").fill("5401");
+  await page
+    .getByRole("textbox", {
+      name: "Wat zijn de eerste vier cijfers van uw postcode?",
+    })
+    .fill("5401");
   await page.getByRole("button", { name: "Volgende" }).click();
 
   await expect(page.getByText("Vraag 2 van 4")).toBeVisible();
-  await page.getByLabel("Vermogen van de installatie").fill("4200");
+  await page
+    .getByRole("textbox", {
+      name: "Hoeveel wattpiek aan zonnepanelen ligt er op uw dak?",
+    })
+    .fill("4200");
   await page.getByRole("button", { name: "Volgende" }).click();
 
   await expect(page.getByText("Vraag 3 van 4")).toBeVisible();
@@ -94,7 +102,11 @@ test("a visitor answers four questions and lands on an advice", async ({
   await page.getByRole("button", { name: "Volgende" }).click();
 
   await expect(page.getByText("Vraag 4 van 4")).toBeVisible();
-  await page.getByLabel("Verbruik per jaar").fill("3400");
+  await page
+    .getByRole("textbox", {
+      name: "Hoeveel stroom verbruikt u per jaar, zonder auto en warmtepomp?",
+    })
+    .fill("3400");
   await page.getByRole("button", { name: "Bereken" }).click();
 
   await expect(page).toHaveURL(new RegExp(`/advies/${TOKEN}/$`));

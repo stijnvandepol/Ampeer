@@ -11,7 +11,13 @@ import math
 from django.urls import URLPattern, path, re_path
 
 from advice.models import TOKEN_BYTES
-from advice.views import EstimateView, HealthView, RefineView, StoredAdviceView
+from advice.views import (
+    CountView,
+    EstimateView,
+    HealthView,
+    RefineView,
+    StoredAdviceView,
+)
 
 #: secrets.token_urlsafe(n) emits base64url with the padding stripped, so
 #: ceil(n * 8 / 6) characters: 22 for 16 bytes. Derived from the constant the
@@ -27,6 +33,7 @@ urlpatterns: list[URLPattern] = [
     # widens would otherwise swallow the readiness endpoint and the deploy
     # would go unhealthy for a reason nobody would look for here.
     path("health/", HealthView.as_view(), name="advice-health"),
+    path("count/", CountView.as_view(), name="advice-count"),
     path("estimate/", EstimateView.as_view(), name="advice-estimate"),
     path("refine/", RefineView.as_view(), name="advice-refine"),
     # Matched narrowly rather than with <str:token>, so a malformed token is a

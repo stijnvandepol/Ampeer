@@ -961,7 +961,20 @@ Six sit outside that document.
   had already claimed. It reaches it again. Decisions 16 and 17 above moved the
   offline production model, `large_array_small_use` came from 12.05 years to
   11.46, and its verdict went from BATTERY_DOES_NOT_PAY_BACK to
-  BATTERY_DEPENDS_ON_PRICE. Nobody is being told to buy anything and the
+  BATTERY_DEPENDS_ON_PRICE.
+
+  Re-measured on 2026-09-02, because the paragraph above still carried the band
+  it was written with. The two ends moved with the middle and were never
+  brought along: 6.99 and 18.89 are the 2026-08-23 figures, and today the same
+  household pays back between **6.65 and 17.98** years with a middle of
+  **11.47**. The sentence about 450 euro per kWh moved too, from seven years to
+  **6.65**. None of it changes the question this entry asks, which is about the
+  asymmetry and not about where the band happens to sit; it is corrected here
+  because a reader checking the argument would otherwise check it against three
+  numbers the model stopped producing. The same measurement corrected six
+  recorded figures in `tests/golden/advice_households.json`, which had drifted
+  in the last decimal for the same reason and were held by a tolerance wide
+  enough not to notice. Nobody is being told to buy anything and the
   asymmetry above is untouched; what changed is that the middle state is no
   longer empty, so whether it should be reachable is being answered in practice
   by a physics correction rather than by a decision. All three storage verdicts
@@ -973,7 +986,32 @@ Six sit outside that document.
   PVGIS, ENTSO-E and KNMI as the external sources this project may reach. The
   repository reaches a fourth: `tools/ingest_profiles.py` downloads the NEDU
   standard profiles from energiedatawijzer.nl, which it has to, since their
-  licence forbids committing them.
+  redistribution terms are unconfirmed.
+
+  That last clause was corrected on 2026-09-02 and it used to read "since their
+  licence forbids committing them". It was checked and there is no such licence.
+  The profiles for toepassingsjaar 2025 are established by the Platform
+  Verbruiksprofielen and published by MFFBAS, and neither the publication page nor
+  the files carry a licence, a copyright line or a reuse condition of any kind.
+  `docs/superpowers/specs/2026-08-20-simulation-core-design.md` said exactly that
+  when the decision was taken, "Gebruik is onproblematisch, herdistributie niet
+  bevestigd", and the docstring of `nedu_profile_path` in
+  `tests/helpers/profiles.py` still says it. Somewhere between the spec and this
+  entry a caution became a finding. Nothing about the behaviour changes: the files
+  stay out of the tree and the ingest step stays. What changes is that this entry
+  no longer cites a prohibition that does not exist, in a document whose whole
+  purpose is that a later reader can tell what was established from what was
+  assumed. The same sentence in `docs/analysis/2026-08-24-tou-tariff-2029.md` and
+  the same phrase in the comment above `IGNORED_ROOTS` in
+  `tests/test_analysis_docs.py` were corrected in the same pass.
+
+  While that was being checked, one further thing came out that belongs here
+  rather than in a spec: PVGIS is settled and in the other direction. The JRC
+  states on its own user manual page that PVGIS "is completely free to use, with
+  no restrictions on what the results can be used for, and with no registration
+  necessary". So of the two open licence questions the spec recorded, one is
+  answered permissively and one is genuinely still open, and they should stop
+  being carried as a pair.
 
   Not a hole. The rule in that document is written about the backend, which
   never fetches, and this is a build time command somebody runs by hand. Its URL
@@ -986,6 +1024,27 @@ Six sit outside that document.
 
   What is left is a sentence in CLAUDE.md that lists three sources while the
   repository uses four. Editing that document is not mine.
+
+- **Whether the opening paragraph of CLAUDE.md should carry its own sources.** It
+  states four facts about the Netherlands and none of them says where it comes
+  from. Three were checked against primary sources on 2026-09-02 and are now cited
+  in `docs/methodologie.md`, chapters 1, 6, 10 and 11: the end of netting on
+  1 January 2027, which is Staatsblad 2025, 17; the three to eight cent against
+  roughly 27 cent, which are two figures containing different things rather than
+  two prices for one thing; and what NEDU profiles and PVGIS are. The fourth is
+  the population figure, "ruim 3 miljoen huishoudens met zonnepanelen", and it
+  does not appear anywhere in `docs/` so there was nothing to cite it in.
+
+  What CBS publishes is close and not the same sentence. StatLine 85005NED counts
+  installations on or around **woningen**, not households, and the CBS longread of
+  17 February 2026 puts that at "van ongeveer 70 duizend tot bijna 3 miljoen in
+  **2024**". So the primary figure is *bijna* 3 million for 2024, where CLAUDE.md
+  says *ruim* 3 million. Secondary analyses of the 2025 StatLine update do reach
+  "ruim drie miljoen woningen", about 37 percent of the housing stock, but that is
+  a press reading of CBS rather than CBS. Two edits would fix it, a vintage and a
+  noun, and both are in a document that is not mine: it should say woningen rather
+  than huishoudens, and it should carry the year the figure is for, because a
+  headcount with no year is the one kind of number that cannot go stale visibly.
 
 - **Whether the run count beside the band should report cells or distinct
   outcomes.** `HeadlineBand.tsx` shows the visitor "{band.runs} doorrekeningen"

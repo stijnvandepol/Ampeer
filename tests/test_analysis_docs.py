@@ -77,9 +77,14 @@ FORBIDDEN_DASHES = {chr(0x2014): "em-dash", chr(0x2013): "en-dash"}
 TOP_LEVEL = frozenset(path.name for path in REPO_ROOT.iterdir() if not path.name.startswith("__"))
 
 #: Directories git is told to ignore, read from the file that tells it. A sheet
-#: may legitimately name `data/nedu-profiles-2025.csv`, whose licence forbids
-#: committing it, and asserting that a git-ignored file exists would make this
-#: suite pass on the machine that ingested the profiles and fail in CI.
+#: may legitimately name `data/nedu-profiles-2025.csv`, whose redistribution
+#: terms are unconfirmed so it is not committed, and asserting that a git-ignored
+#: file exists would make this suite pass on the machine that ingested the
+#: profiles and fail in CI. This comment said "whose licence forbids committing
+#: it" until 2026-09-02. There is no such licence: the profiles carry no licence
+#: and no reuse condition at all, which is why the files are kept out rather than
+#: in. See docs/decisions.md, "Whether the allowlist in CLAUDE.md should name a
+#: fourth source".
 IGNORED_ROOTS = frozenset(
     line.strip().rstrip("/")
     for line in (REPO_ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
@@ -260,3 +265,53 @@ def test_the_scan_actually_reads_the_analysis_directory() -> None:
     assert set(FORBIDDEN_DASHES) == {chr(0x2014), chr(0x2013)}, (
         "the two characters this suite refuses are no longer the em-dash and the en-dash"
     )
+
+
+# --------------------------------------------------------------------------
+# The one table in this directory that was copied out of a regulator's PDF
+# --------------------------------------------------------------------------
+
+TOU_SHEET = ANALYSIS_DIR / "2026-08-24-tou-tariff-2029.md"
+
+#: Rows of the annex 5, seventh member table as the TOU sheet transcribes them:
+#: a profile category, an offtake type, then five percentages. Anchored on the
+#: leading pipe so the block tables in section 2, which have a different shape,
+#: cannot match.
+_SHARE_ROW = re.compile(
+    r"^\|\s*(E\d[A-Z])\s*\|\s*([A-Z()a-z]+)\s*\|"
+    r"\s*(\d+)%\s*\|\s*(\d+)%\s*\|\s*(\d+)%\s*\|\s*(\d+)%\s*\|\s*(\d+)%\s*\|\s*$",
+    re.MULTILINE,
+)
+
+#: Rows the corrected annex 5, seventh member carries. Eleven, because five
+#: profile categories are split by afnametype and E4A is not.
+EXPECTED_SHARE_ROWS = 11
+
+
+def test_the_offtake_share_table_still_sums_the_way_the_sheet_says_it_does() -> None:
+    """Section 4 claims every row sums to exactly 100 percent. Check it.
+
+    The sheet says so in words, and a claim in words about a table three lines
+    above it is a claim nothing enforces. This table was retyped out of a PDF
+    that the sheet itself warns misparses, and its own gap list carried a wrong
+    statement about these same rows until 2026-09-02. A transposed digit here
+    would be invisible: five plausible percentages that no longer describe the
+    published distribution, in the one table this project would validate its
+    synthetic profile against.
+
+    This checks arithmetic and internal consistency, not the source. Whether the
+    figures are the regulator's is what the reference numbers and the URLs in the
+    header are for, and no test can do that.
+    """
+    text = TOU_SHEET.read_text(encoding="utf-8")
+    rows = _SHARE_ROW.findall(text)
+    assert len(rows) == EXPECTED_SHARE_ROWS, (
+        f"{TOU_SHEET.name} has {len(rows)} offtake share rows and the corrected annex 5, "
+        f"seventh member has {EXPECTED_SHARE_ROWS}; a row was lost, added or reshaped"
+    )
+    for category, kind, *shares in rows:
+        total = sum(int(share) for share in shares)
+        assert total == 100, (
+            f"{category} {kind} sums to {total} percent in {TOU_SHEET.name}, and the "
+            "sheet says every row sums to exactly 100"
+        )

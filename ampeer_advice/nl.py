@@ -122,10 +122,26 @@ SIZING_BASIS_TEXTS: dict[str, str] = {
 #: typed, so there is nothing to have gone wrong, and the sentence that warns
 #: about the bill total would be noise on the household it cannot happen to.
 MODELLED_CONSUMPTION_BASIS_TEXTS: dict[str, str] = {
+    # This text is shown whenever the modelled year came back equal to the
+    # figure entered, and `rendering.py` decides that by comparing the series
+    # rather than by reading the request's flags. That is deliberate and right,
+    # and it means this sentence cannot know which round the reader is in.
+    #
+    # It used to say "want u gaf aan geen elektrische auto en geen warmtepomp te
+    # hebben". In round two that is true. In round one nobody is asked: the four
+    # questions are postcode, wattpiek, roof and consumption, and the model
+    # assumes no car and no heat pump, which chapter 19 of the methodology says
+    # in as many words. So the product told most of its readers that they had
+    # said something they were never asked. On a product whose whole promise is
+    # that its reasoning can be checked, that is the worst sentence to get
+    # wrong. It now states what the model did, which is true in both rounds and
+    # is the thing the comparison actually establishes.
     "ENTERED_UNCHANGED": (
         "Dit is het verbruik waarmee wij gerekend hebben. Het is precies het getal dat u "
-        "opgaf, want u gaf aan geen elektrische auto en geen warmtepomp te hebben. Er "
-        "staat geen marge omheen: het is uw eigen opgave en geen schatting van ons."
+        "opgaf: wij telden er zelf niets bij op voor een elektrische auto of een "
+        "warmtepomp. Heeft u die wel, dan ligt uw verbruik hoger en valt het bedrag "
+        "bovenaan te laag uit. Er staat geen marge omheen: het is uw eigen opgave en "
+        "geen schatting van ons."
     ),
     "ENTERED_PLUS_ASSETS": (
         "Dit is het verbruik waarmee wij gerekend hebben: het getal dat u opgaf, plus wat "

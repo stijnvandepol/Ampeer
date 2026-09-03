@@ -27,6 +27,20 @@ het moment waarop de waterkoker en de oven tegelijk aanstaan. Voor de vraag hoev
 stroom u over het jaar zelf gebruikt maakt dat weinig uit. Voor de vraag welk vermogen
 uw batterij moet hebben maakt het wel uit, en daar zijn wij dus voorzichtiger.
 
+**Bron:** de standaardverbruiksprofielen elektriciteit voor toepassingsjaar 2025, versie
+1.00, vastgesteld door het Platform Verbruiksprofielen op 3 juli 2024 en gepubliceerd
+door MFFBAS, met de bestanden zelf op Energiedatawijzer.
+https://www.mffbas.nl/nieuws/profielen-elektriciteit-en-aardgas-2025-plus-wegingsfactoren-gepubliceerd/
+Er komt elk jaar een nieuwe set, dus het jaar hoort bij het getal.
+
+Twee dingen over die bron die u hoort te weten. Ten eerste noemen wij ze NEDU-profielen
+omdat de hele sector dat doet, maar de vereniging NEDU bestaat sinds 1 april 2022 niet
+meer; MFFBAS is de opvolger en beheert ze nu. De naam in ons document is dus ouder dan
+de organisatie erachter. Ten tweede staat er op die pagina en op de bestanden zelf geen
+licentie en geen hergebruikvoorwaarde. Wij hebben dus geen toestemming om ze door te
+geven en ook geen verbod gevonden. Wij gebruiken ze daarom wel en verspreiden ze niet,
+en wij schrijven hier niet op dat het mag. Gecontroleerd op 2 september 2026.
+
 ## 2. Wij gebruiken het profiel van huizen zonder zonnepanelen
 
 De profielen bestaan in twee smaken: aansluitingen zonder teruglevering en aansluitingen
@@ -160,6 +174,15 @@ Wij rekenen die niet zelf uit. Wij vragen hem op bij PVGIS, de rekentool van het
 Gemeenschappelijk Centrum voor Onderzoek van de Europese Commissie, op basis van echte
 instralingsmetingen voor uw postcodegebied, uw dakrichting en uw hellingshoek.
 
+**Bron:** PVGIS 5.3 van het Joint Research Centre van de Europese Commissie. Wij roepen
+https://re.jrc.ec.europa.eu/api/v5_3/seriescalc aan en vragen om de stralingsdatabank
+PVGIS-SARAH3, die satellietmetingen bevat over de jaren 2005 tot en met 2023. Verder
+reikt die reeks niet, en dat is de bovengrens van het weerjaar waarop wij kunnen rekenen.
+Het JRC schrijft over PVGIS: "It is completely free to use, with no restrictions on what
+the results can be used for, and with no registration necessary."
+https://joint-research-centre.ec.europa.eu/photovoltaic-geographical-information-system-pvgis/getting-started-pvgis/pvgis-user-manual_en,
+gelezen op 2 september 2026.
+
 Dat is een bewuste keuze. Wij hebben het eerst zelf uitgerekend uit de instralingsgetallen
 en kwamen toen 9,8 procent te hoog uit, omdat wij de temperatuur van de panelen, de
 weerkaatsing en de kleurgevoeligheid niet meenamen. PVGIS doet dat wel. Wij vragen de
@@ -195,9 +218,9 @@ verschillend:
 
 | Postcode | Met de tabel | Met PVGIS | Verschil |
 |---|---|---|---|
-| 5401, Uden | 623,50 | 656,20 | 5,0 procent lager |
-| 9711, Groningen | 623,50 | 639,07 | 2,4 procent lager |
-| 4331, Middelburg | 623,50 | 699,71 | 10,9 procent lager |
+| 5401, Uden | 623,71 | 656,20 | 5,0 procent lager |
+| 9711, Groningen | 623,71 | 639,07 | 2,4 procent lager |
+| 4331, Middelburg | 623,71 | 699,71 | 10,9 procent lager |
 
 Drie postcodes, door ons gekozen op afstand tot Uden, en geen steekproef. Wat er wel uit
 te lezen valt: de tabel geeft in alle drie de gevallen hetzelfde bedrag, want hij weet niet
@@ -345,6 +368,30 @@ Dit zijn ze, opgezocht op 20 augustus 2026:
 | Netto terugleververgoeding, dynamisch contract | 0,05 | 0,06 | 0,07 |
 | Thuisbatterij per kWh capaciteit, geplaatst | 450 | 675 | 900 |
 
+**Wat er in "alles inbegrepen" zit, en wat er niet in zit.** In de stroomprijs hierboven
+zitten drie dingen: het leveringstarief van uw leverancier, de energiebelasting, en 21
+procent btw over die twee samen. De netbeheerkosten zitten er niet in, en dat is geen
+weglating maar de reden dat dit getal klopt. Een kleinverbruiker betaalt zijn
+netbeheerder een vast bedrag per jaar dat van zijn aansluiting afhangt en niet van het
+aantal kilowatturen. Een kilowattuur die u zelf gebruikt in plaats van van het net haalt,
+verandert dat bedrag dus met nul. Zetten wij netbeheerkosten toch in een prijs per kWh,
+dan zou elk bedrag in dit advies een besparing meetellen die u niet maakt.
+
+Ook niet in dit getal: de belastingvermindering, het vaste bedrag dat elk jaar van uw
+energiebelasting af gaat. Dat is ook een bedrag per aansluiting per jaar, dus ook dat
+beweegt niet mee met een kilowattuur meer of minder.
+
+**Bron:** de energiebelasting op elektriciteit is in 2026 0,09161 euro per kWh exclusief
+btw in de eerste schijf, van 0 tot 2.900 kWh, dus 0,11085 euro per kWh inclusief btw, en
+de belastingvermindering is 519,80 euro per aansluiting per jaar exclusief btw
+(Belastingdienst, tarieven energiebelasting 2026,
+https://www.belastingdienst.nl/wps/wcm/connect/bldcontentnl/belastingdienst/zakelijk/overige_belastingen/belastingen_op_milieugrondslag/energiebelasting/energiebelasting,
+gelezen op 2 september 2026). Het leveringstarief, de terugleverkosten en de
+batterijprijzen komen uit landelijke prijsoverzichten en gepubliceerde
+leverancierstarieven, opgezocht op 20 augustus 2026. Die datum staat in de code naast
+het getal en niet alleen hier, zodat een getal dat verandert zonder dat de datum
+verandert een fout is die de tests zien.
+
 **Waarom het midden van de terugleverkosten geen rekenkundig midden is.** Bij alle andere
 rijen staat in het midden gewoon het midden van het bereik. Bij de terugleverkosten niet,
 en dat is met opzet.
@@ -377,6 +424,23 @@ wij gebruiken als u dat niet doet.
 
 ## 11. De terugleververgoeding is lager dan vaak gedacht
 
+**Eerst de datum, want daar hangt alles aan.** De salderingsregeling stopt
+op 1 januari 2027. Dat is geen verwachting van ons en geen voornemen van een
+minister, het staat in een wet die al is aangenomen en gepubliceerd. Hij stopt bovendien in één keer en niet in
+stapjes, en dat is het punt waarop veel oudere artikelen iets anders zeggen dan wat er nu
+geldt.
+
+**Bron:** Wet van 18 december 2024 tot wijziging van enkele wetten ter uitvoering van de
+beëindiging van de salderingsregeling voor elektriciteit en enkele technische
+wijzigingen, Staatsblad 2025, 17, uitgegeven op 29 januari 2025. Artikel V: "Deze wet
+treedt in werking met ingang van 1 januari 2027."
+https://zoek.officielebekendmakingen.nl/stb-2025-17.html Aangenomen door de Tweede
+Kamer op 14 november 2024 en door de Eerste Kamer op 17 december 2024. Een eerder
+voorstel, Kamerstuk 35594, bouwde de regeling juist geleidelijk af tussen 2025 en 2031;
+de Eerste Kamer verwierp dat op 13 februari 2024, en dat is dus niet de wet.
+https://www.eerstekamer.nl/wetsvoorstel/35594_afbouw_salderingsregeling Gelezen op
+2 september 2026.
+
 U leest vaak dat u na 2027 nog drie tot acht cent per teruggeleverde kWh krijgt. Dat is
 de bruto vergoeding. Daar gaan de terugleverkosten nog vanaf, en die rekenen leveranciers
 per teruggeleverde kWh en niet als een vast bedrag per jaar.
@@ -392,6 +456,28 @@ Aan de bovenkant is dat dus negatief: dan kost terugleveren uw geld in plaats va
 iets oplevert. Over alle combinaties heen loopt het van ongeveer min 6,5 cent tot plus 3,2
 cent, en dat strookt met de gepubliceerde nettocijfers, die van min 7,43 tot plus 1,19
 cent lopen.
+
+**Waarom die twee getallen zo ver uit elkaar liggen.** Het zijn geen twee prijzen voor
+hetzelfde. Ze bevatten iets anders, en dat verschil is bijna het hele verhaal:
+
+| | Zit erin | Zit er niet in |
+|---|---|---|
+| De drie tot acht cent die u krijgt | alleen een vergoeding voor de energie | energiebelasting, btw, netbeheerkosten |
+| De circa 27 cent die u bespaart | leveringstarief, energiebelasting, 21 procent btw | netbeheerkosten |
+
+Wat u bespaart door een kilowattuur zelf te gebruiken is namelijk de kilowattuur die u
+dan niet hoeft te kópen, en over een gekochte kilowattuur betaalt u energiebelasting en
+btw. Over een teruggeleverde kilowattuur betaalt u die niet en krijgt u die dus ook niet.
+Het gat tussen de twee getallen is voor het grootste deel belasting. Netbeheerkosten
+staan in geen van beide, om de reden die in hoofdstuk 10 staat: die zijn voor een
+kleinverbruiker een vast bedrag per jaar en bewegen niet mee per kilowattuur.
+
+**Bron:** de onderkant van onze band, 5 cent, is geen marktwaarneming maar een wettelijke
+bodem. Bij de wet die de saldering beëindigt is geregeld dat de redelijke vergoeding tot
+1 januari 2030 niet lager mag zijn dan 50 procent van de overeengekomen leveringsprijs
+(amendement bij wetsvoorstel 36611, nr. 17).
+https://www.eerstekamer.nl/wetsvoorstel/36611_wet_beeindiging Wat er ná 1 januari 2030
+geldt, weet niemand, en dat staat ook in hoofdstuk 19. Gelezen op 2 september 2026.
 
 Waar het op neerkomt: waar u nu ongeveer 27 cent bespaart op elke kWh die u zelf
 gebruikt in plaats van teruglevert, wordt dat vanaf 2027 rond de 26 cent, terwijl de kWh

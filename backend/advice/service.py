@@ -20,7 +20,7 @@ from advice.assembly import (
     build_tariffs,
     build_year,
 )
-from advice.models import AuditEvent, StoredAdvice, token_digest
+from advice.models import AuditEvent, DailyCounter, StoredAdvice, token_digest
 from advice.production import production_provider
 from advice.profiles import profile_provider
 from advice.rendering import render
@@ -128,4 +128,28 @@ def compute_and_store(data: dict[str, Any], question_count: int) -> dict[str, An
         engine_version=payload["engine_version"],
         advice_version=payload["advice_version"],
     )
+    _count_outcome(payload)
     return payload
+
+
+def _count_outcome(payload: dict[str, Any]) -> None:
+    """Aggregate counters for what this product actually told people.
+
+    Written here rather than accepted from the browser, because this is the one
+    distribution a product whose charter makes refusing a battery a valid and
+    required outcome would be tempted to flatter, and a number a caller can move is not evidence of
+    anything. Nothing recorded here can be traced to a visit: the counters are
+    a date, a name and an integer, and every advice of the same shape on the
+    same day is the same increment.
+
+    The battery verdict is read out of the rules that fired rather than off a
+    separate field, so it cannot disagree with the sentence the household was
+    shown.
+    """
+    DailyCounter.bump(DailyCounter.ADVICE_GENERATED)
+    DailyCounter.bump(f"confidence_{payload['confidence']}".lower())
+    for route in payload.get("routes", ()):
+        for rule in route.get("rules", ()):
+            rule_id = rule.get("rule_id", "")
+            if rule_id.startswith("BATTERY_") or rule_id == "CONSIDER_BATTERY":
+                DailyCounter.bump(f"verdict_{rule_id}".lower())

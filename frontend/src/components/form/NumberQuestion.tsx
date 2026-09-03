@@ -52,9 +52,27 @@ interface Limits {
   readonly integer: boolean;
 }
 
-interface Props {
+/**
+ * How this field gets its name, and it is one way or the other.
+ *
+ * `labelledBy` is the id of something already on the screen that asks the
+ * question, which on this route is QuestionShell's heading. `label` is a
+ * label this component writes itself, for a field that is not the question the
+ * screen is about: the heat pump and battery screens ask a size underneath a
+ * yes-or-no, and that second field needs a name of its own.
+ *
+ * A union rather than two optional props, because "neither" is an unlabelled
+ * input and "both" is the defect this was written to remove. Until 2026-09-02
+ * question two on this route was headed "Hoeveel wattpiek aan zonnepanelen
+ * ligt er?" over a field labelled "Vermogen van de installatie": one question,
+ * asked twice, in two wordings that shared not one word.
+ */
+type Naming =
+  | { readonly label: string; readonly labelledBy?: undefined }
+  | { readonly label?: undefined; readonly labelledBy: string };
+
+interface Base {
   readonly id: string;
-  readonly label: string;
   readonly value: number | null;
   /**
    * The bounds the API enforces. They are passed in rather than held here:
@@ -106,6 +124,8 @@ interface Props {
   readonly onRefusal?: (refusing: boolean) => void;
 }
 
+type Props = Base & Naming;
+
 /**
  * One number, with the bound it broke named out loud.
  *
@@ -144,6 +164,7 @@ interface Props {
 export function NumberQuestion({
   id,
   label,
+  labelledBy,
   value,
   min,
   max,
@@ -194,10 +215,29 @@ export function NumberQuestion({
 
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor={id}>{label}</label>
-      <div className="flex items-baseline gap-2">
+      {label !== undefined && <label htmlFor={id}>{label}</label>}
+      {/*
+        flex-wrap, and a field that is allowed to shrink.
+
+        Measured on 2026-09-02 at 320 CSS pixels, which is what 1280 becomes at
+        the 400% zoom SC 1.4.10 asks about and is the width WCAG names outright:
+        /berekenen/ reported document.scrollWidth 314 against clientWidth 305 on
+        question one. A flex item will not shrink below its own intrinsic width
+        unless min-width is overridden, and a text input's intrinsic width is
+        its `size`, so the field held the row open and the hint beside it had
+        nowhere to go. `min-w-0` lets the field shrink and `flex-wrap` lets the
+        hint drop underneath it before that has to happen.
+
+        e2e/rules.spec.ts does check 320, and passed: it measures immediately
+        after goto, when the pre-hydration placeholder is still on the screen
+        and there is no form to overflow. The assertion in e2e/form.spec.ts
+        waits for the question first.
+      */}
+      <div className="flex flex-wrap items-baseline gap-2">
         <input
           id={id}
+          className="min-w-0 max-w-full"
+          aria-labelledby={labelledBy}
           /*
            * text, with inputMode deciding the phone keyboard. See the note on
            * the component: a number input eats what it cannot parse and steps

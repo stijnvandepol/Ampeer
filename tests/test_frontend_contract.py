@@ -695,3 +695,43 @@ def test_nginx_forwards_the_prefix_django_answers_on() -> None:
         "answers. Requests would fall through to the generic /api/ block and lose the "
         "log format that keeps tokens out of the access log."
     )
+
+
+def test_the_counter_names_the_browser_sends_are_the_ones_the_api_accepts() -> None:
+    """Two lists in two languages, and a drift between them is a missing number.
+
+    `frontend/src/lib/count.ts` names the events it may send and
+    `DailyCounter.CLIENT_NAMES` names the ones the API will accept. The API
+    refuses anything else with a 400 rather than counting it into a name nobody
+    reads, which is the right refusal and also means a typo here does not
+    announce itself as an error anywhere a person looks: the form keeps working,
+    the request keeps failing silently by design, and one number quietly stops
+    being collected.
+
+    Read out of both files rather than restated, so this cannot pass by agreeing
+    with a copy of itself.
+    """
+    typescript = (REPO_ROOT / "frontend" / "src" / "lib" / "count.ts").read_text(encoding="utf-8")
+    declared = set(re.findall(r'^\s*\|\s*"([a-z0-9_]+)";?$', typescript, re.MULTILINE))
+    assert declared, "no CountName union found in frontend/src/lib/count.ts"
+
+    models = (REPO_ROOT / "backend" / "advice" / "models.py").read_text(encoding="utf-8")
+    block = re.search(r"CLIENT_NAMES:.*?frozenset\(\s*\{(.*?)\}\s*\)", models, re.DOTALL)
+    assert block, "no CLIENT_NAMES frozenset found in backend/advice/models.py"
+    constants = {name.strip().rstrip(",") for name in block.group(1).split() if name.strip(",")}
+    accepted = {
+        match.group(1)
+        for constant in constants
+        if (
+            match := re.search(
+                rf'^\s*{re.escape(constant)} = "([a-z0-9_]+)"$', models, re.MULTILINE
+            )
+        )
+    }
+    assert accepted, f"could not resolve CLIENT_NAMES constants to strings: {sorted(constants)}"
+
+    assert declared == accepted, (
+        "the browser and the API disagree about the counter names; "
+        f"only in count.ts: {sorted(declared - accepted)}, "
+        f"only in models.py: {sorted(accepted - declared)}"
+    )

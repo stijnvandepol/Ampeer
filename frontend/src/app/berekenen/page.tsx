@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChoiceQuestion } from "@/components/form/ChoiceQuestion";
@@ -9,8 +9,13 @@ import {
   ALL_QUESTION_COUNT,
   ROUND_ONE_QUESTION_COUNT,
 } from "@/components/form/Progress";
-import { NOTE_ID, QuestionShell } from "@/components/form/QuestionShell";
+import {
+  HEADING_ID,
+  NOTE_ID,
+  QuestionShell,
+} from "@/components/form/QuestionShell";
 import { RoofPicker } from "@/components/form/RoofPicker";
+import { count, type CountName } from "@/lib/count";
 import { postEstimate, postRefine } from "@/lib/api";
 import { BOUNDS, type Bound } from "@/lib/validation";
 import { advicePath } from "../_advice/link";
@@ -48,9 +53,21 @@ const EV_OPTIONS: readonly { value: EvAnswer; label: string }[] = [
   { value: "SOLAR", label: "Overdag, op ons eigen overschot" },
 ];
 
+/**
+ * The questions, and each one is asked once.
+ *
+ * Until 2026-09-02 every entry here had a second, differently worded copy of
+ * itself in the label of the control underneath it, and a screen reader read
+ * both. Two of the pairs were not even the same question: the heading asked
+ * "Is er overdag meestal iemand thuis?" where the legend asked about a
+ * doordeweekse dag, and the qualifier that decides the answer was only in the
+ * one nobody saw first. So the qualifiers moved up into these strings, and the
+ * controls below are named by the heading through `labelledBy`. One string per
+ * question is what makes a second wording impossible rather than unlikely.
+ */
 const ROUND_ONE_TITLES = [
   "Wat zijn de eerste vier cijfers van uw postcode?",
-  "Hoeveel wattpiek aan zonnepanelen ligt er?",
+  "Hoeveel wattpiek aan zonnepanelen ligt er op uw dak?",
   "Hoe ligt het dak?",
   "Hoeveel stroom verbruikt u per jaar, zonder auto en warmtepomp?",
 ] as const;
@@ -78,19 +95,35 @@ const ROUND_ONE_TITLES = [
  * costs. A visitor who abandons the question because they cannot produce an
  * exact figure is worse off than one who estimates, by a factor of about four.
  */
+/**
+ * Where to find the answer, per question of round one.
+ *
+ * Two of these four ask for a number the visitor does not carry in their head
+ * and cannot guess: the array's peak power and the household's annual
+ * consumption. A form that asks for those and offers no way to look them up
+ * loses the people who do not know, and it loses them silently, because
+ * abandoning a form leaves no trace anywhere.
+ *
+ * So each note says where the figure actually lives, in the order somebody
+ * would look: the document first, then the app, then a way to estimate it
+ * without either. The estimate matters most. "Een schatting is genoeg" is only
+ * true if the visitor also knows what a plausible one looks like, and until
+ * 2026-09-02 the consumption note said it without giving them a single anchor
+ * to hang it on.
+ */
 const ROUND_ONE_NOTES: readonly (string | undefined)[] = [
   undefined,
-  undefined,
-  undefined,
-  "Zonder het laden van een elektrische auto en zonder een warmtepomp, ook als u die wel heeft. Daar vragen wij zo apart naar en wij tellen ze er dan zelf bij op. Staan ze op uw jaarnota, haal ze er dan af. Een schatting is genoeg.",
+  "Dit staat op de offerte of de factuur van uw installateur, en meestal ook in de app van uw omvormer. Weet u het niet: tel uw panelen en reken ongeveer 400 wattpiek per paneel. Twaalf panelen is dan ongeveer 4.800.",
+  "De richting van uw dak ziet u op een satellietfoto van uw adres, bijvoorbeeld in Google Maps. Voor de hoek: een gewoon schuin dak in Nederland ligt rond de 35 graden, en panelen op een plat dak staan meestal op 10 tot 15 graden.",
+  "Dit staat op uw jaarnota, of in uw account bij uw energieleverancier. Reken zonder het laden van een elektrische auto en zonder een warmtepomp, ook als u die wel heeft. Daar vragen wij zo apart naar en wij tellen ze er dan zelf bij op. Staan ze op uw jaarnota, haal ze er dan af. Een schatting is genoeg: zonder auto en zonder warmtepomp zit een huishouden vaak tussen 2.000 en 3.500 kWh.",
 ] as const;
 
 const ROUND_TWO_TITLES = [
-  "Is er overdag meestal iemand thuis?",
+  "Is er op een doordeweekse dag overdag meestal iemand thuis?",
   "Wanneer laadt uw elektrische auto?",
   "Heeft u een warmtepomp?",
-  "Heeft u een dynamisch energiecontract?",
-  "Heeft u een thuisbatterij?",
+  "Heeft u een dynamisch energiecontract, met een prijs per uur?",
+  "Heeft u al een thuisbatterij?",
 ] as const;
 
 /**
@@ -158,6 +191,30 @@ export default function BerekenenPage() {
     answersDuringBuild,
   );
   const wantedRound = useSearchParam(ROUND_PARAM);
+  const round: 1 | 2 = wantedRound === "2" ? 2 : 1;
+
+  /*
+   * One count when a flow is entered, and one only, with the round deciding
+   * which. It counted `funnel_started` unconditionally until 2026-09-03, so a
+   * visitor arriving on `?ronde=2` was counted as a fresh first round and the
+   * denominator of the whole funnel was wrong by however many people refine.
+   *
+   * Above the hydration guard below, and that placement is the rule rather
+   * than a preference: a hook after an early return is called in a different
+   * order on the renders that take the return, which React forbids and eslint
+   * refuses. It found this one.
+   *
+   * The ref is what makes it once. In development React mounts an effect twice
+   * on purpose to surface exactly this class of bug, and a denominator that is
+   * double on a developer machine and single in production is worse than no
+   * denominator at all.
+   */
+  const counted = useRef(false);
+  useEffect(() => {
+    if (counted.current) return;
+    counted.current = true;
+    count(round === 1 ? "funnel_started" : "funnel_refine_started");
+  }, [round]);
 
   function update(change: Partial<Answers>) {
     updateAnswers(change);
@@ -167,15 +224,14 @@ export default function BerekenenPage() {
   if (stored === null || wantedRound === undefined) {
     // Not a blank page and not a spinner. The one thing this state can say
     // truthfully is that it is about to show questions, so it says that.
-    return (
-      <div className="mx-auto w-full max-w-[var(--shell-max)] px-6 py-16">
-        <p role="status">De vragen worden klaargezet.</p>
-      </div>
-    );
+    // The frame around this lives in layout.tsx, along with the heading and
+    // the explanation of what the calculator does, so this sentence is no
+    // longer the whole of what the built HTML says.
+    return <p role="status">De vragen worden klaargezet.</p>;
   }
 
   const answers = stored;
-  const round: 1 | 2 = wantedRound === "2" ? 2 : 1;
+
   const titles = round === 1 ? ROUND_ONE_TITLES : ROUND_TWO_TITLES;
   const last = index === titles.length - 1;
 
@@ -201,25 +257,24 @@ export default function BerekenenPage() {
    */
   if (round === 2 && toEstimateInput(answers) === null) {
     return (
-      <div className="mx-auto w-full max-w-[var(--shell-max)] px-6 py-16">
-        <div className="flex w-full max-w-2xl flex-col gap-4">
-          <h1 className="text-2xl">De eerste vier vragen ontbreken nog</h1>
-          <p className="max-w-[60ch] text-ink-muted">
-            De vijf vragen hierna maken een antwoord scherper dat er al is, en
-            in dit browservenster staat dat antwoord er nog niet. Dat gebeurt
-            als u uw bewaarde link in een nieuw venster opent of op een ander
-            apparaat.
-          </p>
-          <p className="max-w-[60ch] text-ink-muted">
-            Beantwoord eerst de vier vragen over uw huis. Daarna kunt u
-            verfijnen.
-          </p>
-          <p>
-            <Link href="/berekenen/" className="button-accent">
-              Beantwoord vier vragen
-            </Link>
-          </p>
-        </div>
+      // h2 and not h1. The route's one first-level heading is the page name in
+      // layout.tsx, which is server rendered and therefore present whatever
+      // this branch decides.
+      <div className="flex flex-col gap-4">
+        <h2 className="text-2xl">De eerste vier vragen ontbreken nog</h2>
+        <p className="max-w-[60ch] text-ink-muted">
+          De vijf vragen hierna maken een antwoord scherper dat er al is, en in
+          dit browservenster staat dat antwoord er nog niet. Dat gebeurt als u
+          uw bewaarde link in een nieuw venster opent of op een ander apparaat.
+        </p>
+        <p className="max-w-[60ch] text-ink-muted">
+          Beantwoord eerst de vier vragen over uw huis. Daarna kunt u verfijnen.
+        </p>
+        <p>
+          <Link href="/berekenen/" className="button-accent">
+            Beantwoord vier vragen
+          </Link>
+        </p>
       </div>
     );
   }
@@ -239,6 +294,7 @@ export default function BerekenenPage() {
           setMissing(true);
           return;
         }
+        count("funnel_submitted");
         token = (await postEstimate(input)).token;
       } else {
         const input = toRefineInput(answers);
@@ -247,6 +303,7 @@ export default function BerekenenPage() {
           setMissing(true);
           return;
         }
+        count("funnel_refine_submitted");
         token = (await postRefine(input)).token;
       }
       // A full navigation and not router.push. With output: "export" there is
@@ -271,6 +328,22 @@ export default function BerekenenPage() {
       return;
     }
     setMissing(false);
+    /*
+     * One counter per round-one question answered, so abandonment can be read
+     * per question rather than only at the ends. Before the `last` branch on
+     * purpose: it used to sit after it, and the fourth question therefore
+     * never counted at all. `funnel_question_4` was a name declared in
+     * count.ts and in DailyCounter.CLIENT_NAMES that nothing could ever send,
+     * so it would have read zero forever and somebody would eventually have
+     * concluded that nobody finishes the last question.
+     *
+     * Round one only. The five that follow are answered by people who already
+     * got an answer, which is not the question phase 0 is asking, and
+     * `funnel_refine_started` covers reaching them at all.
+     */
+    if (round === 1) {
+      count(`funnel_question_${index + 1}` as CountName);
+    }
     if (last) {
       void submit();
       return;
@@ -309,7 +382,7 @@ export default function BerekenenPage() {
         <NumberQuestion
           key="postcode4"
           id="postcode4"
-          label="Postcode, alleen de vier cijfers"
+          labelledBy={HEADING_ID}
           // The one field in this flow with an honest autofill token. There is
           // no autocomplete name for "watt-peak on my roof", and inventing one
           // would hand a browser's saved address data to a field that is not an
@@ -331,7 +404,7 @@ export default function BerekenenPage() {
         <NumberQuestion
           key="peak-power-wp"
           id="peak-power-wp"
-          label="Vermogen van de installatie"
+          labelledBy={HEADING_ID}
           value={answers.peakPowerWp}
           min={range.min}
           max={range.max}
@@ -379,7 +452,7 @@ export default function BerekenenPage() {
       <NumberQuestion
         key="annual-consumption-kwh"
         id="annual-consumption-kwh"
-        label="Verbruik per jaar, zonder auto en warmtepomp"
+        labelledBy={HEADING_ID}
         // The note above this question is the sentence that stops a visitor
         // entering their annual bill total, which is worth 176 to 184 euro of
         // accuracy. It sat in a paragraph nothing pointed at, so a screen
@@ -401,7 +474,7 @@ export default function BerekenenPage() {
         <ChoiceQuestion
           key="daytime-occupancy"
           id="daytime-occupancy"
-          label="Is er op een doordeweekse dag meestal iemand thuis?"
+          labelledBy={HEADING_ID}
           options={YES_NO}
           value={choiceFromBool(answers.daytimeOccupancy)}
           onChange={(value) =>
@@ -415,7 +488,7 @@ export default function BerekenenPage() {
         <ChoiceQuestion
           key="ev"
           id="ev"
-          label="Wanneer laadt de auto?"
+          labelledBy={HEADING_ID}
           options={EV_OPTIONS}
           value={answers.ev}
           onChange={(value) => {
@@ -434,7 +507,7 @@ export default function BerekenenPage() {
         <div key="heat-pump" className="flex flex-col gap-6">
           <ChoiceQuestion
             id="heat-pump"
-            label="Is er een warmtepomp?"
+            labelledBy={HEADING_ID}
             options={YES_NO}
             value={choiceFromBool(answers.heatPump)}
             onChange={(value) =>
@@ -469,7 +542,7 @@ export default function BerekenenPage() {
         <ChoiceQuestion
           key="dynamic-contract"
           id="dynamic-contract"
-          label="Is uw contract dynamisch, met een prijs per uur?"
+          labelledBy={HEADING_ID}
           options={YES_NO}
           value={choiceFromBool(answers.dynamicContract)}
           onChange={(value) =>
@@ -483,7 +556,7 @@ export default function BerekenenPage() {
       <div key="battery" className="flex flex-col gap-6">
         <ChoiceQuestion
           id="battery"
-          label="Is er al een thuisbatterij?"
+          labelledBy={HEADING_ID}
           options={YES_NO}
           value={choiceFromBool(answers.battery)}
           onChange={(value) =>
@@ -513,52 +586,37 @@ export default function BerekenenPage() {
 
   return (
     /*
-      The frame is the site's width and the column inside it is a form's width.
-      Both were max-w-2xl and centred, so the questions sat 176 pixels to the
-      right of the wordmark above them on a 1440 wide screen: two centred
-      columns of different widths never share an edge. A form should not be
-      1024 pixels wide, and it should start where everything else on the site
-      starts.
+      The frame and the page's h1 are in layout.tsx, which is a server
+      component, so both are in the built HTML before any JavaScript runs. What
+      stood here was an h1 reading "Uw gegevens", which named a section of the
+      flow rather than the page and disagreed with the title in the tab, and
+      which no crawler that does not execute JavaScript ever saw.
+
+      QuestionShell's h2 is still the question, and it is now the only place
+      that question is written.
     */
-    <div className="mx-auto w-full max-w-[var(--shell-max)] px-6 py-16">
-      <div className="flex w-full max-w-2xl flex-col gap-6">
-        {/*
-        The flow is the page; each question is a section of it. So the h1 names
-        the task and stays put, and QuestionShell's h2 is the question that
-        changes underneath it. Without this the route had no first-level
-        heading at all, and the axe run did not say so because the tag filter
-        the project uses excludes page-has-heading-one. A gate that is green
-        because a rule is switched off is not a gate.
-      */}
-        <h1 className="text-sm font-medium uppercase tracking-wide text-ink-muted">
-          Uw gegevens
-        </h1>
-        <QuestionShell
-          step={round === 1 ? index + 1 : ROUND_ONE_QUESTION_COUNT + index + 1}
-          of={round === 1 ? ROUND_ONE_QUESTION_COUNT : ALL_QUESTION_COUNT}
-          title={titles[index] ?? ""}
-          note={round === 1 ? ROUND_ONE_NOTES[index] : undefined}
-          nextLabel={last ? "Bereken" : "Volgende"}
-          busy={busy}
-          onBack={back}
-          onNext={next}
-        >
-          {round === 1 ? roundOne() : roundTwo()}
-          {missing && (
-            <p role="alert" className="text-danger">
-              Beantwoord deze vraag om verder te gaan.
-            </p>
-          )}
-          {busy && (
-            <p role="status">Uw jaar wordt doorgerekend. Dit duurt even.</p>
-          )}
-          {failure !== null && (
-            <p role="alert" className="text-danger">
-              {failure}
-            </p>
-          )}
-        </QuestionShell>
-      </div>
-    </div>
+    <QuestionShell
+      step={round === 1 ? index + 1 : ROUND_ONE_QUESTION_COUNT + index + 1}
+      of={round === 1 ? ROUND_ONE_QUESTION_COUNT : ALL_QUESTION_COUNT}
+      title={titles[index] ?? ""}
+      note={round === 1 ? ROUND_ONE_NOTES[index] : undefined}
+      nextLabel={last ? "Bereken" : "Volgende"}
+      busy={busy}
+      onBack={back}
+      onNext={next}
+    >
+      {round === 1 ? roundOne() : roundTwo()}
+      {missing && (
+        <p role="alert" className="text-danger">
+          Beantwoord deze vraag om verder te gaan.
+        </p>
+      )}
+      {busy && <p role="status">Uw jaar wordt doorgerekend. Dit duurt even.</p>}
+      {failure !== null && (
+        <p role="alert" className="text-danger">
+          {failure}
+        </p>
+      )}
+    </QuestionShell>
   );
 }
