@@ -166,20 +166,6 @@ function choiceFromBool(value: boolean | null): string | null {
 export default function BerekenenPage() {
   const router = useRouter();
   const [index, setIndex] = useState(0);
-  /*
-   * One count when the flow is entered, and only one. The ref is what makes it
-   * once: in development React mounts an effect twice on purpose to surface
-   * exactly this kind of bug, and a denominator that is double on a developer's
-   * machine and single in production is worse than no denominator. Everything
-   * else here counts a transition, which cannot fire twice for one visitor
-   * without them actually going back and forward again.
-   */
-  const started = useRef(false);
-  useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    count("funnel_started");
-  }, []);
   const [missing, setMissing] = useState(false);
   /**
    * Whether the field on this screen is refusing what the visitor put in it.
@@ -205,6 +191,30 @@ export default function BerekenenPage() {
     answersDuringBuild,
   );
   const wantedRound = useSearchParam(ROUND_PARAM);
+  const round: 1 | 2 = wantedRound === "2" ? 2 : 1;
+
+  /*
+   * One count when a flow is entered, and one only, with the round deciding
+   * which. It counted `funnel_started` unconditionally until 2026-09-03, so a
+   * visitor arriving on `?ronde=2` was counted as a fresh first round and the
+   * denominator of the whole funnel was wrong by however many people refine.
+   *
+   * Above the hydration guard below, and that placement is the rule rather
+   * than a preference: a hook after an early return is called in a different
+   * order on the renders that take the return, which React forbids and eslint
+   * refuses. It found this one.
+   *
+   * The ref is what makes it once. In development React mounts an effect twice
+   * on purpose to surface exactly this class of bug, and a denominator that is
+   * double on a developer machine and single in production is worse than no
+   * denominator at all.
+   */
+  const counted = useRef(false);
+  useEffect(() => {
+    if (counted.current) return;
+    counted.current = true;
+    count(round === 1 ? "funnel_started" : "funnel_refine_started");
+  }, [round]);
 
   function update(change: Partial<Answers>) {
     updateAnswers(change);
@@ -221,7 +231,7 @@ export default function BerekenenPage() {
   }
 
   const answers = stored;
-  const round: 1 | 2 = wantedRound === "2" ? 2 : 1;
+
   const titles = round === 1 ? ROUND_ONE_TITLES : ROUND_TWO_TITLES;
   const last = index === titles.length - 1;
 
@@ -318,23 +328,27 @@ export default function BerekenenPage() {
       return;
     }
     setMissing(false);
+    /*
+     * One counter per round-one question answered, so abandonment can be read
+     * per question rather than only at the ends. Before the `last` branch on
+     * purpose: it used to sit after it, and the fourth question therefore
+     * never counted at all. `funnel_question_4` was a name declared in
+     * count.ts and in DailyCounter.CLIENT_NAMES that nothing could ever send,
+     * so it would have read zero forever and somebody would eventually have
+     * concluded that nobody finishes the last question.
+     *
+     * Round one only. The five that follow are answered by people who already
+     * got an answer, which is not the question phase 0 is asking, and
+     * `funnel_refine_started` covers reaching them at all.
+     */
+    if (round === 1) {
+      count(`funnel_question_${index + 1}` as CountName);
+    }
     if (last) {
       void submit();
       return;
     }
     setRefusing(false);
-    // One aggregate counter per question completed, so the abandonment can be
-    // read per question rather than only at the ends. Round one's four
-    // questions are the ones that decide whether this product works at all;
-    // round two gets its two ends and nothing finer, because the visitor who
-    // reaches it has already answered the question phase 0 is asking. Counted
-    // on leaving a question rather than on arriving at one, because arriving
-    // says the previous screen worked and leaving says this one did.
-    count(
-      round === 1
-        ? (`funnel_question_${index + 1}` as CountName)
-        : "funnel_refine_started",
-    );
     setIndex(index + 1);
   }
 

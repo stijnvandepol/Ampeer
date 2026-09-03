@@ -42,7 +42,18 @@ const ROOF_QUESTION = "Hoe ligt het dak?";
 const CONSUMPTION_QUESTION =
   "Hoeveel stroom verbruikt u per jaar, zonder auto en warmtepomp?";
 
-/** Every POST the browser made, in order. One entry is one full simulation. */
+/**
+ * Every computation the browser asked for, in order. One entry is one full
+ * simulation.
+ *
+ * The counters are deliberately not in here. The page also posts to
+ * `/api/advice/count/`, which is a date, a name and an integer and carries
+ * nothing about the household, so counting those alongside the computations
+ * made `toHaveLength(1)` fail with six on a page doing exactly the right
+ * thing. The route is still stubbed, so the requests are answered rather than
+ * left to fail against a server that is not there; they are just not the
+ * subject of these tests.
+ */
 async function stubApi(
   page: Page,
   posted: unknown[],
@@ -65,7 +76,9 @@ async function stubApi(
       return;
     }
     if (request.method() === "POST") {
-      posted.push(request.postDataJSON() as unknown);
+      if (!request.url().includes("/api/advice/count/")) {
+        posted.push(request.postDataJSON() as unknown);
+      }
       if (delayMs > 0)
         await new Promise((resolve) => setTimeout(resolve, delayMs));
       await route.fulfill({
