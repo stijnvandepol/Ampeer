@@ -9,6 +9,7 @@ import { BAND_END_REM, BAND_MIDDLE_REM } from "./scale";
 import { dutchAmount } from "./format";
 import {
   axisPercentage,
+  bandIsRightPinned,
   bandOffsetFraction,
   bandSpanFraction,
   labelAnchor,
@@ -102,8 +103,15 @@ export function HeadlineBand({ band, confidence, label }: Props) {
   const trackStyle: CSSProperties = {
     ["--tone" as string]: `var(${confidenceTone(confidence)})`,
   };
+  // Anchored by whichever edge sits at the axis's own extreme, so
+  // band.module.css's min-width floor (for a band too tight to read as a
+  // band at all) grows into the track instead of past it. See
+  // bandIsRightPinned for why that edge is never the same one for every band.
+  const rightPinned = bandIsRightPinned(band.p10);
   const fillStyle: CSSProperties = {
-    left: `${offset * 100}%`,
+    ...(rightPinned
+      ? { right: `${Math.max(0, (1 - offset - span) * 100)}%` }
+      : { left: `${offset * 100}%` }),
     width: drawnWidth,
     transitionDuration: `${reduced ? DURATION.instant : DURATION.considered}ms`,
   };

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QuestionShell } from "@/components/form/QuestionShell";
 import { installMatchMedia } from "../matchMedia";
@@ -110,6 +110,34 @@ describe("the question shell", () => {
     expect(scrolled).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ behavior: "instant" }),
     );
+    installMatchMedia(false);
+  });
+
+  it("does not move focus or scroll when the reduced-motion setting changes mid-question", async () => {
+    // The setting can change without the step changing: a visitor can flip
+    // Focus mode or their OS's reduce-motion toggle while they are answering,
+    // and that has nothing to do with which question is on screen. A version
+    // that put reducedMotion in the effect's own dependency array re-ran the
+    // effect on that change alone, on any step, and pulled focus out of
+    // whatever field the visitor was mid-keystroke in.
+    const control = installMatchMedia(false);
+    const handlers = { onBack: vi.fn(), onNext: vi.fn() };
+    render(shell(2, "Twee", handlers));
+    const field = screen.getByLabelText("Iets");
+    field.focus();
+    expect(field).toHaveFocus();
+
+    // Spied on only from here: the line above is the visitor's own focus, not
+    // a call the fix under test is responsible for.
+    const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");
+    const focused = vi.spyOn(HTMLElement.prototype, "focus");
+    act(() => {
+      control.fireReducedMotionChange(true);
+    });
+
+    expect(field).toHaveFocus();
+    expect(scrolled).not.toHaveBeenCalled();
+    expect(focused).not.toHaveBeenCalled();
     installMatchMedia(false);
   });
 

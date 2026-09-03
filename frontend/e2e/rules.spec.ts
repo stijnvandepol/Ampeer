@@ -440,18 +440,24 @@ test("a genuinely tight band still reads as a band, not as a rendering fault", a
   // household whose answer is unusually certain is exactly the case that
   // rule was written to serve well: a short band instead of a long one, told
   // apart from an uncertain answer without reading a digit. Taken to its
-  // extreme the same rule draws almost nothing. Measured on a real near
-  // certain advice, p10 1600 and p90 1700 on an axis to 1700: the true width
-  // is 19px on a 327px track, 5.9 percent, thinner than the 0.875rem the
-  // track itself is tall. border-radius: 999px turns a shape that thin into a
-  // squeezed sliver rather than a small pill, which a reader is likelier to
-  // read as the figure failing to draw than as "the model is very sure".
+  // extreme the same rule draws almost nothing. p10 1690, p90 1700 on an axis
+  // to 1700 is a span of 0.6 percent, which is thinner than the 0.875rem the
+  // track itself is tall at every viewport this suite runs, not only the one
+  // it happened to be measured at. border-radius: 999px turns a shape that
+  // thin into a squeezed sliver rather than a small pill, which a reader is
+  // likelier to read as the figure failing to draw than as "the model is
+  // very sure".
   //
   // `.fill`'s `min-width` in band.module.css is the fix, and it is checked
   // here rather than only in position.ts because the mechanism is CSS, not
   // arithmetic: the component still sets `width` to the plain, honest
   // percentage the true span is, and only the rendered box, which the
-  // browser resolves against the real track, is ever floored.
+  // browser resolves against the real track, is ever floored. A band whose
+  // low end is positive has its right edge, not its left, pinned to the
+  // track's own end (see bandIsRightPinned in position.ts), so the floor is
+  // checked against overflowing THAT edge: a version anchored by `left`
+  // regardless pushed the fill 9.75px past the track's own right edge, past
+  // the flush-right anchor of the high-end label, for this exact fixture.
   await page.route("**/api/advice/**", (route) =>
     route.fulfill({
       status: 200,
@@ -459,12 +465,16 @@ test("a genuinely tight band still reads as a band, not as a rendering fault", a
       headers: { "access-control-allow-origin": "*" },
       body: JSON.stringify({
         ...fixture,
-        headline: { p10: "1600", p50: "1650", p90: "1700", runs: 243 },
+        headline: { p10: "1690", p50: "1695", p90: "1700", runs: 243 },
       }),
     }),
   );
   await page.setViewportSize({ width: 1280, height: 900 });
   await openAdvice(page);
+  // The fill animates its width from 0; measuring before it settles measures
+  // the pre-animation frame rather than the band, the same reason the two
+  // other band tests in this file wait before measuring.
+  await page.waitForTimeout(600);
 
   const measured = await page.evaluate(() => {
     const figure = document.querySelector("[data-band-span]") as HTMLElement;
@@ -472,17 +482,21 @@ test("a genuinely tight band still reads as a band, not as a rendering fault", a
       "[data-band-part='axis']",
     ) as HTMLElement;
     const band = figure.querySelector("[data-band-part='band']") as HTMLElement;
+    const trackBox = track.getBoundingClientRect();
+    const bandBox = band.getBoundingClientRect();
     return {
       span: Number(figure.getAttribute("data-band-span")),
-      trackHeight: track.getBoundingClientRect().height,
-      bandWidth: band.getBoundingClientRect().width,
+      trackHeight: trackBox.height,
+      trackRight: trackBox.right,
+      bandWidth: bandBox.width,
+      bandRight: bandBox.right,
     };
   });
 
   // Confirms the scenario actually reached the page: without this, a change
   // upstream that stopped honouring the custom fixture would leave the
-  // ordinary 1382..1963 band in place and the assertion below would pass for
-  // an unrelated reason.
+  // ordinary 1382..1963 band in place and the assertions below would pass
+  // for an unrelated reason.
   expect(
     measured.span,
     "the forced narrow band was not the one drawn; the fixture override did not take",
@@ -493,6 +507,15 @@ test("a genuinely tight band still reads as a band, not as a rendering fault", a
     `a band this narrow (${measured.bandWidth}px) should never render thinner than the ` +
       `track is tall (${measured.trackHeight}px), or it stops reading as a band at all`,
   ).toBeGreaterThanOrEqual(measured.trackHeight - 0.5);
+
+  // The floor in the other direction: widening the fill to reach that
+  // minimum must never draw it past the track it sits on, or the fix for one
+  // rendering fault becomes another.
+  expect(
+    measured.bandRight,
+    `a floored band's right edge (${measured.bandRight}px) should not overshoot the ` +
+      `track's own right edge (${measured.trackRight}px)`,
+  ).toBeLessThanOrEqual(measured.trackRight + 0.5);
 });
 
 test("no route pushes the page sideways at 360px or at 400% zoom", async ({
