@@ -643,6 +643,29 @@ describe("the page a crawler and a first paint both get", () => {
     expect(text.split(/\s+/).filter(Boolean).length).toBeGreaterThan(180);
   });
 
+  it("links to the privacy page from the point where the data is collected", () => {
+    // Flagged twice by review and unfixed both times before this: the only
+    // route to /privacy/ was the site-wide footer, identical on every page,
+    // so the one screen where a postcode and a consumption figure are
+    // actually typed in said nothing about either. This is the fix, and the
+    // test is here rather than only in e2e because a footer link would make
+    // a DOM query for "a link to /privacy/" pass without this one existing.
+    render(<Shell>{null}</Shell>);
+    // Matched loosely on the trailing slash: the source writes
+    // `href="/privacy/"`, matching `trailingSlash` in next.config.ts, but
+    // next/link normalises it away under jsdom, which is a test-environment
+    // artefact rather than a fact about the built site - the other two
+    // reference links on this page (/einde-saldering/, /methodologie/) show
+    // the identical behaviour.
+    const links = screen
+      .getAllByRole("link")
+      .filter((link) => /^\/privacy\/?$/.test(link.getAttribute("href") ?? ""));
+    expect(
+      links,
+      "no link to /privacy/ in the calculator's own shell",
+    ).toHaveLength(1);
+  });
+
   it("puts the route's one first-level heading in the shell, not in the flow", () => {
     // The flow used to carry an `<h1>Uw gegevens</h1>`: a heading that named a
     // section of the form rather than the page, that disagreed with the tab,

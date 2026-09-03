@@ -414,3 +414,56 @@ test("every question is asked once, in one wording", async ({ page }) => {
     }
   }
 });
+
+test("round one counts exactly its four questions, in order, and nothing else", async ({
+  page,
+}) => {
+  // The regression this guards: `funnel_question_${index + 1}` was cast to
+  // `CountName` with `as`, which compiles for any string. A fifth round-one
+  // question would have produced `funnel_question_5`, which `tsc` cannot
+  // object to, which the backend 400s because it is not in
+  // `DailyCounter.CLIENT_NAMES`, which `count.ts`'s own `.catch` swallows.
+  // The funnel would stop recording the last question of the round with the
+  // build, the type checker and the rest of this suite all green. This test
+  // is the one place that would actually notice: it runs the real flow and
+  // counts what the page really sent, rather than reading the source for what
+  // it says it sends.
+  const counted: string[] = [];
+  await stubApi(page, []);
+  // Playwright matches the most recently registered route first, so this has
+  // to come after `stubApi`, whose `**/api/advice/**` would otherwise win
+  // and answer with a 201/estimate body instead of the 204 a real count
+  // response is.
+  await page.route("**/api/advice/count/**", async (route: Route) => {
+    const request = route.request();
+    if (request.method() === "POST") {
+      const body = request.postDataJSON() as { name?: unknown };
+      if (typeof body.name === "string") counted.push(body.name);
+    }
+    await route.fulfill({
+      status: 204,
+      headers: { "access-control-allow-origin": "*" },
+    });
+  });
+
+  await page.goto("/berekenen/");
+  await page.getByRole("textbox", { name: POSTCODE_QUESTION }).fill("5401");
+  await page.getByRole("button", { name: "Volgende" }).click();
+  await page.getByRole("textbox", { name: PEAK_POWER_QUESTION }).fill("4200");
+  await page.getByRole("button", { name: "Volgende" }).click();
+  await page.getByLabel("Zuidwest").check();
+  await page.getByRole("button", { name: "Volgende" }).click();
+  await page.getByRole("textbox", { name: CONSUMPTION_QUESTION }).fill("3400");
+  await page.getByRole("button", { name: "Bereken" }).click();
+  await expect(page).toHaveURL(/\/advies\//);
+
+  const questionCounts = counted.filter((name) =>
+    name.startsWith("funnel_question_"),
+  );
+  expect(questionCounts).toEqual([
+    "funnel_question_1",
+    "funnel_question_2",
+    "funnel_question_3",
+    "funnel_question_4",
+  ]);
+});

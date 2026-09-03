@@ -187,7 +187,12 @@ function WhatThisCalculates() {
       <p className="text-ink-muted">
         Meer over{" "}
         <Link href="/einde-saldering/">wat er op 1 januari 2027 verandert</Link>
-        , en over <Link href="/methodologie/">hoe wij dit uitrekenen</Link>.
+        , over <Link href="/methodologie/">hoe wij dit uitrekenen</Link>, en
+        over{" "}
+        <Link href="/privacy/">
+          wat er met uw postcode en uw verbruik gebeurt
+        </Link>
+        .
       </p>
     </section>
   );

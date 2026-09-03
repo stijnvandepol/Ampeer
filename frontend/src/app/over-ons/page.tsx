@@ -111,9 +111,9 @@ export function AboutAmpeer({
         <p className={styles.body}>
           Dat laatste is de kern, en het is de belofte die blijft staan als er
           wel geld binnenkomt. Ons advies mag niet afhangen van wie ons betaalt.
-          Elke regel code die het advies zou laten meebewegen met een
-          commerciele afspraak geldt in dit project als een fout, en dat staat
-          zo in de projectafspraken die bij de broncode horen.
+          Laat code het advies meebewegen met een commerciele afspraak, dan is
+          dat bij ons een fout. Dat staat zo in de projectafspraken die bij de
+          broncode horen.
         </p>
       </section>
 

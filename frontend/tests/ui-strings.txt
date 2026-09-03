@@ -54,6 +54,7 @@
 ,
 , en over
 , met
+, over
 -
 -error
 -hint
@@ -128,7 +129,7 @@ Corrigeren
 Daardoor ziet Cloudflare bij elk verzoek twee dingen. Uw IP-adres, en het webadres van de pagina die u opvraagt. In dat webadres staat ook uw link naar uw advies.
 Daarmee opent u uw antwoord later opnieuw, ook op een andere telefoon of computer, zonder in te loggen. Bewaar hem dus, en bedenk dat wie hem heeft het antwoord ook ziet.
 Daarom kan hier ook uit komen dat u nu geen batterij nodig heeft, en dat is bij ons een gewone uitkomst.
-Dat laatste is de kern, en het is de belofte die blijft staan als er wel geld binnenkomt. Ons advies mag niet afhangen van wie ons betaalt. Elke regel code die het advies zou laten meebewegen met een commerciele afspraak geldt in dit project als een fout, en dat staat zo in de projectafspraken die bij de broncode horen.
+Dat laatste is de kern, en het is de belofte die blijft staan als er wel geld binnenkomt. Ons advies mag niet afhangen van wie ons betaalt. Laat code het advies meebewegen met een commerciele afspraak, dan is dat bij ons een fout. Dat staat zo in de projectafspraken die bij de broncode horen.
 Dat staat allemaal in
 Dat staat allemaal uitgeschreven, met de aannames en de bandbreedtes erbij, in
 Dat verschil is belangrijk. Afkappen zou betekenen dat uw volledige postcode ons wel had bereikt. Nu bereikt hij ons nooit.
@@ -487,6 +488,10 @@ euro per kWh
 export
 feb
 force-static
+funnel_question_1
+funnel_question_2
+funnel_question_3
+funnel_question_4
 gaf het terug aan het net en
 gele kwartieren zaten er nooit in: die kwamen nooit langs de meter. Vanaf 2027 zijn dat juist de kwartieren die tellen.
 graden
@@ -559,6 +564,7 @@ var(
 vraag-titel
 vraag-toelichting
 vragen
+wat er met uw postcode en uw verbruik gebeurt
 wat er op 1 januari 2027 verandert
 website
 yearly

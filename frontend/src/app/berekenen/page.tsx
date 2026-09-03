@@ -73,6 +73,40 @@ const ROUND_ONE_TITLES = [
 ] as const;
 
 /**
+ * One counter name per round-one question, by position rather than by
+ * `` `funnel_question_${index + 1}` as CountName ``.
+ *
+ * The cast was the hole: `as CountName` compiles for any string, so a fifth
+ * question added to `ROUND_ONE_TITLES` (splitting the roof question into
+ * orientation and tilt is exactly the kind of change that would do it) would
+ * produce `funnel_question_5`, which `tsc` cannot object to, which
+ * `CountView` then 400s because it is not in `DailyCounter.CLIENT_NAMES`,
+ * which `count.ts` swallows in its own catch. The funnel would stop
+ * recording the last question of the round, silently, with a compiler and a
+ * test suite both green.
+ *
+ * A tuple this short is checked by construction: it has to hold exactly
+ * `ROUND_ONE_TITLES.length` real `CountName` values, so growing one array
+ * without the other is a length mismatch `satisfies` catches at compile
+ * time, not a string template nothing catches at all.
+ */
+const ROUND_ONE_QUESTION_COUNT_NAMES = [
+  "funnel_question_1",
+  "funnel_question_2",
+  "funnel_question_3",
+  "funnel_question_4",
+] as const satisfies readonly CountName[];
+
+/*
+ * TypeScript has no built-in way to require two independently declared
+ * tuples to share a length, so the check that matters is made to run rather
+ * than merely hoped for: `tests/app/BerekenenPage.test.tsx` asserts
+ * `ROUND_ONE_QUESTION_COUNT_NAMES.length === ROUND_ONE_TITLES.length`, which
+ * is exactly the invariant the comment above describes and exactly the case
+ * a future fifth question would break.
+ */
+
+/**
  * What a question means, where the title alone can be read two ways.
  *
  * Only one question has one, and it is the question this whole mechanism was
@@ -342,7 +376,19 @@ export default function BerekenenPage() {
      * `funnel_refine_started` covers reaching them at all.
      */
     if (round === 1) {
-      count(`funnel_question_${index + 1}` as CountName);
+      const countName = ROUND_ONE_QUESTION_COUNT_NAMES[index];
+      // `noUncheckedIndexedAccess` makes this `| undefined`, which is the
+      // type system finding exactly the gap this whole rewrite exists to
+      // close: an index past the end of the table. It cannot happen while
+      // the two arrays' lengths agree, and the test named above is what
+      // keeps them agreeing; this branch is what happens the day they do
+      // not, and it says so instead of asking the cast to hide it.
+      if (countName === undefined) {
+        throw new Error(
+          `no funnel counter name for round one question ${index + 1}; ROUND_ONE_QUESTION_COUNT_NAMES is shorter than ROUND_ONE_TITLES`,
+        );
+      }
+      count(countName);
     }
     if (last) {
       void submit();
