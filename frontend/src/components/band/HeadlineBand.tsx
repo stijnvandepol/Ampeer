@@ -11,7 +11,7 @@ import {
   axisPercentage,
   bandOffsetFraction,
   bandSpanFraction,
-  labelPercentage,
+  labelAnchor,
 } from "./position";
 import styles from "./band.module.css";
 
@@ -48,6 +48,35 @@ interface Props {
  * neither the stylesheet-parsing contrast test nor axe can see a
  * `background-image` at all.
  *
+ * WHERE THE LABELS GO. All four of them are anchored to a point on the axis,
+ * by the one mechanism in position.ts. The two ends used to be a flex row
+ * spanning the whole track with justify-content: space-between, so on a band
+ * running 1382 to 1964 on an axis to 1964 the fill covered the right third of
+ * the track while "€ 1.382,13" was typeset under the axis's zero. Measured at
+ * 1280x900: the low label's box ran 280..427.9 and the edge it names was at
+ * 786.8, sixty percent of the track away. The only reading left was that the
+ * grey rail is the range, which leaves the coloured band unexplained and puts
+ * the middle nonsensically high inside it. The middle label was already
+ * anchored, which is what made the figure contradict itself rather than merely
+ * be wrong.
+ *
+ * The two ends are never on the same line, and that is a decision rather than
+ * an accident of wrapping. At a 320px viewport the track is 272px and each end
+ * label is 148px, so the pair needs 296px it does not have; any layout that
+ * puts them on one line there collapses back into the row this replaced. They
+ * could share a line at 1280 for a wide band and not for a narrow one, and a
+ * figure whose labels change places depending on the answer is harder to read
+ * than one whose labels are always in the same two places. So: the low end on
+ * the line under the axis, the high end on the line under that, each over its
+ * own point. Nothing needs measuring, nothing has a threshold, and the picture
+ * is the same on a phone and on a desktop. The middle keeps the line above the
+ * axis, so it cannot collide with either of them.
+ *
+ * None of this depends on the animation: the anchors come from the amounts, not
+ * from the drawn width, so they are in the right place on the first frame under
+ * a reduced motion preference and on every frame without one. The band happens
+ * to grow from its low label towards its high one.
+ *
  * The Dutch here is interface text, not advice text: it names the shape of the
  * figure rather than telling the household what to do. `label` is the API's
  * own sentence and is rendered, never rewritten.
@@ -79,7 +108,19 @@ export function HeadlineBand({ band, confidence, label }: Props) {
     transitionDuration: `${reduced ? DURATION.instant : DURATION.considered}ms`,
   };
   const markerAt = `${axisPercentage(band.p10, band.p50, band.p90)}%`;
-  const middleLabelAt = `${labelPercentage(band.p10, band.p50, band.p90)}%`;
+
+  // Every label is anchored the same way and every one of them to a point on
+  // the axis. The two ends take the fill's own left and right rather than a
+  // second computation of the same amounts, so a label and the edge it names
+  // cannot drift apart by a rounding step. Zero is placed rather than assumed
+  // to be on the left: an all-negative band is measured from its low end up to
+  // zero, and for that one zero is the right-hand end of the track.
+  const middleAnchor = labelAnchor(
+    axisPercentage(band.p10, band.p50, band.p90),
+  );
+  const lowAnchor = labelAnchor(offset * 100);
+  const highAnchor = labelAnchor((offset + span) * 100);
+  const zeroAnchor = labelAnchor(axisPercentage(band.p10, "0", band.p90));
 
   const description =
     `Tussen ${dutchAmount(band.p10)} en ${dutchAmount(band.p90)} euro per jaar, met ` +
@@ -112,18 +153,45 @@ export function HeadlineBand({ band, confidence, label }: Props) {
         />
         <span
           data-role="band-middle"
-          className={styles.middleLabel}
-          style={{ left: middleLabelAt, fontSize: `${BAND_MIDDLE_REM}rem` }}
+          className={`${styles.anchored} ${styles.middleLabel}`}
+          style={{ ...middleAnchor, fontSize: `${BAND_MIDDLE_REM}rem` }}
         >
           &euro; {dutchAmount(band.p50)}
         </span>
       </div>
 
       <div className={styles.ends}>
-        <span data-role="band-end" style={{ fontSize: `${BAND_END_REM}rem` }}>
+        {/*
+          The axis's own origin, and the one thing on this figure that is not an
+          amount the model produced. It is here because without it the track is
+          an unexplained grey rail: the width of the band is the spread as a
+          share of the largest amount the model thinks plausible, which is the
+          argument position.ts makes, and a reader can only read that share off
+          the picture if the far end of the rail is marked as zero. It is set at
+          caption size in the subtle ink so it reads as the scale it is and not
+          as a fourth figure, and it is hidden from assistive technology: the
+          band's aria-label already spells the answer out, and adding "0 euro"
+          to it would suggest the model said something about zero.
+        */}
+        <span
+          className={`${styles.anchored} ${styles.zeroMark}`}
+          style={zeroAnchor}
+          aria-hidden="true"
+        >
+          &euro; 0
+        </span>
+        <span
+          data-role="band-end"
+          className={`${styles.anchored} ${styles.endLabel}`}
+          style={{ ...lowAnchor, fontSize: `${BAND_END_REM}rem` }}
+        >
           &euro; {dutchAmount(band.p10)}
         </span>
-        <span data-role="band-end" style={{ fontSize: `${BAND_END_REM}rem` }}>
+        <span
+          data-role="band-end"
+          className={`${styles.anchored} ${styles.endLabel}`}
+          style={{ ...highAnchor, fontSize: `${BAND_END_REM}rem` }}
+        >
           &euro; {dutchAmount(band.p90)}
         </span>
       </div>

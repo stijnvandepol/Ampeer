@@ -104,24 +104,80 @@
   background: var(--colour-ink);
 }
 
+/*
+ * Every label on this figure, put over the point it names.
+ *
+ * The component sets one number, --band-label-at, and both declarations here
+ * derive from it, so the offset along the track and the offset into the label
+ * are the same number by construction. A label at 0% is flush with the left of
+ * the track, one at 100% flush with the right, and one at 40% has its own 40%
+ * mark over the axis's 40% mark, so it always covers its value and never runs
+ * off either end whatever it or the track measures. position.ts argues it at
+ * length, including what it replaced and what that cost.
+ */
+.anchored {
+  left: var(--band-label-at);
+  transform: translateX(calc(-1 * var(--band-label-at)));
+}
+
+/* The middle, on the line above the axis. The translateX(-50%) that used to
+   live here centred the label on its point and let it run off the track, which
+   at 320px put its right edge 11px past the content edge, inside the page's own
+   gutter where the reflow test could not see it. */
 .middleLabel {
   position: absolute;
   bottom: calc(100% + 0.6rem);
-  transform: translateX(-50%);
   white-space: nowrap;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--colour-ink);
 }
 
+/*
+ * The lines under the axis: the scale's zero, then the low end, then the high
+ * end, one to a line. A column and not a row, and the component's comment says
+ * why at length: two 148px labels do not fit on a 272px track, so a row of them
+ * is a row of two amounts that have stopped pointing at anything.
+ *
+ * Each child is relatively positioned and in flow, which is the whole trick.
+ * `left` is then a percentage of this box, which is exactly as wide as the
+ * track above it, while the transform is a percentage of the label itself, and
+ * the label still contributes its own height so the caption below is pushed
+ * down rather than overlapped.
+ */
 .ends {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 0.25rem 1rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
   color: var(--colour-ink);
+}
+
+.endLabel {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+  /* Tighter than the inherited leading. These are 28px numerals and they are
+     stacked, so the default 1.6 puts a line of air between a band and its own
+     ends for no reason. */
+  line-height: 1.15;
+}
+
+/*
+ * The axis's origin. Subordinate on purpose: caption size, subtle ink, no bold,
+ * so it reads as the scale the band is drawn against rather than as a fourth
+ * amount competing with the three the model produced.
+ */
+.zeroMark {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--colour-ink-subtle);
 }
 
 .caption {

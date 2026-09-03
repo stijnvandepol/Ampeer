@@ -5,9 +5,21 @@ import fixture from "../fixtures/advice-response.json";
 import { HeadlineBand } from "@/components/band/HeadlineBand";
 import { dutchAmount } from "@/components/band/format";
 import {
+  axisPercentage,
   bandOffsetFraction,
   bandSpanFraction,
+  LABEL_ANCHOR_PROPERTY,
+  labelAnchor,
 } from "@/components/band/position";
+
+/** The one number a label is placed by. The stylesheet derives the rest. */
+function anchorOf(element: Element | null): string {
+  return (
+    (element as HTMLElement | null)?.style.getPropertyValue(
+      LABEL_ANCHOR_PROPERTY,
+    ) ?? ""
+  );
+}
 import type { Advice } from "@/lib/types";
 
 const advice = fixture as unknown as Advice;
@@ -64,6 +76,109 @@ describe("the headline band", () => {
       expected,
       4,
     );
+  });
+
+  it("anchors each end label to the end of the band it names, not to the end of the track", () => {
+    // The two ends used to be a flex row spanning the whole track with
+    // justify-content: space-between, so on this fixture the fill covered the
+    // right third and "€ 1.382,13" was typeset under the axis's zero. Neither
+    // end label carried a position at all, which is what this asserts now: the
+    // low label's left is the fill's own left, and the high label's is the far
+    // end of the band. The actual pixels are measured in e2e/rules.spec.ts,
+    // because jsdom lays nothing out and cannot see a layout defect; this is
+    // the cheap half that fails the moment an end label loses its anchor.
+    const { container } = render(
+      <HeadlineBand
+        band={advice.headline}
+        confidence={advice.confidence}
+        label={advice.confidence_label}
+      />,
+    );
+    const fill = container.querySelector(
+      '[data-role="band-fill"]',
+    ) as HTMLElement;
+    const ends = [
+      ...container.querySelectorAll('[data-role="band-end"]'),
+    ] as HTMLElement[];
+    expect(ends).toHaveLength(2);
+
+    const offset = bandOffsetFraction(advice.headline.p10, advice.headline.p90);
+    const span = bandSpanFraction(advice.headline.p10, advice.headline.p90);
+    // Non-vacuous: if the band started at the left of the track then "at the
+    // end of the band" and "at the end of the track" would be the same place
+    // and this test would pass on the layout it exists to forbid.
+    expect(offset).toBeGreaterThan(0.2);
+
+    const low = labelAnchor(offset * 100)[LABEL_ANCHOR_PROPERTY];
+    const high = labelAnchor((offset + span) * 100)[LABEL_ANCHOR_PROPERTY];
+    expect(anchorOf(ends[0] ?? null)).toBe(low);
+    // The same string the fill is drawn at, not a second computation of it.
+    expect(anchorOf(ends[0] ?? null)).toBe(fill.style.left);
+    expect(anchorOf(ends[1] ?? null)).toBe(high);
+  });
+
+  it("anchors the middle label and the axis's zero by the same mechanism", () => {
+    // One placement rule for every label on the figure. Two would drift, and
+    // the middle being anchored while the ends were not is exactly how this
+    // figure came to contradict itself.
+    const { container } = render(
+      <HeadlineBand
+        band={advice.headline}
+        confidence={advice.confidence}
+        label={advice.confidence_label}
+      />,
+    );
+    const middle = container.querySelector(
+      '[data-role="band-middle"]',
+    ) as HTMLElement;
+    const expected = labelAnchor(
+      axisPercentage(
+        advice.headline.p10,
+        advice.headline.p50,
+        advice.headline.p90,
+      ),
+    );
+    expect(anchorOf(middle)).toBe(expected[LABEL_ANCHOR_PROPERTY]);
+
+    // The scale's zero, at the axis's own zero. Hidden from assistive
+    // technology: the aria-label already spells the band out, and "0 euro" in
+    // it would suggest the model said something about zero.
+    const zero = screen.getByText(/^€\s*0$/);
+    expect(zero).toHaveAttribute("aria-hidden", "true");
+    expect(anchorOf(zero)).toBe(
+      labelAnchor(
+        axisPercentage(advice.headline.p10, "0", advice.headline.p90),
+      )[LABEL_ANCHOR_PROPERTY],
+    );
+  });
+
+  it("places the labels from the amounts, so reduced motion changes nothing about them", () => {
+    // The fill's width is animated and the labels are not. A label that was
+    // positioned off the drawn width would be in the wrong place for the first
+    // 320ms without a reduced motion preference, and in the right place with
+    // one, which is a defect only half the visitors could see.
+    const anchors = (mode: boolean) => {
+      installMatchMedia(mode);
+      const { container, unmount } = render(
+        <HeadlineBand
+          band={advice.headline}
+          confidence={advice.confidence}
+          label={advice.confidence_label}
+        />,
+      );
+      const found = [
+        ...container.querySelectorAll(
+          '[data-role="band-end"],[data-role="band-middle"]',
+        ),
+      ].map(anchorOf);
+      unmount();
+      return found;
+    };
+    const still = anchors(true);
+    const moving = anchors(false);
+    expect(still).toHaveLength(3);
+    expect(still.every((at) => at.endsWith("%"))).toBe(true);
+    expect(moving).toEqual(still);
   });
 
   it("never renders the middle larger than the ends", () => {

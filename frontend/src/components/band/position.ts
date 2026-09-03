@@ -33,10 +33,6 @@
 /** Everything unreadable resolves to this: draw nothing rather than guess. */
 const NO_BAND = 0;
 
-/** Kept off the very edges so a label anchored to it stays on the track. */
-const MIN_LABEL_PERCENT = 10;
-const MAX_LABEL_PERCENT = 90;
-
 interface Axis {
   readonly min: number;
   readonly max: number;
@@ -84,7 +80,11 @@ export function bandOffsetFraction(lowText: string, highText: string): number {
 }
 
 /**
- * Where the middle sits on the same axis, as a percentage.
+ * Where an amount sits on the band's own axis, as a percentage.
+ *
+ * Written for the middle and correct for any of the three: the ends and the
+ * axis's zero are placed by this same call, so a label and the thing it names
+ * can never come out of two different roundings.
  *
  * Unclamped, because the marker has to be inside the band it belongs to and
  * moving it would say the model put the middle somewhere it did not. 50 is
@@ -93,32 +93,65 @@ export function bandOffsetFraction(lowText: string, highText: string): number {
  */
 export function axisPercentage(
   lowText: string,
-  middleText: string,
+  amountText: string,
   highText: string,
 ): number {
   const axis = axisFor(lowText, highText);
-  const middle = readAmount(middleText);
-  if (axis === null || middle === null) return 50;
+  const amount = readAmount(amountText);
+  if (axis === null || amount === null) return 50;
   return Math.min(
     100,
-    Math.max(0, ((middle - axis.min) / (axis.max - axis.min)) * 100),
+    Math.max(0, ((amount - axis.min) / (axis.max - axis.min)) * 100),
   );
 }
 
 /**
- * The same place, pulled far enough from the edges that a label centred on it
- * stays on the track.
- *
- * Separate from the marker on purpose: the marker may not be moved, because its
- * position is a claim about the answer, while the label's position is only
- * typesetting. A label that ran off the track would push the page sideways,
- * which is a reflow failure on the phone this site is mostly read on.
+ * The custom property `.anchored` in band.module.css reads. One number reaches
+ * the stylesheet and the stylesheet derives both declarations from it, so the
+ * offset along the track and the offset into the label are the same number by
+ * construction and cannot be written apart.
  */
-export function labelPercentage(
-  lowText: string,
-  middleText: string,
-  highText: string,
-): number {
-  const at = axisPercentage(lowText, middleText, highText);
-  return Math.min(MAX_LABEL_PERCENT, Math.max(MIN_LABEL_PERCENT, at));
+export const LABEL_ANCHOR_PROPERTY = "--band-label-at";
+
+/** The one inline declaration that places a label. */
+export type LabelAnchor = Readonly<Record<string, string>>;
+
+/**
+ * How a label is put over the point it names, without ever leaving the track.
+ *
+ * The stylesheet sets `left` to this percentage of the track and translates the
+ * label by the same percentage of its own width, so a label at 0% is flush with
+ * the left of the track, one at 100% flush with the right, and one at 40% has
+ * its own 40% mark over the axis's 40% mark. The label therefore always covers
+ * the point it names and never extends past either end, whatever the label
+ * turns out to measure and whatever the track measures. There is no threshold
+ * in it and nothing is measured at runtime.
+ *
+ * This replaced a clamp that kept a centred label between 10% and 90% of the
+ * track, which was an approximation of the same idea that assumed a label was
+ * at most a fifth of the track. Measured on the built page at a 320px viewport:
+ * the track is 272px, the middle label is 104px, and the clamped label's right
+ * edge landed at 307px against a content edge of 296px. It stayed inside the
+ * viewport only because the page's own gutter absorbed the overflow, so nothing
+ * caught it. The two end labels are 148px, more than half the track, and the
+ * clamp is not even close for them.
+ *
+ * Not centred, then, which costs something and is worth naming: for a value in
+ * the middle of the axis a centred label points more precisely than this one
+ * does. What this buys is that the label is always over its own value and
+ * always on the track, at every width. The marker keeps the exact position, as
+ * it always did: it may not be moved, because its position is a claim about the
+ * answer, while a label's position is typesetting.
+ *
+ * A percentage and not a pair of CSS strings, which is worth a sentence because
+ * the pair was written first and reads more directly. `translateX(-` in a
+ * template literal here is a string in a returned object, which is a text
+ * position to the extractor in e2e/language.spec.ts, so it landed in
+ * tests/ui-strings.txt beside the sentences that file exists to make reviewable.
+ * A custom property is dropped by that walk by shape, and the CSS ends up in
+ * the stylesheet where it belongs.
+ */
+export function labelAnchor(percentage: number): LabelAnchor {
+  const at = Math.min(100, Math.max(0, percentage));
+  return { [LABEL_ANCHOR_PROPERTY]: `${at}%` };
 }
