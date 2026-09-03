@@ -433,6 +433,68 @@ test("the width of a band is the width of its band", async ({ page }) => {
   ).toBeGreaterThan(2);
 });
 
+test("a genuinely tight band still reads as a band, not as a rendering fault", async ({
+  page,
+}) => {
+  // The rule above is "the width of a band is the width of its band", and a
+  // household whose answer is unusually certain is exactly the case that
+  // rule was written to serve well: a short band instead of a long one, told
+  // apart from an uncertain answer without reading a digit. Taken to its
+  // extreme the same rule draws almost nothing. Measured on a real near
+  // certain advice, p10 1600 and p90 1700 on an axis to 1700: the true width
+  // is 19px on a 327px track, 5.9 percent, thinner than the 0.875rem the
+  // track itself is tall. border-radius: 999px turns a shape that thin into a
+  // squeezed sliver rather than a small pill, which a reader is likelier to
+  // read as the figure failing to draw than as "the model is very sure".
+  //
+  // `.fill`'s `min-width` in band.module.css is the fix, and it is checked
+  // here rather than only in position.ts because the mechanism is CSS, not
+  // arithmetic: the component still sets `width` to the plain, honest
+  // percentage the true span is, and only the rendered box, which the
+  // browser resolves against the real track, is ever floored.
+  await page.route("**/api/advice/**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: { "access-control-allow-origin": "*" },
+      body: JSON.stringify({
+        ...fixture,
+        headline: { p10: "1600", p50: "1650", p90: "1700", runs: 243 },
+      }),
+    }),
+  );
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openAdvice(page);
+
+  const measured = await page.evaluate(() => {
+    const figure = document.querySelector("[data-band-span]") as HTMLElement;
+    const track = figure.querySelector(
+      "[data-band-part='axis']",
+    ) as HTMLElement;
+    const band = figure.querySelector("[data-band-part='band']") as HTMLElement;
+    return {
+      span: Number(figure.getAttribute("data-band-span")),
+      trackHeight: track.getBoundingClientRect().height,
+      bandWidth: band.getBoundingClientRect().width,
+    };
+  });
+
+  // Confirms the scenario actually reached the page: without this, a change
+  // upstream that stopped honouring the custom fixture would leave the
+  // ordinary 1382..1963 band in place and the assertion below would pass for
+  // an unrelated reason.
+  expect(
+    measured.span,
+    "the forced narrow band was not the one drawn; the fixture override did not take",
+  ).toBeLessThan(0.1);
+
+  expect(
+    measured.bandWidth,
+    `a band this narrow (${measured.bandWidth}px) should never render thinner than the ` +
+      `track is tall (${measured.trackHeight}px), or it stops reading as a band at all`,
+  ).toBeGreaterThanOrEqual(measured.trackHeight - 0.5);
+});
+
 test("no route pushes the page sideways at 360px or at 400% zoom", async ({
   page,
 }) => {
