@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
+import { useReducedMotion } from "@/design/motion";
 import { Progress } from "./Progress";
 
 /**
@@ -71,12 +72,32 @@ interface Props {
 /**
  * One question on the screen, with the progress above it.
  *
- * Two things here are for the keyboard and not for the mouse. Focus moves to
+ * Three things here are for the keyboard and not for the mouse. Focus moves to
  * the heading when the step changes, because otherwise focus stays on the Next
  * button that is now labelled the same and pointing at a different question,
- * and nothing announces that the screen changed. And Enter inside a field
- * advances, which is what a one-question-per-screen form has to do: see the
- * note on the form element for why it used to do nothing instead.
+ * and nothing announces that the screen changed. The section is also put at
+ * the top of the viewport on every step, deliberately, and not left to
+ * whatever `.focus()` alone would do. And Enter inside a field advances, which
+ * is what a one-question-per-screen form has to do: see the note on the form
+ * element for why it used to do nothing instead.
+ *
+ * WHY FOCUS ALONE IS NOT ENOUGH. `.focus()` with no options asks the browser
+ * to scroll only if the target is not already "sufficiently visible", by its
+ * own nearest-edge heuristic, using whatever scroll position the PREVIOUS
+ * question left behind. Measured at 390x844 on 2026-09-02: reaching question 2
+ * from question 1 left the field's own bottom edge 14px past the bottom of the
+ * viewport, not because question 2 is long, but because question 1 was short
+ * enough that the browser decided no scroll was needed at all. The outcome for
+ * any one question therefore depended on the question answered before it,
+ * which made this an intermittent fault across the whole flow rather than a
+ * defect confined to one screen.
+ *
+ * The fix replaces a heuristic with a destination: focus moves with
+ * `preventScroll` so the browser's own guess never fires, and the section is
+ * then scrolled to `block: "start"` in the same effect, every time, regardless
+ * of where the visitor arrived from. The section and not the heading, so the
+ * progress indicator above the heading lands on screen together with the
+ * question rather than being scrolled past it.
  */
 export function QuestionShell({
   step,
@@ -89,22 +110,32 @@ export function QuestionShell({
   onNext,
   children,
 }: Props) {
+  const section = useRef<HTMLElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const mounted = useRef(false);
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
-    // Not on the first render: moving focus on arrival would take it away from
-    // wherever the visitor actually was, which is a different bug than the one
-    // this fixes.
+    // Not on the first render: moving focus and scroll on arrival would take
+    // both away from wherever the visitor actually was, which is a different
+    // bug than the one this fixes.
     if (!mounted.current) {
       mounted.current = true;
       return;
     }
-    heading.current?.focus();
-  }, [step]);
+    heading.current?.focus({ preventScroll: true });
+    section.current?.scrollIntoView({
+      block: "start",
+      behavior: reducedMotion ? "instant" : "smooth",
+    });
+  }, [step, reducedMotion]);
 
   return (
-    <section aria-labelledby={HEADING_ID} className="flex flex-col gap-6">
+    <section
+      ref={section}
+      aria-labelledby={HEADING_ID}
+      className="flex flex-col gap-6"
+    >
       <Progress step={step} of={of} />
       <h2 id={HEADING_ID} ref={heading} tabIndex={-1} className="text-2xl">
         {title}

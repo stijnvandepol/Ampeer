@@ -1,7 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QuestionShell } from "@/components/form/QuestionShell";
+import { installMatchMedia } from "../matchMedia";
+
+// Every scroll/focus test below spies on a prototype method shared by the
+// whole test run. Restoring it here, rather than trusting each test to clean
+// up after itself, is what keeps one test's spy from silently carrying its
+// call count into the next.
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 function shell(
   step: number,
@@ -48,6 +57,60 @@ describe("the question shell", () => {
     const handlers = { onBack: vi.fn(), onNext: vi.fn() };
     render(shell(1, "Een", handlers));
     expect(screen.getByRole("heading", { name: "Een" })).not.toHaveFocus();
+  });
+
+  it("scrolls its own section to the top of the viewport on every step, not wherever .focus() alone would leave it", () => {
+    // `.focus()` with no options scrolls only when the browser's own
+    // nearest-edge heuristic decides the target is not "sufficiently
+    // visible", judged against whatever scroll position the previous
+    // question left behind. Measured at 390x844 on 2026-09-02: question 2
+    // arrived with its own field 14px past the bottom of the viewport,
+    // because question 1 was short enough that the heuristic saw no need to
+    // scroll at all. This is the deterministic replacement: a real
+    // scrollIntoView call, on the section rather than the heading so the
+    // progress indicator above the heading arrives with the question, made on
+    // every step change regardless of where the previous one left the page.
+    const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");
+    const handlers = { onBack: vi.fn(), onNext: vi.fn() };
+    const { rerender, container } = render(shell(1, "Een", handlers));
+    expect(scrolled).not.toHaveBeenCalled();
+    rerender(shell(2, "Twee", handlers));
+    const section = container.querySelector("section");
+    expect(scrolled).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ block: "start" }),
+    );
+    // On the section, and not on the heading: scrolling the heading itself to
+    // the very top of the viewport would push the progress bar above it out
+    // of view, which is the one thing this fix is not supposed to do.
+    expect(scrolled.mock.instances[0]).toBe(section);
+  });
+
+  it("does not fight its own focus call with the browser's default scroll", () => {
+    // Two competing scroll instructions on one step change, one implicit
+    // (the browser's own reaction to an unqualified .focus()) and one
+    // explicit (the scrollIntoView above), is not "belt and suspenders": it
+    // is a race, and whichever one runs second wins with no guarantee it is
+    // the deterministic one. `preventScroll` is what removes the implicit
+    // instruction rather than merely outrunning it.
+    const handlers = { onBack: vi.fn(), onNext: vi.fn() };
+    const { rerender } = render(shell(1, "Een", handlers));
+    const focused = vi.spyOn(HTMLElement.prototype, "focus");
+    rerender(shell(2, "Twee", handlers));
+    expect(focused).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ preventScroll: true }),
+    );
+  });
+
+  it("scrolls without animation for a visitor who asked for less motion", () => {
+    installMatchMedia(true);
+    const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");
+    const handlers = { onBack: vi.fn(), onNext: vi.fn() };
+    const { rerender } = render(shell(1, "Een", handlers));
+    rerender(shell(2, "Twee", handlers));
+    expect(scrolled).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ behavior: "instant" }),
+    );
+    installMatchMedia(false);
   });
 
   it("advances when Enter is pressed in a field", async () => {
