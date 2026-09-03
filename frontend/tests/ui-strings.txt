@@ -40,8 +40,10 @@
 # That run rewrites this file and then fails, so regenerating can never be the
 # thing that made a build green. Read the diff.
 
+" or "
 ");if(c==="light"||c==="dark"){document.documentElement.setAttribute("
 ",c)}}catch(e){}
+"; see chapter 10 point 2 of docs/dpia.md
 #
 #pagina
 %
@@ -50,6 +52,7 @@
 )
 *
 ,
+, en over
 , met
 -
 -error
@@ -60,6 +63,7 @@
 -value
 .
 . Dat document is er om nagerekend te worden.
+. Hoe wij rekenen, staat in
 /
 /#organisatie
 /#website
@@ -71,6 +75,8 @@
 /einde-saldering/
 /methodologie/
 /methodologie/#11-de-terugleververgoeding-is-lager-dan-vaak-gedacht
+/over-ons/
+/privacy/
 /sitemap.xml
 0%
 00
@@ -86,32 +92,54 @@
 50%
 :
 ARRIVAL
+Aan die uitkomst verdienen wij niets. Aan de andere uitkomsten verdienen wij ook niets, en dat is precies waarom wij deze kunnen geven. Een adviseur die batterijen verkoopt kan die zin niet schrijven.
 Adviesversie
 Alleen als het bij u uitkomt, en bij een deel van de huishoudens komt dat er niet uit. Nu geen batterij is bij ons een volwaardige uitkomst, en wij verdienen niets aan de andere.
 Alleen als het bij u uitkomt. Voor een deel van de huishoudens is het antwoord nee, en dat is bij ons een geldige en volwaardige uitkomst.
+Alles daarover staat in
 Ampeer
+Ampeer rekent uit wat het einde van de saldering u kost. Wij verkopen niets en wij bemiddelen niets. Hieronder staat waarvan Ampeer betaald wordt, en wie erachter zit.
+Ampeer stelt u een paar vragen en rekent daar een antwoord mee uit. Deze pagina zegt wat wij daarvan bewaren, hoe lang, en wie het verder kan zien. Wij hebben het zo kort mogelijk opgeschreven.
 Ampeer verkoopt geen panelen, geen batterijen en geen energiecontract, en plaatst geen advertenties.
+Ampeer verkoopt geen zonnepanelen, geen thuisbatterijen en geen energiecontract, stuurt u niet door naar een partij die dat wel doet, en plaatst geen advertenties. Daarom is nu geen batterij hier een geldige uitkomst.
+Autoriteit Persoonsgegevens
 Beantwoord deze vraag om verder te gaan.
 Beantwoord eerst de vier vragen over uw huis. Daarna kunt u verfijnen.
 Beantwoord vier vragen
 Bedragen per kilowattuur, exclusief btw, op een vast contract. De veelgenoemde 3 tot 8 cent is de brutovergoeding, met de terugleverkosten er nog voor. Op een dynamisch contract blijft de vergoeding 5 tot 7 cent en positief. Zie
 Begin een nieuwe berekening
+Bent u het niet eens met wat wij doen, laat het ons weten. U kunt uw bezwaar sturen naar het adres bovenaan deze pagina.
 Berekenen
 Betrouwbaarheid:
 Beweeg over de plaat of gebruik de pijltjestoetsen om een kwartier te lezen.
+Bezwaar maken
+Bij elk advies schrijven wij één regel in een logboek. Daarin staan het tijdstip, uw postcodegebied, hoe zeker het antwoord was, en de versienummers van onze rekenmodule.
 Bij uw bedrag staat of het indicatief, goed of precies is. Dat staat er direct naast en niet in een voetnoot, want hoe zeker een antwoord is hoort bij het antwoord.
+Bijna elke rekenhulp geeft toch één gemiddeld bedrag. Dat bedrag geldt voor niemand. Wij rekenen daarom uw eigen jaar door, in kwartieren, en geven u een bandbreedte in plaats van één getal.
 Bijna elke rekentool geeft u een enkel bedrag. Wij doen dat niet, en niet uit voorzichtigheid. Het antwoord hangt af van dingen die nog niet vaststaan, zoals de terugleververgoeding in 2027 en de stroomprijs, en van dingen die per huis verschillen, zoals wanneer u thuis bent.
+Boven elk bedrag staat hoe zeker het is: indicatief, goed of precies. Dat staat er direct bij en niet in een voetnoot.
 Boven uw bedrag staat of het indicatief, goed of precies is. Dat staat er direct naast en niet in een voetnoot, want hoe zeker een antwoord is hoort bij het antwoord. Vier vragen geeft indicatief. Negen vragen geeft goed.
+Btw-nummer
 CHOSEN_FROM_SIMULATED_CAPACITIES
+Cloudflare ziet uw verzoek langskomen
 Combinaties
+Cookies zetten wij niet
+Corrigeren
+Daardoor ziet Cloudflare bij elk verzoek twee dingen. Uw IP-adres, en het webadres van de pagina die u opvraagt. In dat webadres staat ook uw link naar uw advies.
 Daarmee opent u uw antwoord later opnieuw, ook op een andere telefoon of computer, zonder in te loggen. Bewaar hem dus, en bedenk dat wie hem heeft het antwoord ook ziet.
 Daarom kan hier ook uit komen dat u nu geen batterij nodig heeft, en dat is bij ons een gewone uitkomst.
 Dat is ook waarom "nu geen batterij" bij ons een geldige uitkomst is. Een adviseur die aan batterijen verdient kan die zin niet schrijven.
+Dat laatste is de kern. Ons advies mag nooit afhangen van wie ons betaalt. Elke regel code die dat wel zou doen is bij ons een fout en geen verdienmodel.
+Dat staat allemaal in
 Dat staat allemaal uitgeschreven, met de aannames en de bandbreedtes erbij, in
+Dat verschil is belangrijk. Afkappen zou betekenen dat uw volledige postcode ons wel had bereikt. Nu bereikt hij ons nooit.
 De batterij, doorgerekend
 De drie routes, en de gratis routes eerst
+De eerste ronde stelt vier vragen:
 De eerste vier cijfers van uw postcode, hoeveel wattpiek er ligt, hoe het dak ligt en uw jaarverbruik. Meer niet. Wij bouwen daar een kwartierprofiel van een heel jaar mee op, 35.040 kwartieren, en rekenen dat door op de tarieven van nu en die van 2027.
 De eerste vier cijfers van uw postcode, hoeveel wattpiek er op uw dak ligt, welke kant dat dak op ligt, en uw jaarverbruik.
+De eerste vier cijfers van uw postcode, voor de instraling in uw regio. Van uw postcode bewaren wij alleen die vier cijfers.
+De eerste vier cijfers van uw postcode.
 De eerste vier vragen ontbreken nog
 De hele doorrekening van de batterij
 De rekenserver gaf een antwoord dat wij niet konden lezen.
@@ -119,8 +147,10 @@ De rekenserver had een storing. Probeer het straks opnieuw.
 De rekenserver kon dit antwoord niet gebruiken. Controleer uw invoer.
 De rekenserver kon dit antwoord niet gebruiken:
 De salderingsregeling laat u de stroom die u teruglevert wegstrepen tegen de stroom die u afneemt. Dat wegstrepen stopt. U blijft leveren en afnemen, maar de twee worden niet meer tegen elkaar weggestreept.
+De salderingsregeling stopt op 1 januari 2027. Wat dat u kost hangt niet af van hoeveel panelen u heeft, maar van hoeveel van uw eigen opwek u zelf gebruikt, en dat verschilt sterk per huishouden. Deze rekenmachine bouwt uit uw antwoorden een kwartierprofiel van een heel jaar op en rekent dat door op de tarieven van nu en die van 2027.
 De schaal loopt van
 De vergoeding is wat u krijgt per teruggeleverde kilowattuur. De terugleverkosten zijn wat uw leverancier daarvoor in rekening brengt. De veelgenoemde 3 tot 8 cent is de vergoeding met de kosten er nog voor.
+De vier vragen
 De vijf vragen hierna maken een antwoord scherper dat er al is, en in dit browservenster staat dat antwoord er nog niet. Dat gebeurt als u uw bewaarde link in een nieuw venster opent of op een ander apparaat.
 De vorm van uw verbruik komt uit de standaardprofielen die netbeheerders publiceren. De opwek van uw dak komt uit PVGIS, de rekentool van de Europese Commissie, op basis van echte instralingsmetingen voor uw postcodegebied. De tarieven komen uit gepubliceerde cijfers, en welke dat zijn staat er per bedrag bij.
 De vragen worden klaargezet.
@@ -128,10 +158,15 @@ De wasmachine, de vaatwasser en de droger draaien op het moment dat uw panelen l
 Deze link hoort niet bij een berekening. Controleer of hij compleet is overgenomen.
 Deze link opent dit advies opnieuw, zonder account. Bewaar hem als u er later bij wilt.
 Deze pagina hoort bij een berekening en er staat er geen in de link.
+Deze verklaring hoort bij de dienst zoals die vandaag draait. Krijgt Ampeer accounts of een koppeling met uw meter, dan verandert er veel en schrijven wij deze pagina opnieuw.
 Dit advies konden wij niet laten zien
+Dit is geen belofte maar een test. Bij elke wijziging leest een test alle verzoeken mee die een pagina doet. Gaat er één naar een ander bedrijf, dan gaat die test rood en komt de wijziging er niet in.
+Dit logboek ruimen wij niet op. Zodra uw advies weg is, wijst die afdruk nergens meer naar. Wat overblijft is een postcodegebied, een tijdstip en twee versienummers.
 Donker
+E-mail
 EAST
 Een bedrag met een bandbreedte, niet één getal
+Een bedrag per jaar met de bandbreedte eromheen, hoe zeker dat antwoord is, en drie routes in vaste volgorde: uw eigen ritme verschuiven, slimmer sturen met wat u al heeft, en stroom opslaan in een thuisbatterij. De routes die niets kosten staan altijd bovenaan, ook als er bij u aan een ervan niets te halen valt.
 Een bedrag van laag tot hoog, geen los getal
 Een jaar in kwartieren. Van links naar rechts de dagen van het jaar, van boven naar beneden het etmaal van middernacht tot middernacht. Geel staat voor een kwartier waarin u vooral uw eigen opwek gebruikte, lichtgrijsblauw voor een kwartier waarin u vooral stroom van het net haalde, en donkerblauw voor een kwartier waarin u vooral stroom teruggaf aan het net.
 Een kwartierprofiel van een heel jaar, uit de verbruiksprofielen die netbeheerders publiceren en de instraling voor uw postcodegebied.
@@ -141,7 +176,13 @@ Een voorbeelddag, geen berekening.
 Eerst wat u niets kost
 Einde saldering
 Einde salderingsregeling: wat het bij u doet
+Elk advies zegt welke regels gevuurd hebben. U ziet dus waarom u juist dit antwoord kreeg.
+Elk antwoord is nodig voor de berekening. Uw postcodegebied kiest de zonnereeks. Uw jaarverbruik schaalt uw verbruiksprofiel. Wattpiek en dakligging bepalen uw opbrengst.
 Elke kolom is een dag, van 1 januari links tot 31 december rechts. Elke rij is een kwartier, van middernacht boven tot middernacht onder.
+Er is geen tabel bij ons met een IP-adres erin. Er is ook geen logregel die er een bewaart.
+Er is geen vraag die wij alleen voor de statistiek stellen. Er is ook geen tweede doel: geen advertenties, geen profiel en geen doorverkoop.
+Er is nog geen knop waarmee u uw advies zelf weggooit. Uw advies verdwijnt sowieso na 90 dagen. Wilt u het eerder weg hebben, stuur ons dan een bericht met uw link erbij.
+Er staat geen knop op deze site die naar een verkopende partij leidt. Zoekt u er een, dan is die er niet.
 Er zijn kort achter elkaar veel berekeningen gedaan vanaf dit adres. Probeer het over een uur opnieuw.
 GOOD
 Geen account, geen e-mailadres. U krijgt een link waarmee u er later bij kunt.
@@ -150,36 +191,60 @@ Gekopieerd.
 Gratis of bijna gratis: slimmer sturen met wat u al heeft
 Gratis: uw eigen ritme verschuiven
 Heb ik een slimme meter nodig?
+Heeft u al een thuisbatterij?
+Heeft u een dynamisch energiecontract, met een prijs per uur?
 Heeft u een dynamisch energiecontract?
 Heeft u een thuisbatterij?
 Heeft u een warmtepomp?
+Heeft u iets verkeerd ingevuld, dan kunt u dat niet wijzigen. Reken opnieuw en u krijgt een nieuw advies met een nieuwe link. Het oude blijft staan tot het na 90 dagen verdwijnt.
+Het antwoord achter uw link is een bestand dat een computer kan lezen. U kunt het dus meenemen naar iemand anders.
 Het einde van de saldering, en hoe u uitrekent wat het bij u doet
+Het invoerveld accepteert alleen vier cijfers. Typt u er zes, dan wordt de invoer geweigerd. Hij wordt niet stilletjes afgekapt.
+Het openen van een pagina van Ampeer doet geen enkel verzoek aan een ander bedrijf.
+Het verkeer naar deze site loopt via Cloudflare Inc. Dat bedrijf is onze verwerker. Cloudflare beveiligt de verbinding en beëindigt die aan de rand van hun netwerk.
+Het vermogen van uw zonnepanelen, in wattpiek.
 Hier is niets meer te halen.
 Hoe Ampeer rekent
 Hoe groot is de batterij?
+Hoe het dak ligt: welke kant het op ligt en hoe schuin het staat.
 Hoe het werkt
 Hoe ligt het dak?
 Hoe schuin staat het dak?
+Hoe u ons kunt nakijken
+Hoe uw dak ligt: de richting en de hellingshoek.
 Hoe zeker het antwoord is
 Hoeveel stroom gebruikt de warmtepomp per jaar?
+Hoeveel stroom u per jaar verbruikt, zonder het laden van een elektrische auto en zonder een warmtepomp. Naar die twee vragen wij apart.
 Hoeveel stroom verbruikt u per jaar, zonder auto en warmtepomp?
+Hoeveel wattpiek aan zonnepanelen er op uw dak ligt.
+Hoeveel wattpiek aan zonnepanelen ligt er op uw dak?
 Hoeveel wattpiek aan zonnepanelen ligt er?
 Hoofdnavigatie
 INDICATIVE
 Investeren: stroom opslaan in een thuisbatterij
+Inzien
 Is er al een thuisbatterij?
 Is er een warmtepomp?
 Is er op een doordeweekse dag meestal iemand thuis?
+Is er op een doordeweekse dag overdag meestal iemand thuis?
 Is er overdag meestal iemand thuis?
 Is uw contract dynamisch, met een prijs per uur?
 Ja
+Klagen kan bij de toezichthouder
+Komt u er met ons niet uit, dan kunt u een klacht indienen bij de Nederlandse toezichthouder. Dat kan altijd en het kost u niets.
 Kopieer deze link
 Kopieren lukte niet. Neem de link hierboven over.
 Krijg ik straks te horen dat ik een batterij moet kopen?
+KvK-nummer
 LIMITED_BY_LARGEST_SIMULATED_CAPACITY
+Laatst gewijzigd op 2 september 2026.
+Laten verwijderen
 Licht
 Maat waarop dit is gebaseerd
+Meenemen
 Meer hoeft u niet in te vullen. Geen account, geen e-mailadres, en niets aan uw meterkast.
+Meer niet. Er is geen account, wij vragen geen e-mailadres en er hoeft niets aan uw meterkast te gebeuren. Weet u een getal niet precies, dan is een schatting genoeg.
+Meer over
 Meestal 's nachts
 Meestal bij thuiskomst, aan het begin van de avond
 Met een link waarmee u er later bij kunt, zonder account. Wilt u het scherper, dan komen er vijf vragen bij.
@@ -188,10 +253,14 @@ Moet ik mijn zonnepanelen nu weghalen?
 Moet ik overstappen op een dynamisch contract?
 Motorversie
 NIGHT
+NOG_IN_TE_VULLEN
 NONE
 NORTH
 NORTHEAST
 NORTHWEST
+Na 90 dagen verwijderen wij uw advies. Dat gebeurt automatisch, elke dag opnieuw. Daarna werkt de link niet meer. U krijgt dan dezelfde melding als bij een link die nooit heeft bestaan.
+Na uw eerste antwoord kunt u verfijnen: of er op een doordeweekse dag overdag meestal iemand thuis is, wanneer een elektrische auto laadt, of er een warmtepomp is, of uw contract dynamisch is, en of er al een thuisbatterij staat. Vier vragen geeft een indicatief antwoord, negen vragen een goed antwoord.
+Naam
 Naar de inhoud
 Nee
 Nee. Panelen leveren stroom die u anders had moeten kopen, en dat blijft na 2027 zo. Wat verandert is wat de stroom opbrengt die u niet zelf gebruikt.
@@ -205,16 +274,28 @@ Noordoost
 Noordwest
 Omdat een deel van de invoer nog niet vaststaat, zoals de terugleververgoeding in 2027 en de stroomprijs. Wij rekenen uw jaar daarom op veel verschillende standen door en laten zien wat daaruit komt. Een getal daaruit oppakken zou zekerder klinken dan het is.
 Omdat het verschil tussen die twee banden alleen telt voor de kilowatturen die u daadwerkelijk teruglevert. Twee huizen met precies dezelfde panelen en precies hetzelfde jaarverbruik krijgen een ander antwoord, alleen doordat de een overdag thuis is en de ander niet.
+Onze lettertypen staan op onze eigen server. Er is geen extern lettertype en geen extern script.
+Onze methode staat volledig uitgeschreven, met de aannames, de bronnen en de bandbreedtes erbij.
+Onze rekenmodule mag als uitkomst geven: "nu geen batterij". Bij een deel van de huishoudens is dat het eerlijke antwoord, en dan krijgt u het ook.
 Oost
+Op 1 januari 2027 stopt de salderingsregeling. Bijna 3 miljoen woningen in Nederland hebben zonnepanelen. Voor al die huishoudens verandert er iets, en niet voor iedereen evenveel.
 Op 1 januari 2027 stopt de salderingsregeling. Wat dat u kost hangt niet af van hoeveel panelen u heeft, maar van wanneer u stroom gebruikt. Deze pagina legt uit wat er precies verandert, waarom een gemiddeld bedrag u niets zegt, en wat u eraan kunt doen.
 Op 1 januari 2027 stopt de salderingsregeling. Wat er verandert, waarom een gemiddeld bedrag u niets zegt, en hoe u het voor uw eigen huis doorrekent.
 Op dit webadres zat eerder een andere dienst, die wel Nederlandse energiecontracten bemiddelde. Die heeft niets met dit product te maken. Ampeer bemiddelt niets en heeft geen eigen contract.
+Op dit webadres zat eerder een andere dienst. Die bemiddelde wel in energiecontracten. Die dienst heeft niets met Ampeer te maken.
 Op tijd
+Op welke grondslag wij dit doen
 Organization
+Over Ampeer
+Over deze verklaring
+Over ons
 Overdag, op ons eigen overschot
 PRECISE
+Postadres
 Postcode, alleen de vier cijfers
 Prijs per kWh waarbij hij precies uit kan
+Privacy
+Privacyverklaring
 Reken uit wat het einde van de salderingsregeling uw huishouden kost, met de marge erbij.
 SHIFT_BEHAVIOUR
 SMART_CONTROL
@@ -238,37 +319,52 @@ U beantwoordt vier vragen
 U krijgt een bedrag per jaar als een bereik. Het middelpunt is een markering in dat bereik en niet het antwoord, want dat middelpunt weten wij minder zeker dan het eruitziet.
 U krijgt een bedrag per jaar met de marge eromheen, en de band is het object op het scherm. Daaronder ziet u uw eigen jaar in kwartieren: per kwartier of u vooral uw eigen opwek gebruikte, stroom van het net haalde, of teruglevede.
 U krijgt een terugleververgoeding voor wat u teruglevert. Daar staat tegenover dat u de volle prijs betaalt voor wat u afneemt. U leest vaak dat die vergoeding 3 tot 8 cent wordt. Dat is de brutovergoeding: daar gaan de terugleverkosten nog vanaf, en die rekenen leveranciers per teruggeleverde kilowattuur.
+U mag uw toestemming intrekken wanneer u wilt. Stuur ons dan een bericht met uw link erbij. Wat wij tot dat moment deden blijft rechtmatig.
+U vult alles zelf in. Wij halen niets op bij uw meter, uw netbeheerder of uw leverancier. Er gebeurt niets voordat u op berekenen klikt.
 U ziet meteen hoe zeker het is
 U ziet uw bereik en drie routes
+Uit onze eigen logboeken houden wij die link weg. Bij Cloudflare kunnen wij dat niet. Er is een oplossing voor, namelijk de link niet meer in het webadres zetten. Die is nog niet gebouwd.
+Uw IP-adres bewaren wij niet
 Uw advies
 Uw advies is opgehaald.
 Uw advies wordt opgehaald
+Uw antwoorden en uw keuze voor licht of donker staan in de opslag van uw eigen browser. Die blijven op uw apparaat en komen niet bij ons binnen. Sluit u het tabblad, dan zijn uw antwoorden weg.
 Uw boiler, uw laadpaal of uw warmtepomp anders inregelen, of kijken of een ander contract bij uw patroon past. Apparaten die u al heeft, anders gebruikt.
 Uw gegevens
 Uw jaar in kwartieren
 Uw jaar wordt doorgerekend. Dit duurt even.
+Uw jaarverbruik in kilowattuur.
+Uw link is uw inzage. Open hem en u ziet wat wij hebben uitgerekend. Daar hoeft u niets voor aan te vragen. Wij bewaren daarnaast de antwoorden die u invulde. Die staan niet op het scherm. Wilt u ze zien, vraag ze dan op via het adres bovenaan.
+Uw link zetten wij er niet in. Wij zetten er een onomkeerbare afdruk van in. Uit die afdruk is uw link niet terug te rekenen. Zo blijft een oude logregel geen werkende sleutel naar een advies dat allang weg is.
 Uw meter houdt twee standen bij: wat u afnam en wat u teruggaf. Bij salderen wordt het kleinste van de twee van het grootste afgetrokken en betaalt u alleen het verschil. Een kilowattuur die in juni het net op ging, streept er zo een weg die in december binnenkwam. Het moment waarop iets gebeurde doet niet mee.
 Uw ritme verschuiven, en slimmer sturen met apparaten die u al heeft. Opslag komt daarna, en bij een deel van de huishoudens komt daar uit: nu geen batterij.
 Uw situatie doorrekenen
+Van uw postcode bewaren wij vier cijfers
 Vanaf 2027
 Vanaf 2027 houdt u van een teruggeleverde kilowattuur op een vast contract
+Vandaag verdienen wij niets aan uw advies. Er komt geen commissie binnen, geen advertentiegeld en geen vergoeding per doorverwijzing.
 Varieerde
 Veelgestelde vragen
+Verandert dat, dan komt het hier te staan voordat het gebeurt. Gaat Ampeer ooit doorverwijzen, dan vragen wij daar apart toestemming voor. Die toestemming staat nooit voorgevinkt aan, en uw advies verandert er niet door.
 Verbruik
 Verbruik per jaar, zonder auto en warmtepomp
 Verbruiksjaar
 Verder
+Verder gaat er niets naar buiten
 Verfijn uw antwoord
 Vermogen van de installatie
 Vier vragen over uw dak en uw verbruik, en u ziet wat er vanaf 1 januari 2027 bij u verandert, met de marge eromheen.
 Vier vragen over uw dak en uw verbruik, en u ziet wat het einde van de salderingsregeling bij uw huis doet, met de bandbreedte erbij. Gratis, geen account.
+Vier vragen over uw dak en uw verbruik, en u ziet wat het einde van de salderingsregeling u per jaar gaat kosten. Met de bandbreedte erbij, want een enkel getal zou meer zekerheid suggereren dan er is.
 Vier vragen over uw dak en uw verbruik. Geen account, geen e-mailadres, en niets aan uw meterkast. U krijgt een bedrag met de bandbreedte erbij.
 Vier vragen over uw eigen dak, en geen enkele over uw e-mailadres.
 Vier vragen, en u weet wat het bij u doet in plaats van gemiddeld.
 Vier vragen, geen account, geen koppeling
+Vijf vragen die het antwoord scherper maken
 Vijf vragen erbij maken deze uitkomst scherper: of er overdag iemand thuis is, hoe de auto laadt, of er een warmtepomp is, wat voor contract u heeft en of er al opslag is.
 Volgorde
 Voor de meeste huishoudens wel, maar minder dan nu, en hoeveel minder verschilt sterk. Dat is precies het bedrag dat wij voor u uitrekenen.
+Voor de zonopbrengst gebruiken wij zelfs maar de eerste twee cijfers. Daarmee zoeken wij de instraling van uw regio op.
 Voor huishoudens met zonnepanelen
 Voortgang
 Vraag
@@ -280,30 +376,43 @@ WEST
 Waar het antwoord op rust
 Waar onze getallen vandaan komen
 Waarmee gerekend is
+Waarom Ampeer bestaat
 Waarom een gemiddeld bedrag u niets zegt
 Waarom het bedrag per huishouden zo verschilt
 Waarom het moment telt
 Waarom krijg ik een bereik en niet een bedrag?
+Waarom wij dit vragen
 Waarover varieert dit bedrag?
+Waarvan Ampeer betaald wordt
 Wanneer laadt de auto?
 Wanneer laadt uw elektrische auto?
+Wat Ampeer van u vraagt, waarom, hoe lang wij het bewaren en wat u eraan kunt doen. In gewone taal, zonder verwijzing naar een document dat u niet krijgt te zien.
 Wat Ampeer voor u uitrekent
 Wat andere maten zouden opleveren
 Wat die maat per jaar oplevert
 Wat een kilowattuur waard is, in centen. De bovenste band is een kilowattuur die u zelf gebruikt en die verandert nauwelijks. De onderste band is een kilowattuur die u teruglevert: nu even veel waard als de bovenste, en vanaf 2027 bijna niets, aan de ongunstige kant zelfs minder dan nul.
 Wat er in 2029 nog bij komt
+Wat er in ons logboek komt
 Wat er op 1 januari 2027 precies verandert, staat op
 Wat er op 1 januari 2027 verandert
 Wat er verandert
 Wat ervoor in de plaats komt
 Wat het einde van de saldering u per jaar kost
 Wat het kost
+Wat het u kost, hangt vooral af van wanneer u stroom gebruikt. Niet van hoeveel panelen u heeft. Twee huizen met hetzelfde dak en hetzelfde verbruik krijgen een ander antwoord.
 Wat is het verschil tussen terugleververgoeding en terugleverkosten?
 Wat kan ik met de link die ik krijg?
 Wat salderen nu voor u doet
+Wat u met uw gegevens kunt
+Wat u op deze pagina berekent
 Wat u te zien krijgt
+Wat u terugkrijgt
+Wat wij bewaren, en hoe lang
+Wat wij met uw gegevens doen
+Wat wij niet doen en niet verkopen
 Wat wij niet doen en waar wij niets aan verdienen
 Wat wij niet weten
+Wat wij van u vragen
 Wat zijn de eerste vier cijfers van uw postcode?
 WebPage
 WebSite
@@ -312,21 +421,45 @@ Welk jaar
 Welke kant ligt het dak op?
 Welke verbruiksprofielen, welke instralingsreeks en welke tarieven wij gebruiken, met de aannames en de bandbreedtes erbij. Geschreven om nagerekend te worden.
 West
+Wie er achter Ampeer zit, waarom het bestaat en waarvan het betaald wordt. Wij verkopen geen panelen, geen batterijen en geen energiecontract, en wij plaatsen geen advertenties.
+Wie verantwoordelijk is
+Wie wij zijn
+Wie wij zijn en waarvan Ampeer betaald wordt, staat op
 Wij bewaren uw antwoorden en uw uitkomst achter de link die u krijgt, zodat u er later bij kunt. Er is geen account, wij vragen geen e-mailadres, en van uw postcode slaan wij alleen de vier cijfers op.
+Wij bewaren uw antwoorden en uw uitkomst achter de link die u krijgt. Zo kunt u er later nog bij. Die link is de enige sleutel. Wie hem heeft, ziet uw uitkomst. Deel hem dus alleen met mensen die hem mogen zien.
 Wij bouwen uw jaar op
+Wij gebruiken geen Google Analytics en geen ander meetprogramma.
 Wij hebben geen elektrische auto
 Wij konden de rekenserver niet bereiken. Controleer uw verbinding en probeer het opnieuw.
+Wij maken elke dag een reservekopie van onze database. Die kopieën bewaren wij zeven dagen. Een verwijderd advies kan daardoor nog hoogstens acht dagen in zo'n bestand staan. Die bestanden staan op dezelfde server en zijn alleen voor ons leesbaar.
+Wij mogen zeggen dat u niets hoeft te kopen
+Wij plaatsen geen advertenties en verkopen geen advertentieruimte.
+Wij plaatsen geen cookies. Er is dus ook geen cookiemelding die u moet wegklikken.
 Wij rekenen daarom niet één keer maar 243 keer door, met die onzekerheden op verschillende standen, en tonen de bandbreedte die daaruit komt. Het middelpunt is een markering in die band en niet het antwoord. Een enkel getal uit die 243 groot afdrukken zou de band weggooien, en de band is wat het antwoord eerlijk maakt.
+Wij schrijven ook op wat wij niet weten. Over uw schaduw, uw apparaten en de leeftijd van uw panelen weten wij niets.
+Wij sturen uw apparaten niet aan. Wij geven advies en grijpen niet in.
+Wij tellen hoeveel verzoeken er per bezoeker binnenkomen. Dat is nodig om misbruik te stoppen. Uw IP-adres wordt daarvoor eerst onomkeerbaar versleuteld.
 Wij tonen altijd alle drie de routes, in deze volgorde, ook als er bij u aan een ervan niets te halen valt. Een lege route is zelf een antwoord.
+Wij tonen ook altijd eerst de routes die u niets kosten. Uw ritme verschuiven, en slimmer omgaan met apparaten die u al heeft. Een investering komt als laatste in beeld.
+Wij verkopen geen energiecontract en wij bemiddelen er ook geen.
+Wij verkopen geen zonnepanelen en geen thuisbatterijen.
 Wij verkopen geen zonnepanelen, geen thuisbatterijen en geen energiecontract. Wij sturen u niet door naar een partij die dat wel doet, wij plaatsen geen advertenties en wij verkopen geen leads. Er is geen knop op deze site die naar een verkopende partij leidt.
+Wij verkopen vandaag geen leads en sturen u niet door naar een installateur of een leverancier.
+Wij verwerken uw antwoorden met uw toestemming. Die geeft u door de vragen in te vullen en op berekenen te klikken.
+Wij verwerken uw antwoorden om de berekening te maken waar u zelf om vraagt. Dat is de uitvoering van de overeenkomst die u met ons aangaat door de vragen te beantwoorden.
+Wij volgen uw gedrag niet en bouwen geen profiel van u op.
+Wij vragen geen naam, geen e-mailadres en geen telefoonnummer. Wij vragen ook geen huisnummer. Er is geen account en er is geen wachtwoord.
+Wij vragen u vier dingen en bewaren die achter uw eigen link. Van uw postcode bewaren wij alleen de eerste vier cijfers. Na 90 dagen is uw advies weg.
 Wij weten niet hoe oud uw panelen zijn, dus rekenen wij ze als nieuw. Bij oudere panelen valt het bedrag bij u hoger uit dan bij ons.
 Wij weten niet hoeveel schaduw er op uw dak valt en vragen er niet naar.
 Wij weten niet welke apparaten u heeft of wanneer u ze aanzet.
+Wilt u een scherper antwoord, dan volgen er vijf vragen bij. Of u overdag thuis bent bijvoorbeeld, of u een elektrische auto heeft, en of u een warmtepomp heeft. Die vragen zijn vrijwillig.
 Zijn zonnepanelen na 2027 nog rendabel?
 Zo vaak rekenen wij uw jaar opnieuw door, met de onzekere aannames op verschillende standen. Wat u ziet is de bandbreedte die daaruit komt.
 Zoals het nu is
 Zoals salderen telt
 Zolang u mag salderen is een teruggeleverde kilowattuur precies zo veel waard als een die u zelf gebruikt, want de ene wordt van de andere afgetrokken. Daarom staan beide banden op dezelfde hoogte: dat is niet vereenvoudigd, dat is de regeling.
+Zonder die antwoorden kunnen wij geen antwoord geven. Er is geen andere grondslag en er is geen tweede doel.
 Zonder het laden van een elektrische auto en zonder een warmtepomp, ook als u die wel heeft. Daar vragen wij zo apart naar en wij tellen ze er dan zelf bij op. Staan ze op uw jaarnota, haal ze er dan af. Een schatting is genoeg.
 Zonder inloggen, en zonder dat u iets hoeft te koppelen.
 Zonnepanelen na saldering: reken uw huis door
@@ -334,20 +467,25 @@ Zoveel kwartieren heeft een jaar, en op elk ervan rekenen wij uw huis door. Geen
 Zuid
 Zuidoost
 Zuidwest
+a postal address a letter can reach
 als middelpunt, uit
 ampeer-antwoorden
 ampeer-thema
 apr
 aug
+betaalt de server en de domeinnaam zelf.
 cent over, nadat de terugleverkosten eraf zijn. Aan de ongunstige kant is dat negatief: dan kost terugleveren u geld. Wat u zelf gebruikt blijft
 cent waard. Het verschil zit dus niet in wat zelf gebruiken oplevert.
 cent.
+contactEmail
 dark
 data-theme
+de pagina over ons
 dec
 dingen te koop
 doorrekeningen
 doorrekeningen.
+either "
 en
 euro
 euro als middelpunt, uit
@@ -362,12 +500,15 @@ graden
 h
 haalde het eruit.
 het einde van de saldering
+hoe wij dit uitrekenen
 hoofdinhoud
 hoofdstuk 11 van onze methodologie
 http://127.0.0.1:8000
 https://ampeer.nl
 https://schema.org
+https://www.autoriteitpersoonsgegevens.nl/
 in.
+is verantwoordelijk voor de gegevens die via ampeer.nl worden verwerkt. Heeft u een vraag over uw gegevens, mail dan naar het adres hieronder. Wij antwoorden binnen een maand.
 ja
 jaar
 jan
@@ -376,8 +517,12 @@ jun
 kWh
 kWh opslag
 kWh zelf gebruikt
+kvkNumber
 kwartieren
+legalBasis
+legalName
 light
+mailto:
 mei
 monthly
 mrt
@@ -393,9 +538,12 @@ nov
 offtake
 okt
 onze methodologie
+onze privacyverklaring
+overeenkomst
 own
 per jaar
 per kWh
+postalAddress
 rgb(
 ronde
 route-
@@ -404,15 +552,22 @@ system
 tariefcombinaties.
 teruggeleverd
 text-3xl font-bold
+the Chamber of Commerce number, eight digits
+the VAT identification number, NL followed by twelve characters
+the address that answers questions about personal data
+the registered name of the controller, including its legal form, or the full name of the natural person
+toestemming
 tot
 try{var c=localStorage.getItem("
 van
 van de 96 kwartieren gebruikte dit huishouden zijn eigen opwek,
 van het net gehaald
 var(
+vatNumber
 vraag-titel
 vraag-toelichting
 vragen
+wat er op 1 januari 2027 verandert
 website
 yearly
 zelf gebruikt
