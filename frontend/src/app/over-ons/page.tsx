@@ -199,8 +199,18 @@ export function AboutAmpeer({
           <dd className={styles.detail}>{identity.legalName}</dd>
           <dt className={styles.term}>KvK-nummer</dt>
           <dd className={styles.detail}>{identity.kvkNumber}</dd>
-          <dt className={styles.term}>Btw-nummer</dt>
-          <dd className={styles.detail}>{identity.vatNumber}</dd>
+          {/*
+            The row appears only when there is a number to put in it. A
+            colophon that lists a label with nothing beside it says less than
+            one that lists a shorter set, and identity.ts explains why this
+            field is the one optional fact here.
+          */}
+          {identity.vatNumber !== undefined && (
+            <>
+              <dt className={styles.term}>Btw-nummer</dt>
+              <dd className={styles.detail}>{identity.vatNumber}</dd>
+            </>
+          )}
           <dt className={styles.term}>Postadres</dt>
           <dd className={styles.detail}>{identity.postalAddress}</dd>
           <dt className={styles.term}>E-mail</dt>

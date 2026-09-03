@@ -62,7 +62,22 @@ export type LegalBasis = (typeof LEGAL_BASES)[number];
 export interface Identity {
   readonly legalName: string;
   readonly kvkNumber: string;
-  readonly vatNumber: string;
+  /*
+   * Optional, and the only one of these that is.
+   *
+   * Article 13 AVG wants the identity and the contact details of the
+   * controller, which the name, the Chamber of Commerce number, the postal
+   * address and the email address already give. A VAT identification number
+   * is what an invoice and a commercial web shop need, and this site sells
+   * nothing and invoices nobody. So a missing one is a colophon row that does
+   * not appear, not a page that may not be published.
+   *
+   * It is still rendered when supplied, because a reader checking who is
+   * behind this would rather have it than not. If Ampeer ever charges for
+   * anything, revisit this: at that point the obligation is a different one
+   * and this comment is the wrong side of it.
+   */
+  readonly vatNumber?: string;
   readonly postalAddress: string;
   readonly contactEmail: string;
   readonly legalBasis: LegalBasis | typeof NOG_IN_TE_VULLEN | string;
@@ -79,7 +94,8 @@ export interface Identity {
 export interface CompleteIdentity {
   readonly legalName: string;
   readonly kvkNumber: string;
-  readonly vatNumber: string;
+  /** Optional for the reason `Identity` gives. */
+  readonly vatNumber?: string;
   readonly postalAddress: string;
   readonly contactEmail: string;
   readonly legalBasis: LegalBasis;
@@ -95,7 +111,6 @@ export interface CompleteIdentity {
 export const IDENTITY_FIELDS = [
   "legalName",
   "kvkNumber",
-  "vatNumber",
   "postalAddress",
   "contactEmail",
   "legalBasis",
@@ -113,7 +128,6 @@ export const IDENTITY_FIELD_HELP: Readonly<Record<IdentityField, string>> = {
   legalName:
     "the registered name of the controller, including its legal form, or the full name of the natural person",
   kvkNumber: "the Chamber of Commerce number, eight digits",
-  vatNumber: "the VAT identification number, NL followed by twelve characters",
   postalAddress: "a postal address a letter can reach",
   contactEmail: "the address that answers questions about personal data",
   legalBasis: `either "${LEGAL_BASES[0]}" or "${LEGAL_BASES[1]}"; see chapter 10 point 2 of docs/dpia.md`,
@@ -132,9 +146,13 @@ export const IDENTITY: Identity = {
   // and the name they saw on the site, and for this legal form those differ.
   legalName: "Stijn IT, eenmanszaak",
   kvkNumber: "42015984",
-  vatNumber: NOG_IN_TE_VULLEN,
   postalAddress: "Snavelbiesstraat 8, 5445 NV Landhorst",
-  contactEmail: NOG_IN_TE_VULLEN,
+  // One general address rather than a dedicated privacy@ one, chosen on
+  // 2026-09-03. Worth knowing what that costs: the AVG gives a month to answer
+  // an access or deletion request, and a request arriving in a general inbox is
+  // one that can be read as ordinary mail and left. If that ever bites, a
+  // forwarding rule on this address is the cheap fix, not a change here.
+  contactEmail: "info@ampeer.nl",
   // Chosen on 2026-09-02, from the two the DPIA leaves open in chapter 10.
   // Article 6(1)(b): the visitor asks for a calculation and these answers are
   // what makes one possible, so the processing is the service rather than

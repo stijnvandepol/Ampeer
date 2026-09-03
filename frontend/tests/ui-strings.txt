@@ -501,6 +501,7 @@ https://ampeer.nl
 https://schema.org
 https://www.autoriteitpersoonsgegevens.nl/
 in.
+info@ampeer.nl
 is verantwoordelijk voor de gegevens die via ampeer.nl worden verwerkt. Heeft u een vraag over uw gegevens, mail dan naar het adres hieronder. Wij antwoorden binnen een maand.
 ja
 jaar
@@ -546,7 +547,6 @@ tariefcombinaties.
 teruggeleverd
 text-3xl font-bold
 the Chamber of Commerce number, eight digits
-the VAT identification number, NL followed by twelve characters
 the address that answers questions about personal data
 the registered name of the controller, including its legal form, or the full name of the natural person
 toestemming
@@ -556,7 +556,6 @@ van
 van de 96 kwartieren gebruikte dit huishouden zijn eigen opwek,
 van het net gehaald
 var(
-vatNumber
 vraag-titel
 vraag-toelichting
 vragen
