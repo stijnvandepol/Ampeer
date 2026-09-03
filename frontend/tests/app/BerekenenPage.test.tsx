@@ -3,20 +3,61 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import fixture from "../fixtures/advice-response.json";
 import BerekenenPage from "@/app/berekenen/page";
+import BerekenenLayout, { metadata } from "@/app/berekenen/layout";
 import { ANSWERS_STORAGE_KEY } from "@/app/_flow/answers";
 import { forgetCachedAnswers } from "@/app/_flow/store";
 
 /**
- * The consumption field's label, in full.
+ * The call to one endpoint, out of every call the page made.
  *
- * Spelled out rather than matched loosely, because the two words this test
- * would happily drop are the whole of decision 26. The model adds the car and
- * the heat pump on top of this figure, so a visitor who reads the total off
- * their annual bill is counted twice and loses between a quarter and half of
- * their answer with nothing reporting it. A `getByLabelText(/Verbruik/)` here
- * would keep passing through exactly the edit that undoes that.
+ * Not `mock.calls[0]`, which these tests used until 2026-09-02 and which said
+ * "the first request the page makes carries this body". That stopped being the
+ * property anybody wanted the moment the flow also counted its own funnel: the
+ * counters go to `/api/advice/count/` and fire earlier, so the assertion began
+ * failing on a page that was doing exactly the right thing. Locating the call
+ * by its path says what the test always meant.
  */
-const CONSUMPTION_LABEL = "Verbruik per jaar, zonder auto en warmtepomp";
+function callTo(
+  spy: { mock: { calls: unknown[][] } },
+  path: string,
+): [string, RequestInit] {
+  const found = spy.mock.calls.find((call) => String(call[0]).includes(path));
+  if (found === undefined) {
+    const seen = spy.mock.calls.map((call) => String(call[0]));
+    throw new Error(
+      `no request to ${path}; the page called ${seen.join(", ")}`,
+    );
+  }
+  return found as unknown as [string, RequestInit];
+}
+
+/**
+ * The three questions of round one that have a field, each written once.
+ *
+ * These are the headings, and since 2026-09-02 they are also the accessible
+ * names of the fields underneath them: the controls carry `aria-labelledby`
+ * pointing at QuestionShell's heading rather than a second, differently worded
+ * label of their own. So every query below asks for the textbox BY the
+ * question, which is now also an assertion that the question and the field say
+ * the same thing.
+ *
+ * `getByRole("textbox", ...)` and not `getByLabelText`, because the heading
+ * names two things: the field, and the `<section>` QuestionShell wraps the
+ * question in. A label query matches both and fails on the ambiguity; the role
+ * says which of the two this test means.
+ *
+ * The consumption one is spelled out rather than matched loosely, because the
+ * three words this test would happily drop are the whole of decision 26. The
+ * model adds the car and the heat pump on top of this figure, so a visitor who
+ * reads the total off their annual bill is counted twice and loses between a
+ * quarter and half of their answer with nothing reporting it. A
+ * `getByLabelText(/Verbruik/)` here would keep passing through exactly the
+ * edit that undoes that.
+ */
+const POSTCODE_LABEL = "Wat zijn de eerste vier cijfers van uw postcode?";
+const PEAK_POWER_LABEL = "Hoeveel wattpiek aan zonnepanelen ligt er op uw dak?";
+const CONSUMPTION_LABEL =
+  "Hoeveel stroom verbruikt u per jaar, zonder auto en warmtepomp?";
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
@@ -114,18 +155,21 @@ afterEach(() => {
 
 async function answerRoundOne() {
   await userEvent.type(
-    screen.getByLabelText("Postcode, alleen de vier cijfers"),
+    screen.getByRole("textbox", { name: POSTCODE_LABEL }),
     "5401",
   );
   await userEvent.click(screen.getByRole("button", { name: "Volgende" }));
   await userEvent.type(
-    screen.getByLabelText("Vermogen van de installatie"),
+    screen.getByRole("textbox", { name: PEAK_POWER_LABEL }),
     "4200",
   );
   await userEvent.click(screen.getByRole("button", { name: "Volgende" }));
   await userEvent.click(screen.getByLabelText("Zuidwest"));
   await userEvent.click(screen.getByRole("button", { name: "Volgende" }));
-  await userEvent.type(screen.getByLabelText(CONSUMPTION_LABEL), "3400");
+  await userEvent.type(
+    screen.getByRole("textbox", { name: CONSUMPTION_LABEL }),
+    "3400",
+  );
 }
 
 describe("the question flow", () => {
@@ -152,12 +196,12 @@ describe("the question flow", () => {
     // not an answer.
     render(<BerekenenPage />);
     await userEvent.type(
-      screen.getByLabelText("Postcode, alleen de vier cijfers"),
+      screen.getByRole("textbox", { name: POSTCODE_LABEL }),
       "5401",
     );
     await userEvent.click(screen.getByRole("button", { name: "Volgende" }));
     await userEvent.type(
-      screen.getByLabelText("Vermogen van de installatie"),
+      screen.getByRole("textbox", { name: PEAK_POWER_LABEL }),
       "4200",
     );
     await userEvent.click(screen.getByRole("button", { name: "Volgende" }));
@@ -170,7 +214,7 @@ describe("the question flow", () => {
   it("names the bound that was broken instead of calling the value invalid", async () => {
     render(<BerekenenPage />);
     await userEvent.type(
-      screen.getByLabelText("Postcode, alleen de vier cijfers"),
+      screen.getByRole("textbox", { name: POSTCODE_LABEL }),
       "999",
     );
     await userEvent.tab();
@@ -185,8 +229,7 @@ describe("the question flow", () => {
     await userEvent.click(screen.getByRole("button", { name: "Bereken" }));
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
-    const call = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
-    expect(call[0]).toContain("/api/advice/estimate/");
+    const call = callTo(fetchSpy, "/api/advice/estimate/");
     expect(JSON.parse(String(call[1].body))).toEqual({
       // A string, because the API's field is a RegexField over four digits.
       postcode4: "5401",
@@ -225,7 +268,7 @@ describe("the question flow", () => {
   it("keeps a half filled form in sessionStorage, not in localStorage", async () => {
     render(<BerekenenPage />);
     await userEvent.type(
-      screen.getByLabelText("Postcode, alleen de vier cijfers"),
+      screen.getByRole("textbox", { name: POSTCODE_LABEL }),
       "5401",
     );
     // Consumption data about a household, from which it can be read when
@@ -243,9 +286,9 @@ describe("the question flow", () => {
     );
     forgetCachedAnswers();
     render(<BerekenenPage />);
-    expect(
-      screen.getByLabelText("Postcode, alleen de vier cijfers"),
-    ).toHaveValue("5401");
+    expect(screen.getByRole("textbox", { name: POSTCODE_LABEL })).toHaveValue(
+      "5401",
+    );
   });
 
   it("checks no direction on the roof question before the visitor answers one", async () => {
@@ -254,12 +297,12 @@ describe("the question flow", () => {
     // answer: a radio that is already checked fires no change event.
     render(<BerekenenPage />);
     await userEvent.type(
-      screen.getByLabelText("Postcode, alleen de vier cijfers"),
+      screen.getByRole("textbox", { name: POSTCODE_LABEL }),
       "5401",
     );
     await userEvent.click(screen.getByRole("button", { name: "Volgende" }));
     await userEvent.type(
-      screen.getByLabelText("Vermogen van de installatie"),
+      screen.getByRole("textbox", { name: PEAK_POWER_LABEL }),
       "4200",
     );
     await userEvent.click(screen.getByRole("button", { name: "Volgende" }));
@@ -273,23 +316,26 @@ describe("the question flow", () => {
     vi.stubGlobal("fetch", fetchSpy);
     render(<BerekenenPage />);
     await userEvent.type(
-      screen.getByLabelText("Postcode, alleen de vier cijfers"),
+      screen.getByRole("textbox", { name: POSTCODE_LABEL }),
       "5401",
     );
     await userEvent.click(screen.getByRole("button", { name: "Volgende" }));
     await userEvent.type(
-      screen.getByLabelText("Vermogen van de installatie"),
+      screen.getByRole("textbox", { name: PEAK_POWER_LABEL }),
       "4200",
     );
     await userEvent.click(screen.getByRole("button", { name: "Volgende" }));
     await userEvent.click(screen.getByLabelText("Zuid"));
     await userEvent.click(screen.getByRole("button", { name: "Volgende" }));
     expect(screen.getByText("Vraag 4 van 4")).toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText(CONSUMPTION_LABEL), "3400");
+    await userEvent.type(
+      screen.getByRole("textbox", { name: CONSUMPTION_LABEL }),
+      "3400",
+    );
     await userEvent.click(screen.getByRole("button", { name: "Bereken" }));
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
-    const call = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
+    const call = callTo(fetchSpy, "/api/advice/estimate/");
     expect(JSON.parse(String(call[1].body))).toMatchObject({
       azimuth_deg: 0,
       tilt_deg: 35,
@@ -304,12 +350,12 @@ describe("the question flow", () => {
     // whole advice is worth.
     render(<BerekenenPage />);
     await userEvent.type(
-      screen.getByLabelText("Postcode, alleen de vier cijfers"),
+      screen.getByRole("textbox", { name: POSTCODE_LABEL }),
       "5401",
     );
     await userEvent.click(screen.getByRole("button", { name: "Volgende" }));
     await userEvent.type(
-      screen.getByLabelText("Vermogen van de installatie"),
+      screen.getByRole("textbox", { name: PEAK_POWER_LABEL }),
       "4200",
     );
     await userEvent.click(screen.getByRole("button", { name: "Volgende" }));
@@ -333,7 +379,16 @@ describe("the question flow", () => {
     await userEvent.click(compute);
     await userEvent.click(compute);
     await userEvent.click(compute);
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    // The computation, not every request: the page also counts its own funnel,
+    // and those go to a different path. Four presses must still buy one
+    // computation, which is what this test is about.
+    // `as unknown as` because this spy is declared with no argument types, so
+    // TypeScript types its recorded calls as the empty tuple and refuses an
+    // index. The same reason `callTo` above takes a loosened shape.
+    const computes = (fetchSpy.mock.calls as unknown as unknown[][]).filter(
+      (call) => String(call[0]).includes("/api/advice/estimate/"),
+    );
+    expect(computes).toHaveLength(1);
     release();
     await waitFor(() => expect(assign).toHaveBeenCalled());
   });
@@ -376,8 +431,13 @@ describe("the question flow", () => {
     // which is false: it was answered with something unusable.
     render(<BerekenenPage />);
     await answerRoundOne();
-    await userEvent.clear(screen.getByLabelText(CONSUMPTION_LABEL));
-    await userEvent.type(screen.getByLabelText(CONSUMPTION_LABEL), "99999999");
+    await userEvent.clear(
+      screen.getByRole("textbox", { name: CONSUMPTION_LABEL }),
+    );
+    await userEvent.type(
+      screen.getByRole("textbox", { name: CONSUMPTION_LABEL }),
+      "99999999",
+    );
     await userEvent.click(screen.getByRole("button", { name: "Bereken" }));
     const alerts = screen.getAllByRole("alert");
     expect(alerts).toHaveLength(1);
@@ -392,11 +452,11 @@ describe("the question flow", () => {
     // own, so the flow has to be the one that speaks.
     render(<BerekenenPage />);
     await userEvent.type(
-      screen.getByLabelText("Postcode, alleen de vier cijfers"),
+      screen.getByRole("textbox", { name: POSTCODE_LABEL }),
       "999",
     );
     await userEvent.clear(
-      screen.getByLabelText("Postcode, alleen de vier cijfers"),
+      screen.getByRole("textbox", { name: POSTCODE_LABEL }),
     );
     await userEvent.click(screen.getByRole("button", { name: "Volgende" }));
     expect(screen.getByRole("alert")).toHaveTextContent(
@@ -407,7 +467,7 @@ describe("the question flow", () => {
   it("walks back to the previous question, and off the flow from the first", async () => {
     render(<BerekenenPage />);
     await userEvent.type(
-      screen.getByLabelText("Postcode, alleen de vier cijfers"),
+      screen.getByRole("textbox", { name: POSTCODE_LABEL }),
       "5401",
     );
     await userEvent.click(screen.getByRole("button", { name: "Volgende" }));
@@ -485,8 +545,7 @@ describe("round two", () => {
     await userEvent.click(screen.getByRole("button", { name: "Bereken" }));
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
-    const call = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
-    expect(call[0]).toContain("/api/advice/refine/");
+    const call = callTo(fetchSpy, "/api/advice/refine/");
     expect(JSON.parse(String(call[1].body))).toEqual({
       postcode4: "5401",
       peak_power_wp: 4200,
@@ -528,5 +587,77 @@ describe("round two", () => {
     expect(window.sessionStorage.getItem(ANSWERS_STORAGE_KEY)).toContain(
       '"batteryCapacityKwh":null',
     );
+  });
+});
+
+/**
+ * The server shell around the flow, as a component.
+ *
+ * `params` is required by `LayoutProps<"/berekenen">` and is a promise of an
+ * empty object for a route with no segments. It is never read; it is here
+ * because the generated type says a layout takes one.
+ */
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <BerekenenLayout params={Promise.resolve({})}>{children}</BerekenenLayout>
+  );
+}
+
+describe("the page a crawler and a first paint both get", () => {
+  /**
+   * The half of this route that does not wait for hydration.
+   *
+   * Measured on the built `out/berekenen/index.html` on 2026-09-02: no `<h1>`
+   * at all and 32 words of body text, all of them header, footer and "De vragen
+   * worden klaargezet." The whole page was behind hydration. `e2e/form.spec.ts`
+   * asserts this against the file that ships with JavaScript switched off,
+   * which is the honest instrument; these are the fast versions that fail in a
+   * second rather than after a build.
+   */
+  it("names itself with the same words the tab does", () => {
+    render(<Shell>{null}</Shell>);
+    const heading = screen.getByRole("heading", { level: 1 });
+    // The route's title, not a paraphrase of it. They disagreed until
+    // 2026-09-02: the tab said "Uw situatie doorrekenen" and the heading said
+    // "Uw gegevens", so a screen reader announced two names for one page.
+    expect(heading).toHaveTextContent(String(metadata.title));
+  });
+
+  it("says what the calculator asks for before the flow has rendered", () => {
+    // `{null}` is the flow that has not arrived: no questions, no client
+    // component, nothing that needs a browser. What is left has to stand on
+    // its own, because for a retrieval crawler that is the whole page.
+    const { container } = render(<Shell>{null}</Shell>);
+    const text = container.textContent ?? "";
+    for (const phrase of [
+      "De salderingsregeling stopt op 1 januari 2027",
+      "De vier vragen",
+      "wattpiek aan zonnepanelen",
+      "geen e-mailadres",
+      "Ampeer verkoopt geen zonnepanelen",
+    ]) {
+      expect(text, `the shell never says "${phrase}"`).toContain(phrase);
+    }
+    // Non-vacuous: 32 words was the defect, and a page that lost its shell
+    // would still pass every phrase check above if one paragraph survived.
+    expect(text.split(/\s+/).filter(Boolean).length).toBeGreaterThan(180);
+  });
+
+  it("puts the route's one first-level heading in the shell, not in the flow", () => {
+    // The flow used to carry an `<h1>Uw gegevens</h1>`: a heading that named a
+    // section of the form rather than the page, that disagreed with the tab,
+    // and that no reader without JavaScript ever saw. Both halves matter. The
+    // flow must contribute none, and the route must still end up with exactly
+    // one, because two is the failure a careless move of this heading makes.
+    const flow = render(<BerekenenPage />);
+    expect(flow.container.querySelectorAll("h1")).toHaveLength(0);
+    flow.unmount();
+
+    render(
+      <Shell>
+        <BerekenenPage />
+      </Shell>,
+    );
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   });
 });

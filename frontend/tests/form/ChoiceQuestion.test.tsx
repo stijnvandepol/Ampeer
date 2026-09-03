@@ -92,4 +92,30 @@ describe("a choice question", () => {
       screen.getByRole("group", { name: "Wanneer laadt de auto?" }),
     ).toBeInTheDocument();
   });
+  it("borrows a name that is already on the screen instead of repeating it", () => {
+    // The one-question-per-screen case. QuestionShell's heading asks the
+    // question; a legend underneath it would ask the same thing again, and
+    // until 2026-09-02 it asked it in different words, with the qualifier that
+    // decides the answer only in the second copy. So the group is named by the
+    // heading and writes no legend of its own.
+    render(
+      <>
+        <h2 id="vraag-titel">
+          Is er op een doordeweekse dag overdag meestal iemand thuis?
+        </h2>
+        <ChoiceQuestion
+          id="thuis"
+          labelledBy="vraag-titel"
+          options={options}
+          value={null}
+          onChange={() => {}}
+        />
+      </>,
+    );
+    const group = screen.getByRole("group", {
+      name: "Is er op een doordeweekse dag overdag meestal iemand thuis?",
+    });
+    expect(group).toBeInTheDocument();
+    expect(group.querySelector("legend")).toBeNull();
+  });
 });
