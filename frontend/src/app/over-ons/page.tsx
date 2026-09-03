@@ -109,9 +109,11 @@ export function AboutAmpeer({
           niet door.
         </p>
         <p className={styles.body}>
-          Dat laatste is de kern. Ons advies mag nooit afhangen van wie ons
-          betaalt. Elke regel code die dat wel zou doen is bij ons een fout en
-          geen verdienmodel.
+          Dat laatste is de kern, en het is de belofte die blijft staan als er
+          wel geld binnenkomt. Ons advies mag niet afhangen van wie ons betaalt.
+          Elke regel code die het advies zou laten meebewegen met een
+          commerciele afspraak geldt in dit project als een fout, en dat staat
+          zo in de projectafspraken die bij de broncode horen.
         </p>
       </section>
 
@@ -125,10 +127,11 @@ export function AboutAmpeer({
           krijgt u het ook.
         </p>
         <p className={styles.body}>
-          Aan die uitkomst verdienen wij niets. Aan de andere uitkomsten
-          verdienen wij ook niets, en dat is precies waarom wij deze kunnen
-          geven. Een adviseur die batterijen verkoopt kan die zin niet
-          schrijven.
+          Wat die uitkomst mogelijk maakt is niet dat wij niets verdienen, maar
+          dat niemand ons betaalt voor welke uitkomst u krijgt. Er is geen
+          installateur, geen leverancier en geen fabrikant die er beter van
+          wordt als hier &quot;wel een batterij&quot; uitkomt. Een adviseur die
+          batterijen verkoopt kan die zin niet schrijven.
         </p>
         <p className={styles.body}>
           Wij tonen ook altijd eerst de routes die u niets kosten. Uw ritme

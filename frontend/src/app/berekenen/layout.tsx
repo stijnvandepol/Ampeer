@@ -180,8 +180,8 @@ function WhatThisCalculates() {
       </p>
       <p className="text-ink-muted">
         Ampeer verkoopt geen zonnepanelen, geen thuisbatterijen en geen
-        energiecontract, stuurt u niet door naar een partij die dat wel doet, en
-        plaatst geen advertenties. Daarom is nu geen batterij hier een geldige
+        energiecontract, en plaatst geen advertenties. Niemand betaalt ons voor
+        de uitkomst die u krijgt. Daarom is nu geen batterij hier een geldige
         uitkomst.
       </p>
       <p className="text-ink-muted">

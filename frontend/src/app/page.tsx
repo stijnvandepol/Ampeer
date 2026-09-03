@@ -81,7 +81,7 @@ const FACTS: readonly {
     value: 0,
     counted: false,
     unit: "dingen te koop",
-    text: "Geen panelen, geen batterijen, geen energiecontract, en geen doorverwijzing naar een partij die dat wel doet.",
+    text: "Geen panelen, geen batterijen en geen energiecontract. En niemand die ons betaalt voor de uitkomst die u krijgt.",
   },
 ];
 

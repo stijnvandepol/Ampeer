@@ -26,7 +26,8 @@ export function SiteFooter() {
       <div className="mx-auto flex w-full max-w-[var(--shell-max)] flex-col gap-3 px-6 py-8 text-sm text-ink-muted">
         <p>
           Ampeer verkoopt geen panelen, geen batterijen en geen energiecontract,
-          en plaatst geen advertenties.
+          en plaatst geen advertenties. Niemand betaalt ons voor de uitkomst die
+          u krijgt.
         </p>
         <nav
           aria-label="Over Ampeer"
