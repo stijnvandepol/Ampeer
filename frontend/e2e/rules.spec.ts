@@ -564,3 +564,152 @@ test("the four routes do not all answer to the same title", async ({
     titles.length,
   );
 });
+
+test("each end label stands on the point it names, not on the end of the track", async ({
+  page,
+}) => {
+  // The axis runs from zero to the band's own upper end, so a band whose low
+  // end is 70% of its high end is drawn as a fill over the right third of the
+  // track. The two end labels sat in a flex row spanning the whole track with
+  // justify-content: space-between, so "€ 1.382,13" was typeset under the
+  // axis's ZERO. Measured at 1280x900 before this test existed: the low label's
+  // box was x 280..427.9 while the point it names, the fill's left edge, was at
+  // 786.8. That is 60% of the track away, and the only reading left to a
+  // sighted visitor was that the grey rail is the range, which leaves the
+  // coloured band unexplained and puts the middle nonsensically high inside it.
+  //
+  // Measured against the drawn geometry rather than against a recomputed model:
+  // the fill's left edge IS p10 and its right edge IS p90, which the test above
+  // this one already pins to data-band-span. So this asks only that each label
+  // covers the edge it names, which is a property of the picture and not of the
+  // arithmetic behind it.
+  //
+  // 320 and 390 are the two phone widths that matter and they are the hard
+  // case: at 320 the track is 272px and the two labels are 148px each, so they
+  // cannot share a line and any layout that puts them on one degenerates to
+  // the one this replaces.
+  for (const viewport of [
+    { width: 320, height: 900 },
+    { width: 390, height: 900 },
+    { width: 1280, height: 900 },
+  ]) {
+    const where = `${viewport.width}px`;
+    await page.setViewportSize(viewport);
+    await openAdvice(page);
+    // The fill animates to its width, and a label is checked against the fill's
+    // edges, so measuring before it settles measures a sliver of a rounded cap.
+    await page.waitForTimeout(700);
+
+    const measured = await page.evaluate(() => {
+      const figure = document.querySelector('[data-band-kind="percentile"]');
+      if (figure === null) throw new Error("no percentile band on the page");
+      const read = (element: Element | null) => {
+        if (element === null) return null;
+        const box = element.getBoundingClientRect();
+        return {
+          left: box.left,
+          right: box.right,
+          top: box.top,
+          bottom: box.bottom,
+          width: box.width,
+          text: (element.textContent ?? "").replace(/\s+/g, " ").trim(),
+        };
+      };
+      return {
+        axis: read(figure.querySelector("[data-band-part='axis']")),
+        fill: read(figure.querySelector('[data-role="band-fill"]')),
+        ends: [...figure.querySelectorAll('[data-role="band-end"]')].map(read),
+        clientWidth: document.documentElement.clientWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+      };
+    });
+
+    const axis = measured.axis;
+    const fill = measured.fill;
+    expect(axis, `${where}: the band has no axis`).not.toBeNull();
+    expect(fill, `${where}: the band has no fill`).not.toBeNull();
+    const axisWidth = axis?.width ?? 0;
+    expect(axisWidth, `${where}: the axis has no width`).toBeGreaterThan(100);
+
+    // Non-vacuity. If the fill happened to cover the whole track then "at the
+    // end of the track" and "at the end of the band" would be the same place
+    // and every assertion below would pass on the very layout it forbids.
+    const startsAt = ((fill?.left ?? 0) - (axis?.left ?? 0)) / axisWidth;
+    expect(
+      startsAt,
+      `${where}: the fill starts at ${(startsAt * 100).toFixed(1)}% of the track, too close to ` +
+        `zero for this test to tell a band end from a track end`,
+    ).toBeGreaterThan(0.2);
+
+    expect(measured.ends, `${where}: the band drew no end labels`).toHaveLength(
+      2,
+    );
+    const [low, high] = measured.ends;
+    expect(
+      low?.width ?? 0,
+      `${where}: the low label has no box`,
+    ).toBeGreaterThan(0);
+    expect(
+      high?.width ?? 0,
+      `${where}: the high label has no box`,
+    ).toBeGreaterThan(0);
+
+    // Each label covers the edge of the fill it names. A label is wider than
+    // the point it stands on, so "covers" and not "is centred on": what may
+    // never happen is the label standing somewhere the value is not.
+    const named = [
+      { name: "low", label: low, point: fill?.left ?? 0 },
+      { name: "high", label: high, point: fill?.right ?? 0 },
+    ] as const;
+    for (const { name, label, point } of named) {
+      const at = (((label?.left ?? 0) - (axis?.left ?? 0)) / axisWidth) * 100;
+      const should = ((point - (axis?.left ?? 0)) / axisWidth) * 100;
+      expect(
+        point,
+        `${where}: the ${name} label "${label?.text}" runs ${label?.left.toFixed(1)}..` +
+          `${label?.right.toFixed(1)} (${at.toFixed(1)}% of the track) but the point it names ` +
+          `is at ${point.toFixed(1)} (${should.toFixed(1)}%)`,
+      ).toBeGreaterThanOrEqual((label?.left ?? 0) - 1);
+      expect(
+        point,
+        `${where}: the ${name} label "${label?.text}" runs ${label?.left.toFixed(1)}..` +
+          `${label?.right.toFixed(1)} (${at.toFixed(1)}% of the track) but the point it names ` +
+          `is at ${point.toFixed(1)} (${should.toFixed(1)}%)`,
+      ).toBeLessThanOrEqual((label?.right ?? 0) + 1);
+    }
+
+    // And the two of them do not sit on top of each other. Anchoring a label to
+    // a point is worth nothing if the label underneath it is unreadable.
+    const apart =
+      (low?.right ?? 0) <= (high?.left ?? 0) + 1 ||
+      (high?.right ?? 0) <= (low?.left ?? 0) + 1 ||
+      (low?.bottom ?? 0) <= (high?.top ?? 0) + 1 ||
+      (high?.bottom ?? 0) <= (low?.top ?? 0) + 1;
+    expect(
+      apart,
+      `${where}: the end labels overlap: low ${low?.left.toFixed(1)}..${low?.right.toFixed(1)} ` +
+        `x ${low?.top.toFixed(1)}..${low?.bottom.toFixed(1)}, high ${high?.left.toFixed(1)}..` +
+        `${high?.right.toFixed(1)} x ${high?.top.toFixed(1)}..${high?.bottom.toFixed(1)}`,
+    ).toBe(true);
+
+    // Anchoring may not be bought with a sideways scroll: SC 1.4.10 again, and
+    // the phone is where a 148px label anchored near 100% would push the page.
+    for (const label of measured.ends) {
+      expect(
+        label?.right ?? 0,
+        `${where}: the label "${label?.text}" ends at ${label?.right.toFixed(1)}px, past the ` +
+          `${measured.clientWidth}px page`,
+      ).toBeLessThanOrEqual(measured.clientWidth);
+      expect(
+        label?.left ?? 0,
+        `${where}: the label "${label?.text}" starts at ${label?.left.toFixed(1)}px, off the left ` +
+          `of the page`,
+      ).toBeGreaterThanOrEqual(0);
+    }
+    expect(
+      measured.scrollWidth,
+      `${where}: the advice page scrolls sideways, ${measured.scrollWidth} against ` +
+        `${measured.clientWidth}`,
+    ).toBeLessThanOrEqual(measured.clientWidth);
+  }
+});

@@ -311,7 +311,12 @@ def test_every_token_free_api_route_is_still_named_in_the_log() -> None:
         for pattern in urlpatterns
         if "token" not in pattern.pattern.regex.groupindex
     ]
-    assert len(token_free) == 3, token_free
+    # Four since 2026-09-02, when the aggregate counter endpoint arrived.
+    # The literal is the tripwire: it is what made a new route announce
+    # itself here rather than quietly reaching the internet with no arm in
+    # the log map, which is how a path stops being distinguishable from
+    # every other in an access log.
+    assert len(token_free) == 4, token_free
     for route in token_free:
         assert logged_route(route) == route, route
 

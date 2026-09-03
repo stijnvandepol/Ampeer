@@ -47,8 +47,28 @@ gebruikersgroep wil niets installeren.
 - Geen advertenties
 - Geen apparaten aansturen (adviseren, niet ingrijpen)
 
-De neutraliteit is het product. Elk stuk code dat het advies laat afhangen van een
-commerciele relatie is een bug.
+De neutraliteit is het product, en op 2026-09-02 is vastgelegd waar die precies
+op rust. Niet op de afwezigheid van inkomsten: dat is een feit over een
+bankrekening en het overleeft geen verdienmodel. Wel op de afwezigheid van een
+belanghebbende. Niemand betaalt voor de uitkomst die een huishouden krijgt.
+Geen installateur, geen leverancier en geen fabrikant wordt er beter van als er
+"wel een batterij" uit komt.
+
+Elk stuk code dat het advies laat afhangen van een commerciele relatie is een
+bug. Dat is de regel die de zin hierboven waar houdt, en hij geldt onverkort
+als er wel geld binnenkomt.
+
+Hoe Ampeer betaald gaat worden is een open vraag. De vier bovenstaande regels
+gaan over producten en blijven staan; ze zeggen niets over een betaald rapport,
+een abonnement of een white-label licentie, en die zijn geen van drieen in
+strijd met de zin hierboven omdat de betaler daarbij geen belang heeft bij de
+uitkomst. Doorverwijzing tegen vergoeding is dat wel, en dat is precies waarom
+het onder "Later" staat en niet onder "Wat Ampeer doet": het kan eerlijk, maar
+alleen als de site het zelf benoemt in plaats van het weg te laten.
+
+De website mag daarom niet beweren dat er nooit geld verdiend wordt. Tot
+2026-09-02 deed hij dat op vijf plaatsen. Wat er nu staat is wat vandaag waar
+is, plus de belofte dat een verandering er eerst komt te staan.
 
 ## Fasering
 - Fase 0: publieke rekenmachine, valideren of de vraag bestaat

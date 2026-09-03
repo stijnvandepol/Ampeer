@@ -166,3 +166,95 @@ class ProductionCache(models.Model):
                 name="unique_production_cache_key",
             )
         ]
+
+
+class DailyCounter(models.Model):
+    """One number per day per named event, and nothing else.
+
+    Phase 0 of this product exists, in CLAUDE.md's own words, to validate
+    whether the question exists at all. Until 2026-09-02 nothing measured that:
+    there was no analytics of any kind, so the phase could not answer its own
+    question. This is the smallest thing that can.
+
+    What makes it safe is the shape rather than a policy. A row is a date, a
+    name out of a fixed list, and an integer. There is no visitor identifier,
+    no session, no address, not even a hashed one, and no foreign key to an
+    advice. Two visitors who do the same thing on the same day are the same
+    increment, so there is nothing here to correlate and nothing to subject
+    access. That is why this needs no consent banner under article 11.7a of the
+    Telecommunicatiewet: it is not reading anything from the visitor's device.
+
+    Deliberately NOT a time series at finer than a day. An hour column would
+    make a single visitor visible on a quiet day, which is exactly the property
+    this table is built not to have. Deliberately not purged either, for the
+    same reason the audit log is not: an aggregate with no personal datum in it
+    has nothing to expire.
+    """
+
+    #: The events this table will store. A name outside this list is refused
+    #: rather than created, so a typo in the frontend cannot silently open a new
+    #: column of behaviour, and nobody can widen what is collected by sending a
+    #: different string. The funnel names are the four questions of round one
+    #: plus the two ends, because per-question abandonment is the one number
+    #: that says whether the form is the problem.
+    FUNNEL_STARTED = "funnel_started"
+    FUNNEL_QUESTION_1 = "funnel_question_1"
+    FUNNEL_QUESTION_2 = "funnel_question_2"
+    FUNNEL_QUESTION_3 = "funnel_question_3"
+    FUNNEL_QUESTION_4 = "funnel_question_4"
+    FUNNEL_SUBMITTED = "funnel_submitted"
+    FUNNEL_REFINE_STARTED = "funnel_refine_started"
+    FUNNEL_REFINE_SUBMITTED = "funnel_refine_submitted"
+
+    #: Accepted from the browser. The outcome names below are NOT in here: they
+    #: are recorded by the server when it computes an advice, so no caller can
+    #: inflate the one distribution this product would be tempted to flatter.
+    CLIENT_NAMES: ClassVar[frozenset[str]] = frozenset(
+        {
+            FUNNEL_STARTED,
+            FUNNEL_QUESTION_1,
+            FUNNEL_QUESTION_2,
+            FUNNEL_QUESTION_3,
+            FUNNEL_QUESTION_4,
+            FUNNEL_SUBMITTED,
+            FUNNEL_REFINE_STARTED,
+            FUNNEL_REFINE_SUBMITTED,
+        }
+    )
+
+    #: Written by the server only, from what it actually decided.
+    ADVICE_GENERATED = "advice_generated"
+    SERVER_PREFIXES: ClassVar[tuple[str, ...]] = ("verdict_", "confidence_", "route_")
+
+    day = models.DateField()
+    name = models.CharField(max_length=64)
+    count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints: ClassVar[list[models.BaseConstraint]] = [
+            models.UniqueConstraint(fields=["day", "name"], name="one_row_per_day_per_name")
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.day} {self.name}={self.count}"
+
+    @classmethod
+    def bump(cls, name: str) -> None:
+        """Add one to today's row for `name`, creating it if it is the first.
+
+        An upsert rather than a read followed by a write, because two workers
+        counting the same event at the same moment must not lose one of them.
+        `update_or_create` would do exactly that read-then-write; `F("count")
+        + 1` is resolved by the database.
+        """
+        day = timezone.localdate()
+        if cls.objects.filter(day=day, name=name).update(count=models.F("count") + 1):
+            return
+        # First event of the day for this name, or a race with another worker
+        # doing the same. `get_or_create` alone is not enough: when it loses the
+        # race it returns the row the winner created and increments nothing, so
+        # one event would be dropped every time a day's first two arrived
+        # together. Increment again when it did not create.
+        _, created = cls.objects.get_or_create(day=day, name=name, defaults={"count": 1})
+        if not created:
+            cls.objects.filter(day=day, name=name).update(count=models.F("count") + 1)

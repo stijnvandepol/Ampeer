@@ -364,4 +364,54 @@ describe("a number question for an integer field", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     expect(onChange).toHaveBeenLastCalledWith(3500.5);
   });
+  it("borrows a name that is already on the screen instead of repeating it", () => {
+    // See ChoiceQuestion's twin of this test. Question two was headed "Hoeveel
+    // wattpiek aan zonnepanelen ligt er?" over a field labelled "Vermogen van
+    // de installatie": one question, two wordings sharing not one word, both
+    // read out.
+    render(
+      <>
+        <h2 id="vraag-titel">
+          Hoeveel wattpiek aan zonnepanelen ligt er op uw dak?
+        </h2>
+        <NumberQuestion
+          id="wp"
+          labelledBy="vraag-titel"
+          value={null}
+          min={1000}
+          max={9999}
+          unit="wattpiek"
+          onChange={() => {}}
+        />
+      </>,
+    );
+    expect(
+      screen.getByRole("textbox", {
+        name: "Hoeveel wattpiek aan zonnepanelen ligt er op uw dak?",
+      }),
+    ).toBeInTheDocument();
+    expect(document.querySelector("label")).toBeNull();
+  });
+
+  it("does not let its field hold the row open on a 320 pixel screen", () => {
+    // The row is `flex flex-wrap` and the field may shrink. Measured at 320 CSS
+    // pixels before the fix: 286 pixels of content in a 272 pixel column,
+    // because a text input will not go below its own `size` unless min-width
+    // says it may. jsdom has no layout, so this asserts the two class names the
+    // browser measurement in e2e/form.spec.ts turned out to depend on.
+    render(
+      <NumberQuestion
+        id="wp"
+        label="Wattpiek"
+        value={null}
+        min={1000}
+        max={9999}
+        unit="wattpiek"
+        onChange={() => {}}
+      />,
+    );
+    const field = screen.getByLabelText("Wattpiek");
+    expect(field.className).toContain("min-w-0");
+    expect(field.parentElement?.className).toContain("flex-wrap");
+  });
 });

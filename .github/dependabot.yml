@@ -34,3 +34,32 @@ updates:
       day: "monday"
     open-pull-requests-limit: 5
     target-branch: "dev"
+
+  # The OS layer that actually ships. Five base images are pinned by digest and
+  # until 2026-09-02 nothing revisited any of them: no gate in this repository
+  # could go red for a CVE in bookworm, nginx or Postgres, and no pull request
+  # would ever propose the fix. That is precisely the risk the header above
+  # names, applied to images instead of actions.
+  #
+  # Two directories, because the updater reads Dockerfiles and compose files
+  # separately. `postgres` and `cloudflared` carry a tag again beside their
+  # digest: they were digest-only, and an image with no tag gives the updater no
+  # version to reason about, so it cannot tell that a newer one exists. Docker
+  # resolves by digest when both are present, so what runs is unchanged; the tag
+  # is there to be read. Both tags are the ones the digests were resolved from,
+  # recorded in docs/superpowers/plans/ on 2026-08-21, not guessed.
+  - package-ecosystem: "docker"
+    directory: "/infra"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    target-branch: "dev"
+
+  - package-ecosystem: "docker-compose"
+    directory: "/infra"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    target-branch: "dev"

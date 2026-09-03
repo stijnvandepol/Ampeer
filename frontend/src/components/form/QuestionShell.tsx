@@ -3,7 +3,19 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { Progress } from "./Progress";
 
-const HEADING_ID = "vraag-titel";
+/**
+ * The id the question heading carries, so a control can borrow it as its name.
+ *
+ * Exported since 2026-09-02, when every question on this route was being asked
+ * twice in two different wordings: the h2 said "Is er overdag meestal iemand
+ * thuis?" and the legend under it said "Is er op een doordeweekse dag meestal
+ * iemand thuis?", and the qualifier that decides the answer was only in the
+ * second. A screen reader read both. The fix is that there is now one string:
+ * the heading is the question, and the control on the screen is named by this
+ * id rather than by a paraphrase of it. That is the one-question-per-page
+ * pattern the GOV.UK Design System spells out, where the legend is the heading.
+ */
+export const HEADING_ID = "vraag-titel";
 
 /**
  * The id the note carries, so a field can point at it.

@@ -34,6 +34,14 @@ export const SITE_ORIGIN = "https://ampeer.nl";
  * `changeFrequency` is a hint crawlers have largely stopped acting on. It is
  * here because it costs a word and because it is true: the product page and
  * the methodology move when the model does, and the form does not move at all.
+ *
+ * `/over-ons/` and `/privacy/` are here rather than left out, and both halves
+ * of that are deliberate. They are the two pages that say which entity is
+ * making the claims on the rest of the site, which is the thing a search
+ * engine assessing a page about somebody's money has no other way to find.
+ * Their priority is low because they are not what anybody arrives for; their
+ * presence is not optional, because a site that names no entity is a site that
+ * has not answered the question.
  */
 export const SITEMAP_ROUTES: readonly {
   readonly path: string;
@@ -44,4 +52,6 @@ export const SITEMAP_ROUTES: readonly {
   { path: "/einde-saldering/", changeFrequency: "monthly", priority: 0.9 },
   { path: "/berekenen/", changeFrequency: "yearly", priority: 0.8 },
   { path: "/methodologie/", changeFrequency: "monthly", priority: 0.6 },
+  { path: "/over-ons/", changeFrequency: "yearly", priority: 0.5 },
+  { path: "/privacy/", changeFrequency: "yearly", priority: 0.3 },
 ];
