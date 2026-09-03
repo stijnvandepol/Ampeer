@@ -95,11 +95,27 @@ const ROUND_ONE_TITLES = [
  * costs. A visitor who abandons the question because they cannot produce an
  * exact figure is worse off than one who estimates, by a factor of about four.
  */
+/**
+ * Where to find the answer, per question of round one.
+ *
+ * Two of these four ask for a number the visitor does not carry in their head
+ * and cannot guess: the array's peak power and the household's annual
+ * consumption. A form that asks for those and offers no way to look them up
+ * loses the people who do not know, and it loses them silently, because
+ * abandoning a form leaves no trace anywhere.
+ *
+ * So each note says where the figure actually lives, in the order somebody
+ * would look: the document first, then the app, then a way to estimate it
+ * without either. The estimate matters most. "Een schatting is genoeg" is only
+ * true if the visitor also knows what a plausible one looks like, and until
+ * 2026-09-02 the consumption note said it without giving them a single anchor
+ * to hang it on.
+ */
 const ROUND_ONE_NOTES: readonly (string | undefined)[] = [
   undefined,
-  undefined,
-  undefined,
-  "Zonder het laden van een elektrische auto en zonder een warmtepomp, ook als u die wel heeft. Daar vragen wij zo apart naar en wij tellen ze er dan zelf bij op. Staan ze op uw jaarnota, haal ze er dan af. Een schatting is genoeg.",
+  "Dit staat op de offerte of de factuur van uw installateur, en meestal ook in de app van uw omvormer. Weet u het niet: tel uw panelen en reken ongeveer 400 wattpiek per paneel. Twaalf panelen is dan ongeveer 4.800.",
+  "De richting van uw dak ziet u op een satellietfoto van uw adres, bijvoorbeeld in Google Maps. Voor de hoek: een gewoon schuin dak in Nederland ligt rond de 35 graden, en panelen op een plat dak staan meestal op 10 tot 15 graden.",
+  "Dit staat op uw jaarnota, of in uw account bij uw energieleverancier. Reken zonder het laden van een elektrische auto en zonder warmtepomp: daar vragen wij zo apart naar en wij tellen ze er zelf bij op. Staan ze wel op uw jaarnota, haal ze er dan af. Een schatting is genoeg: zonder auto en zonder warmtepomp zit een huishouden vaak tussen 2.000 en 3.500 kWh.",
 ] as const;
 
 const ROUND_TWO_TITLES = [
