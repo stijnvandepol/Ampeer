@@ -59,7 +59,14 @@
 .track {
   position: relative;
   margin-top: 2.75rem;
-  height: 0.875rem;
+  /*
+   * Shared with .fill's min-width below through this one custom property,
+   * rather than the same length written twice: a track resized here without
+   * touching the other declaration would silently reopen the gap it exists
+   * to close.
+   */
+  --band-track-height: 0.875rem;
+  height: var(--band-track-height);
   border-radius: 999px;
   background: var(--colour-surface-sunken);
   overflow: visible;
@@ -78,6 +85,22 @@
   position: absolute;
   top: 0;
   bottom: 0;
+  /*
+   * A band whose true width would round to a sliver thinner than the track
+   * is tall reads as a rendering fault rather than as "the model is very
+   * sure", because border-radius: 999px turns anything narrower than it is
+   * tall into a squeezed, off-shape mark instead of a small pill. This floor
+   * only ever binds in that genuinely degenerate case: measured on a real
+   * near-certain advice (p10 1600, p90 1700 on an axis to 1700), the true
+   * width is already 19px against a 14px floor, so this changes nothing
+   * visible there or in any golden fixture. `min-width` rather than a
+   * `max()` in the `width` the component sets: the inline `width` stays the
+   * plain percentage the band's own span is, so `data-band-span` and the
+   * width a reader could measure with a ruler keep telling the same story,
+   * and only a width the browser would otherwise round below the track's
+   * own height is ever overridden.
+   */
+  min-width: var(--band-track-height);
   border-radius: 999px;
   background: linear-gradient(
     90deg,
