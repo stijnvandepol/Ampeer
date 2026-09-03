@@ -224,7 +224,11 @@ class DailyCounter(models.Model):
 
     #: Written by the server only, from what it actually decided.
     ADVICE_GENERATED = "advice_generated"
-    SERVER_PREFIXES: ClassVar[tuple[str, ...]] = ("verdict_", "confidence_", "route_")
+    #: Both prefixes have a writer. `route_` was reserved here for a future
+    #: per-route breakdown that `_count_outcome` never grew, so it was a claim
+    #: about the wire this table's own writer did not keep; removed rather
+    #: than left as a promise nothing redeems.
+    SERVER_PREFIXES: ClassVar[tuple[str, ...]] = ("verdict_", "confidence_")
 
     day = models.DateField()
     name = models.CharField(max_length=64)
