@@ -3016,11 +3016,18 @@ class ConsentView(_AuthAPIView):
         return Response({"kind": kind, "granted": Consent.current(self.user, kind)})
 ```
 
-Voeg `ConsentSerializer` toe aan de import bovenin, en twee regels aan `urls.py`:
+Voeg `ConsentSerializer` toe aan de import bovenin, en twee regels aan `urls.py`.
 
-```python
-(path("me/", MeView.as_view(), name="auth-me"),)
-(path("consent/", ConsentView.as_view(), name="auth-consent"),)
+De fence hieronder zegt `text` en niet `python`, en dat is dragend. Dit zijn
+twee elementen uit `urlpatterns`, geen module: als losse regels gelezen zijn
+het expressies met een komma erachter, en de formatter die over dit document
+loopt maakt daar `(path(...),)` van. Dat is precies wat op 2026-09-04 gebeurde,
+bij de commit van taak 1, en het zou taak 9 twee onbruikbare regels in
+`urls.py` hebben laten schrijven. Zet deze fence niet terug op `python`.
+
+```text
+    path("me/", MeView.as_view(), name="auth-me"),
+    path("consent/", ConsentView.as_view(), name="auth-consent"),
 ```
 
 - [ ] **Step 5: Draai en toon aan dat het rood kan worden**
@@ -3327,11 +3334,15 @@ class DeleteView(_AuthAPIView):
         return response
 ```
 
-Voeg `from accounts import cookies, service, tokens` toe bovenin, en twee regels aan `urls.py`:
+Voeg `from accounts import cookies, service, tokens` toe bovenin, en twee regels
+aan `urls.py`. De fence staat op `text` en niet op `python`, om dezelfde reden
+als bij taak 10: dit zijn twee elementen uit `urlpatterns` en geen module, en
+de formatter die over dit document loopt maakt van zulke losse regels
+`(path(...),)`. Zet deze fence niet terug op `python`.
 
-```python
-(path("export/", ExportView.as_view(), name="auth-export"),)
-(path("delete/", DeleteView.as_view(), name="auth-delete"),)
+```text
+    path("export/", ExportView.as_view(), name="auth-export"),
+    path("delete/", DeleteView.as_view(), name="auth-delete"),
 ```
 
 - [ ] **Step 5: Draai en toon aan dat het rood kan worden**
