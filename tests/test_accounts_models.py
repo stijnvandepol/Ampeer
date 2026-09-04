@@ -23,9 +23,33 @@ def test_an_email_address_is_stored_in_lower_case() -> None:
 
 @pytest.mark.django_db
 def test_the_same_address_in_other_capitals_is_not_a_second_account() -> None:
+    """The database constraint itself, not `save()` normalising the case away
+    before either address reaches it.
+
+    `create_user` lowers its input, and `User.save` now normalises on every
+    write, so a version of this test that goes through `create_user`, plain
+    `.create()`, or an existing instance's own `.save()` would stay green even
+    with `Meta.constraints` deleted from accounts/models.py entirely, because
+    the plain per-column `unique=True` already catches two identical,
+    normalised strings by the time either one reaches Postgres.
+
+    `bulk_create` is the one write path Django never routes through
+    `Model.save()` at all: it writes the field values exactly as given, in one
+    INSERT. That is what actually asks Postgres whether it enforces
+    case-insensitive uniqueness on its own, and it is exactly the bypass the
+    review that added this rewrite named. Proven by deleting the
+    `UniqueConstraint(Lower("email"), ...)` from `Meta.constraints` locally and
+    rerunning this test: it fails with "DID NOT RAISE <class
+    'django.db.utils.IntegrityError'>", because with that constraint gone the
+    only remaining index is the case-sensitive one on the raw column, and
+    `iemand@voorbeeld.nl` and `IEMAND@VOORBEELD.NL` are different strings to
+    it. See the fix report for the transcript.
+    """
     User.objects.create_user(email="iemand@voorbeeld.nl", password="een-lang-wachtwoord")
     with pytest.raises(IntegrityError):
-        User.objects.create_user(email="IEMAND@VOORBEELD.NL", password="een-ander-wachtwoord")
+        User.objects.bulk_create(
+            [User(email="IEMAND@VOORBEELD.NL", password="unused-in-this-test")]
+        )
 
 
 @pytest.mark.django_db

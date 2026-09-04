@@ -805,21 +805,51 @@ def test_the_argon2_hasher_is_the_id_variant() -> None:
     is what the docstring above already asks for.
     """
     import argon2
-    from django.contrib.auth.hashers import get_hasher
+    from django.contrib.auth.hashers import Argon2PasswordHasher, get_hasher
 
     hasher = get_hasher("argon2")
     assert getattr(hasher, "algorithm", "") == "argon2"
+    # Narrows the type for mypy, and is itself part of what this test is
+    # checking: `params()` is specific to this hasher class, not to every
+    # `BasePasswordHasher`.
+    assert isinstance(hasher, Argon2PasswordHasher), type(hasher)
     configured_type = hasher.params().type
     assert configured_type is argon2.low_level.Type.ID, (
         f"the configured Argon2 hasher uses {configured_type}, not Argon2id"
     )
 
 
-def test_production_never_lets_a_cookie_cross_an_origin() -> None:
+def test_production_never_lets_a_cookie_cross_an_origin(monkeypatch: pytest.MonkeyPatch) -> None:
     """dev.py turns CORS_ALLOW_CREDENTIALS on so a developer can log in at all.
     That line copied one file up is an API whose cookies any allowed origin can
-    ride, and the allowed origins in production come from the environment."""
-    from ampeer.settings import prod
+    ride, and the allowed origins in production come from the environment.
+
+    Routed through `_load_prod(monkeypatch)`, like every other prod.py
+    assertion in this file. A bare `import ampeer.settings.prod` reads
+    whatever is already in `sys.modules`: it only imports fresh, and raises
+    `RuntimeError: DJANGO_SECRET_KEY is not set`, the first time anything
+    imports this module in the process. In the full file that first import
+    happens inside an earlier `_load_prod` call and this test then reads that
+    cached module object, so it passes here but dies under `-k`, under a
+    single-test rerun, or under any reordering of this file.
+    """
+    prod = _load_prod(monkeypatch)
 
     assert prod.CORS_ALLOW_CREDENTIALS is False
     assert prod.AMPEER_COOKIE_SECURE is True
+
+
+def test_development_still_allows_the_cookie_a_developer_needs() -> None:
+    """The other half of the pin in ampeer/settings/test.py.
+
+    That file pins CORS_ALLOW_CREDENTIALS back to False so the test
+    environment mirrors production, per Ruling 21, and nothing else in this
+    file reads dev.py directly. Without this, a later edit that quietly
+    deleted dev.py's own `CORS_ALLOW_CREDENTIALS = True` would leave the
+    whole suite green while a developer's browser dropped every
+    SameSite=Strict cookie: localhost:3000 to 127.0.0.1:8000 is cross-site
+    and this is the one setting that lets it through.
+    """
+    from ampeer.settings import dev
+
+    assert dev.CORS_ALLOW_CREDENTIALS is True
