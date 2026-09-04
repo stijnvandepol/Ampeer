@@ -71,6 +71,14 @@ def test_an_unknown_kind_is_refused_rather_than_created(_account: User) -> None:
         Consent.record(_account, "SELL_MY_DATA", Consent.GRANTED)
 
 
+@pytest.mark.django_db
+def test_an_unknown_action_is_refused_rather_than_created(_account: User) -> None:
+    """The same refusal, for the other half of the pair: a known kind with an
+    action outside GRANTED and WITHDRAWN cannot open a third state either."""
+    with pytest.raises(ValueError):
+        Consent.record(_account, Consent.METER_LINK, "MAYBE")
+
+
 def test_nothing_that_computes_an_advice_can_see_a_consent() -> None:
     """CLAUDE.md's neutrality rule, made mechanical.
 

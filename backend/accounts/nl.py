@@ -1,15 +1,25 @@
 """Dutch text for the account layer, keyed by an English id.
 
 Same idea as `advice/nl.py` one app over, applied to a second vocabulary, and
-the two never import each other. The rule that file states applies here too: a
-validation message names a field and says what is wrong with it, and addresses
-nobody. A message that says "vul uw e-mailadres in" is a sentence somebody is
-spoken to in, and then docs/decisions.md entry 1 about the register applies.
+the two never import each other. That file's rule applies to one category
+here and not to the whole table: a validation message names a field and says
+what is wrong with it, and addresses nobody. A message that said "vul uw
+e-mailadres in" would be a sentence somebody is spoken to in, and then
+docs/decisions.md entry 1 about the register applies. `email_taken`,
+`email_invalid`, `credentials_invalid`, `password_required`, `csrf_failed`,
+`consent_kind_unknown` and `consent_action_unknown` are this category.
 
-The consent texts are the exception, and deliberately so: those are sentences to
-a household, so they do use "u". They also carry a version, because article 7(1)
-of the GDPR asks to be able to demonstrate what was agreed to, and a reworded
-text with no version makes that impossible to answer afterwards.
+A second category is not about a field at all: it tells the reader something
+about their own session or sign-in state, and there is no field to name
+instead of them, so it necessarily addresses them. `not_signed_in` and
+`session_expired` are this category, and "u bent niet ingelogd" is correct
+Dutch for what it says rather than an exception to the rule above.
+
+The consent texts are a third category, and deliberately so: those are
+sentences to a household, so they do use "u". They also carry a version,
+because article 7(1) of the GDPR asks to be able to demonstrate what was
+agreed to, and a reworded text with no version makes that impossible to
+answer afterwards.
 """
 
 from __future__ import annotations
