@@ -1373,21 +1373,30 @@ def test_the_purge_overrides_the_entrypoint_it_would_otherwise_inherit() -> None
     rather than a management command. Overriding the entrypoint is what makes
     this a purge at all, and the unit says so.
 
-    Both invocations, because ExecStartPost runs the same image the same way to
-    ask whether anything is still past its date. A check that inherited the
-    entrypoint would answer a question nobody asked.
+    Three invocations now, not two. The first `ExecStart` deletes expired
+    advice, the second `ExecStart` deletes expired refresh sessions (accounts
+    task 6), and systemd runs both in the order they are declared because the
+    unit is `Type=oneshot`. `ExecStartPost` runs only if both `ExecStart` lines
+    succeeded, and asks whether anything is still past its date. A check that
+    inherited the entrypoint would answer a question nobody asked.
 
-    --env-file with them, from the same paragraph: docker-compose.yml
+    --env-file with all three, from the same paragraph: docker-compose.yml
     interpolates nine variables and gives none of them a default, so without
     the file the unit fails while resolving it instead of connecting somewhere
     unintended, which is the right way round.
+
+    The count below is exact on purpose, the same house style as
+    `test_dpia.py::test_the_audit_log_records_exactly_what_the_document_says_it_does`:
+    a fourth command has to make this assertion fail and a person come here to
+    raise it, rather than land unexamined under a `>=`. Whoever adds one reads
+    this docstring first and confirms the new line carries both flags below.
     """
     calls = [
         line
         for line in _unit_directives("ampeer-purge.service")
         if line.startswith(("ExecStart=", "ExecStartPost="))
     ]
-    assert len(calls) == 2, f"the unit declares {len(calls)} commands, not the pair this reads"
+    assert len(calls) == 3, f"the unit declares {len(calls)} commands, not the three this reads"
     for call in calls:
         assert "--entrypoint python" in call, (
             f"{call.split('=', 1)[0]} inherits the image's entrypoint, which execs gunicorn "
