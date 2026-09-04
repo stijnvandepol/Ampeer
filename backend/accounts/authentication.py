@@ -8,10 +8,10 @@ docs/dpia.md chapter 8 makes about the advice token sitting in the path.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, NoReturn
 
 from django.conf import settings
-from django.http import HttpRequest, HttpResponseBase
+from django.http import HttpRequest
 from rest_framework.authentication import CSRFCheck
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.request import Request
@@ -25,6 +25,22 @@ from accounts.nl import NL
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
 
 
+def _never_called_get_response(_request: HttpRequest) -> NoReturn:
+    """`CSRFCheck` never actually calls this during `process_request` or
+    `process_view`; it exists only because `CsrfViewMiddleware.__init__`
+    requires a `get_response` callable. `NoReturn` is the honest annotation
+    for a function that only ever raises. Module level, not a closure inside
+    `enforce_csrf`, specifically so a test can call it directly and assert
+    that it does raise, rather than leaving that claim unverified."""
+    raise AssertionError("_never_called_get_response is never called")
+
+
+def _never_called_callback(*_args: Any, **_kwargs: Any) -> NoReturn:
+    """Likewise never invoked: `process_view` only inspects the request, it
+    does not call the view callback it is handed."""
+    raise AssertionError("_never_called_callback is never called")
+
+
 def enforce_csrf(request: HttpRequest | Request) -> None:
     """Django's own CSRF machinery, on a view DRF has already exempted.
 
@@ -35,20 +51,9 @@ def enforce_csrf(request: HttpRequest | Request) -> None:
     SameSite=Strict is the first defence and in this deployment very nearly the
     whole one. This is the second, and it costs one function.
     """
-
-    def dummy_get_response(_request: HttpRequest) -> HttpResponseBase:
-        # `CSRFCheck` never actually calls this during `process_request` or
-        # `process_view`; it exists only because `CsrfViewMiddleware.__init__`
-        # requires a `get_response` callable.
-        raise AssertionError("dummy_get_response is never called")
-
-    def dummy_callback(*_args: Any, **_kwargs: Any) -> HttpResponseBase:
-        # Likewise never invoked: `process_view` only inspects the request.
-        raise AssertionError("dummy_callback is never called")
-
-    check = CSRFCheck(dummy_get_response)
+    check = CSRFCheck(_never_called_get_response)
     check.process_request(request)
-    reason = check.process_view(request, dummy_callback, (), {})
+    reason = check.process_view(request, _never_called_callback, (), {})
     if reason:
         raise PermissionDenied(NL["csrf_failed"])
 

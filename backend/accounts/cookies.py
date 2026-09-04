@@ -8,11 +8,11 @@ logged in.
 
 from __future__ import annotations
 
-from datetime import timedelta
-from typing import Literal, cast
+from typing import Literal
 
 from django.conf import settings
 from rest_framework.response import Response
+from rest_framework_simplejwt.settings import api_settings
 
 #: Typed as a Literal, not left as `str`: `Response.set_cookie`'s `samesite`
 #: parameter only accepts one of a fixed set of literals, and a bare `str`
@@ -20,18 +20,15 @@ from rest_framework.response import Response
 SAMESITE: Literal["Strict"] = "Strict"
 
 
-def _seconds(key: str) -> int:
-    """`SIMPLE_JWT`'s value type is `object` to mypy, because the dict mixes
-    `timedelta`, `bool`, `tuple` and `str` values. This is the one place that
-    reads the two `timedelta` entries back out of it."""
-    return int(cast(timedelta, settings.SIMPLE_JWT[key]).total_seconds())
-
-
 def set_tokens(response: Response, access: str, refresh: str) -> None:
     response.set_cookie(
         settings.AMPEER_ACCESS_COOKIE,
         access,
-        max_age=_seconds("ACCESS_TOKEN_LIFETIME"),
+        # `settings.SIMPLE_JWT[...]` types as `object` to mypy, because the
+        # dict mixes `timedelta`, `bool`, `tuple` and `str` values, so this
+        # reads the same two lifetimes back through simplejwt's own already
+        # `timedelta`-typed `api_settings` instead of casting.
+        max_age=int(api_settings.ACCESS_TOKEN_LIFETIME.total_seconds()),
         httponly=True,
         secure=settings.AMPEER_COOKIE_SECURE,
         samesite=SAMESITE,
@@ -40,7 +37,7 @@ def set_tokens(response: Response, access: str, refresh: str) -> None:
     response.set_cookie(
         settings.AMPEER_REFRESH_COOKIE,
         refresh,
-        max_age=_seconds("REFRESH_TOKEN_LIFETIME"),
+        max_age=int(api_settings.REFRESH_TOKEN_LIFETIME.total_seconds()),
         httponly=True,
         secure=settings.AMPEER_COOKIE_SECURE,
         samesite=SAMESITE,

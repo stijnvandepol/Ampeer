@@ -41,11 +41,29 @@ def rotate(raw_refresh: str) -> tuple[str, str]:
     issue, on one whose signature does not verify and on an expired one, so the
     cryptographic half is handled before the row is looked up at all.
 
-    The reused-token branch below deliberately calls `revoke_all` and raises
-    outside the `atomic()` block, not inside it. An exception that propagates
-    out of `transaction.atomic()` rolls back everything written inside it, so
-    raising `TokenReuse` from inside the block after `revoke_all` would undo
-    the very revocation it just made and leave every other session standing.
+    The reused-token branch below calls `revoke_all` *inside* the `atomic()`
+    block, while the `select_for_update` lock on this session's row is still
+    held, and only raises `TokenReuse` after the block has closed normally.
+    Two things follow from that ordering, and both are load-bearing:
+
+    - `revoke_all`'s writes must not share a transaction with a `raise`: an
+      exception that propagates out of `transaction.atomic()` rolls back
+      everything written inside it, so raising from inside the block, after
+      `revoke_all`, would undo the very revocation it just made. Hence the
+      block is left to close on its own (a plain fall-through, no exception),
+      and `TokenReuse` is raised only once that commit has happened.
+    - `revoke_all` runs *before* the block closes, not after, so the
+      `select_for_update` lock on this row is held for the whole revocation
+      rather than released first and reacquired never. Releasing the lock
+      before calling `revoke_all` (an earlier version of this function did
+      exactly that) leaves a window, microseconds wide, in which a concurrent
+      `rotate()` on a different, still-live session for the same user can
+      read "not spent", write its own new session and commit, all before
+      `revoke_all`'s `UPDATE` runs, and that new session then survives the
+      revocation with `revoked_at IS NULL`. Running `revoke_all` under the
+      lock does not make the two rows atomic with each other, since the lock
+      is only ever held on this one row, but it removes the specific gap
+      where the lock is provably not held by anybody at all.
     """
     # simplejwt's own stub types Token.__init__'s parameter as Optional["Token"],
     # which is an upstream annotation bug: at runtime it accepts the raw JWT
@@ -61,8 +79,7 @@ def rotate(raw_refresh: str) -> tuple[str, str]:
             session.rotated_at = timezone.now()
             session.save(update_fields=["rotated_at"])
             return issue(session.user)
-        reused_by = session.user
-    revoke_all(reused_by)
+        revoke_all(session.user)
     raise TokenReuse("this refresh token was already exchanged")
 
 

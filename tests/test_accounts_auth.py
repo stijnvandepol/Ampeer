@@ -10,11 +10,23 @@ credential.
 from __future__ import annotations
 
 import pytest
+from django.conf import settings
+from django.test import override_settings
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.request import Request
+from rest_framework.response import Response
+from rest_framework.test import APIRequestFactory
 from rest_framework_simplejwt.exceptions import TokenError
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
-from accounts import tokens
+from accounts import cookies, tokens
+from accounts.authentication import (
+    CookieJWTAuthentication,
+    _never_called_callback,
+    _never_called_get_response,
+)
 from accounts.models import RefreshSession, User
+from accounts.nl import NL
 
 PASSWORD = "een-heel-lang-wachtwoord"
 
@@ -97,3 +109,142 @@ def test_revoking_a_token_with_no_recorded_session_does_nothing_and_raises_nothi
     orphan = RefreshToken.for_user(_account)
     tokens.revoke(str(orphan))
     assert not RefreshSession.objects.filter(user=_account).exists()
+
+
+# ---------------------------------------------------------------------------
+# cookies.py: attributes asserted one by one off the real Morsel objects on a
+# real rest_framework.response.Response, not inferred from a 200.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_set_tokens_writes_every_attribute_on_the_real_response(_account: User) -> None:
+    access, refresh = tokens.issue(_account)
+    response = Response()
+    cookies.set_tokens(response, access, refresh)
+
+    access_cookie = response.cookies[settings.AMPEER_ACCESS_COOKIE]
+    assert access_cookie["httponly"] is True
+    assert access_cookie["samesite"] == "Strict"
+    assert access_cookie["path"] == "/api/"
+    assert access_cookie["max-age"] == 900
+    # AMPEER_COOKIE_SECURE is False in ampeer.settings.test, and Django's
+    # HttpResponseBase.set_cookie only ever writes the "secure" attribute when
+    # its argument is truthy, so the Morsel here reads '' rather than False:
+    # byte-identical to a set_cookie call that never passed secure= at all.
+    # Asserting falsy is therefore the honest claim; a literal `is False`
+    # would pass by coincidence, not because this code path was exercised.
+    assert not access_cookie["secure"]
+
+    refresh_cookie = response.cookies[settings.AMPEER_REFRESH_COOKIE]
+    assert refresh_cookie["httponly"] is True
+    assert refresh_cookie["samesite"] == "Strict"
+    assert refresh_cookie["path"] == "/api/auth/"
+    assert refresh_cookie["max-age"] == 1209600
+    assert not refresh_cookie["secure"]
+
+
+@pytest.mark.django_db
+def test_set_tokens_writes_secure_true_when_the_setting_says_so(_account: User) -> None:
+    """The other half of the `secure` claim above. Without this test, a
+    `secure=settings.AMPEER_COOKIE_SECURE` that had silently become
+    `secure=False` (a hardcoded literal, ignoring the setting entirely) would
+    still pass the falsy assertion in the test above."""
+    access, refresh = tokens.issue(_account)
+    with override_settings(AMPEER_COOKIE_SECURE=True):
+        response = Response()
+        cookies.set_tokens(response, access, refresh)
+    assert response.cookies[settings.AMPEER_ACCESS_COOKIE]["secure"] is True
+    assert response.cookies[settings.AMPEER_REFRESH_COOKIE]["secure"] is True
+
+
+@pytest.mark.django_db
+def test_clear_tokens_empties_both_cookies_at_their_own_paths(_account: User) -> None:
+    access, refresh = tokens.issue(_account)
+    response = Response()
+    cookies.set_tokens(response, access, refresh)
+    cookies.clear_tokens(response)
+
+    access_cookie = response.cookies[settings.AMPEER_ACCESS_COOKIE]
+    assert access_cookie.value == ""
+    assert access_cookie["max-age"] == 0
+    assert access_cookie["path"] == "/api/"
+
+    refresh_cookie = response.cookies[settings.AMPEER_REFRESH_COOKIE]
+    assert refresh_cookie.value == ""
+    assert refresh_cookie["max-age"] == 0
+    assert refresh_cookie["path"] == "/api/auth/"
+
+
+# ---------------------------------------------------------------------------
+# authentication.py: the cookie is the only accepted location, and CSRF is
+# enforced on unsafe methods only, both against real DRF Request objects.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_a_valid_bearer_token_alone_does_not_authenticate(_account: User) -> None:
+    """docs/dpia.md chapter 8's invariant: a valid, well-formed access token
+    in the Authorization header, with no cookie at all, must not authenticate
+    the request. Sending garbage in the header would prove nothing about this
+    claim, since garbage is refused for an unrelated reason; this token is
+    genuinely valid for this account, minted the same way `tokens.issue`
+    mints one, and it is still refused because it never reached the cookie."""
+    access = str(AccessToken.for_user(_account))
+    django_request = APIRequestFactory().get("/", HTTP_AUTHORIZATION=f"Bearer {access}")
+    request = Request(django_request)
+    assert CookieJWTAuthentication().authenticate(request) is None
+
+
+@pytest.mark.django_db
+def test_a_cookie_with_no_csrf_token_is_refused_on_an_unsafe_method(_account: User) -> None:
+    """`APIRequestFactory(enforce_csrf_checks=True)` is required here: the
+    default factory sets `request._dont_enforce_csrf_checks = True`, which
+    makes `CsrfViewMiddleware.process_view` (and so `enforce_csrf`) return
+    without ever raising, regardless of what this test asserts."""
+    access = str(AccessToken.for_user(_account))
+    factory = APIRequestFactory(enforce_csrf_checks=True)
+    django_request = factory.post("/", HTTP_COOKIE=f"{settings.AMPEER_ACCESS_COOKIE}={access}")
+    request = Request(django_request)
+    with pytest.raises(PermissionDenied) as excinfo:
+        CookieJWTAuthentication().authenticate(request)
+    assert str(excinfo.value.detail) == NL["csrf_failed"]
+
+
+@pytest.mark.django_db
+def test_a_cookie_with_no_csrf_token_authenticates_on_a_safe_method(_account: User) -> None:
+    """The other half: `enforce_csrf` is only ever called for unsafe methods,
+    so the same missing-CSRF-token request that raises above must succeed
+    here for a GET, under the same `enforce_csrf_checks=True` factory."""
+    access = str(AccessToken.for_user(_account))
+    factory = APIRequestFactory(enforce_csrf_checks=True)
+    django_request = factory.get("/", HTTP_COOKIE=f"{settings.AMPEER_ACCESS_COOKIE}={access}")
+    request = Request(django_request)
+    result = CookieJWTAuthentication().authenticate(request)
+    assert result is not None
+    user, validated = result
+    assert user == _account
+    assert validated is not None
+
+
+def test_authenticate_header_names_the_cookie_realm() -> None:
+    """So DRF answers 401 and not 403 to a visitor who never signed in at all;
+    without this header DRF cannot tell the two apart, and the frontend needs
+    the difference to decide whether to show a login form."""
+    request = Request(APIRequestFactory().get("/"))
+    assert CookieJWTAuthentication().authenticate_header(request) == 'Cookie realm="api"'
+
+
+def test_the_dummy_get_response_is_never_meant_to_run() -> None:
+    """`_never_called_get_response` exists only to satisfy `CSRFCheck.__init__`'s
+    parameter type; `enforce_csrf` never lets `CSRFCheck` actually call it. This
+    proves the claim rather than leaving it asserted only in a comment."""
+    with pytest.raises(AssertionError):
+        _never_called_get_response(APIRequestFactory().get("/"))
+
+
+def test_the_dummy_callback_is_never_meant_to_run() -> None:
+    """Same claim, for the view callback `process_view` is handed but never
+    invokes."""
+    with pytest.raises(AssertionError):
+        _never_called_callback()
