@@ -44,3 +44,11 @@ DATABASES = {
 # misconfigured production would produce, instead of discovering CORS exists on
 # the day of the deploy.
 CORS_ALLOWED_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000", "http://127.0.0.1:4173"]
+
+# Cookies are allowed to travel here, because without that a developer cannot
+# log in at all: localhost:3000 to 127.0.0.1:8000 is cross-site, and the
+# browser drops a SameSite=Strict cookie there. Only for the three origins
+# above. prod.py does not set this, and base.py explains why it does not need
+# to there.
+CORS_ALLOW_CREDENTIALS = True
+AMPEER_COOKIE_SECURE = False

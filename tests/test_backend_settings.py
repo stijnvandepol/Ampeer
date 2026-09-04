@@ -131,30 +131,22 @@ def test_production_allows_only_the_hosts_it_was_given(
 
 
 def test_nothing_authenticates_because_there_is_nothing_to_log_in_to() -> None:
-    """Absent on purpose, which is worth saying because two named requirements
-    are absent with them.
+    """Sessions and admin stay absent, and so does an authentication class on
+    the public endpoints, even though accounts now exist.
 
-    CLAUDE.md lists Argon2id hashing and django-axes under security that holds
-    in every phase, and neither is configured. That follows from this test
-    rather than contradicting it: base.py leaves out auth, sessions and admin
-    because an installed app is attack surface whether or not a URL points at
-    it, and a brute force defence with no login to defend is the same thing.
-
-    What makes the absence safe today also makes it dangerous later. Django
-    supplies AUTHENTICATION_BACKENDS and PASSWORD_HASHERS whether or not
-    anything uses them, and its defaults are ModelBackend alone and
-    PBKDF2PasswordHasher first, measured on 2026-08-22. So the day accounts
-    arrive, passwords are hashed with PBKDF2 unless somebody changes it, and
-    nothing raises. Argon2 does not replace a blank, it replaces a working
-    default, which is the harder kind of thing to remember.
-
-    test_authentication_never_arrives_without_its_defences, lower in this file,
-    is what fails on that day.
+    `django.contrib.auth` itself is no longer absent: task 3 of
+    docs/superpowers/plans/2026-09-04-accounts-auth.md adds it, because
+    AUTH_USER_MODEL needs it to start. What CLAUDE.md and this test actually
+    guard is narrower and still holds: no session middleware, no admin site,
+    and REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"] stays empty so the
+    advice endpoints remain anonymous. A brute force defence with no login to
+    defend was the old reading; from this commit there is a login, and axes
+    defends it, which is test_authentication_never_arrives_without_its_defences,
+    lower in this file.
     """
     from django.conf import settings
 
     assert settings.REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"] == []
-    assert "django.contrib.auth" not in settings.INSTALLED_APPS
     assert "django.contrib.sessions" not in settings.INSTALLED_APPS
     assert "django.contrib.admin" not in settings.INSTALLED_APPS
 
@@ -795,3 +787,39 @@ def test_the_deployment_computes_the_weather_year_the_model_was_validated_on() -
         f"the deployment computes {base.AMPEER_WEATHER_YEAR} and the model relies on "
         f"{DEFAULT_WEATHER_YEAR}"
     )
+
+
+def test_the_argon2_hasher_is_the_id_variant() -> None:
+    """CLAUDE.md asks for Argon2id, and that is the `type` field of the
+    hasher's own encoding parameters, rather than its class name. Assuming the
+    variant is right because the class is called Argon2 is a check that cannot
+    go red.
+
+    Deviation from the plan text: it reads `getattr(hasher, "type", None)`,
+    which is `None` on the installed Django 5.2.17. That version moved the
+    Argon2 type out of an instance attribute and into `Argon2PasswordHasher.
+    params()`, which always returns `argon2.Parameters(type=Type.ID, ...)`.
+    Read as written, the assertion compares None to Type.ID and is red no
+    matter how PASSWORD_HASHERS is ordered, which is not a check that can go
+    green on a correct configuration. Reading `hasher.params().type` instead
+    is what the docstring above already asks for.
+    """
+    import argon2
+    from django.contrib.auth.hashers import get_hasher
+
+    hasher = get_hasher("argon2")
+    assert getattr(hasher, "algorithm", "") == "argon2"
+    configured_type = hasher.params().type
+    assert configured_type is argon2.low_level.Type.ID, (
+        f"the configured Argon2 hasher uses {configured_type}, not Argon2id"
+    )
+
+
+def test_production_never_lets_a_cookie_cross_an_origin() -> None:
+    """dev.py turns CORS_ALLOW_CREDENTIALS on so a developer can log in at all.
+    That line copied one file up is an API whose cookies any allowed origin can
+    ride, and the allowed origins in production come from the environment."""
+    from ampeer.settings import prod
+
+    assert prod.CORS_ALLOW_CREDENTIALS is False
+    assert prod.AMPEER_COOKIE_SECURE is True

@@ -9,11 +9,13 @@ dependencies = ["numpy>=2.0", "requests>=2.32"]
 # The web layer, kept in its own group so the pure packages can still be
 # installed and tested without Django anywhere near them.
 backend = [
+    "argon2-cffi>=25.1",
     # 5.2 is LTS with security support to April 2028. The current non-LTS line
     # runs out around April 2027, the quarter net metering ends and this product
     # is at its busiest, which would schedule a forced major upgrade for the
     # worst possible month.
     "django>=5.2.17,<6.0",
+    "django-axes>=8.0",
     "django-cors-headers>=4.9",
     "djangorestframework>=3.18.0",
     # The WSGI server the production image runs. It sits in the backend group
@@ -21,6 +23,7 @@ backend = [
     # must stay installable without a web server anywhere near it, and it is
     # here rather than only in the Dockerfile so `uv sync --locked` in the
     # image resolves the same lockfile the pipeline tested.
+    "djangorestframework-simplejwt>=5.5",
     "gunicorn>=26.1",
     "psycopg[binary]>=3.3.4",
 ]
@@ -74,6 +77,15 @@ strict = true
 plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
 mypy_path = "backend"
 
+[[tool.mypy.overrides]]
+# django-axes ships no py.typed marker and no stub package exists on PyPI, so
+# mypy_django_plugin's INSTALLED_APPS walk fails to analyse axes.models the
+# moment "axes" is added to INSTALLED_APPS. Every accounts.lockout callable
+# axes calls stays fully typed; this silences only the one third-party module
+# mypy cannot see into.
+module = "axes.*"
+ignore_missing_imports = true
+
 [tool.django-stubs]
 django_settings_module = "ampeer.settings.test"
 
@@ -94,7 +106,7 @@ ignore = ["FURB157"]
 # infer that `advice` and `ampeer` are ours: it sees no distribution of that
 # name and files them as third party, which puts them in the wrong import block
 # in every test that touches the API. They genuinely are first party, so say so.
-known-first-party = ["advice", "ampeer", "ampeer_sim", "ampeer_advice", "tools"]
+known-first-party = ["accounts", "advice", "ampeer", "ampeer_sim", "ampeer_advice", "tools"]
 
 [tool.ruff.lint.per-file-ignores]
 # django.db.migrations.Migration declares `dependencies` and `operations` as
