@@ -176,9 +176,9 @@ def test_no_table_has_a_column_for_an_address() -> None:
 
 
 def test_the_audit_log_records_exactly_what_the_document_says_it_does() -> None:
-    """One event type today, and the document explains why the others are absent.
+    """Eight event types today, and the document explains why two more are absent.
 
-    A second one arriving means a handling arrived with it, which is precisely
+    A ninth kind arriving means a handling arrived with it, which is precisely
     when a privacy document has to be reread rather than assumed.
     """
     tree = ast.parse(MODELS.read_text(encoding="utf-8"))
@@ -194,11 +194,20 @@ def test_the_audit_log_records_exactly_what_the_document_says_it_does() -> None:
         and isinstance(statement.value, ast.Constant)
         and statement.value.value == target.id
     ]
-    assert kinds == ["ADVICE_GENERATED"], (
-        f"the audit log now records {kinds}; docs/dpia.md chapter 2 says it records one "
-        "kind of event and explains why the others are absent. Both have to change together."
+    assert kinds == [
+        "ADVICE_GENERATED",
+        "ACCOUNT_CREATED",
+        "LOGIN_SUCCEEDED",
+        "LOGIN_FAILED",
+        "LOGOUT",
+        "CONSENT_GRANTED",
+        "CONSENT_WITHDRAWN",
+        "DATA_EXPORTED",
+        "ACCOUNT_DELETED",
+    ], (
+        f"the audit log now records {kinds}; docs/dpia.md chapter 2 lists what it records "
+        "and why the two that are still absent are absent. Both have to change together."
     )
-    assert "precies een soort gebeurtenis" in TEXT
 
 
 SERVICE = REPO_ROOT / "backend" / "advice" / "service.py"

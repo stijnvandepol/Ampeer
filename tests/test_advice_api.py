@@ -290,6 +290,33 @@ def test_an_expired_token_is_a_404_and_not_stale_content() -> None:
     assert response.status_code == 404
 
 
+@pytest.mark.django_db
+def test_ownership_adds_and_takes_nothing_away(client: Any) -> None:
+    """The property phase 2 will be under pressure to break.
+
+    An advice that belongs to somebody stays readable on its token, and an
+    advice that belongs to nobody keeps working exactly as it did. Ownership is
+    an addition; it is not a filter on the route that already exists, and
+    `StoredAdvice.get_live` is deliberately unchanged.
+    """
+    from accounts.models import User
+    from advice.models import StoredAdvice
+
+    anonymous = StoredAdvice.create(inputs={"postcode4": "5401"}, advice={"token": "x"})
+    owned = StoredAdvice.create(inputs={"postcode4": "5401"}, advice={"token": "y"})
+    owned.owner = User.objects.create_user(
+        email="iemand@voorbeeld.nl", password="een-lang-wachtwoord"
+    )
+    owned.save(update_fields=["owner"])
+
+    assert anonymous.owner is None
+    for stored in (anonymous, owned):
+        response = client.get(f"/api/advice/{stored.token}/")
+        assert response.status_code == 200, (
+            f"an advice with owner={stored.owner_id} answers {response.status_code} on its token"
+        )
+
+
 def test_an_invalid_estimate_is_refused_with_the_field_named() -> None:
     response = APIClient().post(
         reverse("advice-estimate"), ESTIMATE | {"postcode4": "540111"}, format="json"

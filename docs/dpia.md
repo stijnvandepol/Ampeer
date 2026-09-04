@@ -66,21 +66,44 @@ niet te raden.
 
 ### Wat er niet is
 
-Geen naam, geen e-mailadres, geen telefoonnummer, geen huisnummer, geen account
-en geen wachtwoord. Er is niets om in te loggen, dus er is ook geen inlogpoging
-om vast te leggen.
+Geen naam, geen telefoonnummer, geen huisnummer. Wel, sinds fase 1, een account:
+wie er een aanmaakt geeft een e-mailadres op en een wachtwoord, en het
+wachtwoord staat nergens in leesbare vorm. `backend/accounts/models.py` hasht
+het met Argon2id voor het de database raakt, en wat er staat is de hash en
+`last_login`, het tijdstip van de laatste geslaagde aanmelding dat
+`AbstractBaseUser` zelf meebrengt. Een mislukte aanmelding wordt niet op het
+account bijgehouden maar in het auditlogboek hieronder.
+
+De rekenmachine zelf blijft anoniem. Een account bestaat naast een advies, niet
+ervoor: `StoredAdvice.owner` in `backend/advice/models.py` staat op elke rij op
+`NULL` totdat een latere fase hem vult, en de tokenroute kijkt er niet naar. Wie
+nooit een account aanmaakt, merkt dus niets van dit hoofdstuk.
 
 **Geen IP-adres in enige tabel.** Het IP-adres wordt gebruikt, want het
 tempolimiet moet ergens op tellen, maar het wordt daarvoor eerst gehasht
 (`advice/throttling.py`) en de teller staat in een cache met een vervaltijd. Er
-is geen model met een adresveld en geen logregel die er een bewaart.
+is geen model met een adresveld en geen logregel die er een bewaart. Hetzelfde
+geldt voor de inlogpogingen die `django-axes` sinds fase 1 bijhoudt:
+`AXES_HANDLER` staat op de cachehandler en niet op de databasehandler, dus ook
+een mislukte aanmelding telt op tegen een sleutel in een cache met een
+vervaltijd en niet in een tabel.
 
 ### Het auditlogboek
 
-`AuditEvent` is append-only en legt vandaag precies een soort gebeurtenis vast:
-dat er een advies is gegenereerd. Wat er bij die regel staat is een sha256 van
-het token, het viercijferige postcodegebied, het betrouwbaarheidsniveau en de
-twee versienummers van de motor en de regeltabel.
+`AuditEvent` is append-only en kent sinds fase 1 acht soorten gebeurtenissen in
+plaats van een: dat er een advies is gegenereerd (`ADVICE_GENERATED`), dat een
+account is aangemaakt (`ACCOUNT_CREATED`), dat een aanmelding lukte of mislukte
+(`LOGIN_SUCCEEDED`, `LOGIN_FAILED`), dat iemand uitlogde (`LOGOUT`), dat een
+toestemming is gegeven of ingetrokken (`CONSENT_GRANTED`,
+`CONSENT_WITHDRAWN`), dat gegevens zijn geexporteerd (`DATA_EXPORTED`) en dat
+een account is verwijderd (`ACCOUNT_DELETED`). Bij de eerste regel staat een
+sha256 van het token, het viercijferige postcodegebied, het
+betrouwbaarheidsniveau en de twee versienummers van de motor en de regeltabel.
+Bij de zeven andere staat een `user_id`, een geheel getal, en nooit een
+e-mailadres: deze tabel wordt nooit opgeruimd, dus wat erin staat overleeft het
+account dat het beschrijft, en een getal dat naar een verwijderde rij wijst is
+een lege verwijzing waar een e-mailadres een blijvend persoonsgegeven zou zijn
+in een tabel zonder bewaartermijn.
 
 **Niet het token zelf.** Het token is geen verwijzing naar een advies, het is
 de enige sleutel die het opent, en deze tabel wordt nooit opgeruimd. Een token
@@ -89,17 +112,17 @@ werkende link naar een advies dat na negentig dagen weg had moeten zijn. De
 hash houdt waar het logboek voor is: wie de link legitiem heeft kan hem hashen
 en zijn eigen regel terugvinden.
 
-De andere gebeurtenissen die dit project wil vastleggen, een inlog, een
-koppeling, een gegeven of ingetrokken toestemming, een verstuurde lead, een
-export of een verwijdering, bestaan nog niet, omdat de handelingen zelf nog niet
-bestaan. Een logboek dat ze nu al noemde zou een verwerking beschrijven die er
-niet is.
+Twee gebeurtenissen uit de lijst in `CLAUDE.md` staan hier nog niet: een
+meterkoppeling die tot stand komt en een verstuurde lead. Die ontbreken omdat de
+handelingen zelf nog niet bestaan. Een logboek dat ze nu al noemde zou een
+verwerking beschrijven die er niet is.
 
 Dat logboek heeft geen bewaartermijn, met opzet. Een auditlogboek dat verloopt
 is geen auditlogboek. Wat het draagt verliest wel zijn zeggingskracht: zodra het
 advies na negentig dagen weg is, wijst de hash in het logboek nergens meer
 naar, en wat overblijft is een postcodegebied, een tijdstip en twee
-versienummers.
+versienummers. Voor een account geldt hetzelfde: zodra het account verwijderd
+is, wijst een `user_id` in het logboek naar niets meer.
 
 ## 3. Waarom, en waarom niet meer
 
