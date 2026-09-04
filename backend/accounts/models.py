@@ -154,3 +154,34 @@ class Consent(models.Model):
         """
         latest = cls.objects.filter(user=user, kind=kind).order_by("-occurred_at", "-id").first()
         return latest is not None and latest.action == cls.GRANTED
+
+
+class RefreshSession(models.Model):
+    """One refresh token's life, without the token and without its identifier.
+
+    simplejwt's own rotation needs the `token_blacklist` app, and that app writes
+    the whole refresh JWT into `OutstandingToken.token`. That is a working
+    credential in a column, which CLAUDE.md forbids and which docs/dpia.md
+    chapter 2 already refused for the advice token in the same words: the token
+    is not a reference to the record, it is the only key that opens it.
+
+    `rotated_at` is what makes reuse visible. A token that was exchanged and is
+    offered again is the one reliable sign that somebody else has a copy, and the
+    answer to it is to end every session this account has, not only this one.
+    """
+
+    user = models.ForeignKey(
+        "accounts.User", on_delete=models.CASCADE, related_name="refresh_sessions"
+    )
+    jti_sha256 = models.CharField(max_length=64, unique=True, db_index=True)
+    issued_at = models.DateTimeField()
+    expires_at = models.DateTimeField(db_index=True)
+    rotated_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering: ClassVar[list[str]] = ["-issued_at"]
+
+    @property
+    def is_spent(self) -> bool:
+        return self.rotated_at is not None or self.revoked_at is not None

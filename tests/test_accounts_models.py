@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pytest
 from django.db.utils import IntegrityError
+from django.utils import timezone
 
 from accounts.models import User
 
@@ -90,3 +93,123 @@ def test_an_account_carries_no_name_and_no_username() -> None:
     assert not fields & {"username", "first_name", "last_name"}, (
         f"the user model grew {sorted(fields & {'username', 'first_name', 'last_name'})}"
     )
+
+
+@pytest.mark.django_db
+def test_a_session_stores_a_digest_and_never_the_identifier() -> None:
+    """The same call `advice/service.py` makes about the advice token, and for
+    the same reason: what is written down must not be what opens the door."""
+    from accounts.models import RefreshSession
+    from advice.models import token_digest
+
+    user = User.objects.create_user(email="iemand@voorbeeld.nl", password="een-lang-wachtwoord")
+    jti = "4f0b2c1d9e8a47f0b2c1d9e8a47f0b2c"
+    session = RefreshSession.objects.create(
+        user=user,
+        jti_sha256=token_digest(jti),
+        issued_at=timezone.now(),
+        expires_at=timezone.now() + timedelta(days=14),
+    )
+    assert jti not in session.jti_sha256
+    assert session.jti_sha256 == token_digest(jti)
+    assert session.rotated_at is None and session.revoked_at is None
+
+
+@pytest.mark.django_db
+def test_the_purge_removes_only_what_has_expired() -> None:
+    from django.core.management import call_command
+
+    from accounts.models import RefreshSession
+
+    user = User.objects.create_user(email="iemand@voorbeeld.nl", password="een-lang-wachtwoord")
+    now = timezone.now()
+    RefreshSession.objects.create(
+        user=user, jti_sha256="a" * 64, issued_at=now, expires_at=now - timedelta(seconds=1)
+    )
+    live = RefreshSession.objects.create(
+        user=user, jti_sha256="b" * 64, issued_at=now, expires_at=now + timedelta(days=1)
+    )
+    call_command("purge_expired_sessions")
+    assert list(RefreshSession.objects.values_list("pk", flat=True)) == [live.pk]
+
+
+@pytest.mark.django_db
+def test_is_spent_is_true_once_either_timestamp_is_set() -> None:
+    """The one property `tokens.py` (task 8) will read before rotating a token.
+
+    Three branches, not one: a live row (neither timestamp set), a rotated row,
+    and a revoked row. `rotated_at` and `revoked_at` are independent columns, so
+    a test that only ever set one of the two would leave the other arm of the
+    `or` unexercised.
+    """
+    from accounts.models import RefreshSession
+
+    user = User.objects.create_user(email="iemand@voorbeeld.nl", password="een-lang-wachtwoord")
+    now = timezone.now()
+    live = RefreshSession.objects.create(
+        user=user, jti_sha256="a" * 64, issued_at=now, expires_at=now + timedelta(days=14)
+    )
+    rotated = RefreshSession.objects.create(
+        user=user, jti_sha256="b" * 64, issued_at=now, expires_at=now + timedelta(days=14)
+    )
+    revoked = RefreshSession.objects.create(
+        user=user, jti_sha256="c" * 64, issued_at=now, expires_at=now + timedelta(days=14)
+    )
+    rotated.rotated_at = now
+    revoked.revoked_at = now
+
+    assert live.is_spent is False
+    assert rotated.is_spent is True
+    assert revoked.is_spent is True
+
+
+@pytest.mark.django_db
+def test_presenting_a_rotated_token_is_the_signal_to_revoke_the_whole_chain() -> None:
+    """The security property this model exists for, demonstrated at the model
+    level, since the lookup-then-refuse-then-revoke flow itself is `tokens.py`
+    in task 8 and does not exist yet.
+
+    `rotated_at` already set is what a stolen, already-exchanged token looks
+    like on reuse. The only correct response is to end every session the
+    account holds, not only the one presented, because the row on offer no
+    longer distinguishes the thief from the legitimate holder who rotated it.
+    A second user's session must be untouched: this is a per-account response,
+    not a global one.
+    """
+    from accounts.models import RefreshSession
+
+    victim = User.objects.create_user(email="iemand@voorbeeld.nl", password="een-lang-wachtwoord")
+    bystander = User.objects.create_user(
+        email="ander@voorbeeld.nl", password="een-ander-wachtwoord"
+    )
+    now = timezone.now()
+    presented = RefreshSession.objects.create(
+        user=victim,
+        jti_sha256="d" * 64,
+        issued_at=now,
+        expires_at=now + timedelta(days=14),
+        rotated_at=now,
+    )
+    other_session = RefreshSession.objects.create(
+        user=victim, jti_sha256="e" * 64, issued_at=now, expires_at=now + timedelta(days=14)
+    )
+    unrelated = RefreshSession.objects.create(
+        user=bystander, jti_sha256="f" * 64, issued_at=now, expires_at=now + timedelta(days=14)
+    )
+
+    # The refusal: a session whose rotated_at is already set is spent, and a
+    # caller must not accept it as proof of identity.
+    looked_up = RefreshSession.objects.get(jti_sha256=presented.jti_sha256)
+    assert looked_up.is_spent is True
+
+    # The response: revoke every row this account holds, not only the one that
+    # was presented.
+    revoked_at = timezone.now()
+    RefreshSession.objects.filter(user=victim, revoked_at__isnull=True).update(
+        revoked_at=revoked_at
+    )
+
+    other_session.refresh_from_db()
+    unrelated.refresh_from_db()
+    assert other_session.revoked_at == revoked_at, "the victim's other session must be revoked too"
+    assert unrelated.revoked_at is None, "a different account's session must be left alone"
