@@ -1,6 +1,6 @@
 # Gegevensbeschermingseffectbeoordeling
 
-Over de rekenmachine en de adviseur zoals die vandaag draaien, fase 0.5.
+Over de rekenmachine, de adviseur en de accountlaag zoals die vandaag draaien, fase 1.
 
 ## 0. Wat dit document is, en wat het niet is
 
