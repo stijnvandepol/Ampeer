@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any, TypedDict
 
 import pytest
+from django.conf import settings
 from rest_framework.test import APIClient
 
 from accounts.models import Consent, RefreshSession, User
@@ -125,6 +126,34 @@ def test_deleting_takes_the_account_its_consents_its_sessions_and_its_advice(
     assert StoredAdvice.objects.filter(pk=anonymous.pk).exists(), (
         "an advice that belongs to nobody was taken with an account it never belonged to"
     )
+
+
+@pytest.mark.django_db
+def test_deleting_clears_both_auth_cookies(client: Any) -> None:
+    """The one destructive route in the API has to leave the browser signed
+    out, or a deleted account's access cookie keeps validating against a user
+    that no longer exists for up to its own lifetime. `LogoutView`'s cookies
+    are covered by `test_logging_in_and_out_moves_the_cookies` in
+    tests/test_accounts_api.py; `DeleteView` calls the same `clear_tokens`
+    helper but had no test of its own reading the response cookies directly."""
+    _registered(client)
+    response = client.post(
+        "/api/auth/delete/",
+        {"password": PASSWORD},
+        content_type="application/json",
+        **_csrf(client),
+    )
+    assert response.status_code == 204
+
+    access_cookie = response.cookies[settings.AMPEER_ACCESS_COOKIE]
+    assert access_cookie.value == ""
+    assert access_cookie["max-age"] == 0
+    assert access_cookie["path"] == "/api/"
+
+    refresh_cookie = response.cookies[settings.AMPEER_REFRESH_COOKIE]
+    assert refresh_cookie.value == ""
+    assert refresh_cookie["max-age"] == 0
+    assert refresh_cookie["path"] == "/api/auth/"
 
 
 @pytest.mark.django_db
