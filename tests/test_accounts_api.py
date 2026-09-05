@@ -7,7 +7,9 @@ SameSite, and SameSite is the whole CSRF defence in this deployment.
 
 from __future__ import annotations
 
+import json
 from datetime import timedelta
+from pathlib import Path
 from typing import Any, TypedDict
 
 import pytest
@@ -21,6 +23,10 @@ from accounts.models import Consent, User
 from accounts.nl import CONSENT_TEXT_VERSION, NL
 from accounts.views import _AuthAPIView
 from advice.models import AuditEvent
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+ME_FIXTURE = REPO_ROOT / "frontend" / "tests" / "fixtures" / "me-response.json"
+EXPORT_FIXTURE = REPO_ROOT / "frontend" / "tests" / "fixtures" / "export-response.json"
 
 BODY = {
     "email": "iemand@voorbeeld.nl",
@@ -839,3 +845,49 @@ def test_withdrawing_with_a_stale_text_version_is_still_accepted(client: Any) ->
         **_csrf(client),
     )
     assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_the_me_fixture_has_the_shape_the_view_answers(client: Any) -> None:
+    """The frontend builds against a file; this is what makes that file a
+    description of this response.
+
+    Shape and not values: an address and a timestamp differ between a fixture
+    and a test database and always will. The keys do not, and the keys are
+    what the browser reads. Along the same `_shape` the advice fixture uses,
+    imported rather than copied: a second definition of that function is a
+    second thing that can drift.
+    """
+    from test_frontend_contract import _shape
+
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    live = client.get("/api/auth/me/").json()
+    committed = json.loads(ME_FIXTURE.read_text(encoding="utf-8"))
+    assert _shape(live) == _shape(committed), (
+        "GET me/ no longer has the shape frontend/tests/fixtures/me-response.json "
+        "describes; update the fixture and the shape check in accounts.ts together"
+    )
+
+
+@pytest.mark.django_db
+def test_the_export_fixture_has_the_shape_the_view_answers(client: Any) -> None:
+    """The same claim for the heaviest answer on this API, and the one the
+    browser hands straight to a file the visitor keeps."""
+    from test_frontend_contract import _shape
+
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    live = client.post("/api/auth/export/", content_type="application/json", **_csrf(client)).json()
+    committed = json.loads(EXPORT_FIXTURE.read_text(encoding="utf-8"))
+    assert _shape(live) == _shape(committed), (
+        "POST export/ no longer has the shape "
+        "frontend/tests/fixtures/export-response.json describes"
+    )
+
+
+def test_the_export_fixture_carries_the_consent_row_that_makes_it_worth_pinning() -> None:
+    """A fixture with an empty `consents` would pin `list` and nothing else,
+    and the four keys inside a row are exactly what the download is for."""
+    committed = json.loads(EXPORT_FIXTURE.read_text(encoding="utf-8"))
+    assert committed["consents"], "the export fixture no longer exercises a consent row"
+    assert set(committed["consents"][0]) == {"kind", "action", "occurred_at", "text_version"}
+    assert committed["advices"] == [], "phase 1 stores no advice against an account"

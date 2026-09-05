@@ -735,3 +735,78 @@ def test_the_counter_names_the_browser_sends_are_the_ones_the_api_accepts() -> N
         f"only in count.ts: {sorted(declared - accepted)}, "
         f"only in models.py: {sorted(accepted - declared)}"
     )
+
+
+# --------------------------------------------------------------------------
+# The consent texts, the one auth response that touches no database.
+# --------------------------------------------------------------------------
+
+CONSENT_TEXTS_FIXTURE = REPO_ROOT / "frontend" / "tests" / "fixtures" / "consent-texts.json"
+FRONTEND_SOURCE = REPO_ROOT / "frontend" / "src"
+
+
+def test_the_consent_texts_fixture_is_byte_for_byte_what_the_generator_writes() -> None:
+    """The same claim advice-response.json carries, for the sentences a
+    household agrees to.
+
+    A hand-edited word here would be a fixture describing a consent nobody
+    ever gave, and every frontend test that renders it would then agree with
+    a sentence the API does not send.
+    """
+    import sys
+
+    sys.path.insert(0, str(REPO_ROOT / "tests"))
+    from helpers.consent_texts_fixture import build_consent_texts_payload
+
+    written = json.dumps(build_consent_texts_payload(), indent=2, ensure_ascii=False) + "\n"
+    committed = CONSENT_TEXTS_FIXTURE.read_text(encoding="utf-8")
+    assert committed == written, (
+        "frontend/tests/fixtures/consent-texts.json is not what "
+        "tests/helpers/consent_texts_fixture.py produces. Regenerate it with\n"
+        "    uv run --no-sync python tests/helpers/consent_texts_fixture.py\n"
+        "rather than editing it, and do not run a formatter over it."
+    )
+
+
+def test_the_fixture_keys_are_the_consent_kinds() -> None:
+    """Two copies of one list: the model, and the fixture the browser builds
+    against. A third kind of consent has to fall over on the side where it was
+    added, not in a browser where the row simply never appears."""
+    import sys
+
+    sys.path.insert(0, str(REPO_ROOT / "backend"))
+    from accounts.models import Consent
+
+    payload = json.loads(CONSENT_TEXTS_FIXTURE.read_text(encoding="utf-8"))
+    assert sorted(payload["texts"]) == sorted(Consent.KINDS)
+    for kind, sentence in payload["texts"].items():
+        assert sentence.strip(), f"{kind} carries an empty sentence"
+
+
+def test_no_consent_text_lives_in_the_frontend() -> None:
+    """Chapter 5, checked rather than promised.
+
+    If the frontend carried its own copy of either sentence, the text_version
+    column would prove nothing: there would be two texts, the row would point
+    at one and the screen would have shown the other, and nothing could see
+    the difference. Read out of nl.py rather than restated, so this cannot
+    pass by agreeing with a copy of itself.
+    """
+    import sys
+
+    sys.path.insert(0, str(REPO_ROOT / "backend"))
+    from accounts.nl import NL
+
+    sentences = {key: NL[key] for key in ("CONSENT_METER_LINK", "CONSENT_LEAD_GENERATION")}
+    offenders: list[str] = []
+    for path in sorted(FRONTEND_SOURCE.rglob("*.ts*")):
+        text = path.read_text(encoding="utf-8")
+        for key, sentence in sentences.items():
+            # The first clause of each sentence, so a copy a formatter reflowed
+            # over two lines is still found. A whole-sentence search would be
+            # defeated by the one edit somebody would actually make.
+            if sentence.split(".")[0] in text:
+                offenders.append(f"{path.relative_to(REPO_ROOT).as_posix()} carries {key}")
+    assert not offenders, (
+        "the consent text lives in the frontend as well as in nl.py:\n  " + "\n  ".join(offenders)
+    )
