@@ -425,7 +425,7 @@ describe("the footer, which is where a visitor looks for these", () => {
     expect(screen.getByText(/verkoopt geen panelen/)).toBeInTheDocument();
   });
 
-  it("reaches all three pages that explain the product rather than sell it", () => {
+  it("reaches all four pages that explain the product rather than sell it", () => {
     const { container } = render(<SiteFooter />);
     const hrefs = [...container.querySelectorAll("a[href]")].map((element) =>
       element.getAttribute("href"),
@@ -434,6 +434,9 @@ describe("the footer, which is where a visitor looks for these", () => {
       /^\/methodologie\/?$/,
       /^\/over-ons\/?$/,
       /^\/privacy\/?$/,
+      // The one entrance to the account, and the only one: the site header
+      // does not change and nothing goes on the advice page.
+      /^\/account\/?$/,
     ]) {
       expect(hrefs.some((href) => path.test(href ?? ""))).toBe(true);
     }
