@@ -282,10 +282,10 @@ de tekst inmiddels anders luidt is precies dat niet. Bij `action = "GRANTED"` en
 `register/` is het veld verplicht, en ontbreken is een 400 zoals elk ander ontbrekend veld op
 die serializers.
 
-De melding komt uit `nl.py` als een nieuwe sleutel `consent_text_stale`. Die valt in de tweede
-categorie die de docstring van dat bestand beschrijft, naast `csrf_failed`: hij gaat niet over
-een waarde die iemand heeft ingetypt maar over een pagina die te oud is, en er is geen veld om
-in plaats van de lezer te benoemen. De tekst zegt dat de toestemmingstekst is gewijzigd en dat
+De melding komt uit `nl.py` als een nieuwe sleutel `consent_text_stale`. Die valt in de eerste
+categorie die de docstring van dat bestand beschrijft, naast `csrf_failed`: die sleutel staat
+daar al, ook al benoemt hij net als `consent_text_stale` geen veld en spreekt hij de lezer toch
+aan over een pagina die te oud is. De tekst zegt dat de toestemmingstekst is gewijzigd en dat
 de pagina opnieuw geladen moet worden.
 
 Een versiebump blijft daarmee wat hij was, plus één gevolg dat erbij hoort: elke openstaande
@@ -592,7 +592,7 @@ Gewijzigd, backend:
 | `backend/accounts/views.py` | `ConsentTextsView`, publiek, `auth-read` |
 | `backend/accounts/urls.py` | `path("consent-texts/", ..., name="auth-consent-texts")` |
 | `backend/accounts/serializers.py` | `text_version` op `RegisterSerializer` en `ConsentSerializer`, met de regel voor `WITHDRAWN` uit 5.2 |
-| `backend/accounts/nl.py` | Eén sleutel, `consent_text_stale`, in de tweede categorie die de docstring beschrijft |
+| `backend/accounts/nl.py` | Eén sleutel, `consent_text_stale`, in de eerste categorie die de docstring beschrijft |
 
 Gewijzigd, tests en documenten:
 
