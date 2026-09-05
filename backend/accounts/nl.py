@@ -7,13 +7,21 @@ what is wrong with it, and addresses nobody. A message that said "vul uw
 e-mailadres in" would be a sentence somebody is spoken to in, and then
 docs/decisions.md entry 1 about the register applies. `email_taken`,
 `email_invalid`, `credentials_invalid`, `password_required`, `csrf_failed`,
-`consent_kind_unknown`, `consent_action_unknown` and `consent_text_stale`
-are this category. `consent_text_stale` names the `text_version` field and
-says nothing about a typed value, only that the page behind it is too old.
+`consent_kind_unknown`, `consent_action_unknown`, `consent_text_stale`,
+`throttled` and `throttled_unknown_wait` are this category. `consent_text_stale`
+names the `text_version` field and says nothing about a typed value, only
+that the page behind it is too old.
 `password_too_short` is one of them too, and it is the first entry in this
 table to carry a `%(...)` placeholder: the caller formats it with a value it
 alone knows (the configured minimum length), so the string here stays a
-template and not a hardcoded number.
+template and not a hardcoded number. `throttled` is a second: it is phrased
+the way `csrf_failed` is, an instruction addressed to nobody, and its
+`%(seconds)d` is filled in with the same `wait` DRF used to build
+`Retry-After`, never rounded a second, different way. `wait` can be `None`;
+`throttled_unknown_wait` is a plain second sentence for that case rather
+than one template trying to read naturally both with and without a number,
+which would need a placeholder that is sometimes a digit and sometimes a
+phrase.
 
 A second category is not about a field at all: it tells the reader something
 about their own session or sign-in state, and there is no field to name
@@ -58,6 +66,8 @@ NL: Final[dict[str, str]] = {
     "not_signed_in": "u bent niet ingelogd",
     "session_expired": "uw sessie is verlopen, log opnieuw in",
     "csrf_failed": "deze pagina stond te lang open, herlaad hem en probeer het opnieuw",
+    "throttled": "te veel verzoeken achter elkaar; probeer het over %(seconds)d seconden opnieuw",
+    "throttled_unknown_wait": "te veel verzoeken achter elkaar; probeer het straks opnieuw",
     "consent_text_stale": (
         "de toestemmingstekst is gewijzigd, herlaad de pagina en probeer het opnieuw"
     ),

@@ -10,14 +10,20 @@ account needs a body, which is the other half of the reason.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
+from math import ceil
+from typing import Any, NoReturn
 
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.middleware.csrf import get_token
 from rest_framework import status
 from rest_framework.authentication import BaseAuthentication
-from rest_framework.exceptions import AuthenticationFailed, NotAuthenticated, PermissionDenied
+from rest_framework.exceptions import (
+    AuthenticationFailed,
+    NotAuthenticated,
+    PermissionDenied,
+    Throttled,
+)
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -65,6 +71,32 @@ class _AuthAPIView(_NoStoreAPIView):
     ) -> Response:
         get_token(request)
         return super().finalize_response(request, response, *args, **kwargs)
+
+    def throttled(self, request: Request, wait: float | None) -> NoReturn:
+        # DRF's Dutch catalogue carries no translation for the throttle
+        # message, so under nl-nl the default detail is English. The
+        # sentence a refused visitor reads is ours, from nl.py, like
+        # password_too_short. `wait` is what DRF computed; it is also what
+        # sets Retry-After, so the number on screen and in the header agree.
+        #
+        # `Throttled.__init__` appends its own English "Expected available in
+        # N seconds." to whatever `detail` it is given, whenever `wait` is
+        # not `None`, regardless of whether that `detail` came from us. So
+        # `wait` is never passed into the constructor: `seconds` is derived
+        # here, the same way DRF derives it (`math.ceil`), and the exception
+        # is built with only our sentence as `detail`.
+        seconds = ceil(wait) if wait is not None else None
+        detail = (
+            NL["throttled"] % {"seconds": seconds}
+            if seconds is not None
+            else NL["throttled_unknown_wait"]
+        )
+        exc = Throttled(detail=detail)
+        # `exception_handler` reads `exc.wait` back to build `Retry-After`;
+        # the rest_framework-stubs omit the attribute even though the
+        # runtime class sets it, so mypy does not know it exists here either.
+        exc.wait = seconds  # type: ignore[attr-defined]
+        raise exc
 
     def get_authenticate_header(self, request: Request) -> str:
         """The `WWW-Authenticate` header DRF asks for before answering a

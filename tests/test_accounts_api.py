@@ -530,6 +530,44 @@ def test_the_login_route_throttles_before_axes_contention_could_matter(client: A
 
 
 @pytest.mark.django_db
+def test_the_login_route_answers_a_throttle_in_dutch_with_a_matching_retry_after(
+    client: Any,
+) -> None:
+    """Controller ruling 54. DRF's Dutch catalogue carries no translation for
+    the throttle message, so under `nl-nl` a 429's `detail` reads English,
+    verbatim, on the one screen that shows a 429's `detail` word for word.
+    `_AuthAPIView.throttled()` replaces it with `NL["throttled"]`, filled in
+    with the same `wait` DRF used to build `Retry-After`, so the number the
+    visitor reads and the number the header carries are the same number.
+
+    Ten logins to a real, freshly registered account, the password right
+    every time so axes never sees a failure to count, spend the whole of
+    `auth-login`'s 10/hour; the eleventh is throttled before the handler, let
+    alone `authenticate()`, ever runs, so its `detail` owes nothing to
+    whether the credentials on that eleventh request are right or wrong.
+    """
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    headers = _csrf(client)
+    for _ in range(10):  # requests 1 through 10, the whole of auth-login's budget
+        response = client.post(
+            "/api/auth/login/",
+            {"email": BODY["email"], "password": PASSWORD},
+            content_type="application/json",
+            **headers,
+        )
+        assert response.status_code == 200, response.content
+    eleventh = client.post(  # request 11
+        "/api/auth/login/",
+        {"email": BODY["email"], "password": PASSWORD},
+        content_type="application/json",
+        **headers,
+    )
+    assert eleventh.status_code == 429, eleventh.content
+    seconds = int(eleventh["Retry-After"])
+    assert eleventh.json()["detail"] == NL["throttled"] % {"seconds": seconds}
+
+
+@pytest.mark.django_db
 def test_axes_locks_out_a_login_over_http_after_five_failed_attempts(client: Any) -> None:
     """This task is the first place `axes` is wired to an HTTP view at all;
     nothing before it proved the lockout actually fires through

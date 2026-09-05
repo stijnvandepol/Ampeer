@@ -599,11 +599,17 @@ test.describe("errors are Dutch", () => {
         status: 401,
         body: { detail: "uw sessie is verlopen, log opnieuw in" },
       },
+      // NL["throttled"] in backend/accounts/nl.py, %(seconds)d filled in with
+      // 3600 (a plausible auth-login Retry-After under its 10/hour scope).
+      // tests/test_accounts_api.py::test_the_login_route_answers_a_throttle_in_dutch_with_a_matching_retry_after
+      // pins this exact sentence at the API side, formatted with whatever
+      // `wait` DRF actually computed, so this mock is the real API shape and
+      // not an invented one.
       "/api/auth/login/": {
         status: 429,
         body: {
           detail:
-            "Er zijn kort achter elkaar veel pogingen gedaan. Probeer het over een uur opnieuw.",
+            "te veel verzoeken achter elkaar; probeer het over 3600 seconden opnieuw",
         },
       },
     });
@@ -613,7 +619,7 @@ test.describe("errors are Dutch", () => {
     await page.getByRole("button", { name: "Inloggen" }).click();
     // Scoped to main: Next's own route announcer also carries role="alert".
     await expect(page.locator("main").getByRole("alert")).toContainText(
-      "Er zijn kort achter elkaar veel pogingen gedaan. Probeer het over een uur opnieuw.",
+      "te veel verzoeken achter elkaar; probeer het over 3600 seconden opnieuw",
     );
     await expect(page.locator("body")).not.toContainText("advice API returned");
     await expect(page.locator("body")).not.toContainText("auth API returned");
