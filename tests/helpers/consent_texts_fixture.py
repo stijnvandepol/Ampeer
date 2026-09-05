@@ -16,6 +16,7 @@ Run as a script to rewrite the fixture:
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -29,9 +30,31 @@ FIXTURE = REPO_ROOT / "frontend" / "tests" / "fixtures" / "consent-texts.json"
 if str(REPO_ROOT / "backend") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "backend"))
 
+# Unlike advice_fixture.py one file over, this generator's payload comes off a
+# real Django model (Consent.KINDS), not off ampeer_advice/ampeer_sim, which
+# never import Django at all. `DJANGO_SETTINGS_MODULE` in pyproject.toml's
+# `[tool.pytest.ini_options]` is read by pytest-django during pytest's own
+# startup and by nothing else, so a bare `python` invocation never sees it.
+# `setdefault`, not an assignment: a caller's own exported value, or pytest's,
+# is never overridden.
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "ampeer.settings.test")
+
 
 def build_consent_texts_payload() -> dict[str, Any]:
-    """Exactly what ConsentTextsView answers, from the same two sources."""
+    """Exactly what ConsentTextsView answers, from the same two sources.
+
+    `django.setup()` first and the `accounts` imports after, in that order and
+    inside this function rather than at the module head: importing
+    `accounts.models` before Django's app registry is populated is exactly the
+    `AppRegistryNotReady` this call prevents, and `setup()` itself is cheap to
+    repeat (Django's `Apps.populate` returns immediately once already
+    populated), so this runs identically the first time, standalone, and every
+    time pytest calls it with the registry already populated.
+    """
+    import django
+
+    django.setup()
+
     from accounts.models import Consent
     from accounts.nl import CONSENT_TEXT_VERSION, NL
 
