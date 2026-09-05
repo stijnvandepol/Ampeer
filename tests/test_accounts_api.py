@@ -11,10 +11,15 @@ from typing import Any, TypedDict
 
 import pytest
 from django.conf import settings
-from rest_framework.test import APIClient
+from rest_framework.exceptions import NotAuthenticated
+from rest_framework.request import Request
+from rest_framework.test import APIClient, APIRequestFactory
 
 from accounts.models import Consent, User
 from accounts.nl import NL
+from accounts.serializers import _PASSWORD_TOO_SHORT_NL
+from accounts.views import _AuthAPIView
+from advice.models import AuditEvent
 
 PASSWORD = "een-heel-lang-wachtwoord"
 BODY = {
@@ -139,12 +144,45 @@ def test_registering_with_an_email_already_in_use_is_refused(client: Any) -> Non
 
 @pytest.mark.django_db
 def test_a_short_password_is_refused_in_dutch(client: Any) -> None:
+    """Asserts the Dutch sentence itself, not merely that a `password` key
+    exists: `MinimumLengthValidator.get_error_message()` raises an English
+    message that Django's own shipped Dutch catalogue does not translate (a
+    msgid mismatch inside Django 5.2.17, not a project settings problem; see
+    `accounts.serializers._PASSWORD_TOO_SHORT_NL` and the task 9 report), so a
+    test that only checked for the key's presence would pass on the English
+    text just as well.
+
+    Red-proof, run manually and reverted (not committed, since it would
+    require monkeypatching `MinimumLengthValidator.get_error_message` itself
+    to fake a mismatch): temporarily changing `_PASSWORD_TOO_SHORT_NL`'s
+    `%(min_length)d` to `%(min_length)s` raises a `KeyError`-free but visibly
+    different string, and reverting `RegisterSerializer.validate_password` to
+    `raise serializers.ValidationError(list(error.messages)) from error` (the
+    pre-fix-round body) makes this assertion fail with the English sentence.
+    """
     body = BODY | {"password": "kort"}
     response = client.post(
         "/api/auth/register/", body, content_type="application/json", **_csrf(client)
     )
     assert response.status_code == 400
-    assert "password" in response.json()
+    assert response.json()["password"] == [_PASSWORD_TOO_SHORT_NL % {"min_length": 12}]
+
+
+@pytest.mark.django_db
+def test_a_password_failing_a_different_validator_still_translates(client: Any) -> None:
+    """The `else` branch in `validate_password`: a code other than
+    `password_too_short` is left to Django's own translation rather than
+    routed through `_PASSWORD_TOO_SHORT_NL`. An all-digit password fails
+    `NumericPasswordValidator`, whose message Django's shipped Dutch
+    catalogue does translate correctly (verified directly against
+    `django.contrib.auth.password_validation` in this project's Django
+    5.2.17), so this is also a real assertion and not merely a branch filler."""
+    body = BODY | {"password": "123456789012"}
+    response = client.post(
+        "/api/auth/register/", body, content_type="application/json", **_csrf(client)
+    )
+    assert response.status_code == 400
+    assert response.json()["password"] == ["Dit wachtwoord bevat alleen cijfers."]
 
 
 @pytest.mark.django_db
@@ -162,6 +200,38 @@ def test_logging_in_and_out_moves_the_cookies(client: Any) -> None:
     logout = client.post("/api/auth/logout/", content_type="application/json", **_csrf(client))
     assert logout.status_code == 204
     assert logout.cookies[settings.AMPEER_ACCESS_COOKIE].value == ""
+
+
+@pytest.mark.django_db
+def test_a_failed_login_for_an_unknown_address_audits_nothing_identifying(client: Any) -> None:
+    """The audit log is append-only and never purged (advice/models.py), so a
+    personal detail written into it never expires. A failed login for an
+    address with no account must write `LOGIN_FAILED` with `user_id: None`
+    and nothing else, never the address that was tried: that address may
+    belong to somebody who has never been a customer."""
+    client.post(
+        "/api/auth/login/",
+        {"email": "niemand@voorbeeld.nl", "password": "verkeerd"},
+        content_type="application/json",
+        **_csrf(client),
+    )
+    event = AuditEvent.objects.filter(event_type=AuditEvent.LOGIN_FAILED).latest("occurred_at")
+    assert event.context == {"user_id": None}
+
+
+@pytest.mark.django_db
+def test_a_successful_login_audits_an_integer_id_and_no_email(client: Any) -> None:
+    user = User.objects.create_user(email="iemand@voorbeeld.nl", password=PASSWORD)
+    client.post(
+        "/api/auth/login/",
+        {"email": "iemand@voorbeeld.nl", "password": PASSWORD},
+        content_type="application/json",
+        **_csrf(client),
+    )
+    event = AuditEvent.objects.filter(event_type=AuditEvent.LOGIN_SUCCEEDED).latest("occurred_at")
+    assert event.context == {"user_id": user.pk}
+    assert isinstance(event.context["user_id"], int)
+    assert "iemand@voorbeeld.nl" not in str(event.context)
 
 
 @pytest.mark.django_db
@@ -203,11 +273,24 @@ def test_refreshing_a_spent_refresh_token_ends_the_session(client: Any) -> None:
     client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
     spent = client.cookies[settings.AMPEER_REFRESH_COOKIE].value
     client.post("/api/auth/refresh/", content_type="application/json", **_csrf(client))
+    current = client.cookies[settings.AMPEER_REFRESH_COOKIE].value
     client.cookies[settings.AMPEER_REFRESH_COOKIE] = spent
     response = client.post("/api/auth/refresh/", content_type="application/json", **_csrf(client))
     assert response.status_code == 401
     assert response.json() == {"detail": NL["session_expired"]}
     assert response.cookies[settings.AMPEER_ACCESS_COOKIE].value == ""
+
+    # The reuse above does not merely refuse the spent token: `tokens.rotate`
+    # revokes the whole chain, so the session that was legitimate a moment
+    # ago (`current`, minted by the first refresh above) must be refused too.
+    # Without this, the test above would still be green if `rotate` only ever
+    # revoked the one token it was offered.
+    client.cookies[settings.AMPEER_REFRESH_COOKIE] = current
+    also_revoked = client.post(
+        "/api/auth/refresh/", content_type="application/json", **_csrf(client)
+    )
+    assert also_revoked.status_code == 401
+    assert also_revoked.json() == {"detail": NL["session_expired"]}
 
 
 @pytest.mark.django_db
@@ -220,6 +303,32 @@ def test_refreshing_without_a_refresh_cookie_is_refused(client: Any) -> None:
     response = client.post("/api/auth/refresh/", content_type="application/json", **_csrf(client))
     assert response.status_code == 401
     assert response.json() == {"detail": NL["not_signed_in"]}
+
+
+def test_registering_without_the_csrf_token_is_refused() -> None:
+    """`enforce_csrf(request)` at the top of `RegisterView.post` (views.py),
+    proven live: the earlier version of this test file only ran `-k
+    csrf_token`, which selects the two `logout/` tests and never calls
+    `RegisterView` at all, so "the register check has a red-proof" was
+    unverified. This one calls register directly, with no prior request on
+    this client at all, so there is no CSRF cookie for the header to match
+    even if one were sent."""
+    strict = APIClient(enforce_csrf_checks=True)
+    response = strict.post("/api/auth/register/", BODY, format="json")
+    assert response.status_code == 403, (
+        "register went through with no CSRF token at all, so login CSRF (being signed "
+        "into an account somebody else controls) is not actually blocked"
+    )
+
+
+@pytest.mark.django_db
+def test_registering_with_the_csrf_token_is_accepted() -> None:
+    """The other half, on the same strict client and the same route: without
+    this, a version of `enforce_csrf` that always raised would still pass the
+    test above, for the wrong reason."""
+    strict = APIClient(enforce_csrf_checks=True)
+    response = strict.post("/api/auth/register/", BODY, format="json", **_csrf(strict))
+    assert response.status_code == 201, response.content
 
 
 @pytest.mark.django_db
@@ -255,11 +364,22 @@ def test_the_advice_endpoints_did_not_quietly_gain_an_identity() -> None:
     """`DEFAULT_AUTHENTICATION_CLASSES` stays empty and the class is named per
     view, so the three anonymous endpoints cannot start accepting a cookie
     identity because somebody changed a default. Asserted over the resolver
-    rather than over the source, because what matters is what is reachable."""
+    rather than over the source, because what matters is what is reachable.
+
+    The `continue` below skips anything that is not `api/advice/`, and if that
+    prefix is ever remounted elsewhere the loop body never runs at all: a
+    vacuous pass that asserts nothing, exactly the shape
+    `tests/test_backend_settings.py::test_every_public_route_is_rate_limited`
+    already guards against with a count and a named route. Same fix here:
+    assert at least the number of routes `advice/urls.py` names today
+    (`health/`, `count/`, `estimate/`, `refine/`, the token detail route) and
+    that one of them is specifically `estimate/`.
+    """
     from django.conf import settings as django_settings
     from django.urls import URLResolver, get_resolver
 
     assert django_settings.REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"] == []
+    checked: list[str] = []
     for entry in get_resolver().url_patterns:
         # `isinstance` and `getattr(..., "cls", None)` rather than a straight
         # `entry.url_patterns` / `route.callback.cls`: `url_patterns` only
@@ -276,6 +396,15 @@ def test_the_advice_endpoints_did_not_quietly_gain_an_identity() -> None:
                 f"api/advice/{route.pattern} is served by {view.__name__}, which now "
                 f"authenticates with {view.authentication_classes}"
             )
+            checked.append(str(route.pattern))
+    assert len(checked) >= 5, (
+        f"only found {checked}; api/advice/ was not reached at all, so nothing above was "
+        "actually asserted"
+    )
+    assert any(pattern.endswith("estimate/") for pattern in checked), (
+        "the estimate endpoint is not among the routes checked, so this test is looking "
+        "somewhere other than at the advice API"
+    )
 
 
 @pytest.mark.django_db
@@ -315,3 +444,81 @@ def test_the_login_route_throttles_before_axes_contention_could_matter(client: A
         **headers,
     )
     assert eleventh.status_code == 429, eleventh.content
+
+
+@pytest.mark.django_db
+def test_axes_locks_out_a_login_over_http_after_five_failed_attempts(client: Any) -> None:
+    """This task is the first place `axes` is wired to an HTTP view at all;
+    nothing before it proved the lockout actually fires through
+    `LoginView.post` rather than only against
+    `django.contrib.auth.authenticate()` called directly in a unit test.
+    Removing `AxesMiddleware`, or widening `AXES_LOCKOUT_PARAMETERS`, would
+    silently disable brute force protection under an otherwise green suite.
+
+    One account, five wrong passwords, then the correct one: `AXES_FAILURE_LIMIT`
+    is 5, so the fifth wrong attempt is the one that crosses the threshold and
+    is itself refused with 429, and the correct password afterwards is refused
+    the same way with no access cookie, because axes answers before
+    `ModelBackend` ever checks it. Budget: one priming GET plus five wrong
+    attempts plus one correct attempt is seven of `auth-login`'s ten allows
+    per hour, well clear of the throttle in
+    `test_the_login_route_throttles_before_axes_contention_could_matter` above.
+
+    Red-proof, run manually and reverted (not committed as a permanent
+    `override_settings`, since this test's whole point is that axes normally
+    runs): wrapping the body in `@override_settings(AXES_ENABLED=False)` and
+    rerunning makes every one of the six login attempts answer on its own
+    merits (401 for a wrong password, 200 for the right one), and the final
+    assertion of 429 fails.
+    """
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    headers = _csrf(client)
+    for _ in range(4):
+        wrong = client.post(
+            "/api/auth/login/",
+            {"email": BODY["email"], "password": "helemaal-verkeerd"},
+            content_type="application/json",
+            **headers,
+        )
+        assert wrong.status_code == 401, wrong.content
+    fifth = client.post(
+        "/api/auth/login/",
+        {"email": BODY["email"], "password": "helemaal-verkeerd"},
+        content_type="application/json",
+        **headers,
+    )
+    assert fifth.status_code == 429, fifth.content
+    correct = client.post(
+        "/api/auth/login/",
+        {"email": BODY["email"], "password": PASSWORD},
+        content_type="application/json",
+        **headers,
+    )
+    assert correct.status_code == 429, correct.content
+    assert settings.AMPEER_ACCESS_COOKIE not in correct.cookies
+
+
+def test_the_user_property_raises_rather_than_returning_none_under_dash_o() -> None:
+    """Ruling 14's `_AuthAPIView.user` property, guarded against `python -O`:
+    the brief's original body was a bare `assert isinstance(...)`, which `-O`
+    strips, and with `REST_FRAMEWORK["UNAUTHENTICATED_USER"] = None` the
+    stripped version would return `None` typed as `User` rather than fail
+    loudly. `LogoutView` is on `IsAuthenticated` so this branch never runs
+    there in practice; `_AuthAPIView` is still the base every later view
+    inherits, including this task's own `AllowAny` ones, so the property has
+    to defend itself regardless of who ends up calling it.
+
+    Built directly against the view rather than through HTTP, because no
+    route reachable today leaves `request.user` as `None` while still calling
+    into a handler that reads `self.user`.
+    """
+    view = _AuthAPIView()
+    view.request = Request(APIRequestFactory().get("/"))
+    # `request.user` is typed as `AbstractBaseUser | AnonymousUser`, never
+    # `None`; assigning `None` here reproduces exactly what
+    # `REST_FRAMEWORK["UNAUTHENTICATED_USER"] = None` actually puts there at
+    # runtime for an unauthenticated request, which is the case this property
+    # exists to refuse.
+    view.request.user = None  # type: ignore[assignment]
+    with pytest.raises(NotAuthenticated):
+        _ = view.user

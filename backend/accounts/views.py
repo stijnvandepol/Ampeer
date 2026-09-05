@@ -17,7 +17,7 @@ from django.contrib.auth import authenticate
 from django.middleware.csrf import get_token
 from rest_framework import status
 from rest_framework.authentication import BaseAuthentication
-from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.exceptions import AuthenticationFailed, NotAuthenticated
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -96,8 +96,19 @@ class _AuthAPIView(_NoStoreAPIView):
         `request.user` is an `attr-defined` error under `mypy --strict`; this
         property is the one place that narrowing happens, instead of at every
         call site.
+
+        A `NotAuthenticated` raise here, not a bare `assert`: `python -O`
+        strips `assert` statements, and with `REST_FRAMEWORK["UNAUTHENTICATED_USER"]
+        = None`, the stripped version would return `None` typed as `User`
+        rather than fail loudly. `LogoutView` is on `IsAuthenticated` so this
+        branch is unreachable there today, but `_AuthAPIView` is the base
+        every later authenticated view inherits, and three of this task's own
+        subclasses (`RegisterView`, `LoginView`, `RefreshView`) are `AllowAny`
+        with `self.user` still available to a handler that reaches for it by
+        mistake.
         """
-        assert isinstance(self.request.user, User)
+        if not isinstance(self.request.user, User):
+            raise NotAuthenticated(NL["not_signed_in"])
         return self.request.user
 
 
