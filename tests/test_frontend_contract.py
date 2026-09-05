@@ -21,6 +21,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURE = REPO_ROOT / "frontend" / "tests" / "fixtures" / "advice-response.json"
 TYPES = REPO_ROOT / "frontend" / "src" / "lib" / "types.ts"
@@ -585,8 +587,10 @@ def test_the_third_copy_of_the_postcode_range_agrees_with_the_first() -> None:
 
 ROOT_URLS = REPO_ROOT / "backend" / "ampeer" / "urls.py"
 ADVICE_URLS = REPO_ROOT / "backend" / "advice" / "urls.py"
+ACCOUNTS_URLS = REPO_ROOT / "backend" / "accounts" / "urls.py"
 NGINX = REPO_ROOT / "infra" / "nginx" / "nginx.conf"
 API_TS = REPO_ROOT / "frontend" / "src" / "lib" / "api.ts"
+ACCOUNTS_TS = REPO_ROOT / "frontend" / "src" / "lib" / "accounts.ts"
 
 #: A path this frontend asks the API for, quoted or in a template literal.
 _CALLED_PATH = re.compile(r"""["'`](/api/[^"'`]*)["'`]""")
@@ -596,8 +600,8 @@ _CALLED_PATH = re.compile(r"""["'`](/api/[^"'`]*)["'`]""")
 _INTERPOLATION = re.compile(r"\$\{[^}]*\}")
 
 
-def _api_prefix() -> str:
-    """Where Django mounts the advice API, from the root URL configuration.
+def _api_prefix(module: str) -> str:
+    """Where Django mounts one of the two APIs, from the root URL configuration.
 
     Django is the only place that decides this. nginx forwards it and the
     frontend asks for it, and both of those are copies.
@@ -614,20 +618,15 @@ def _api_prefix() -> str:
             and getattr(included.func, "id", "") == "include"
             and included.args
             and isinstance(included.args[0], ast.Constant)
-            and included.args[0].value == "advice.urls"
+            and included.args[0].value == module
         ):
             return "/" + str(node.args[0].value)
-    raise AssertionError(f"{ROOT_URLS.name} no longer mounts advice.urls anywhere")
+    raise AssertionError(f"{ROOT_URLS.name} no longer mounts {module} anywhere")
 
 
-def _api_routes() -> set[str]:
-    """Every fixed route under that prefix, from the app's own URL configuration.
-
-    The token route is a re_path over a pattern rather than a literal, so it is
-    not a name that can be compared. It is answered for below by allowing one
-    interpolated segment.
-    """
-    tree = ast.parse(ADVICE_URLS.read_text(encoding="utf-8"))
+def _api_routes(urls: Path) -> set[str]:
+    """Every fixed route under that prefix, from one app's URL configuration."""
+    tree = ast.parse(urls.read_text(encoding="utf-8"))
     return {
         str(node.args[0].value)
         for node in ast.walk(tree)
@@ -638,7 +637,17 @@ def _api_routes() -> set[str]:
     }
 
 
-def test_every_path_the_frontend_calls_is_one_the_backend_serves() -> None:
+@pytest.mark.parametrize(
+    ("module", "urls", "client"),
+    [
+        ("advice.urls", ADVICE_URLS, API_TS),
+        ("accounts.urls", ACCOUNTS_URLS, ACCOUNTS_TS),
+    ],
+    ids=["advice", "accounts"],
+)
+def test_every_path_the_frontend_calls_is_one_the_backend_serves(
+    module: str, urls: Path, client: Path
+) -> None:
     """The shape was checked and the address was not.
 
     This file already argues that two codebases sharing a JSON shape with no
@@ -654,16 +663,21 @@ def test_every_path_the_frontend_calls_is_one_the_backend_serves() -> None:
     visitor finds out.
 
     Django decides, so Django is read. Everything else here is a copy.
+
+    Parametrised since the second client arrived. accounts.ts calls nine paths
+    under /api/auth/ and not one of them is reachable by reverse(), by a Vitest
+    mock or by a page.route fixture: all three answer whatever they are asked.
+    Only this reads the URL configuration Django actually serves.
     """
-    prefix = _api_prefix()
-    routes = _api_routes()
-    assert routes, f"{ADVICE_URLS.name} declares no routes at all"
+    prefix = _api_prefix(module)
+    routes = _api_routes(urls)
+    assert routes, f"{urls.name} declares no routes at all"
 
     called = {
         _INTERPOLATION.sub("<dynamic>", path)
-        for path in _CALLED_PATH.findall(API_TS.read_text(encoding="utf-8"))
+        for path in _CALLED_PATH.findall(client.read_text(encoding="utf-8"))
     }
-    assert called, f"{API_TS.name} asks the API for nothing; this test read nothing"
+    assert called, f"{client.name} asks the API for nothing; this test read nothing"
 
     wrong = []
     for path in sorted(called):
@@ -688,7 +702,7 @@ def test_nginx_forwards_the_prefix_django_answers_on() -> None:
     the promise about tokens in logs quietly stops applying to the one path it
     was written for.
     """
-    prefix = _api_prefix()
+    prefix = _api_prefix("advice.urls")
     text = NGINX.read_text(encoding="utf-8")
     assert re.search(rf"location\s+{re.escape(prefix)}\s*\{{", text), (
         f"nginx.conf has no location block for {prefix}, which is where Django now "
@@ -809,4 +823,20 @@ def test_no_consent_text_lives_in_the_frontend() -> None:
                 offenders.append(f"{path.relative_to(REPO_ROOT).as_posix()} carries {key}")
     assert not offenders, (
         "the consent text lives in the frontend as well as in nl.py:\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_the_frontend_knows_exactly_the_two_kinds_the_api_has() -> None:
+    """`CONSENT_KINDS` in accounts.ts is what every shape check and both consent
+    rows iterate, so a kind missing there is a consent the API records and the
+    browser never shows, and a kind too many is a row that renders `undefined`.
+    """
+    import sys
+
+    sys.path.insert(0, str(REPO_ROOT / "backend"))
+    from accounts.models import Consent
+
+    declared = _quoted(ACCOUNTS_TS.read_text(encoding="utf-8"), "export const CONSENT_KINDS =")
+    assert declared == sorted(Consent.KINDS), (
+        f"accounts.ts declares {declared} and Consent.KINDS is {sorted(Consent.KINDS)}"
     )

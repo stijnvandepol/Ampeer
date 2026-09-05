@@ -231,10 +231,12 @@ Kopieer deze link
 Kopieren lukte niet. Neem de link hierboven over.
 Krijg ik straks te horen dat ik een batterij moet kopen?
 KvK-nummer
+LEAD_GENERATION
 LIMITED_BY_LARGEST_SIMULATED_CAPACITY
 Laatst gewijzigd op 2 september 2026.
 Laten verwijderen
 Licht
+METER_LINK
 Maat waarop dit is gebaseerd
 Meenemen
 Meer hoeft u niet in te vullen. Geen account, geen e-mailadres, en niets aan uw meterkast.
