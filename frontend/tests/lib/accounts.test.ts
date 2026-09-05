@@ -139,7 +139,13 @@ describe("the CSRF header", () => {
       const fetchMock = stub(status, body);
       await run();
       const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
-      expect(new Headers(init.headers).get("X-CSRFToken")).toBeNull();
+      const headers = new Headers(init.headers);
+      expect(headers.get("X-CSRFToken")).toBeNull();
+      // api.ts:233-235 explains why: a content-type outside the CORS safelist
+      // turns a simple cross-origin GET into a preflight, bought for a header
+      // the request does not need. A GET here carries no body, so it must
+      // carry no content-type either.
+      expect(headers.has("content-type")).toBe(false);
     },
   );
 
@@ -248,6 +254,134 @@ describe("the shape checks", () => {
   });
 });
 
+/**
+ * The three categories `isObject` and its neighbours exist to catch, proven
+ * rather than assumed.
+ *
+ * Every guard above rejects `null` and an array by construction (`isObject`
+ * excludes both), and rejects a body missing one of its required top-level
+ * keys because the missing key reads as `undefined`, which fails every
+ * `isString` / `typeof ... === "boolean"` check. Until now nothing sent any of
+ * the three: coverage showed the early `return false` in `isConsentTexts`,
+ * `isMe` and `isExport` as unreached. Loosening any one of those guards to
+ * drop its `isObject` check (leaving the rest of the function unchanged) lets
+ * the `null` case below resolve a value instead of rejecting, which is the
+ * red-proof for this block.
+ */
+describe("the shape checks refuse a body that is not even the right kind of value", () => {
+  it("refuses consent texts when the body is null", async () => {
+    stub(200, null);
+    await expect(getConsentTexts()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses consent texts when the body is an array", async () => {
+    stub(200, []);
+    await expect(getConsentTexts()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses consent texts missing a required top-level key", async () => {
+    const { text_version: _version, ...withoutVersion } = consentTexts;
+    stub(200, withoutVersion);
+    await expect(getConsentTexts()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses an account when the body is null", async () => {
+    stub(200, null);
+    await expect(getMe()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses an account when the body is an array", async () => {
+    stub(200, []);
+    await expect(getMe()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses an account missing a required top-level key", async () => {
+    const { email: _email, ...withoutEmail } = me;
+    stub(200, withoutEmail);
+    await expect(getMe()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses a consent answer when the body is null", async () => {
+    stub(200, null);
+    await expect(
+      postConsent({
+        kind: "METER_LINK",
+        action: "GRANTED",
+        text_version: "2026-09-04",
+      }),
+    ).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses a consent answer when the body is an array", async () => {
+    stub(200, []);
+    await expect(
+      postConsent({
+        kind: "METER_LINK",
+        action: "GRANTED",
+        text_version: "2026-09-04",
+      }),
+    ).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses a consent answer missing a required top-level key", async () => {
+    stub(200, { kind: "METER_LINK" });
+    await expect(
+      postConsent({
+        kind: "METER_LINK",
+        action: "GRANTED",
+        text_version: "2026-09-04",
+      }),
+    ).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses an export when the body is null", async () => {
+    stub(200, null);
+    await expect(exportAccount()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses an export when the body is an array", async () => {
+    stub(200, []);
+    await expect(exportAccount()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses an export missing a required top-level key", async () => {
+    const { email: _email, ...withoutEmail } = exportPayload;
+    stub(200, withoutEmail);
+    await expect(exportAccount()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  // The finer-grained partner of the three above: each function guards more
+  // than one required key, and a body missing the *first* key it checks never
+  // reaches the guard for the second. These pick the second (or third) key on
+  // purpose, so every `return false` in accounts.ts has a body that reaches it.
+
+  it("refuses consent texts whose texts object is missing entirely", async () => {
+    stub(200, { text_version: consentTexts.text_version });
+    await expect(getConsentTexts()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses an account whose consents object is missing entirely", async () => {
+    stub(200, { email: me.email });
+    await expect(getMe()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses an export missing date_joined", async () => {
+    const { date_joined: _dateJoined, ...withoutDateJoined } = exportPayload;
+    stub(200, withoutDateJoined);
+    await expect(exportAccount()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses an export whose consents is not an array", async () => {
+    stub(200, { ...exportPayload, consents: {} });
+    await expect(exportAccount()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses an export whose advices is not an array", async () => {
+    stub(200, { ...exportPayload, advices: {} });
+    await expect(exportAccount()).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
 describe("what this module refuses to do", () => {
   it("makes exactly one request on a 500", async () => {
     const fetchMock = stub(500, {});
@@ -274,9 +408,12 @@ describe("what this module refuses to do", () => {
     stub(429, {
       detail: "Request was throttled. Expected available in 1800 seconds.",
     });
-    await getMe().catch((error: ApiError) => {
-      expect(error.message).toContain("throttled");
-      expect(error.status).toBe(429);
+    // rejects.toMatchObject, not a bare .catch(cb): if the promise ever
+    // resolved instead of rejecting, this assertion fails loudly rather than
+    // the callback quietly never running.
+    await expect(getMe()).rejects.toMatchObject({
+      status: 429,
+      message: expect.stringContaining("throttled"),
     });
   });
 
@@ -284,11 +421,9 @@ describe("what this module refuses to do", () => {
     // The difference `_account/messages.ts` reads. ApiError's own default
     // message is English, and a household never sees it.
     stub(400, { text_version: ["de toestemmingstekst is gewijzigd"] });
-    await register(REGISTER_INPUT).catch((error: ApiError) => {
-      expect(error.message).toBe("");
-      expect(error.fields["text_version"]).toEqual([
-        "de toestemmingstekst is gewijzigd",
-      ]);
+    await expect(register(REGISTER_INPUT)).rejects.toMatchObject({
+      message: "",
+      fields: { text_version: ["de toestemmingstekst is gewijzigd"] },
     });
   });
 
@@ -303,11 +438,14 @@ describe("what this module refuses to do", () => {
         async () => new Response("<html>bad gateway</html>", { status: 502 }),
       ),
     );
-    await getMe().catch((error: ApiError) => {
-      expect(error).toBeInstanceOf(ApiError);
-      expect(error.status).toBe(502);
-      expect(error.fields).toEqual({});
-    });
+    await expect(getMe()).rejects.toBeInstanceOf(ApiError);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(
+        async () => new Response("<html>bad gateway</html>", { status: 502 }),
+      ),
+    );
+    await expect(getMe()).rejects.toMatchObject({ status: 502, fields: {} });
   });
 });
 

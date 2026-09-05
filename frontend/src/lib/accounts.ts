@@ -188,7 +188,10 @@ function isMe(value: unknown): value is Me {
 }
 
 /** The answer is about the kind that was sent, or it is about nothing. */
-function isConsentResult(value: unknown, kind: ConsentKind): boolean {
+function isConsentResult(
+  value: unknown,
+  kind: ConsentKind,
+): value is ConsentResult {
   return (
     isObject(value) &&
     value["kind"] === kind &&
@@ -263,7 +266,7 @@ export async function postConsent(input: ConsentInput): Promise<ConsentResult> {
   if (!isConsentResult(body, input.kind)) {
     throw unreadable(response, "an answer about another consent");
   }
-  return body as ConsentResult;
+  return body;
 }
 
 /**
