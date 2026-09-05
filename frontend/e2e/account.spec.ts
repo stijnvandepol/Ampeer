@@ -33,6 +33,24 @@ interface Answer {
 type Plan = Readonly<Record<string, Answer | readonly Answer[]>>;
 
 /**
+ * Answer the CORS preflight every POST in this file triggers.
+ *
+ * Extracted once rather than pasted at each of the four route handlers that
+ * need it (`serveAuth` and the three tests that layer a narrower route on
+ * top of it), so the four cannot drift from each other.
+ */
+async function preflight(route: Route): Promise<void> {
+  await route.fulfill({
+    status: 204,
+    headers: {
+      ...CORS,
+      "access-control-allow-methods": "GET, POST, OPTIONS",
+      "access-control-allow-headers": "content-type, x-csrftoken",
+    },
+  });
+}
+
+/**
  * Serve /api/auth/ from a plan, and count what was asked for.
  *
  * Counted per path, because three of the tests below are about how many
@@ -61,14 +79,7 @@ async function serveAuth(
       // The preflight every POST here triggers, because of the content type
       // and the CSRF header. Not counted: it is the browser asking, not the
       // page.
-      await route.fulfill({
-        status: 204,
-        headers: {
-          ...CORS,
-          "access-control-allow-methods": "GET, POST, OPTIONS",
-          "access-control-allow-headers": "content-type, x-csrftoken",
-        },
-      });
+      await preflight(route);
       return;
     }
     const seen = (counts[path] ?? 0) + 1;
@@ -200,6 +211,9 @@ test.describe("the round the definition of done describes", () => {
     await page.route("**/api/auth/register/", async (route) => {
       if (route.request().method() === "POST") {
         registerBody = route.request().postDataJSON();
+        // Ruling 55: a flow whose POSTs carry an empty CSRF token must fail
+        // here, not against the real API, which would answer 403.
+        expect(route.request().headers()["x-csrftoken"]).toBeTruthy();
       }
       await route.fallback();
     });
@@ -239,7 +253,7 @@ test.describe("the round the definition of done describes", () => {
     });
   });
 
-  test("the submit button is disabled until consent texts resolve", async ({
+  test("the submit button is absent until consent texts resolve", async ({
     page,
   }) => {
     let release: () => void = () => {};
@@ -255,14 +269,7 @@ test.describe("the round the definition of done describes", () => {
     });
     await page.route("**/api/auth/consent-texts/", async (route) => {
       if (route.request().method() === "OPTIONS") {
-        await route.fulfill({
-          status: 204,
-          headers: {
-            ...CORS,
-            "access-control-allow-methods": "GET, POST, OPTIONS",
-            "access-control-allow-headers": "content-type, x-csrftoken",
-          },
-        });
+        await preflight(route);
         return;
       }
       await gate;
@@ -297,7 +304,18 @@ test.describe("the round the definition of done describes", () => {
     });
     await page.goto("/account/");
     await page.getByRole("button", { name: "Toestemming geven" }).click();
-    await expect(page.getByText("Toestemming gegeven")).toHaveCount(2);
+    // `exact: true`: without it this assertion is vacuous. Playwright's
+    // `getByText` matches case-insensitively by substring by default, so
+    // "Geen toestemming gegeven" (the LEAD_GENERATION row's own unchanged
+    // text) already contains "toestemming gegeven" and satisfies a count of
+    // 2 whether or not the click did anything at all. Red-proofed: with the
+    // mock changed to answer `granted: false`, this assertion (exact) fails
+    // on a count of 1, where the unscoped version stayed green at 2.
+    await expect(
+      page.getByText("Toestemming gegeven", { exact: true }),
+    ).toHaveCount(2);
+    await expect(page.locator("body")).not.toContainText("advice API returned");
+    await expect(page.locator("body")).not.toContainText("auth API returned");
   });
 
   test("consent grant sends the text_version, withdraw sends none", async ({
@@ -321,6 +339,9 @@ test.describe("the round the definition of done describes", () => {
     await page.route("**/api/auth/consent/", async (route) => {
       if (route.request().method() === "POST") {
         recorded.push(route.request().postDataJSON() as { kind: string });
+        // Ruling 55: a flow whose POSTs carry an empty CSRF token must fail
+        // here, not against the real API, which would answer 403.
+        expect(route.request().headers()["x-csrftoken"]).toBeTruthy();
       }
       await route.fallback();
     });
@@ -361,6 +382,8 @@ test.describe("the round the definition of done describes", () => {
         text_version: consentTexts.text_version,
       },
     ]);
+    await expect(page.locator("body")).not.toContainText("advice API returned");
+    await expect(page.locator("body")).not.toContainText("auth API returned");
   });
 
   test("withdraw stays possible when consent texts fail to load, grant does not", async ({
@@ -368,6 +391,10 @@ test.describe("the round the definition of done describes", () => {
   }) => {
     await serveAuth(page, {
       "/api/auth/me/": { status: 200, body: me, setsCsrf: true },
+      // No contract pins a 500 body for this route: the page reacts to the
+      // status alone and renders the generic network sentence regardless of
+      // what, if anything, the body says, so this body is invented and
+      // uncontracted on purpose.
       "/api/auth/consent-texts/": { status: 500, body: { detail: "storing" } },
       "/api/auth/consent/": {
         status: 200,
@@ -406,7 +433,15 @@ test.describe("the round the definition of done describes", () => {
     expect(path).not.toBeNull();
     const fs = await import("node:fs/promises");
     const bytes = await fs.readFile(path as string, "utf-8");
+    // This catches alteration and truncation, because the mock already sends
+    // compact bytes (`JSON.stringify` with no extra whitespace). It does not
+    // catch a `JSON.stringify(JSON.parse(text))` round trip, which would
+    // reformat but not corrupt the text: `exportAccount()` resolving to the
+    // exact text it received, unparsed, is what `frontend/tests/lib/accounts.test.ts`
+    // (Vitest) pins.
     expect(bytes).toBe(JSON.stringify(exportPayload));
+    await expect(page.locator("body")).not.toContainText("advice API returned");
+    await expect(page.locator("body")).not.toContainText("auth API returned");
   });
 
   test("delete asks for the password and confirms in one line", async ({
@@ -424,14 +459,18 @@ test.describe("the round the definition of done describes", () => {
     await page.goto("/account/");
     const opener = page.getByRole("button", { name: "Account verwijderen" });
     await expect(opener).toHaveAttribute("aria-expanded", "false");
-    await opener.click();
-    await expect(opener).toHaveAttribute("aria-expanded", "true");
-    // Ruling 52: the informed-consent sentence is visible after the
-    // disclosure opens, and before the confirm button in the DOM order.
+    // Ruling 52, the other half: the informed-consent sentence does not
+    // exist before the disclosure is opened. "Visible after opening" alone
+    // does not rule out it being there, hidden, from page load.
     const consequence = page.getByText(
       "Hiermee verdwijnen uw e-mailadres, uw twee toestemmingen, uw opgeslagen adviezen en uw sessies.",
       { exact: false },
     );
+    await expect(consequence).toHaveCount(0);
+    await opener.click();
+    await expect(opener).toHaveAttribute("aria-expanded", "true");
+    // Ruling 52: the informed-consent sentence is visible after the
+    // disclosure opens, and before the confirm button in the DOM order.
     await expect(consequence).toBeVisible();
     const confirmButton = page.getByRole("button", {
       name: "Verwijderen bevestigen",
@@ -450,44 +489,36 @@ test.describe("the round the definition of done describes", () => {
     expect(positions.buttonIndex).toBeGreaterThan(positions.consequenceIndex);
 
     await page.getByLabel("Uw wachtwoord").fill("verkeerd-wachtwoord");
-    await page.unroute("**/api/auth/delete/");
+    // The real API's own sentence for this: `DeleteView` raises
+    // `PermissionDenied(NL["credentials_invalid"])`
+    // (backend/accounts/nl.py:43), not an invented one.
+    const WRONG_PASSWORD = "e-mailadres of wachtwoord klopt niet";
     await page.route("**/api/auth/delete/", async (route) => {
       if (route.request().method() === "OPTIONS") {
-        await route.fulfill({
-          status: 204,
-          headers: {
-            ...CORS,
-            "access-control-allow-methods": "GET, POST, OPTIONS",
-            "access-control-allow-headers": "content-type, x-csrftoken",
-          },
-        });
+        await preflight(route);
         return;
       }
       await route.fulfill({
         status: 403,
         contentType: "application/json",
         headers: CORS,
-        body: JSON.stringify({ detail: "het wachtwoord klopt niet" }),
+        body: JSON.stringify({ detail: WRONG_PASSWORD }),
       });
     });
     await confirmButton.click();
-    // A wrong password leaves the account view: the heading is still there.
+    // A wrong password leaves the account view. Checked in this order: the
+    // error text first, because `toBeVisible()` on the heading below would
+    // pass instantly regardless (it never left the screen on this path), so
+    // it proves nothing about a wrong password specifically.
+    await expect(page.getByText(WRONG_PASSWORD)).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Uw gegevens" }),
     ).toBeVisible();
-    await expect(page.getByText("het wachtwoord klopt niet")).toBeVisible();
 
     await page.unroute("**/api/auth/delete/");
     await page.route("**/api/auth/delete/", async (route) => {
       if (route.request().method() === "OPTIONS") {
-        await route.fulfill({
-          status: 204,
-          headers: {
-            ...CORS,
-            "access-control-allow-methods": "GET, POST, OPTIONS",
-            "access-control-allow-headers": "content-type, x-csrftoken",
-          },
-        });
+        await preflight(route);
         return;
       }
       await route.fulfill({ status: 204, headers: CORS });
@@ -505,6 +536,8 @@ test.describe("the round the definition of done describes", () => {
     // left to exchange: the RefreshSession rows went with the account.
     expect(counts["/api/auth/me/"]).toBe(1);
     expect(counts["/api/auth/refresh/"]).toBeUndefined();
+    await expect(page.locator("body")).not.toContainText("advice API returned");
+    await expect(page.locator("body")).not.toContainText("auth API returned");
   });
 
   test("focus lands on the deletion confirmation, exactly once", async ({
@@ -612,20 +645,23 @@ test.describe("keyboard access", () => {
     // Tabs forward from wherever the page starts (the header carries a skip
     // link, the logo, the nav links and the theme select before the main
     // content is reached at all) until the given control has focus, and
-    // returns how many presses that took. Called on each control in turn, so
-    // each call resumes tabbing where the previous one left off: reaching a
-    // control at all proves it is not unreachable, and a later call needing
-    // at least one more press than the one before it proves the two are in
-    // that order, without hard-coding how many controls sit ahead of the form
-    // in the header.
+    // returns the CUMULATIVE number of presses since this walk began (not
+    // the number spent on this leg alone), so the four returned numbers are
+    // directly comparable: each call resumes tabbing where the previous one
+    // left off, reaching a control at all proves it is not unreachable, and
+    // a strictly higher cumulative count than the control before it proves
+    // the two are in that order, without hard-coding how many controls sit
+    // ahead of the form in the header.
+    let totalPresses = 0;
     async function tabUntilFocused(
       target: ReturnType<Page["getByRole"]>,
       maxTabs: number,
     ): Promise<number> {
-      for (let presses = 1; presses <= maxTabs; presses += 1) {
+      for (let leg = 1; leg <= maxTabs; leg += 1) {
         await page.keyboard.press("Tab");
+        totalPresses += 1;
         if (await target.evaluate((el) => el === document.activeElement)) {
-          return presses;
+          return totalPresses;
         }
       }
       throw new Error("control was not reached within the tab budget");
@@ -639,9 +675,11 @@ test.describe("keyboard access", () => {
     await expect(signInButton).toBeFocused();
     const switchAt = await tabUntilFocused(registerSwitch, 5);
     await expect(registerSwitch).toBeFocused();
-    expect([emailAt, passwordAt, buttonAt, switchAt].every((n) => n > 0)).toBe(
-      true,
-    );
+    // Each control's cumulative tab count is strictly higher than the one
+    // before it: the four are reached in this order and not some other one.
+    expect(passwordAt).toBeGreaterThan(emailAt);
+    expect(buttonAt).toBeGreaterThan(passwordAt);
+    expect(switchAt).toBeGreaterThan(buttonAt);
 
     // The switch itself moves focus to the new view's heading or group.
     await page.keyboard.press("Enter");
