@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import { getMe, login, type Me } from "@/lib/accounts";
-import { describeAuthError } from "./messages";
+import { describeAuthError, fieldErrors } from "./messages";
 
 /**
  * Signing in, and the one honest sentence underneath it.
@@ -22,19 +22,31 @@ export function SignInForm({
 }) {
   const emailId = useId();
   const passwordId = useId();
+  const emailErrorId = `${emailId}-error`;
+  const passwordErrorId = `${passwordId}-error`;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  const [fields, setFields] = useState<ReturnType<typeof fieldErrors>>({});
 
   async function submit(): Promise<void> {
     setBusy(true);
     setFailure(null);
+    setFields({});
     try {
       await login({ email, password });
       onSignedIn(await getMe());
     } catch (error) {
-      setFailure(describeAuthError(error));
+      // Chapter 8: a field error sits beside its field, bound by
+      // aria-describedby, and never joined into the form-level sentence.
+      // The form-level alert is left for what a field cannot carry: a 401's
+      // detail, a 429, a network failure, or an unreadable body.
+      const perField = fieldErrors(error);
+      setFields(perField);
+      setFailure(
+        Object.keys(perField).length > 0 ? null : describeAuthError(error),
+      );
     } finally {
       setBusy(false);
     }
@@ -60,8 +72,17 @@ export function SignInForm({
             type="email"
             autoComplete="email"
             value={email}
+            aria-invalid={fields.email !== undefined}
+            aria-describedby={
+              fields.email !== undefined ? emailErrorId : undefined
+            }
             onChange={(event) => setEmail(event.target.value)}
           />
+          {fields.email !== undefined && (
+            <p id={emailErrorId} role="alert" className="text-sm text-danger">
+              {fields.email.join(" ")}
+            </p>
+          )}
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor={passwordId}>Wachtwoord</label>
@@ -70,19 +91,38 @@ export function SignInForm({
             type="password"
             autoComplete="current-password"
             value={password}
+            aria-invalid={fields.password !== undefined}
+            aria-describedby={
+              fields.password !== undefined ? passwordErrorId : undefined
+            }
             onChange={(event) => setPassword(event.target.value)}
           />
+          {fields.password !== undefined && (
+            <p
+              id={passwordErrorId}
+              role="alert"
+              className="text-sm text-danger"
+            >
+              {fields.password.join(" ")}
+            </p>
+          )}
         </div>
         <p>
-          <button
-            type="submit"
-            className="button-accent"
-            disabled={busy}
-            aria-busy={busy}
-          >
+          <button type="submit" className="button-accent" disabled={busy}>
             Inloggen
           </button>
         </p>
+        {/*
+          A live region rather than aria-busy on the button: a disabled
+          control leaves the tab order and, in most assistive tech, the
+          accessibility tree along with it, which is exactly when "busy"
+          matters most. Modelled on the same pattern in app/advies/page.tsx.
+        */}
+        {busy && (
+          <p role="status" aria-live="polite" className="sr-only">
+            Bezig.
+          </p>
+        )}
       </form>
       {failure !== null && (
         <p role="alert" className="text-danger">

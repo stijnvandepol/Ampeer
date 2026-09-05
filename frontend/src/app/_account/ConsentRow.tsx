@@ -63,6 +63,22 @@ export function ConsentCheckbox({
  * consent back may never be harder than giving it, so withdrawing works even
  * when the sentence could not be fetched, and granting does not. Granting with
  * no sentence on the screen would be agreeing to something nobody read.
+ *
+ * The toggle button's accessible NAME is the same on every row ("Toestemming
+ * geven" or "Toestemming intrekken"), because it is the action and the action
+ * is one of two words regardless of which consent it acts on. What has to
+ * differ between rows is the DESCRIPTION, so `aria-describedby` names this
+ * button's own label paragraph: two rows on the same screen must not read as
+ * two buttons with nothing distinguishing them.
+ *
+ * The same `aria-describedby` also carries the explanation for why granting
+ * is blocked, when it is. A `disabled` button drops out of the tab order and,
+ * in most assistive tech, the accessibility tree along with it, so a sentence
+ * that only sits beside a disabled button is a sentence a keyboard or screen
+ * reader user never reaches. The description is read (most assistive tech
+ * still exposes `aria-describedby` on a disabled control) even though the
+ * button itself cannot be activated, which keeps the visual "unavailable"
+ * state exactly as before.
  */
 export function ConsentRow({
   kind,
@@ -79,9 +95,16 @@ export function ConsentRow({
 }) {
   const action: ConsentAction = granted ? "WITHDRAWN" : "GRANTED";
   const unavailable = !granted && text === null;
+  const labelId = `consent-label-${kind.toLowerCase()}`;
+  const explanationId = `consent-unavailable-${kind.toLowerCase()}`;
+  const describedBy = [labelId, unavailable ? explanationId : null]
+    .filter((value): value is string => value !== null)
+    .join(" ");
   return (
     <div className="flex flex-col gap-2 border-t border-hairline pt-4">
-      <p className="font-medium">{CONSENT_LABELS[kind]}</p>
+      <p id={labelId} className="font-medium">
+        {CONSENT_LABELS[kind]}
+      </p>
       {text !== null && (
         <p className="max-w-[60ch] text-sm text-ink-muted">{text}</p>
       )}
@@ -89,7 +112,7 @@ export function ConsentRow({
         {granted ? "Toestemming gegeven" : "Geen toestemming gegeven"}
       </p>
       {unavailable && (
-        <p className="text-sm text-ink-muted">
+        <p id={explanationId} className="text-sm text-ink-muted">
           De toestemmingstekst kon niet worden opgehaald. Intrekken kan wel,
           aanzetten niet.
         </p>
@@ -99,11 +122,21 @@ export function ConsentRow({
           type="button"
           className="button-quiet"
           disabled={busy || unavailable}
-          aria-busy={busy}
+          aria-describedby={describedBy}
           onClick={() => onToggle(action)}
         >
           {granted ? "Toestemming intrekken" : "Toestemming geven"}
         </button>
+        {/*
+          A live region rather than aria-busy on this button: a disabled
+          control leaves the tab order, and the accessibility tree along with
+          it in most assistive tech, exactly when "busy" matters.
+        */}
+        {busy && (
+          <span role="status" aria-live="polite" className="sr-only">
+            Bezig.
+          </span>
+        )}
       </p>
     </div>
   );

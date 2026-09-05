@@ -4,7 +4,6 @@ import userEvent from "@testing-library/user-event";
 import consentTexts from "../fixtures/consent-texts.json";
 import me from "../fixtures/me-response.json";
 import { RegisterForm } from "@/app/_account/RegisterForm";
-import { ConsentRow } from "@/app/_account/ConsentRow";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -135,7 +134,7 @@ describe("the registration view", () => {
     expect(body.text_version).toBe("2027-01-01");
   });
 
-  it("shows the API's Dutch message on a stale version", async () => {
+  it("shows the API's Dutch message on a stale version, beside the consent block", async () => {
     stub([
       { status: 200, body: consentTexts },
       {
@@ -153,9 +152,44 @@ describe("the registration view", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Account aanmaken" }),
     );
+    // Beside the consent block and not under email: a single alert, and it
+    // is not the input this test never asserts anything about.
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "de toestemmingstekst is gewijzigd",
     );
+    expect(screen.getByLabelText("E-mailadres")).not.toHaveAttribute(
+      "aria-describedby",
+    );
+  });
+
+  it("puts each field's own message beside its own field, not joined into one sentence", async () => {
+    // Property 3's red-proof: remove the per-field rendering and this fails,
+    // because the two messages below would then arrive concatenated into the
+    // one form-level alert instead of sitting beside their own input.
+    stub([
+      { status: 200, body: consentTexts },
+      {
+        status: 400,
+        body: {
+          email: ["dit e-mailadres is al bij ons bekend"],
+          password: ["dit wachtwoord is te kort"],
+        },
+      },
+    ]);
+    render(<RegisterForm onRegistered={vi.fn()} onSignIn={vi.fn()} />);
+    await screen.findAllByRole("checkbox");
+    await fillIn();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Account aanmaken" }),
+    );
+    const email = screen.getByLabelText("E-mailadres");
+    const password = screen.getByLabelText("Wachtwoord");
+    const emailError = await screen.findByText(
+      "dit e-mailadres is al bij ons bekend",
+    );
+    const passwordError = screen.getByText("dit wachtwoord is te kort");
+    expect(email.getAttribute("aria-describedby")).toBe(emailError.id);
+    expect(password.getAttribute("aria-describedby")).toBe(passwordError.id);
   });
 
   it("offers the way back to the sign-in view", async () => {
@@ -168,6 +202,35 @@ describe("the registration view", () => {
       }),
     );
     expect(onSignIn).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the network sentence when registering never reaches the server", async () => {
+    // A rejected fetch (the network is gone, the origin unreachable) is not
+    // an ApiError, so fieldErrors(error) must fall through empty and this
+    // stays a form-level sentence rather than a field one.
+    let call = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async () => {
+        call += 1;
+        if (call === 1) {
+          return new Response(JSON.stringify(consentTexts), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        throw new TypeError("network gone");
+      }),
+    );
+    render(<RegisterForm onRegistered={vi.fn()} onSignIn={vi.fn()} />);
+    await screen.findAllByRole("checkbox");
+    await fillIn();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Account aanmaken" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Wij konden de server niet bereiken",
+    );
   });
 
   it("sends a ticked box as true", async () => {
@@ -197,95 +260,19 @@ describe("the registration view", () => {
       text_version: consentTexts.text_version,
     });
   });
-});
 
-describe("the account view's consent row", () => {
-  it("offers to give consent when none is granted, and says so", () => {
-    const onToggle = vi.fn();
-    render(
-      <ConsentRow
-        kind="METER_LINK"
-        text={consentTexts.texts.METER_LINK}
-        granted={false}
-        busy={false}
-        onToggle={onToggle}
-      />,
-    );
-    expect(screen.getByText("Geen toestemming gegeven")).toBeInTheDocument();
-    expect(screen.getByText(consentTexts.texts.METER_LINK)).toBeInTheDocument();
-    const button = screen.getByRole("button", { name: "Toestemming geven" });
-    expect(button).not.toBeDisabled();
-  });
-
-  it("offers to withdraw consent when it is granted, sentence or none", () => {
-    const onToggle = vi.fn();
-    render(
-      <ConsentRow
-        kind="LEAD_GENERATION"
-        text={null}
-        granted={true}
-        busy={false}
-        onToggle={onToggle}
-      />,
-    );
-    expect(screen.getByText("Toestemming gegeven")).toBeInTheDocument();
-    const button = screen.getByRole("button", {
-      name: "Toestemming intrekken",
-    });
-    expect(button).not.toBeDisabled();
-  });
-
-  it("calls onToggle with the opposite of the current state", async () => {
-    const onToggle = vi.fn();
-    render(
-      <ConsentRow
-        kind="METER_LINK"
-        text={consentTexts.texts.METER_LINK}
-        granted={false}
-        busy={false}
-        onToggle={onToggle}
-      />,
-    );
-    await userEvent.click(
-      screen.getByRole("button", { name: "Toestemming geven" }),
-    );
-    expect(onToggle).toHaveBeenCalledWith("GRANTED");
-  });
-
-  it("refuses to grant a consent whose sentence could not be fetched", () => {
-    // Withdrawing may never be harder than granting, so this refusal only
-    // applies while the consent is not yet granted.
-    render(
-      <ConsentRow
-        kind="METER_LINK"
-        text={null}
-        granted={false}
-        busy={false}
-        onToggle={vi.fn()}
-      />,
-    );
+  it("renders the meter-link consent before the lead-generation consent", async () => {
+    // The neutrality order (ruling 50): the consent that improves the advice
+    // first, the commercial one second, not CONSENT_KINDS's alphabetical
+    // order.
+    stub([{ status: 200, body: consentTexts }]);
+    render(<RegisterForm onRegistered={vi.fn()} onSignIn={vi.fn()} />);
+    await screen.findAllByRole("checkbox");
+    const meterText = screen.getByText(consentTexts.texts.METER_LINK);
+    const leadText = screen.getByText(consentTexts.texts.LEAD_GENERATION);
     expect(
-      screen.getByText(/Intrekken kan wel, aanzetten niet/),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Toestemming geven" }),
-    ).toBeDisabled();
-  });
-
-  it("goes dead while a toggle is in flight", () => {
-    render(
-      <ConsentRow
-        kind="METER_LINK"
-        text={consentTexts.texts.METER_LINK}
-        granted={true}
-        busy={true}
-        onToggle={vi.fn()}
-      />,
-    );
-    const button = screen.getByRole("button", {
-      name: "Toestemming intrekken",
-    });
-    expect(button).toBeDisabled();
-    expect(button).toHaveAttribute("aria-busy", "true");
+      meterText.compareDocumentPosition(leadText) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });

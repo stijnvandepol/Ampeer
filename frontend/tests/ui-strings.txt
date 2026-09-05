@@ -115,6 +115,7 @@ Bent u uw wachtwoord kwijt, dan kunnen wij het niet herstellen. Er is nog geen w
 Berekenen
 Betrouwbaarheid:
 Beweeg over de plaat of gebruik de pijltjestoetsen om een kwartier te lezen.
+Bezig.
 Bezwaar maken
 Bij elk advies schrijven wij één regel in een logboek. Daarin staan het tijdstip, uw postcodegebied, hoe zeker het antwoord was, en de versienummers van onze rekenmodule.
 Bij uw bedrag staat of het indicatief, goed of precies is. Dat staat er direct naast en niet in een voetnoot, want hoe zeker een antwoord is hoort bij het antwoord.
@@ -494,6 +495,8 @@ betaalt de server en de domeinnaam zelf.
 cent over, nadat de terugleverkosten eraf zijn. Aan de ongunstige kant is dat negatief: dan kost terugleveren u geld. Wat u zelf gebruikt blijft
 cent waard. Het verschil zit dus niet in wat zelf gebruiken oplevert.
 cent.
+consent-label-
+consent-unavailable-
 contactEmail
 dark
 data-theme
@@ -503,6 +506,7 @@ dingen te koop
 doorrekeningen
 doorrekeningen.
 either "
+email
 en
 euro
 euro als middelpunt, uit
@@ -564,6 +568,7 @@ onze methodologie
 onze privacyverklaring
 overeenkomst
 own
+password
 per jaar
 per kWh
 postalAddress
@@ -577,6 +582,7 @@ system
 tariefcombinaties.
 teruggeleverd
 text-3xl font-bold
+text_version
 the Chamber of Commerce number, eight digits
 the address that answers questions about personal data
 the registered name of the controller, including its legal form, or the full name of the natural person

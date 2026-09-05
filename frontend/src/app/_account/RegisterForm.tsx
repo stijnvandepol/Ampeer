@@ -2,15 +2,29 @@
 
 import { useEffect, useId, useState } from "react";
 import {
-  CONSENT_KINDS,
   getConsentTexts,
   getMe,
   register,
+  type ConsentKind,
   type ConsentTexts,
   type Me,
 } from "@/lib/accounts";
 import { ConsentCheckbox } from "./ConsentRow";
-import { describeAuthError } from "./messages";
+import { describeAuthError, fieldErrors } from "./messages";
+
+/**
+ * Render order, not `CONSENT_KINDS`'s order.
+ *
+ * `CONSENT_KINDS` is alphabetical, which puts `LEAD_GENERATION`, the
+ * commercial consent, above `METER_LINK`, the one that improves the advice.
+ * This is the one screen where this product's neutrality is visible, so the
+ * consent that pays nobody renders first. `CONSENT_KINDS` itself is left
+ * alone: task 4's list, pinned sorted against the Python side.
+ */
+const CONSENT_RENDER_ORDER: readonly ConsentKind[] = [
+  "METER_LINK",
+  "LEAD_GENERATION",
+];
 
 /**
  * Making an account, which is two fields and two questions that may both be no.
@@ -33,6 +47,8 @@ export function RegisterForm({
 }) {
   const emailId = useId();
   const passwordId = useId();
+  const emailErrorId = `${emailId}-error`;
+  const passwordErrorId = `${passwordId}-error`;
   const [texts, setTexts] = useState<ConsentTexts | null>(null);
   const [textsFailed, setTextsFailed] = useState(false);
   const [email, setEmail] = useState("");
@@ -40,6 +56,7 @@ export function RegisterForm({
   const [given, setGiven] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  const [fields, setFields] = useState<ReturnType<typeof fieldErrors>>({});
 
   useEffect(() => {
     let alive = true;
@@ -58,6 +75,7 @@ export function RegisterForm({
   async function submit(current: ConsentTexts): Promise<void> {
     setBusy(true);
     setFailure(null);
+    setFields({});
     try {
       await register({
         email,
@@ -69,7 +87,16 @@ export function RegisterForm({
       });
       onRegistered(await getMe());
     } catch (error) {
-      setFailure(describeAuthError(error));
+      // Chapter 8: email and password errors sit beside their own field,
+      // bound by aria-describedby. text_version has no field of its own on
+      // this form, so its message renders beside the consent block instead
+      // of under email, and none of the three is joined into the
+      // form-level sentence, which is left for what none of them can carry.
+      const perField = fieldErrors(error);
+      setFields(perField);
+      setFailure(
+        Object.keys(perField).length > 0 ? null : describeAuthError(error),
+      );
     } finally {
       setBusy(false);
     }
@@ -105,8 +132,17 @@ export function RegisterForm({
               type="email"
               autoComplete="email"
               value={email}
+              aria-invalid={fields.email !== undefined}
+              aria-describedby={
+                fields.email !== undefined ? emailErrorId : undefined
+              }
               onChange={(event) => setEmail(event.target.value)}
             />
+            {fields.email !== undefined && (
+              <p id={emailErrorId} role="alert" className="text-sm text-danger">
+                {fields.email.join(" ")}
+              </p>
+            )}
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor={passwordId}>Wachtwoord</label>
@@ -115,10 +151,28 @@ export function RegisterForm({
               type="password"
               autoComplete="new-password"
               value={password}
+              aria-invalid={fields.password !== undefined}
+              aria-describedby={
+                fields.password !== undefined ? passwordErrorId : undefined
+              }
               onChange={(event) => setPassword(event.target.value)}
             />
+            {fields.password !== undefined && (
+              <p
+                id={passwordErrorId}
+                role="alert"
+                className="text-sm text-danger"
+              >
+                {fields.password.join(" ")}
+              </p>
+            )}
           </div>
-          {CONSENT_KINDS.map((kind) => (
+          {fields.text_version !== undefined && (
+            <p role="alert" className="text-sm text-danger">
+              {fields.text_version.join(" ")}
+            </p>
+          )}
+          {CONSENT_RENDER_ORDER.map((kind) => (
             <ConsentCheckbox
               key={kind}
               kind={kind}
@@ -130,15 +184,20 @@ export function RegisterForm({
             />
           ))}
           <p>
-            <button
-              type="submit"
-              className="button-accent"
-              disabled={busy}
-              aria-busy={busy}
-            >
+            <button type="submit" className="button-accent" disabled={busy}>
               Account aanmaken
             </button>
           </p>
+          {/*
+            A live region rather than aria-busy on the button: a disabled
+            control leaves the tab order, and the accessibility tree along
+            with it in most assistive tech, exactly when "busy" matters.
+          */}
+          {busy && (
+            <p role="status" aria-live="polite" className="sr-only">
+              Bezig.
+            </p>
+          )}
         </form>
       )}
       {failure !== null && (

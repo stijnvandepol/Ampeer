@@ -32,6 +32,44 @@ const API_ERROR_DEFAULT_MESSAGE = /^advice API returned \d+$/;
  * can use: no answer at all, a fault with no body, and a body this frontend
  * could not read.
  */
+/**
+ * The three fields the two account forms bind an input, or a dedicated
+ * element, to. A fourth key DRF might one day send would be silently
+ * dropped rather than guessed at, the same rule `readErrorBody` in
+ * `accounts.ts` already follows for a value it cannot show.
+ */
+export type AccountField = "email" | "password" | "text_version";
+
+const ACCOUNT_FIELDS: readonly AccountField[] = [
+  "email",
+  "password",
+  "text_version",
+];
+
+/**
+ * Field errors, one message list per field, read straight off `error.fields`.
+ *
+ * Spec chapter 8 binds a field error to its field by `aria-describedby`,
+ * which a single joined sentence cannot do. This is a sibling of
+ * `fieldMessages` from `_flow/messages.ts` rather than a wrapper around it:
+ * that function flattens every field into one list for the one alert
+ * paragraph the advice flow shows, which is exactly the shape chapter 8
+ * forbids here. `describeAuthError` keeps using the flattened form, for the
+ * messages nothing on screen can attribute to one field (a 401's `detail`,
+ * a 429, a network failure, an unreadable body).
+ */
+export function fieldErrors(
+  error: unknown,
+): Partial<Record<AccountField, string[]>> {
+  if (!(error instanceof ApiError)) return {};
+  const result: Partial<Record<AccountField, string[]>> = {};
+  for (const field of ACCOUNT_FIELDS) {
+    const messages = error.fields[field];
+    if (messages !== undefined && messages.length > 0) result[field] = messages;
+  }
+  return result;
+}
+
 export function describeAuthError(error: unknown): string {
   if (!(error instanceof ApiError)) {
     // fetch() rejects rather than resolving when the network is gone, the
