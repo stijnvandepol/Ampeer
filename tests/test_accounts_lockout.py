@@ -16,10 +16,9 @@ import pytest
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.test import RequestFactory
+from helpers.accounts import TEST_PASSWORD as PASSWORD
 
 from accounts.models import User
-
-PASSWORD = "een-heel-lang-wachtwoord"
 
 
 @pytest.fixture

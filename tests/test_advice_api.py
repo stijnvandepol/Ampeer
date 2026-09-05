@@ -24,6 +24,7 @@ from django.conf import settings
 from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
+from helpers.accounts import TEST_PASSWORD
 from rest_framework.settings import api_settings
 from rest_framework.test import APIClient
 
@@ -304,9 +305,7 @@ def test_ownership_adds_and_takes_nothing_away(client: Any) -> None:
 
     anonymous = StoredAdvice.create(inputs={"postcode4": "5401"}, advice={"token": "x"})
     owned = StoredAdvice.create(inputs={"postcode4": "5401"}, advice={"token": "y"})
-    owned.owner = User.objects.create_user(
-        email="iemand@voorbeeld.nl", password="een-lang-wachtwoord"
-    )
+    owned.owner = User.objects.create_user(email="iemand@voorbeeld.nl", password=TEST_PASSWORD)
     owned.save(update_fields=["owner"])
 
     assert anonymous.owner is None

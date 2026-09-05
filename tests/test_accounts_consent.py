@@ -9,6 +9,7 @@ soon as three of them hold.
 from __future__ import annotations
 
 import pytest
+from helpers.accounts import TEST_PASSWORD
 
 from accounts.models import Consent, User
 from accounts.nl import CONSENT_TEXT_VERSION
@@ -16,7 +17,7 @@ from accounts.nl import CONSENT_TEXT_VERSION
 
 @pytest.fixture
 def _account() -> User:
-    return User.objects.create_user(email="iemand@voorbeeld.nl", password="een-lang-wachtwoord")
+    return User.objects.create_user(email="iemand@voorbeeld.nl", password=TEST_PASSWORD)
 
 
 @pytest.mark.django_db

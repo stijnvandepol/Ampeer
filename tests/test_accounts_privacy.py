@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 from django.conf import settings
+from helpers.accounts import TEST_PASSWORD
 
 from accounts.models import Consent, RefreshSession, User
 from advice.models import AuditEvent
@@ -32,7 +33,7 @@ def _values(value: Any) -> list[str]:
 def test_no_audit_line_the_account_layer_writes_carries_an_address(client: Any) -> None:
     body = {
         "email": "iemand@voorbeeld.nl",
-        "password": "een-heel-lang-wachtwoord",
+        "password": TEST_PASSWORD,
         "consent_meter_link": True,
         "consent_lead_generation": True,
     }
@@ -74,7 +75,7 @@ def test_a_failed_login_for_an_unknown_address_records_nothing_identifying(clien
 def test_no_session_row_carries_anything_that_opens_a_session() -> None:
     from accounts import tokens
 
-    user = User.objects.create_user(email="iemand@voorbeeld.nl", password="een-lang-wachtwoord")
+    user = User.objects.create_user(email="iemand@voorbeeld.nl", password=TEST_PASSWORD)
     _, refresh = tokens.issue(user)
     session = RefreshSession.objects.get(user=user)
     assert refresh not in session.jti_sha256
@@ -86,7 +87,7 @@ def test_no_session_row_carries_anything_that_opens_a_session() -> None:
 def test_a_consent_row_holds_no_free_text() -> None:
     """The wording lives in nl.py under a version. A copy of the sentence in
     every row would be a second place it can drift from the one people read."""
-    user = User.objects.create_user(email="iemand@voorbeeld.nl", password="een-lang-wachtwoord")
+    user = User.objects.create_user(email="iemand@voorbeeld.nl", password=TEST_PASSWORD)
     row = Consent.record(user, Consent.METER_LINK, Consent.GRANTED)
     assert " " not in row.text_version
     assert len(row.text_version) <= 32
@@ -134,7 +135,7 @@ def test_the_axes_tables_stay_empty_under_the_cache_handler(client: Any) -> None
     """
     from axes.models import AccessAttempt, AccessFailureLog, AccessLog
 
-    User.objects.create_user(email="iemand@voorbeeld.nl", password="een-lang-wachtwoord")
+    User.objects.create_user(email="iemand@voorbeeld.nl", password=TEST_PASSWORD)
     client.get("/api/auth/me/")
     csrf = {"HTTP_X_CSRFTOKEN": client.cookies["csrftoken"].value}
     for _ in range(settings.AXES_FAILURE_LIMIT + 1):

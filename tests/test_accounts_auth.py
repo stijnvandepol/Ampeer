@@ -12,6 +12,7 @@ from __future__ import annotations
 import pytest
 from django.conf import settings
 from django.test import override_settings
+from helpers.accounts import TEST_PASSWORD as PASSWORD
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -27,8 +28,6 @@ from accounts.authentication import (
 )
 from accounts.models import RefreshSession, User
 from accounts.nl import NL
-
-PASSWORD = "een-heel-lang-wachtwoord"
 
 
 @pytest.fixture

@@ -12,12 +12,12 @@ from typing import Any, TypedDict
 
 import pytest
 from django.conf import settings
+from helpers.accounts import TEST_PASSWORD as PASSWORD
 from rest_framework.test import APIClient
 
 from accounts.models import Consent, RefreshSession, User
 from advice.models import AuditEvent, StoredAdvice
 
-PASSWORD = "een-heel-lang-wachtwoord"
 BODY = {
     "email": "iemand@voorbeeld.nl",
     "password": PASSWORD,

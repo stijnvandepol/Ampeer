@@ -12,6 +12,7 @@ from typing import Any, TypedDict
 
 import pytest
 from django.conf import settings
+from helpers.accounts import TEST_PASSWORD as PASSWORD
 from rest_framework.exceptions import NotAuthenticated
 from rest_framework.request import Request
 from rest_framework.test import APIClient, APIRequestFactory
@@ -21,7 +22,6 @@ from accounts.nl import NL
 from accounts.views import _AuthAPIView
 from advice.models import AuditEvent
 
-PASSWORD = "een-heel-lang-wachtwoord"
 BODY = {
     "email": "iemand@voorbeeld.nl",
     "password": PASSWORD,
