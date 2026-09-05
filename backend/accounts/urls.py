@@ -10,6 +10,8 @@ from django.urls import URLPattern, path
 
 from accounts.views import (
     ConsentView,
+    DeleteView,
+    ExportView,
     LoginView,
     LogoutView,
     MeView,
@@ -24,4 +26,6 @@ urlpatterns: list[URLPattern] = [
     path("logout/", LogoutView.as_view(), name="auth-logout"),
     path("me/", MeView.as_view(), name="auth-me"),
     path("consent/", ConsentView.as_view(), name="auth-consent"),
+    path("export/", ExportView.as_view(), name="auth-export"),
+    path("delete/", DeleteView.as_view(), name="auth-delete"),
 ]

@@ -17,13 +17,13 @@ from django.contrib.auth import authenticate
 from django.middleware.csrf import get_token
 from rest_framework import status
 from rest_framework.authentication import BaseAuthentication
-from rest_framework.exceptions import AuthenticationFailed, NotAuthenticated
+from rest_framework.exceptions import AuthenticationFailed, NotAuthenticated, PermissionDenied
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework_simplejwt.exceptions import TokenError
 
-from accounts import cookies, tokens
+from accounts import cookies, service, tokens
 from accounts.authentication import CookieJWTAuthentication, enforce_csrf
 from accounts.models import Consent, User
 from accounts.nl import NL
@@ -267,6 +267,50 @@ class LogoutView(_AuthAPIView):
         if raw:
             tokens.revoke(raw)
         AuditEvent.record(AuditEvent.LOGOUT, user_id=self.user.pk)
+        response = Response(status=status.HTTP_204_NO_CONTENT)
+        cookies.clear_tokens(response)
+        return response
+
+
+class ExportView(_AuthAPIView):
+    """A POST and not a GET, for two reasons that both outweigh the convention.
+
+    It writes a DATA_EXPORTED line, and a GET with a side effect is a GET a
+    browser or a proxy may repeat. And the answer describes one household in
+    full, so it has to fall under `Cache-Control: private, no-store`, which the
+    base class already applies.
+    """
+
+    throttle_scope = "auth-export"
+
+    def post(self, request: Request) -> Response:
+        payload = service.export_account(self.user)
+        AuditEvent.record(AuditEvent.DATA_EXPORTED, user_id=self.user.pk)
+        return Response(payload)
+
+
+class DeleteView(_AuthAPIView):
+    """Remove the account, on a POST rather than a DELETE.
+
+    Two reasons. This is the one genuinely destructive act in the whole API,
+    and docs/dpia.md chapter 7 commits to an API where rectification adds a
+    row rather than changing one, so keeping DELETE, PUT and PATCH absent
+    everywhere else stays exact only if the one exception rides on a verb the
+    document already allows. And this route needs a body, the password, to
+    prove the caller still is who the session says: a DELETE with a body is
+    something proxies and clients disagree about.
+
+    `CookieJWTAuthentication` already calls `enforce_csrf()` on every unsafe
+    method, so this does not call it a second time.
+    """
+
+    throttle_scope = "auth-write"
+
+    def post(self, request: Request) -> Response:
+        password = request.data.get("password") if isinstance(request.data, dict) else None
+        if not isinstance(password, str) or not self.user.check_password(password):
+            raise PermissionDenied(NL["credentials_invalid"])
+        service.delete_account(self.user)
         response = Response(status=status.HTTP_204_NO_CONTENT)
         cookies.clear_tokens(response)
         return response
