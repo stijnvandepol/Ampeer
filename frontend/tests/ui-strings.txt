@@ -150,6 +150,8 @@ De richting van uw dak ziet u op een satellietfoto van uw adres, bijvoorbeeld in
 De salderingsregeling laat u de stroom die u teruglevert wegstrepen tegen de stroom die u afneemt. Dat wegstrepen stopt. U blijft leveren en afnemen, maar de twee worden niet meer tegen elkaar weggestreept.
 De salderingsregeling stopt op 1 januari 2027. Wat dat u kost hangt niet af van hoeveel panelen u heeft, maar van hoeveel van uw eigen opwek u zelf gebruikt, en dat verschilt sterk per huishouden. Deze rekenmachine bouwt uit uw antwoorden een kwartierprofiel van een heel jaar op en rekent dat door op de tarieven van nu en die van 2027.
 De schaal loopt van
+De server gaf een antwoord dat wij niet konden lezen.
+De server had een storing. Probeer het straks opnieuw.
 De vergoeding is wat u krijgt per teruggeleverde kilowattuur. De terugleverkosten zijn wat uw leverancier daarvoor in rekening brengt. De veelgenoemde 3 tot 8 cent is de vergoeding met de kosten er nog voor.
 De vier vragen
 De vijf vragen hierna maken een antwoord scherper dat er al is, en in dit browservenster staat dat antwoord er nog niet. Dat gebeurt als u uw bewaarde link in een nieuw venster opent of op een ander apparaat.
@@ -427,6 +429,7 @@ Wij bouwen uw jaar op
 Wij gebruiken geen Google Analytics en geen ander meetprogramma.
 Wij hebben geen elektrische auto
 Wij konden de rekenserver niet bereiken. Controleer uw verbinding en probeer het opnieuw.
+Wij konden de server niet bereiken. Controleer uw verbinding en probeer het opnieuw.
 Wij maken elke dag een reservekopie van onze database. Die kopieën bewaren wij zeven dagen. Een verwijderd advies kan daardoor nog hoogstens acht dagen in zo'n bestand staan. Die bestanden staan op dezelfde server en zijn alleen voor ons leesbaar.
 Wij mogen zeggen dat u niets hoeft te kopen
 Wij plaatsen geen advertenties en verkopen geen advertentieruimte.
@@ -523,6 +526,7 @@ kwartieren
 legalBasis
 legalName
 light
+loading
 mailto:
 mei
 monthly
@@ -549,6 +553,8 @@ rgb(
 ronde
 route-
 sep
+signed_in
+signed_out
 system
 tariefcombinaties.
 teruggeleverd
