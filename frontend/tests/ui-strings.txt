@@ -70,6 +70,7 @@
 /#website
 /*.txt$
 /__next
+/account/
 /advies
 /berekenen/
 /berekenen/?ronde=2
@@ -217,6 +218,7 @@ Het openen van een pagina van Ampeer doet geen enkel verzoek aan een ander bedri
 Het verkeer naar deze site loopt via Cloudflare Inc. Dat bedrijf is onze verwerker. Cloudflare beveiligt de verbinding en beëindigt die aan de rand van hun netwerk.
 Het vermogen van uw zonnepanelen, in wattpiek.
 Hier is niets meer te halen.
+Hier logt u in of maakt u een account aan. In uw account ziet u welke toestemmingen u heeft gegeven, kunt u ze omzetten, uw gegevens downloaden en uw account verwijderen. Voor de rekenmachine is geen account nodig.
 Hoe Ampeer rekent
 Hoe groot is de batterij?
 Hoe het dak ligt: welke kant het op ligt en hoe schuin het staat.
@@ -235,6 +237,7 @@ Hoofdnavigatie
 INDICATIVE
 Ik heb al een account. Inloggen
 Inloggen
+Inloggen of een account aanmaken, uw toestemmingen bekijken en omzetten, uw gegevens downloaden of uw account verwijderen.
 Investeren: stroom opslaan in een thuisbatterij
 Inzien
 Is er op een doordeweekse dag overdag meestal iemand thuis?
@@ -342,11 +345,14 @@ U ziet meteen hoe zeker het is
 U ziet uw bereik en drie routes
 Uit onze eigen logboeken houden wij die link weg. Bij Cloudflare kunnen wij dat niet. Er is een oplossing voor, namelijk de link niet meer in het webadres zetten. Die is nog niet gebouwd.
 Uw IP-adres bewaren wij niet
+Uw account
 Uw advies
 Uw advies is opgehaald.
 Uw advies wordt opgehaald
 Uw antwoorden en uw keuze voor licht of donker staan in de opslag van uw eigen browser. Die blijven op uw apparaat en komen niet bij ons binnen. Sluit u het tabblad, dan zijn uw antwoorden weg.
 Uw boiler, uw laadpaal of uw warmtepomp anders inregelen, of kijken of een ander contract bij uw patroon past. Apparaten die u al heeft, anders gebruikt.
+Uw gegevens
+Uw gegevens worden opgehaald.
 Uw jaar in kwartieren
 Uw jaar wordt doorgerekend. Dit duurt even.
 Uw jaarverbruik in kilowattuur.
