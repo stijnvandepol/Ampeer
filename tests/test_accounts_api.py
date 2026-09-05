@@ -15,7 +15,7 @@ from typing import Any, TypedDict
 import pytest
 from django.conf import settings
 from helpers.accounts import TEST_PASSWORD as PASSWORD
-from rest_framework.exceptions import NotAuthenticated
+from rest_framework.exceptions import NotAuthenticated, Throttled
 from rest_framework.request import Request
 from rest_framework.test import APIClient, APIRequestFactory
 
@@ -565,6 +565,41 @@ def test_the_login_route_answers_a_throttle_in_dutch_with_a_matching_retry_after
     assert eleventh.status_code == 429, eleventh.content
     seconds = int(eleventh["Retry-After"])
     assert eleventh.json()["detail"] == NL["throttled"] % {"seconds": seconds}
+
+
+def test_throttled_speaks_dutch_with_and_without_a_known_wait() -> None:
+    """`_AuthAPIView.throttled()` has two arms: `NL["throttled"] % {"seconds": ...}`
+    when DRF hands over a `wait`, and `NL["throttled_unknown_wait"]` when
+    `wait is None`. Only the first arm is reachable over HTTP in this suite:
+    DRF only calls `throttled()` with `wait=None` when the throttle's rate
+    changes mid-request, which no test here can provoke. The two are one
+    conditional expression, one statement, so the untaken arm still reads as
+    covered by statement coverage; calling `throttled()` directly is the only
+    way to exercise it at all.
+
+    Both arms are checked here rather than only the untaken one, so a
+    regression in the reachable arm does not slip through a test that exists
+    for the other one.
+    """
+    view = _AuthAPIView()
+    request = Request(APIRequestFactory().get("/"))
+
+    with pytest.raises(Throttled) as unknown_wait:
+        view.throttled(request, None)
+    # rest_framework-stubs omit `Throttled.wait` even though the runtime
+    # class sets it; see the matching type: ignore in `_AuthAPIView.throttled`.
+    assert unknown_wait.value.wait is None  # type: ignore[attr-defined]
+    detail = str(unknown_wait.value.detail)
+    assert detail == NL["throttled_unknown_wait"]
+    assert "Expected available" not in detail
+
+    with pytest.raises(Throttled) as known_wait:
+        view.throttled(request, 12.3)
+    seconds = known_wait.value.wait  # type: ignore[attr-defined]
+    assert seconds == 13  # math.ceil(12.3), the same rounding DRF itself uses
+    detail = str(known_wait.value.detail)
+    assert detail == NL["throttled"] % {"seconds": seconds}
+    assert "Expected available" not in detail
 
 
 @pytest.mark.django_db
