@@ -48,14 +48,14 @@ class _CsrfHeader(TypedDict):
 def _csrf(client: Any) -> _CsrfHeader:
     """The token every unsafe request carries.
 
-    A GET on a route that only answers POST, so the response is a 405 and the
-    cookie rides along on it anyway. That is the property `_AuthAPIView` exists
-    for: the cookie is set in `finalize_response`, which DRF also runs for the
-    response `handle_exception` builds, so somebody who is not logged in and has
-    no token yet can still get one. Task 10 changes this helper to `me/`, which
-    is the route a browser actually calls first.
+    A GET on `me/`, which answers 401 to a stranger and the cookie rides along
+    on it anyway. That is the property `_AuthAPIView` exists for: the cookie is
+    set in `finalize_response`, which DRF also runs for the response
+    `handle_exception` builds, so somebody who is not logged in and has no
+    token yet can still get one. This is the route a browser actually calls
+    first, to learn whether anybody is signed in at all.
     """
-    client.get("/api/auth/login/")
+    client.get("/api/auth/me/")
     return {"HTTP_X_CSRFTOKEN": client.cookies["csrftoken"].value}
 
 
@@ -419,17 +419,16 @@ def test_the_login_route_throttles_before_axes_contention_could_matter(client: A
 
     Each attempt below names a different, nonexistent account, so axes never
     has one (username, ip_address) key to accumulate five failures against and
-    plays no part in the answer. `_csrf` above already spends one request on the
-    scope (its GET to prime the cookie also runs through `initial()`, which
-    checks the throttle before the view even inspects the method), so the loop
-    below spends nine more to reach the ten `auth-login` allows per hour, and
-    the eleventh request this visitor makes is the one this test is about.
+    plays no part in the answer. `_csrf` above primes on `me/`, which throttles
+    under `auth-read` and spends nothing from the `auth-login` scope, so the
+    loop below is the whole of the ten `auth-login` allows per hour, and the
+    eleventh request this visitor makes is the one this test is about.
 
     Written to go red on its own: raise `auth-login` from 10/hour to 100/hour
     and every one of these eleven requests answers 401, none of them 429.
     """
-    headers = _csrf(client)  # request 1: the priming GET
-    for i in range(9):  # requests 2 through 10
+    headers = _csrf(client)
+    for i in range(10):  # requests 1 through 10
         response = client.post(
             "/api/auth/login/",
             {"email": f"visitor-{i}@voorbeeld.nl", "password": "verkeerd-wachtwoord"},
@@ -522,3 +521,111 @@ def test_the_user_property_raises_rather_than_returning_none_under_dash_o() -> N
     view.request.user = None  # type: ignore[assignment]
     with pytest.raises(NotAuthenticated):
         _ = view.user
+
+
+@pytest.mark.django_db
+def test_me_answers_401_to_a_stranger_and_still_hands_out_a_csrf_token(client: Any) -> None:
+    """The property `_AuthAPIView.finalize_response` exists for. Without it the
+    only route that sets a CSRF cookie sits behind the login that needs one."""
+    response = client.get("/api/auth/me/")
+    assert response.status_code == 401
+    assert "csrftoken" in response.cookies
+
+
+@pytest.mark.django_db
+def test_me_answers_the_address_and_both_consents(client: Any) -> None:
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    response = client.get("/api/auth/me/")
+    assert response.status_code == 200
+    assert response.json() == {
+        "email": "iemand@voorbeeld.nl",
+        "consents": {"METER_LINK": True, "LEAD_GENERATION": False},
+    }
+
+
+@pytest.mark.django_db
+def test_a_consent_can_be_withdrawn_and_given_again(client: Any) -> None:
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    user = User.objects.get(email="iemand@voorbeeld.nl")
+
+    withdraw = client.post(
+        "/api/auth/consent/",
+        {"kind": "METER_LINK", "action": "WITHDRAWN"},
+        content_type="application/json",
+        **_csrf(client),
+    )
+    assert withdraw.status_code == 200
+    assert Consent.current(user, Consent.METER_LINK) is False
+
+    again = client.post(
+        "/api/auth/consent/",
+        {"kind": "METER_LINK", "action": "GRANTED"},
+        content_type="application/json",
+        **_csrf(client),
+    )
+    assert again.status_code == 200
+    assert Consent.current(user, Consent.METER_LINK) is True
+    assert Consent.objects.filter(user=user, kind=Consent.METER_LINK).count() == 3
+
+
+@pytest.mark.django_db
+def test_a_consent_row_can_only_be_written_for_the_caller(client: Any) -> None:
+    """Object level permissions: the queryset filters on request.user and there
+    is no field in the body that names a user at all."""
+    other = User.objects.create_user(email="ander@voorbeeld.nl", password=PASSWORD)
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    client.post(
+        "/api/auth/consent/",
+        {"kind": "METER_LINK", "action": "WITHDRAWN", "user": other.pk},
+        content_type="application/json",
+        **_csrf(client),
+    )
+    assert Consent.objects.filter(user=other).count() == 0
+
+
+@pytest.mark.django_db
+def test_an_unknown_consent_kind_is_refused(client: Any) -> None:
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    response = client.post(
+        "/api/auth/consent/",
+        {"kind": "SELL_MY_DATA", "action": "GRANTED"},
+        content_type="application/json",
+        **_csrf(client),
+    )
+    assert response.status_code == 400
+    assert "kind" in response.json()
+
+
+@pytest.mark.django_db
+def test_a_withdrawal_is_written_to_the_audit_log(client: Any) -> None:
+    from advice.models import AuditEvent
+
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    client.post(
+        "/api/auth/consent/",
+        {"kind": "METER_LINK", "action": "WITHDRAWN"},
+        content_type="application/json",
+        **_csrf(client),
+    )
+    line = AuditEvent.objects.filter(event_type=AuditEvent.CONSENT_WITHDRAWN).get()
+    assert line.context["kind"] == "METER_LINK"
+    assert "voorbeeld" not in str(line.context), "the audit log carries the address"
+
+
+@pytest.mark.django_db
+def test_an_access_token_in_a_header_is_not_accepted(client: Any) -> None:
+    """One accepted place for a credential, so there is one place it can leak.
+
+    A header reaches a proxy log more easily than a cookie does, which is the
+    same argument docs/dpia.md chapter 8 makes about the advice token sitting in
+    a path. simplejwt's own JWTAuthentication reads the header by default, so
+    this is a property of the override and not of the package.
+    """
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    raw = client.cookies[settings.AMPEER_ACCESS_COOKIE].value
+    client.cookies.clear()
+    response = client.get("/api/auth/me/", HTTP_AUTHORIZATION=f"Bearer {raw}")
+    assert response.status_code == 401, (
+        "an access token was accepted out of a header, so there are two places it can be "
+        "replayed from and only one of them was designed for"
+    )

@@ -81,3 +81,21 @@ class RegisterSerializer(LoginSerializer):
             (Consent.LEAD_GENERATION, data["consent_lead_generation"]),
         ]
         return [kind for kind, given in pairs if given]
+
+
+class ConsentSerializer(serializers.Serializer[dict[str, Any]]):
+    """One consent, one action, and no field that names a user.
+
+    The user comes off `request.user` and can therefore not be chosen by the
+    caller. That is object level permissions expressed as an absence, which is
+    stronger than a check: there is nothing to check because there is nothing to
+    send.
+    """
+
+    kind = serializers.ChoiceField(
+        choices=sorted(Consent.KINDS), error_messages={"invalid_choice": NL["consent_kind_unknown"]}
+    )
+    action = serializers.ChoiceField(
+        choices=sorted(Consent.ACTIONS),
+        error_messages={"invalid_choice": NL["consent_action_unknown"]},
+    )

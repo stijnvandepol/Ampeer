@@ -27,7 +27,7 @@ from accounts import cookies, tokens
 from accounts.authentication import CookieJWTAuthentication, enforce_csrf
 from accounts.models import Consent, User
 from accounts.nl import NL
-from accounts.serializers import LoginSerializer, RegisterSerializer
+from accounts.serializers import ConsentSerializer, LoginSerializer, RegisterSerializer
 from advice.models import AuditEvent
 from advice.views import _NoStoreAPIView
 
@@ -210,6 +210,53 @@ class RefreshView(_AuthAPIView):
         response = Response(status=status.HTTP_200_OK)
         cookies.set_tokens(response, access, refresh)
         return response
+
+
+class MeView(_AuthAPIView):
+    """Who is logged in, and what they have said yes to.
+
+    The one route a frontend with httpOnly cookies has to call to know whether
+    anybody is logged in at all, which is why it is also where the CSRF cookie
+    is picked up on the way to the login form.
+    """
+
+    throttle_scope = "auth-read"
+
+    def get(self, request: Request) -> Response:
+        return Response(
+            {
+                "email": self.user.email,
+                "consents": {
+                    kind: Consent.current(self.user, kind) for kind in sorted(Consent.KINDS)
+                },
+            }
+        )
+
+
+class ConsentView(_AuthAPIView):
+    """Give or withdraw one consent. A POST, because a withdrawal adds a row.
+
+    A PATCH would be the shape that changes one, and docs/dpia.md chapter 7 says
+    this API does not do that. It is also the wrong shape for the thing itself:
+    the history of a consent is what makes it demonstrable.
+    """
+
+    throttle_scope = "auth-write"
+
+    def post(self, request: Request) -> Response:
+        serializer = ConsentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        kind = serializer.validated_data["kind"]
+        action = serializer.validated_data["action"]
+        Consent.record(self.user, kind, action)
+        AuditEvent.record(
+            AuditEvent.CONSENT_GRANTED
+            if action == Consent.GRANTED
+            else AuditEvent.CONSENT_WITHDRAWN,
+            user_id=self.user.pk,
+            kind=kind,
+        )
+        return Response({"kind": kind, "granted": Consent.current(self.user, kind)})
 
 
 class LogoutView(_AuthAPIView):
