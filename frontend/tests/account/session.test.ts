@@ -47,8 +47,11 @@ describe("loading the account page", () => {
   it("shows the account when me/ answers 200, and asks nothing else", async () => {
     const { seen } = stubSequence([{ status: 200, body: me }]);
     const state = await loadSession();
-    expect(state).toEqual({ status: "signed_in", me });
+    // Count first. A wrong number of calls is the property this test exists
+    // for, so it is the assertion that has to run first and fail loudest,
+    // not one that a shape mismatch earlier in the function body pre-empts.
     expect(seen).toHaveLength(1);
+    expect(state).toEqual({ status: "signed_in", me });
     expect(seen[0]).toContain("/api/auth/me/");
   });
 
@@ -59,8 +62,13 @@ describe("loading the account page", () => {
       { status: 200, body: me },
     ]);
     const state = await loadSession();
-    expect(state).toEqual({ status: "signed_in", me });
+    // Count first, for the same reason as above: an extra exchange consumes
+    // this fixture's third answer as a second refresh instead of the closing
+    // `me/`, which still resolves to some `AccountState` rather than
+    // rejecting. A state assertion ahead of the count would fail first and
+    // hide that the call count, the thing under test, was ever wrong.
     expect(seen).toHaveLength(3);
+    expect(state).toEqual({ status: "signed_in", me });
     expect(seen[1]).toContain("/api/auth/refresh/");
     expect(seen[2]).toContain("/api/auth/me/");
   });
@@ -76,9 +84,15 @@ describe("loading the account page", () => {
       { status: 200 },
       { status: 401, body: { detail: "u bent niet ingelogd" } },
     ]);
-    const state = await loadSession();
-    expect(state).toEqual({ status: "signed_out", notice: null });
+    // An extra exchange spends this fixture's third answer, the closing 401,
+    // on a second `refresh()` instead of the second `me/`. That call is not
+    // wrapped in any `try`/`catch` in `loadSession`, so it rejects the whole
+    // promise rather than resolving to a state. `.catch` turns that rejection
+    // into a plain value so the count assertion below still runs instead of
+    // an unhandled rejection skipping the rest of the test body.
+    const state = await loadSession().catch((error: unknown) => error);
     expect(seen).toHaveLength(3);
+    expect(state).toEqual({ status: "signed_out", notice: null });
   });
 
   it("stops when the exchange itself is refused", async () => {
@@ -90,8 +104,8 @@ describe("loading the account page", () => {
       },
     ]);
     const state = await loadSession();
-    expect(state).toEqual({ status: "signed_out", notice: null });
     expect(seen).toHaveLength(2);
+    expect(state).toEqual({ status: "signed_out", notice: null });
   });
 
   it("says the connection failed and exchanges nothing at all", async () => {
@@ -101,12 +115,12 @@ describe("loading the account page", () => {
     // so this is the state that runs there.
     const { seen } = stubSequence([{ status: 0, throws: true }]);
     const state = await loadSession();
+    expect(seen).toHaveLength(1);
     expect(state.status).toBe("signed_out");
     expect(state).toHaveProperty(
       "notice",
       "Wij konden de server niet bereiken. Controleer uw verbinding en probeer het opnieuw.",
     );
-    expect(seen).toHaveLength(1);
   });
 
   it("passes a throttle message through as the API wrote it", async () => {
@@ -114,11 +128,11 @@ describe("loading the account page", () => {
       { status: 429, body: { detail: "Probeer het over een uur opnieuw." } },
     ]);
     const state = await loadSession();
+    expect(seen).toHaveLength(1);
     expect(state).toEqual({
       status: "signed_out",
       notice: "Probeer het over een uur opnieuw.",
     });
-    expect(seen).toHaveLength(1);
   });
 
   it("says a server fault in its own words, because the API sent none", async () => {
