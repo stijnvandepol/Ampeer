@@ -1,13 +1,51 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import type { Me } from "@/lib/accounts";
+import { useEffect, useId, useRef, useState } from "react";
+import {
+  deleteAccount,
+  exportAccount,
+  getConsentTexts,
+  logout,
+  postConsent,
+  type ConsentAction,
+  type ConsentKind,
+  type ConsentTexts,
+  type Me,
+} from "@/lib/accounts";
+import { ConsentRow } from "./ConsentRow";
 import { RegisterForm } from "./RegisterForm";
 import { SignInForm } from "./SignInForm";
-import { LOADING, loadSession, type AccountState } from "./session";
+import { downloadJson } from "./download";
+import { describeAuthError, fieldErrors } from "./messages";
+import { LOADING, loadSession, signedOut, type AccountState } from "./session";
 
 /** Which of the two signed-out forms is showing. State, not an address. */
 type SignedOutView = "sign_in" | "register";
+
+/**
+ * Render order, not `CONSENT_KINDS`'s order.
+ *
+ * Mirrors `CONSENT_RENDER_ORDER` in `RegisterForm.tsx` rather than diverging
+ * from it: `CONSENT_KINDS` is alphabetical, which puts `LEAD_GENERATION`, the
+ * commercial consent, above `METER_LINK`, the one that improves the advice.
+ * This is the one screen where this product's neutrality is visible, so the
+ * consent that pays nobody renders first.
+ */
+const CONSENT_RENDER_ORDER: readonly ConsentKind[] = [
+  "METER_LINK",
+  "LEAD_GENERATION",
+];
+
+/**
+ * Shown once, in a `role="status"`, on the sign-in view that replaces this one.
+ *
+ * A named constant and not a literal at the call site: the extractor behind
+ * `e2e/language.spec.ts` walks variable initialisers, JSX text and a handful of
+ * operators that can carry a string to one of those, but not a plain call
+ * argument, so `onSignedOut("Uw account is verwijderd.")` would have been
+ * invisible to `ui-strings.txt` and to the language check that reads it.
+ */
+const DELETION_CONFIRMATION = "Uw account is verwijderd.";
 
 /**
  * One route, three views, and the state comes from `me/`.
@@ -24,15 +62,15 @@ type SignedOutView = "sign_in" | "register";
 export function AccountPage() {
   const [state, setState] = useState<AccountState>(LOADING);
   const [view, setView] = useState<SignedOutView>("sign_in");
-  // Where focus goes once the view settles or changes. The account view owns
-  // its own heading, so that one gets `tabIndex={-1}` directly, the same
-  // pattern `advies/page.tsx` uses on its own `<h1>`. `SignInForm` and
-  // `RegisterForm` are task 6's files and keep their own headings; this route
-  // has no way to reach into them, so the two signed-out views instead get a
-  // wrapper of their own here, labelled by the form's own heading id so a
-  // screen reader announces the same words either way.
+  // The sentence to show above the sign-in view once, after a sign out or a
+  // deletion. It is not `AccountState.notice`: that is rendered in
+  // `role="alert"` because it always describes a failure, and "your account
+  // has been deleted" is not a failure but the requested result.
+  const [confirmation, setConfirmation] = useState<string | null>(null);
+  // Where focus goes once the signed-out view settles or changes. The signed-in
+  // view owns its own heading and manages its own focus, in `AccountView`
+  // below, because it mounts fresh every time `me/` answers with a person.
   const signedOutRegion = useRef<HTMLDivElement>(null);
-  const signedInHeading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     // `alive` rather than an abort: the answer decides what is on the screen,
@@ -53,8 +91,7 @@ export function AccountPage() {
   // button is gone the moment the registration view replaces it), or on
   // nothing at all the moment the loading sentence turns into a form.
   useEffect(() => {
-    if (state.status === "signed_in") signedInHeading.current?.focus();
-    else if (state.status === "signed_out") signedOutRegion.current?.focus();
+    if (state.status === "signed_out") signedOutRegion.current?.focus();
   }, [state.status, view]);
 
   function signedIn(who: Me): void {
@@ -70,22 +107,20 @@ export function AccountPage() {
 
   if (state.status === "signed_in") {
     return (
-      <section aria-labelledby="uw-gegevens" className="flex flex-col gap-4">
-        <h2
-          id="uw-gegevens"
-          ref={signedInHeading}
-          tabIndex={-1}
-          className="text-2xl"
-        >
-          Uw gegevens
-        </h2>
-        <p>{state.me.email}</p>
-      </section>
+      <AccountView
+        me={state.me}
+        onSignedOut={(line) => {
+          setConfirmation(line);
+          setView("sign_in");
+          setState(signedOut(null));
+        }}
+      />
     );
   }
 
   return (
     <div className="flex flex-col gap-8">
+      {confirmation !== null && <p role="status">{confirmation}</p>}
       {state.notice !== null && (
         <p role="alert" className="text-danger">
           {state.notice}
@@ -110,5 +145,239 @@ export function AccountPage() {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * The account: an address, two consents, and three things you can do with it.
+ *
+ * The consent texts are fetched here as well as in the registration form, for
+ * the reason chapter 6.2 gives: they are fetched when a view that shows those
+ * sentences opens, and not on every page load. Somebody who only signs in
+ * never opens either view and never spends the request.
+ */
+function AccountView({
+  me,
+  onSignedOut,
+}: {
+  readonly me: Me;
+  readonly onSignedOut: (confirmation: string | null) => void;
+}) {
+  const passwordId = useId();
+  const passwordErrorId = `${passwordId}-error`;
+  const passwordField = useRef<HTMLInputElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const [texts, setTexts] = useState<ConsentTexts | null>(null);
+  const [consents, setConsents] = useState<Record<ConsentKind, boolean>>({
+    ...me.consents,
+  });
+  const [busy, setBusy] = useState<string | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  const [fields, setFields] = useState<ReturnType<typeof fieldErrors>>({});
+  const [expanded, setExpanded] = useState(false);
+  const [password, setPassword] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    getConsentTexts()
+      .then((answer) => {
+        if (alive) setTexts(answer);
+      })
+      .catch(() => {
+        // Deliberately silent. The rows below say what this costs, in the one
+        // place where it changes what a visitor can do: granting.
+        if (alive) setTexts(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // This component mounts fresh every time `me/` answers with a signed-in
+  // person, at page load or right after signing in, and both are moments
+  // nothing on the page held focus that matters more than this heading.
+  useEffect(() => {
+    heading.current?.focus();
+  }, []);
+
+  // Focus follows the field that appeared, which is what makes the disclosure
+  // usable from a keyboard rather than merely operable.
+  useEffect(() => {
+    if (expanded) passwordField.current?.focus();
+  }, [expanded]);
+
+  async function toggle(
+    kind: ConsentKind,
+    action: ConsentAction,
+  ): Promise<void> {
+    setBusy(kind);
+    setFailure(null);
+    try {
+      const result = await postConsent(
+        action === "GRANTED" && texts !== null
+          ? { kind, action, text_version: texts.text_version }
+          : { kind, action },
+      );
+      // The answer is the new state of that row. No second `me/`.
+      setConsents((current) => ({ ...current, [result.kind]: result.granted }));
+    } catch (error) {
+      setFailure(describeAuthError(error));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function download(): Promise<void> {
+    setBusy("export");
+    setFailure(null);
+    try {
+      downloadJson(await exportAccount());
+    } catch (error) {
+      setFailure(describeAuthError(error));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function signOut(): Promise<void> {
+    setBusy("logout");
+    setFailure(null);
+    try {
+      await logout();
+      // 204, view signed out, and no question asked afterwards.
+      onSignedOut(null);
+    } catch (error) {
+      setFailure(describeAuthError(error));
+      setBusy(null);
+    }
+  }
+
+  async function remove(): Promise<void> {
+    setBusy("delete");
+    setFailure(null);
+    setFields({});
+    try {
+      await deleteAccount(password);
+      onSignedOut(DELETION_CONFIRMATION);
+    } catch (error) {
+      // The password field carries its own message, bound by
+      // `aria-describedby`. The form-level alert below is left for what no
+      // field can carry: a network failure, a 500, a `detail` with no field.
+      // Never a joined sentence and never `ApiError`'s English default, which
+      // is exactly what `describeAuthError` guards against.
+      const perField = fieldErrors(error);
+      setFields(perField);
+      setFailure(
+        perField.password === undefined ? describeAuthError(error) : null,
+      );
+      setBusy(null);
+    }
+  }
+
+  return (
+    <section aria-labelledby="uw-gegevens" className="flex flex-col gap-6">
+      <h2 id="uw-gegevens" ref={heading} tabIndex={-1} className="text-2xl">
+        Uw gegevens
+      </h2>
+      <p>{me.email}</p>
+
+      {CONSENT_RENDER_ORDER.map((kind) => (
+        <ConsentRow
+          key={kind}
+          kind={kind}
+          text={texts === null ? null : texts.texts[kind]}
+          granted={consents[kind] === true}
+          busy={busy === kind}
+          onToggle={(action) => void toggle(kind, action)}
+        />
+      ))}
+
+      {failure !== null && (
+        <p role="alert" className="text-danger">
+          {failure}
+        </p>
+      )}
+
+      <div className="flex flex-wrap gap-3 border-t border-hairline pt-4">
+        <button
+          type="button"
+          className="button-quiet"
+          disabled={busy !== null}
+          onClick={() => void download()}
+        >
+          Gegevens exporteren
+        </button>
+        <button
+          type="button"
+          className="button-quiet"
+          disabled={busy !== null}
+          onClick={() => void signOut()}
+        >
+          Uitloggen
+        </button>
+      </div>
+
+      {/*
+        Collapsed, this is a button and not a warning. It is the heaviest thing
+        on the page and it should read as neither an offer nor a threat.
+      */}
+      <div className="flex flex-col gap-3 border-t border-hairline pt-4">
+        <p>
+          <button
+            type="button"
+            className="button-quiet"
+            aria-expanded={expanded}
+            onClick={() => setExpanded(!expanded)}
+          >
+            Account verwijderen
+          </button>
+        </p>
+        {expanded && (
+          <form
+            noValidate
+            className="flex flex-col gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (busy === null) void remove();
+            }}
+          >
+            <div className="flex flex-col gap-1">
+              <label htmlFor={passwordId}>Uw wachtwoord</label>
+              <input
+                id={passwordId}
+                ref={passwordField}
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                aria-invalid={fields.password !== undefined}
+                aria-describedby={
+                  fields.password !== undefined ? passwordErrorId : undefined
+                }
+                onChange={(event) => setPassword(event.target.value)}
+              />
+              {fields.password !== undefined && (
+                <p
+                  id={passwordErrorId}
+                  role="alert"
+                  className="text-sm text-danger"
+                >
+                  {fields.password.join(" ")}
+                </p>
+              )}
+            </div>
+            <p>
+              <button
+                type="submit"
+                className="button-accent"
+                disabled={busy !== null}
+                aria-busy={busy === "delete"}
+              >
+                Verwijderen bevestigen
+              </button>
+            </p>
+          </form>
+        )}
+      </div>
+    </section>
   );
 }

@@ -96,6 +96,7 @@
 :
 ARRIVAL
 Account aanmaken
+Account verwijderen
 Adviesversie
 Alleen als het bij u uitkomt, en bij een deel van de huishoudens komt dat er niet uit. Nu geen batterij is bij ons een volwaardige uitkomst, en wij verdienen niets aan de andere.
 Alleen als het bij u uitkomt. Voor een deel van de huishoudens is het antwoord nee, en dat is bij ons een geldige en volwaardige uitkomst.
@@ -203,6 +204,7 @@ GRANTED
 Geen account, geen e-mailadres. U krijgt een link waarmee u er later bij kunt.
 Geen panelen, geen batterijen en geen energiecontract. En niemand die ons betaalt voor de uitkomst die u krijgt.
 Geen toestemming gegeven
+Gegevens exporteren
 Gekopieerd.
 Gratis of bijna gratis: slimmer sturen met wat u al heeft
 Gratis: uw eigen ritme verschuiven
@@ -344,8 +346,10 @@ U vult alles zelf in. Wij halen niets op bij uw meter, uw netbeheerder of uw lev
 U ziet meteen hoe zeker het is
 U ziet uw bereik en drie routes
 Uit onze eigen logboeken houden wij die link weg. Bij Cloudflare kunnen wij dat niet. Er is een oplossing voor, namelijk de link niet meer in het webadres zetten. Die is nog niet gebouwd.
+Uitloggen
 Uw IP-adres bewaren wij niet
 Uw account
+Uw account is verwijderd.
 Uw advies
 Uw advies is opgehaald.
 Uw advies wordt opgehaald
@@ -361,6 +365,7 @@ Uw link zetten wij er niet in. Wij zetten er een onomkeerbare afdruk van in. Uit
 Uw meter houdt twee standen bij: wat u afnam en wat u teruggaf. Bij salderen wordt het kleinste van de twee van het grootste afgetrokken en betaalt u alleen het verschil. Een kilowattuur die in juni het net op ging, streept er zo een weg die in december binnenkwam. Het moment waarop iets gebeurde doet niet mee.
 Uw ritme verschuiven, en slimmer sturen met apparaten die u al heeft. Opslag komt daarna, en bij een deel van de huishoudens komt daar uit: nu geen batterij.
 Uw situatie doorrekenen
+Uw wachtwoord
 Van uw postcode bewaren wij vier cijfers
 Vanaf 2027
 Vanaf 2027 houdt u van een teruggeleverde kilowattuur op een vast contract
@@ -373,6 +378,7 @@ Verbruiksjaar
 Verder
 Verder gaat er niets naar buiten
 Verfijn uw antwoord
+Verwijderen bevestigen
 Vier vragen over uw dak en uw verbruik, en u ziet wat er vanaf 1 januari 2027 bij u verandert, met de marge eromheen.
 Vier vragen over uw dak en uw verbruik, en u ziet wat het einde van de salderingsregeling bij uw huis doet, met de bandbreedte erbij. Gratis, geen account.
 Vier vragen over uw dak en uw verbruik, en u ziet wat het einde van de salderingsregeling u per jaar gaat kosten. Met de bandbreedte erbij, want een enkel getal zou meer zekerheid suggereren dan er is.
@@ -494,6 +500,7 @@ Zuidwest
 a postal address a letter can reach
 als middelpunt, uit
 ampeer-antwoorden
+ampeer-gegevens.json
 ampeer-thema
 apr
 aug
