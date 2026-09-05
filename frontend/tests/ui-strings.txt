@@ -221,6 +221,7 @@ Het verkeer naar deze site loopt via Cloudflare Inc. Dat bedrijf is onze verwerk
 Het vermogen van uw zonnepanelen, in wattpiek.
 Hier is niets meer te halen.
 Hier logt u in of maakt u een account aan. In uw account ziet u welke toestemmingen u heeft gegeven, kunt u ze omzetten, uw gegevens downloaden en uw account verwijderen. Voor de rekenmachine is geen account nodig.
+Hiermee verdwijnen uw e-mailadres, uw twee toestemmingen, uw opgeslagen adviezen en uw sessies. In ons logboek blijft alleen de regel staan dat een account is verwijderd, met een nummer dat nergens meer heen wijst.
 Hoe Ampeer rekent
 Hoe groot is de batterij?
 Hoe het dak ligt: welke kant het op ligt en hoe schuin het staat.

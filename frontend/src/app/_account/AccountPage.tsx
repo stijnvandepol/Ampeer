@@ -48,6 +48,24 @@ const CONSENT_RENDER_ORDER: readonly ConsentKind[] = [
 const DELETION_CONFIRMATION = "Uw account is verwijderd.";
 
 /**
+ * What deletion removes and what stays, read before the password field.
+ *
+ * Ruling 52: spec 6.3 as written asks only for a password field and a confirm
+ * button, which tells a visitor nothing about what they destroy. This mirrors
+ * `delete_account` in `backend/accounts/service.py` (the CASCADE takes the
+ * email, both consents and every stored advice) and the DPIA's own line about
+ * the audit id that outlives the account and points nowhere afterwards. A
+ * module constant for the same reason `DELETION_CONFIRMATION` above is one:
+ * the extractor does not walk into a JSX expression's identifier, only into
+ * the variable declaration that gave it a value.
+ */
+const DELETION_CONSEQUENCES =
+  "Hiermee verdwijnen uw e-mailadres, uw twee toestemmingen, uw opgeslagen adviezen en uw sessies. In ons logboek blijft alleen de regel staan dat een account is verwijderd, met een nummer dat nergens meer heen wijst.";
+
+/** The three actions that share one disabled state, alongside a `ConsentKind`. */
+type AccountActionId = "export" | "logout" | "delete";
+
+/**
  * One route, three views, and the state comes from `me/`.
  *
  * `/account/inloggen/` and `/account/registreren/` would be two statically
@@ -71,6 +89,7 @@ export function AccountPage() {
   // view owns its own heading and manages its own focus, in `AccountView`
   // below, because it mounts fresh every time `me/` answers with a person.
   const signedOutRegion = useRef<HTMLDivElement>(null);
+  const confirmationRef = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {
     // `alive` rather than an abort: the answer decides what is on the screen,
@@ -90,12 +109,27 @@ export function AccountPage() {
   // is left on a control the switch just removed (the "Nog geen account?"
   // button is gone the moment the registration view replaces it), or on
   // nothing at all the moment the loading sentence turns into a form.
+  //
+  // A confirmation, when there is one, takes focus ahead of the group: a
+  // `role="status"` inserted into the DOM already holding its text is not
+  // reliably announced unless something moves focus to it, and the only
+  // destructive action on this route deserves better than a confirmation
+  // that might go unheard.
   useEffect(() => {
-    if (state.status === "signed_out") signedOutRegion.current?.focus();
-  }, [state.status, view]);
+    if (state.status !== "signed_out") return;
+    if (confirmation !== null) confirmationRef.current?.focus();
+    else signedOutRegion.current?.focus();
+  }, [state.status, view, confirmation]);
 
   function signedIn(who: Me): void {
     setState({ status: "signed_in", me: who });
+  }
+
+  // A confirmation belongs to the sign-in view it was raised on; the form the
+  // visitor switches to next has nothing to confirm.
+  function switchView(next: SignedOutView): void {
+    setConfirmation(null);
+    setView(next);
   }
 
   if (state.status === "loading") {
@@ -120,7 +154,11 @@ export function AccountPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      {confirmation !== null && <p role="status">{confirmation}</p>}
+      {confirmation !== null && (
+        <p ref={confirmationRef} tabIndex={-1} role="status">
+          {confirmation}
+        </p>
+      )}
       {state.notice !== null && (
         <p role="alert" className="text-danger">
           {state.notice}
@@ -135,12 +173,12 @@ export function AccountPage() {
         {view === "sign_in" ? (
           <SignInForm
             onSignedIn={signedIn}
-            onRegister={() => setView("register")}
+            onRegister={() => switchView("register")}
           />
         ) : (
           <RegisterForm
             onRegistered={signedIn}
-            onSignIn={() => setView("sign_in")}
+            onSignIn={() => switchView("sign_in")}
           />
         )}
       </div>
@@ -171,7 +209,16 @@ function AccountView({
   const [consents, setConsents] = useState<Record<ConsentKind, boolean>>({
     ...me.consents,
   });
-  const [busy, setBusy] = useState<string | null>(null);
+  // A set, not one shared string: `ConsentRow` reads `busy.has(kind)`, so an
+  // export in flight no longer disables a toggle button (that button reads
+  // only its own kind), and a toggle's own `finally` no longer gets clobbered
+  // by an unrelated action's `finally` clearing the same single value out
+  // from under it. The three plain buttons below read `busy.size > 0`, so
+  // none of them re-enables while anything, including a toggle, is still in
+  // flight.
+  const [busy, setBusy] = useState<ReadonlySet<AccountActionId | ConsentKind>>(
+    new Set(),
+  );
   const [failure, setFailure] = useState<string | null>(null);
   const [fields, setFields] = useState<ReturnType<typeof fieldErrors>>({});
   const [expanded, setExpanded] = useState(false);
@@ -206,11 +253,23 @@ function AccountView({
     if (expanded) passwordField.current?.focus();
   }, [expanded]);
 
+  function markBusy(id: AccountActionId | ConsentKind): void {
+    setBusy((current) => new Set(current).add(id));
+  }
+
+  function clearBusy(id: AccountActionId | ConsentKind): void {
+    setBusy((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+  }
+
   async function toggle(
     kind: ConsentKind,
     action: ConsentAction,
   ): Promise<void> {
-    setBusy(kind);
+    markBusy(kind);
     setFailure(null);
     try {
       const result = await postConsent(
@@ -223,24 +282,24 @@ function AccountView({
     } catch (error) {
       setFailure(describeAuthError(error));
     } finally {
-      setBusy(null);
+      clearBusy(kind);
     }
   }
 
   async function download(): Promise<void> {
-    setBusy("export");
+    markBusy("export");
     setFailure(null);
     try {
       downloadJson(await exportAccount());
     } catch (error) {
       setFailure(describeAuthError(error));
     } finally {
-      setBusy(null);
+      clearBusy("export");
     }
   }
 
   async function signOut(): Promise<void> {
-    setBusy("logout");
+    markBusy("logout");
     setFailure(null);
     try {
       await logout();
@@ -248,12 +307,12 @@ function AccountView({
       onSignedOut(null);
     } catch (error) {
       setFailure(describeAuthError(error));
-      setBusy(null);
+      clearBusy("logout");
     }
   }
 
   async function remove(): Promise<void> {
-    setBusy("delete");
+    markBusy("delete");
     setFailure(null);
     setFields({});
     try {
@@ -265,12 +324,20 @@ function AccountView({
       // field can carry: a network failure, a 500, a `detail` with no field.
       // Never a joined sentence and never `ApiError`'s English default, which
       // is exactly what `describeAuthError` guards against.
+      //
+      // Defence in depth rather than a reachable path: `DeleteView.post` in
+      // `backend/accounts/views.py` answers a wrong password with
+      // `PermissionDenied(NL["credentials_invalid"])`, which DRF serialises
+      // as `{"detail": ...}` and never as `{"password": [...]}`. Nothing
+      // today produces a field-shaped error here; the binding stays so a
+      // future serializer-level validation on this field renders correctly
+      // without a second look at this component.
       const perField = fieldErrors(error);
       setFields(perField);
       setFailure(
         perField.password === undefined ? describeAuthError(error) : null,
       );
-      setBusy(null);
+      clearBusy("delete");
     }
   }
 
@@ -287,7 +354,7 @@ function AccountView({
           kind={kind}
           text={texts === null ? null : texts.texts[kind]}
           granted={consents[kind] === true}
-          busy={busy === kind}
+          busy={busy.has(kind)}
           onToggle={(action) => void toggle(kind, action)}
         />
       ))}
@@ -299,22 +366,42 @@ function AccountView({
       )}
 
       <div className="flex flex-wrap gap-3 border-t border-hairline pt-4">
-        <button
-          type="button"
-          className="button-quiet"
-          disabled={busy !== null}
-          onClick={() => void download()}
-        >
-          Gegevens exporteren
-        </button>
-        <button
-          type="button"
-          className="button-quiet"
-          disabled={busy !== null}
-          onClick={() => void signOut()}
-        >
-          Uitloggen
-        </button>
+        <p>
+          <button
+            type="button"
+            className="button-quiet"
+            disabled={busy.size > 0}
+            onClick={() => void download()}
+          >
+            Gegevens exporteren
+          </button>
+          {/*
+            A live region rather than `aria-busy` on this button: a disabled
+            control leaves the tab order, and the accessibility tree along
+            with it in most assistive tech, exactly when "busy" matters. The
+            pattern `ConsentRow`, `SignInForm` and `RegisterForm` already use.
+          */}
+          {busy.has("export") && (
+            <span role="status" aria-live="polite" className="sr-only">
+              Bezig.
+            </span>
+          )}
+        </p>
+        <p>
+          <button
+            type="button"
+            className="button-quiet"
+            disabled={busy.size > 0}
+            onClick={() => void signOut()}
+          >
+            Uitloggen
+          </button>
+          {busy.has("logout") && (
+            <span role="status" aria-live="polite" className="sr-only">
+              Bezig.
+            </span>
+          )}
+        </p>
       </div>
 
       {/*
@@ -338,9 +425,17 @@ function AccountView({
             className="flex flex-col gap-3"
             onSubmit={(event) => {
               event.preventDefault();
-              if (busy === null) void remove();
+              if (busy.size === 0) void remove();
             }}
           >
+            {/*
+              Ruling 52: informed consent to deletion, read before the
+              password field and not after it, the same order article 7(3)
+              asks of a consent given rather than withdrawn.
+            */}
+            <p className="max-w-[60ch] text-sm text-ink-muted">
+              {DELETION_CONSEQUENCES}
+            </p>
             <div className="flex flex-col gap-1">
               <label htmlFor={passwordId}>Uw wachtwoord</label>
               <input
@@ -369,11 +464,15 @@ function AccountView({
               <button
                 type="submit"
                 className="button-accent"
-                disabled={busy !== null}
-                aria-busy={busy === "delete"}
+                disabled={busy.size > 0}
               >
                 Verwijderen bevestigen
               </button>
+              {busy.has("delete") && (
+                <span role="status" aria-live="polite" className="sr-only">
+                  Bezig.
+                </span>
+              )}
             </p>
           </form>
         )}

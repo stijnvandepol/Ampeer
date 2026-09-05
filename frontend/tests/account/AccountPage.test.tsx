@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import me from "../fixtures/me-response.json";
 import consentTexts from "../fixtures/consent-texts.json";
 import exportPayload from "../fixtures/export-response.json";
@@ -41,6 +41,32 @@ function stub(
   });
   vi.stubGlobal("fetch", fetchMock);
   return { fetchMock, seen };
+}
+
+/**
+ * A promise a test can settle from outside its own executor, for a request
+ * that must stay pending until the test says otherwise.
+ *
+ * Not a bare `let settle: (() => void) | null = null;` reassigned inside the
+ * executor: TypeScript's control-flow narrowing does not follow an assignment
+ * made only inside a nested closure, so a later `settle?.()` sees the
+ * variable's type as the value it held at declaration, `null`, and narrows
+ * the optional call to `never`. The definite-assignment assertion below
+ * (`!`) gives `resolve`/`reject` their real, always-callable type from the
+ * start, so there is nothing nullable left to narrow.
+ */
+function deferred<T = void>(): {
+  readonly promise: Promise<T>;
+  readonly resolve: (value: T) => void;
+  readonly reject: (reason: unknown) => void;
+} {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
 describe("which of the three views is on the screen", () => {
@@ -271,6 +297,287 @@ describe("the account view", () => {
     ).toBeDisabled();
   });
 
+  it("leaves a failed grant unflipped and re-enables the row", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    stub([
+      { status: 200, body: me },
+      { status: 200, body: consentTexts },
+      {
+        status: 429,
+        body: { detail: "u vraagt dit te vaak, probeer het later opnieuw" },
+      },
+    ]);
+    render(<AccountPage />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Toestemming geven" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "u vraagt dit te vaak, probeer het later opnieuw",
+    );
+    // No optimistic flip: the row still reads what it read before the click,
+    // under the same accessible name, and the button works again.
+    expect(screen.getByText("Geen toestemming gegeven")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Toestemming geven" }),
+    ).toBeEnabled();
+  });
+
+  it("shows the network sentence and re-enables the row when a toggle cannot reach the server", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    stub([
+      { status: 200, body: me },
+      { status: 200, body: consentTexts },
+      { status: 0, throws: true },
+    ]);
+    render(<AccountPage />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Toestemming geven" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Wij konden de server niet bereiken.",
+    );
+    expect(screen.getByText("Geen toestemming gegeven")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Toestemming geven" }),
+    ).toBeEnabled();
+  });
+
+  it("keeps the account view and re-enables the buttons when signing out fails", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    stub([
+      { status: 200, body: me },
+      { status: 200, body: consentTexts },
+      {
+        status: 429,
+        body: { detail: "u vraagt dit te vaak, probeer het later opnieuw" },
+      },
+    ]);
+    render(<AccountPage />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Uitloggen" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "u vraagt dit te vaak, probeer het later opnieuw",
+    );
+    expect(screen.getByText(me.email)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Uitloggen" })).toBeEnabled();
+    // No confirmation appeared: this account was never signed out.
+    expect(
+      screen.queryByText("Uw account is verwijderd."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the view and re-enables export after a 429 on the export", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    stub([
+      { status: 200, body: me },
+      { status: 200, body: consentTexts },
+      {
+        status: 429,
+        body: { detail: "u vraagt dit te vaak, probeer het later opnieuw" },
+      },
+    ]);
+    render(<AccountPage />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Gegevens exporteren" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "u vraagt dit te vaak, probeer het later opnieuw",
+    );
+    expect(screen.getByText(me.email)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Gegevens exporteren" }),
+    ).toBeEnabled();
+  });
+
+  it("keeps a toggle busy after an unrelated export finishes", async () => {
+    // Property: one action's completion must never clear another's busy
+    // state. The export starts first; while it is still in flight, the
+    // toggle button is not disabled by it (it reads only its own kind), so a
+    // visitor can start it. Once the export resolves, the toggle's own row
+    // must still read busy.
+    const userEvent = (await import("@testing-library/user-event")).default;
+    const exportRequest = deferred<void>();
+    const toggleRequest = deferred<void>();
+    const fetchMock = vi.fn<typeof fetch>(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const json = (body: unknown, status = 200) =>
+        new Response(JSON.stringify(body), {
+          status,
+          headers: { "content-type": "application/json" },
+        });
+      if (url.includes("/api/auth/me/")) return json(me);
+      if (url.includes("/api/auth/consent-texts/")) return json(consentTexts);
+      if (url.includes("/api/auth/export/")) {
+        await exportRequest.promise;
+        return json(exportPayload);
+      }
+      if (url.includes("/api/auth/consent/")) {
+        await toggleRequest.promise;
+        return json({ kind: "LEAD_GENERATION", granted: true });
+      }
+      throw new Error(`request to ${url} was not planned for`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const originalCreate = URL.createObjectURL;
+    const originalRevoke = URL.revokeObjectURL;
+    URL.createObjectURL = () => "blob:een-url";
+    URL.revokeObjectURL = () => {};
+    try {
+      render(<AccountPage />);
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Gegevens exporteren" }),
+      );
+      // The export is now in flight and its own button is disabled, but that
+      // does not touch `ConsentRow`, which reads only its own kind, so the
+      // toggle can still be started here.
+      await userEvent.click(
+        screen.getByRole("button", { name: "Toestemming geven" }),
+      );
+      // Two live regions: the export's own and the toggling row's own.
+      expect(screen.getAllByRole("status")).toHaveLength(2);
+      exportRequest.resolve();
+      // The export's own `finally` clears only its own entry: one live
+      // region left, the toggling row's, not two and not zero.
+      await waitFor(() =>
+        expect(screen.getAllByRole("status")).toHaveLength(1),
+      );
+      // Nothing re-enables while the toggle is still in flight, including
+      // the button whose own request has already finished.
+      expect(
+        screen.getByRole("button", { name: "Gegevens exporteren" }),
+      ).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "Toestemming geven" }),
+      ).toBeDisabled();
+    } finally {
+      toggleRequest.resolve();
+      URL.createObjectURL = originalCreate;
+      URL.revokeObjectURL = originalRevoke;
+    }
+  });
+
+  it("clears the deletion confirmation once the visitor switches to another view", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    stub([
+      { status: 200, body: me },
+      { status: 200, body: consentTexts },
+      { status: 204 },
+      { status: 200, body: consentTexts },
+    ]);
+    render(<AccountPage />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Account verwijderen" }),
+    );
+    await userEvent.type(
+      screen.getByLabelText("Uw wachtwoord"),
+      "een-heel-lang-wachtwoord",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Verwijderen bevestigen" }),
+    );
+    await screen.findByRole("status");
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "Nog geen account? Account aanmaken",
+      }),
+    );
+    expect(
+      screen.queryByText("Uw account is verwijderd."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("ignores a second delete submission while the first is still in flight", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    const deleteRequest = deferred<void>();
+    const fetchMock = vi.fn<typeof fetch>(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const json = (body: unknown, status = 200) =>
+        new Response(JSON.stringify(body), {
+          status,
+          headers: { "content-type": "application/json" },
+        });
+      if (url.includes("/api/auth/me/")) return json(me);
+      if (url.includes("/api/auth/consent-texts/")) return json(consentTexts);
+      if (url.includes("/api/auth/delete/")) {
+        await deleteRequest.promise;
+        return new Response(null, { status: 204 });
+      }
+      throw new Error(`request to ${url} was not planned for`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AccountPage />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Account verwijderen" }),
+    );
+    await userEvent.type(
+      screen.getByLabelText("Uw wachtwoord"),
+      "een-heel-lang-wachtwoord",
+    );
+    const submit = screen.getByRole("button", {
+      name: "Verwijderen bevestigen",
+    });
+    await userEvent.click(submit);
+    // The button is disabled now, so a real click cannot reach it a second
+    // time; the guard inside the submit handler is what a stray resubmission
+    // (an Enter key the disabled button does not intercept) would meet.
+    const form = submit.closest("form");
+    expect(form).not.toBeNull();
+    if (form !== null) fireEvent.submit(form);
+    expect(
+      fetchMock.mock.calls.filter((call) =>
+        String(call[0]).includes("/api/auth/delete/"),
+      ),
+    ).toHaveLength(1);
+    deleteRequest.resolve();
+  });
+
+  it("explains what deletion removes only once the disclosure is open", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    stub([
+      { status: 200, body: me },
+      { status: 200, body: consentTexts },
+    ]);
+    render(<AccountPage />);
+    await screen.findByText(me.email);
+    expect(
+      screen.queryByText(/Hiermee verdwijnen uw e-mailadres/),
+    ).not.toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Account verwijderen" }),
+    );
+    expect(
+      screen.getByText(/Hiermee verdwijnen uw e-mailadres/),
+    ).toBeInTheDocument();
+  });
+
+  it("renders a field-shaped password error beside the field, as defence in depth", async () => {
+    // The current backend never sends this shape (a wrong password is a
+    // `detail`, never a `password` key, per `DeleteView.post`), so this is a
+    // synthetic response proving the binding works if that ever changes.
+    const userEvent = (await import("@testing-library/user-event")).default;
+    stub([
+      { status: 200, body: me },
+      { status: 200, body: consentTexts },
+      { status: 400, body: { password: ["Dit veld mag niet leeg zijn."] } },
+    ]);
+    render(<AccountPage />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Account verwijderen" }),
+    );
+    await userEvent.type(screen.getByLabelText("Uw wachtwoord"), "x");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Verwijderen bevestigen" }),
+    );
+    const message = await screen.findByText("Dit veld mag niet leeg zijn.");
+    const passwordField = screen.getByLabelText("Uw wachtwoord");
+    expect(passwordField).toHaveAttribute("aria-describedby", message.id);
+    // One alert only: the field-level message, never joined into a second,
+    // form-level sentence.
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getByText(me.email)).toBeInTheDocument();
+  });
+
   it("offers the export as a file built from the text the API sent", async () => {
     const userEvent = (await import("@testing-library/user-event")).default;
     // Pretty-printed on purpose, and not `JSON.stringify(exportPayload)`
@@ -371,9 +678,13 @@ describe("the account view", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Verwijderen bevestigen" }),
     );
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Uw account is verwijderd.",
-    );
+    const confirmation = await screen.findByRole("status");
+    expect(confirmation).toHaveTextContent("Uw account is verwijderd.");
+    // A `role="status"` inserted already holding its text is not reliably
+    // announced by assistive tech unless something moves focus to it, so the
+    // element itself, not the sign-in group beside it, has to be where focus
+    // lands.
+    expect(document.activeElement).toBe(confirmation);
     expect(
       screen.getByRole("button", { name: "Inloggen" }),
     ).toBeInTheDocument();
@@ -406,5 +717,91 @@ describe("the account view", () => {
       "e-mailadres of wachtwoord klopt niet",
     );
     expect(screen.getByText(me.email)).toBeInTheDocument();
+  });
+});
+
+describe("unmounting while a request is still pending", () => {
+  // `alive` guards in `AccountPage` and `AccountView` exist so a component
+  // that has gone never calls `setState`, which React 19 no longer warns
+  // about but which is still exactly the shape of a stale-answer bug. Each
+  // test below resolves or rejects the pending request only after the
+  // component is gone, which is the one moment the guard is meant for.
+
+  it("ignores a late session answer after AccountPage unmounts", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const meRequest = deferred<void>();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async () => {
+        await meRequest.promise;
+        return new Response(JSON.stringify(me), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+    const { unmount } = render(<AccountPage />);
+    unmount();
+    meRequest.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(errorSpy).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("ignores a late consent-texts answer after AccountView unmounts", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const textsRequest = deferred<void>();
+    const fetchMock = vi.fn<typeof fetch>(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/auth/me/")) {
+        return new Response(JSON.stringify(me), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (url.includes("/api/auth/consent-texts/")) {
+        await textsRequest.promise;
+        return new Response(JSON.stringify(consentTexts), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      throw new Error(`request to ${url} was not planned for`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { unmount } = render(<AccountPage />);
+    await screen.findByText(me.email);
+    unmount();
+    textsRequest.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(errorSpy).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("ignores a late consent-texts failure after AccountView unmounts", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const textsRequest = deferred<Response>();
+    const fetchMock = vi.fn<typeof fetch>(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/auth/me/")) {
+        return new Response(JSON.stringify(me), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (url.includes("/api/auth/consent-texts/")) return textsRequest.promise;
+      throw new Error(`request to ${url} was not planned for`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { unmount } = render(<AccountPage />);
+    await screen.findByText(me.email);
+    unmount();
+    textsRequest.reject(new TypeError("Failed to fetch"));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(errorSpy).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 });
