@@ -54,6 +54,10 @@ def username(request: HttpRequest, credentials: dict[str, object] | None) -> str
     produce the same digest or five attempts against one account count as five
     against two.
     """
+    # `None`, "" and a non-`str` value all fall through to the same `raw = ""`
+    # and therefore the same digest: every attempt axes cannot read a username
+    # from shares one lockout bucket. Intended, not a gap: counting them
+    # together still counts them, where refusing to count them at all would not.
     raw = ""
     if credentials:
         value = credentials.get("username", credentials.get("email", ""))

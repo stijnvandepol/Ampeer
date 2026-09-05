@@ -265,7 +265,10 @@ class LogoutView(_AuthAPIView):
     def post(self, request: Request) -> Response:
         raw = request.COOKIES.get(settings.AMPEER_REFRESH_COOKIE)
         if raw:
-            tokens.revoke(raw)
+            try:
+                tokens.revoke(raw)
+            except TokenError:
+                pass
         AuditEvent.record(AuditEvent.LOGOUT, user_id=self.user.pk)
         response = Response(status=status.HTTP_204_NO_CONTENT)
         cookies.clear_tokens(response)

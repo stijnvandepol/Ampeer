@@ -88,11 +88,24 @@ def test_creating_a_user_without_an_email_address_is_refused() -> None:
 
 def test_an_account_carries_no_name_and_no_username() -> None:
     """Django's default User forces three columns this product never fills, and
-    two of them are called a name in a document that says there is no name."""
+    two of them are called a name in a document that says there is no name.
+
+    The set also guards spec 4.1 and 11's other promise: no `PermissionsMixin`.
+    `is_staff`, `is_superuser`, `groups` and `user_permissions` are what that
+    mixin adds, and none of them belongs on a model with no admin and no
+    Django session to be superuser inside.
+    """
+    forbidden = {
+        "username",
+        "first_name",
+        "last_name",
+        "is_staff",
+        "is_superuser",
+        "groups",
+        "user_permissions",
+    }
     fields = {field.name for field in User._meta.get_fields()}
-    assert not fields & {"username", "first_name", "last_name"}, (
-        f"the user model grew {sorted(fields & {'username', 'first_name', 'last_name'})}"
-    )
+    assert not fields & forbidden, f"the user model grew {sorted(fields & forbidden)}"
 
 
 @pytest.mark.django_db

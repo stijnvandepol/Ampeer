@@ -10,7 +10,6 @@ from typing import Any
 
 from django.db import transaction
 
-from accounts import tokens
 from accounts.models import Consent, User
 from advice.models import AuditEvent, StoredAdvice
 
@@ -59,8 +58,10 @@ def delete_account(user: User) -> None:
     """
     user_id = user.pk
     with transaction.atomic():
-        tokens.revoke_all(user)
         AuditEvent.record(AuditEvent.ACCOUNT_DELETED, user_id=user_id)
         # CASCADE takes Consent, RefreshSession and every StoredAdvice with this
         # owner. An advice with owner NULL is not this account's and stays.
+        # No tokens.revoke_all(user) here: the CASCADE two lines down removes
+        # every RefreshSession row this account has, so revoking them first
+        # only took row locks the delete was about to take anyway.
         user.delete()

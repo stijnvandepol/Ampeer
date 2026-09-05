@@ -7,6 +7,7 @@ SameSite, and SameSite is the whole CSRF defence in this deployment.
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any, TypedDict
 
 import pytest
@@ -142,6 +143,23 @@ def test_registering_with_an_email_already_in_use_is_refused(client: Any) -> Non
 
 
 @pytest.mark.django_db
+def test_registering_with_a_different_case_of_the_same_address_is_refused(client: Any) -> None:
+    """Spec 4.1's claim proved at the HTTP layer and not only against the
+    model: `test_accounts_models.py` already covers `Lower("email")` at the
+    database constraint, but nothing before this exercised the same claim
+    through `POST /api/auth/register/`. `iemand@voorbeeld.nl` and
+    `IEMAND@VOORBEELD.NL` are the same address wearing different letters, and
+    a second registration on it is a 400, not a second row."""
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    shouting = BODY | {"email": str(BODY["email"]).upper()}
+    response = client.post(
+        "/api/auth/register/", shouting, content_type="application/json", **_csrf(client)
+    )
+    assert response.status_code == 400
+    assert User.objects.count() == 1
+
+
+@pytest.mark.django_db
 def test_a_short_password_is_refused_in_dutch(client: Any) -> None:
     """Asserts the Dutch sentence itself, not merely that a `password` key
     exists: `MinimumLengthValidator.get_error_message()` raises a message
@@ -200,6 +218,30 @@ def test_logging_in_and_out_moves_the_cookies(client: Any) -> None:
     logout = client.post("/api/auth/logout/", content_type="application/json", **_csrf(client))
     assert logout.status_code == 204
     assert logout.cookies[settings.AMPEER_ACCESS_COOKIE].value == ""
+
+
+@pytest.mark.django_db
+def test_logging_out_with_a_malformed_refresh_cookie_still_ends_the_session(client: Any) -> None:
+    """`tokens.revoke` calls `RefreshToken(raw_refresh)`, which raises
+    `rest_framework_simplejwt.exceptions.TokenError` on anything unparseable.
+    `TokenError` is not a DRF `APIException`, so an uncaught one answers 500.
+    A cookie can be malformed for reasons that have nothing to do with an
+    attack (a stale build, a browser extension, a hand-edited cookie jar), and
+    `revoke`'s own docstring already promises "a token that cannot be read
+    ends nothing and says so": logout has to still end the session and clear
+    both cookies, not 500."""
+    User.objects.create_user(email="iemand@voorbeeld.nl", password=PASSWORD)
+    client.post(
+        "/api/auth/login/",
+        {"email": "iemand@voorbeeld.nl", "password": PASSWORD},
+        content_type="application/json",
+        **_csrf(client),
+    )
+    client.cookies[settings.AMPEER_REFRESH_COOKIE] = "dit.is.geen.token"
+    logout = client.post("/api/auth/logout/", content_type="application/json", **_csrf(client))
+    assert logout.status_code == 204, logout.content
+    assert logout.cookies[settings.AMPEER_ACCESS_COOKIE].value == ""
+    assert logout.cookies[settings.AMPEER_REFRESH_COOKIE].value == ""
 
 
 @pytest.mark.django_db
@@ -303,6 +345,39 @@ def test_refreshing_without_a_refresh_cookie_is_refused(client: Any) -> None:
     response = client.post("/api/auth/refresh/", content_type="application/json", **_csrf(client))
     assert response.status_code == 401
     assert response.json() == {"detail": NL["not_signed_in"]}
+
+
+@pytest.mark.django_db
+def test_refreshing_a_genuinely_expired_token_is_refused(client: Any) -> None:
+    """Spec 13.3 case four: `RefreshView`'s `except (TokenReuse, TokenError)`
+    arm also has to catch simplejwt's own expiry, not only this project's own
+    `TokenReuse`. `RefreshToken(raw_refresh)` raises `TokenError` once the
+    token's own `exp` claim is in the past, before `tokens.rotate` ever looks
+    up a `RefreshSession` row, so this is a different branch from the reuse
+    case in `test_refreshing_a_spent_refresh_token_ends_the_session` above.
+
+    `override_settings(SIMPLE_JWT={...})` cannot manufacture this case:
+    `RefreshToken.lifetime = api_settings.REFRESH_TOKEN_LIFETIME` is a class
+    attribute, bound once when `rest_framework_simplejwt.tokens` is imported,
+    so a later `setting_changed` signal updates the module-level
+    `api_settings` object and leaves the already-bound class attribute exactly
+    as it was (checked directly: `RefreshToken.lifetime` is unchanged inside
+    the `override_settings` block). What does force a real, signature-valid
+    expiry on one specific token is calling `set_exp` on the instance with a
+    negative lifetime before it is stringified, which is exactly what
+    `RefreshToken.for_user` calls internally with the real one.
+    """
+    from rest_framework_simplejwt.tokens import RefreshToken
+
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    refresh = RefreshToken(client.cookies[settings.AMPEER_REFRESH_COOKIE].value)
+    refresh.set_exp(from_time=refresh.current_time, lifetime=timedelta(seconds=-1))
+    client.cookies[settings.AMPEER_REFRESH_COOKIE] = str(refresh)
+    response = client.post("/api/auth/refresh/", content_type="application/json", **_csrf(client))
+    assert response.status_code == 401
+    assert response.json() == {"detail": NL["session_expired"]}
+    assert response.cookies[settings.AMPEER_ACCESS_COOKIE].value == ""
+    assert response.cookies[settings.AMPEER_REFRESH_COOKIE].value == ""
 
 
 def test_registering_without_the_csrf_token_is_refused() -> None:
@@ -598,8 +673,6 @@ def test_an_unknown_consent_kind_is_refused(client: Any) -> None:
 
 @pytest.mark.django_db
 def test_a_withdrawal_is_written_to_the_audit_log(client: Any) -> None:
-    from advice.models import AuditEvent
-
     client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
     client.post(
         "/api/auth/consent/",

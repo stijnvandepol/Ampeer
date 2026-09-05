@@ -12,6 +12,7 @@ import re
 from typing import Any
 
 import pytest
+from django.conf import settings
 
 from accounts.models import Consent, RefreshSession, User
 from advice.models import AuditEvent
@@ -89,3 +90,61 @@ def test_a_consent_row_holds_no_free_text() -> None:
     row = Consent.record(user, Consent.METER_LINK, Consent.GRANTED)
     assert " " not in row.text_version
     assert len(row.text_version) <= 32
+
+
+@pytest.mark.django_db
+def test_the_axes_tables_stay_empty_under_the_cache_handler(client: Any) -> None:
+    """`axes` in INSTALLED_APPS ships ten migrations regardless of which
+    handler is configured, so `AccessAttempt`, `AccessLog` and
+    `AccessFailureLog` EXIST on this database with an `ip_address` column
+    each. docs/dpia.md chapter 2 and the design spec do not (any more) claim
+    those tables are absent; the claim that survives is narrower and this is
+    what enforces it: with `AXES_HANDLER = "axes.handlers.cache.AxesCacheHandler"`
+    (base.py), nothing ever writes a row into any of the three, no matter how
+    many logins fail.
+
+    `tests/test_dpia.py::test_no_table_has_a_column_for_an_address` cannot see
+    this: it reads only first-party models by AST, so a third-party app's
+    tables are invisible to it. This test is the guard that covers exactly
+    that blind spot, over real HTTP and not `RequestFactory`.
+
+    Re-proving this red: `AxesProxyHandler.get_implementation` memoizes its
+    result, so swapping `AXES_HANDLER` with `override_settings` alone changes
+    nothing already resolved. Force a re-resolution in the same breath:
+
+        with override_settings(AXES_HANDLER="axes.handlers.database.AxesDatabaseHandler"):
+            AxesProxyHandler.get_implementation(force=True)
+            ... run the same six failed logins ...
+            AxesProxyHandler.get_implementation(force=True)  # restore
+
+    Done by hand against this test body: the failed logins never reach the
+    three assertions at all. `AXES_CLIENT_IP_CALLABLE` (accounts.lockout) hands
+    axes a salted digest, not a real address, and `AccessAttempt.ip_address`
+    is a `GenericIPAddressField`. `AxesDatabaseHandler` tries to write that
+    digest into it and Postgres's adapter rejects it outright:
+    `ValueError: 'c25f5168c56abbc493a4c86efd3cf343' does not appear to be an
+    IPv4 or IPv6 address`, raised from
+    `django/db/backends/postgresql/operations.py:adapt_ipaddressfield_value`
+    while handling the login POST. That is the failure this test exists to
+    catch: under the cache handler nothing is ever written, so the mismatch
+    between a hashed identifier and an `ip_address` column never surfaces; the
+    database handler cannot even accept the write. The handler is forced back
+    to the cache implementation in a `finally` immediately afterward so no
+    other test observes the swap.
+    """
+    from axes.models import AccessAttempt, AccessFailureLog, AccessLog
+
+    User.objects.create_user(email="iemand@voorbeeld.nl", password="een-lang-wachtwoord")
+    client.get("/api/auth/me/")
+    csrf = {"HTTP_X_CSRFTOKEN": client.cookies["csrftoken"].value}
+    for _ in range(settings.AXES_FAILURE_LIMIT + 1):
+        client.post(
+            "/api/auth/login/",
+            {"email": "iemand@voorbeeld.nl", "password": "verkeerd"},
+            content_type="application/json",
+            **csrf,
+        )
+
+    assert AccessAttempt.objects.count() == 0
+    assert AccessLog.objects.count() == 0
+    assert AccessFailureLog.objects.count() == 0

@@ -39,7 +39,8 @@ NL: Final[dict[str, str]] = {
     "email_taken": "er bestaat al een account met dit e-mailadres",
     "email_invalid": "geen geldig e-mailadres",
     "credentials_invalid": "e-mailadres of wachtwoord klopt niet",
-    "password_required": "wachtwoord ontbreekt",
+    #: B105 matches this dict key's name, not a credential: the value is Dutch UI copy.
+    "password_required": "wachtwoord ontbreekt",  # nosec B105
     #: `MinimumLengthValidator.get_error_message()` (in
     #: django.contrib.auth.password_validation) raises "...at least %d
     #: character(s)" with a bare, positional `%d`. Django's own shipped
@@ -50,7 +51,8 @@ NL: Final[dict[str, str]] = {
     #: the message actually raised never matches a Dutch msgid in that
     #: catalogue. See accounts/serializers.py::RegisterSerializer.validate_password
     #: and the task 9 report for the full diagnosis.
-    "password_too_short": "wachtwoord moet minimaal %(min_length)d tekens bevatten",
+    #: B105 matches this dict key's name, not a credential: the value is Dutch UI copy.
+    "password_too_short": "wachtwoord moet minimaal %(min_length)d tekens bevatten",  # nosec B105
     "not_signed_in": "u bent niet ingelogd",
     "session_expired": "uw sessie is verlopen, log opnieuw in",
     "csrf_failed": "deze pagina stond te lang open, herlaad hem en probeer het opnieuw",

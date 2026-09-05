@@ -71,7 +71,9 @@ Bestandenlijst, zodat het implementatieplan er niets bij hoeft te verzinnen:
 | `backend/accounts/nl.py` | Nederlandse teksten, gekoppeld aan Engelse ids |
 | `backend/accounts/lockout.py` | de twee callables die axes een gehashte identiteit geven |
 | `backend/accounts/management/commands/purge_expired_sessions.py` | het opruimen uit 4.4, naast de bestaande advies-opruiming |
-| `backend/accounts/migrations/0001_initial.py` | `User`, `Consent`, `RefreshSession` |
+| `backend/accounts/migrations/0001_initial.py` | `User`, met de `Lower("email")`-constraint |
+| `backend/accounts/migrations/0002_consent.py` | `Consent` |
+| `backend/accounts/migrations/0003_refreshsession.py` | `RefreshSession` |
 | `backend/advice/migrations/0005_storedadvice_owner.py` | de enige wijziging in `advice` |
 
 ## 3. Drie vondsten die dit ontwerp sturen
@@ -116,8 +118,10 @@ Niets in deze repository zou de terugval merken.
 in de DPIA zou stilzwijgend onwaar worden, en dat is exact de faalvorm waar deze repository
 tegen gebouwd is.
 
-Wat dit ontwerp daarom doet staat in 9.3, en het is niet "de kolom leegmaken" maar "de tabel
-niet laten bestaan".
+Wat dit ontwerp daarom doet staat in 9.3. De drie tabellen laten zich niet wegnemen: `axes` in
+`INSTALLED_APPS` draait tien migraties en maakt ze aan ongeacht welke handler ingesteld staat.
+Wat wel kan is dat er nooit een rij in komt, en dat is de vorm die 9.3 kiest: niet "de tabel
+niet laten bestaan" maar "de tabel laten bestaan en leeg laten blijven".
 
 ### 3.3 simplejwt bewaart het refresh-token in platte tekst
 
@@ -399,9 +403,14 @@ dat er iets stukgaat.
 
 Dat tweede is de plek waar de neutraliteitsregel uit `CLAUDE.md` technisch afdwingbaar wordt.
 Die regel zegt dat elk stuk code dat het advies laat afhangen van een commerciële relatie een bug
-is. Er staat dus een test die een advies berekent met `LEAD_GENERATION` op `False` en op `True`,
-en die eist dat het antwoord byte voor byte gelijk is. Dat is de vorm die die zin toetsbaar
-maakt, en hij is nu goedkoop te schrijven omdat er nog geen leadgeneratie is.
+is. Dit hoofdstuk vroeg om een test die een advies berekent met `LEAD_GENERATION` op `False` en op
+`True` en eist dat het antwoord byte voor byte gelijk is. Wat er ligt is een andere toets, met
+opzet: `tests/test_accounts_consent.py::test_nothing_that_computes_an_advice_can_see_a_consent`
+scant de adviescode op het woordenboek van een toestemming (`Consent`, `LEAD_GENERATION`,
+`consent_lead`) in plaats van twee adviezen te berekenen en te vergelijken. De byte-voor-byte
+versie is een test van een negatief: hij slaagt zolang niemand de koppeling geschreven heeft, en
+zegt daarna niets meer. De scan faalt zodra iemand die koppeling schrijft, in dezelfde diff, en is
+bovendien niet traag. Dat is de vervanging die hoofdstuk 13, punt 4, hieronder ook noemt.
 
 Niet-voorgevinkt is een eigenschap van de serializer en niet van de tekst op het scherm: het veld
 heeft geen `default`, dus een ontbrekend veld is een 400 en niet een stilzwijgende `True`. Een
@@ -571,8 +580,9 @@ gepasseerd.
 
 Drie instellingen, en alle drie hebben ze een reden die uit deze repository komt.
 
-`AXES_HANDLER = "axes.handlers.cache.AxesCacheHandler"`, zodat er geen `AccessAttempt`-tabel met
-een `ip_address`-kolom bestaat. Zie 3.2. In productie is de cache `DatabaseCache` in Postgres,
+`AXES_HANDLER = "axes.handlers.cache.AxesCacheHandler"`, zodat `AccessAttempt`, `AccessLog` en
+`AccessFailureLog` (elk met een `ip_address`-kolom, meegebracht door `axes` zelf, en aanwezig
+ongeacht deze instelling) nooit een rij krijgen. Zie 3.2. In productie is de cache `DatabaseCache` in Postgres,
 dus de teller wordt gedeeld over de drie gunicorn-workers en overleeft een deploy, en dat is
 precies wat een lockout nodig heeft. Dat is dezelfde afweging die `prod.py` al maakt voor de
 teller van de snelheidslimiet, met dezelfde uitleg erbij.
@@ -589,8 +599,8 @@ te zetten.
 `AXES_USERNAME_CALLABLE` doet hetzelfde met het e-mailadres, en dat is de instelling die het
 snelst over het hoofd gezien wordt. Zonder haar staat het geprobeerde e-mailadres in een
 cachesleutel, en die cache is in productie een rij in de tabel `ampeer_cache`. Dan zou het
-weglaten van de axes-tabellen alleen het adres hebben weggehaald en het adresboek hebben laten
-staan.
+leeg laten blijven van de axes-tabellen alleen het adres hebben weggehaald en het adresboek
+hebben laten staan.
 
 Die callable raakt alleen wat axes telt en opslaat, niet waarmee wordt ingelogd. De view geeft het
 echte e-mailadres aan de authenticatie door, want anders valt er niets op te zoeken; axes ziet
@@ -753,8 +763,11 @@ eerste commit mee. De nieuwe bestanden volgen de naamgeving in `tests/`.
    een verlopen token geeft 401. Plus dat een access-token in een `Authorization`-header **niet**
    wordt aanvaard, en dat een onveilige methode zonder `X-CSRFToken` wordt geweigerd.
 4. **`tests/test_accounts_consent.py`** De vier eisen uit `CLAUDE.md` afzonderlijk, plus de
-   neutraliteitstest uit hoofdstuk 6: een advies berekend met `LEAD_GENERATION` op `False` is byte
-   voor byte gelijk aan hetzelfde advies met `True`.
+   neutraliteitstest uit hoofdstuk 6. Niet de byte-voor-byte vergelijking die hoofdstuk 6 eerst
+   voorstelde: `test_nothing_that_computes_an_advice_can_see_a_consent` scant `backend/advice`,
+   `ampeer_advice` en `ampeer_sim` op het woordenboek van een toestemming in plaats van twee
+   adviezen te berekenen, precies omdat een test van een negatief anders zwak en traag tegelijk
+   zou zijn.
 5. **`tests/test_accounts_privacy.py`** Dat geen enkel model in `backend/accounts/` een
    adresachtige kolom heeft, dat geen `AuditEvent`-context een e-mailadres bevat, en dat de export
    de opgeslagen JSON ongewijzigd doorgeeft in plaats van bedragen opnieuw op te bouwen.
@@ -781,7 +794,7 @@ faalvorm die 3.2 beschrijft.
 
 | Bestand | Wat er moet gebeuren |
 |---|---|
-| `tests/test_dpia.py` | `MODELS` en `VIEWS` wijzen op naam naar `backend/advice/models.py` en `backend/advice/views.py`. Beide worden lijsten die `backend/accounts/` meenemen, anders ontsnappen precies de modellen met persoonsgegevens aan de adrescontrole en de nieuwe views aan de werkwoordcontrole |
+| `tests/test_dpia.py` | `MODELS` en `VIEWS` wijzen op naam naar `backend/advice/models.py` en `backend/advice/views.py`. `VIEWS` wordt een lijst die `backend/accounts/` meeneemt; `MODELS` blijft één pad en krijgt een eigen `ACCOUNT_MODELS` ernaast, omdat twee bestaande tests `MODELS.read_text()` rechtstreeks aanroepen voor een eigenschap van alleen `advice/models.py`. Zonder deze wijziging ontsnappen precies de modellen met persoonsgegevens aan de adrescontrole en de nieuwe views aan de werkwoordcontrole |
 | `tests/test_dpia.py` | `test_the_audit_log_records_exactly_what_the_document_says_it_does` krijgt de acht nieuwe gebeurtenistypen, samen met het herschreven document en niet los ervan |
 | `tests/test_backend_settings.py` | `test_nothing_authenticates_because_there_is_nothing_to_log_in_to` beweert `"django.contrib.auth" not in settings.INSTALLED_APPS`, en die regel wordt onwaar zodra `AUTH_USER_MODEL` die app nodig heeft. Die ene assertie gaat eruit, de drie andere (geen sessies, geen admin, lege `DEFAULT_AUTHENTICATION_CLASSES`) blijven staan, en de docstring wordt herschreven naar die versmalde belofte |
 | `docs/dpia.md` hoofdstuk 1 | De conclusie dat een beoordeling waarschijnlijk niet verplicht is, gold voor fase 0.5 en zegt zelf dat de reden bij de volgende fase verdwijnt |

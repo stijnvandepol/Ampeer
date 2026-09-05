@@ -97,6 +97,15 @@ def test_nothing_that_computes_an_advice_can_see_a_consent() -> None:
     import pathlib
 
     root = pathlib.Path(__file__).resolve().parent.parent
+    # Case-sensitive on purpose: that is what lets AuditEvent's own
+    # CONSENT_GRANTED / CONSENT_WITHDRAWN constants (all caps) live inside
+    # advice/models.py without tripping this scan, while a literal `Consent`
+    # or `LEAD_GENERATION` reference would not. The lowercase reverse accessor
+    # Django generates for a FK, `user.consents`, would slip past all three
+    # words the same way. No such path is reachable today: the advice views
+    # this scan protects never receive a `user` at all, so there is nothing
+    # for `.consents` to be called on. A future view that does gain a user
+    # would need its own check.
     forbidden = ("Consent", "LEAD_GENERATION", "consent_lead")
     offenders = [
         f"{path.relative_to(root)}: {word}"

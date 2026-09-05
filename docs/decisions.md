@@ -1002,8 +1002,12 @@ would not have blocked but this project's own security rule does.
 
 **Decided:** `AXES_HANDLER = "axes.handlers.cache.AxesCacheHandler"` stays,
 with `AXES_CLIENT_IP_CALLABLE` and `AXES_USERNAME_CALLABLE` pointed at
-`accounts.lockout`, rather than the default database handler that would create
-an `AccessAttempt` table with an `ip_address` column.
+`accounts.lockout`, rather than the default database handler. `axes` in
+`INSTALLED_APPS` runs its migrations either way, so `AccessAttempt`,
+`AccessLog` and `AccessFailureLog` exist on this database regardless, each
+with an `ip_address` column; what the cache handler buys is that none of the
+three ever receives a row (measured: zero rows in all three after six failed
+HTTP logins).
 
 **Because:** two separate properties had to hold for a shared cache counter to
 be trustworthy for a lockout, and both were measured rather than assumed.

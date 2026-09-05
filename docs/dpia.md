@@ -48,8 +48,9 @@ conclusie zelf aan de verwerkingsverantwoordelijke.
 
 ## 2. Wat wij verwerken
 
-Alles hieronder komt uit `backend/advice/models.py` en
-`backend/advice/serializers.py`.
+Alles hieronder komt uit `backend/advice/models.py`,
+`backend/advice/serializers.py` en, sinds fase 1, `backend/accounts/models.py`
+en de axes-instellingen.
 
 ### Wat de bezoeker invult
 
@@ -87,18 +88,23 @@ ervoor: `StoredAdvice.owner` in `backend/advice/models.py` staat op elke rij op
 `NULL` totdat een latere fase hem vult, en de tokenroute kijkt er niet naar. Wie
 nooit een account aanmaakt, merkt dus niets van dit hoofdstuk.
 
-**Geen IP-adres in enige tabel.** Het IP-adres wordt gebruikt, want het
-tempolimiet moet ergens op tellen, maar het wordt daarvoor eerst gehasht
-(`advice/throttling.py`) en de teller staat in een cache met een vervaltijd. Er
-is geen model met een adresveld en geen logregel die er een bewaart. Hetzelfde
-geldt voor de inlogpogingen die `django-axes` sinds fase 1 bijhoudt:
-`AXES_HANDLER` staat op de cachehandler en niet op de databasehandler, dus ook
-een mislukte aanmelding telt op tegen een sleutel in een cache met een
-vervaltijd en niet in een tabel.
+**Geen IP-adres in enige tabel die deze dienst zelf ontwerpt, en een lege tabel
+bij de tabellen die een derde partij meebrengt.** Het IP-adres wordt gebruikt,
+want het tempolimiet moet ergens op tellen, maar het wordt daarvoor eerst
+gehasht (`advice/throttling.py`) en de teller staat in een cache met een
+vervaltijd. Geen model van deze dienst heeft een adresveld en geen logregel van
+deze dienst bewaart er een. `django-axes` is anders: die app brengt zelf drie
+tabellen mee met een `ip_address`-kolom (`AccessAttempt`, `AccessLog`,
+`AccessFailureLog`), en die tabellen bestaan zodra `axes` in `INSTALLED_APPS`
+staat, ongeacht welke handler ingesteld is. Wat hier telt is dat ze leeg
+blijven: `AXES_HANDLER` staat op de cachehandler en niet op de databasehandler,
+dus een mislukte aanmelding telt op tegen een sleutel in een cache met een
+vervaltijd, en niets schrijft ooit een rij in die drie tabellen. Gemeten: na
+zes mislukte aanmeldingen staan alle drie op nul rijen.
 
 ### Het auditlogboek
 
-`AuditEvent` is append-only en kent sinds fase 1 acht soorten gebeurtenissen in
+`AuditEvent` is append-only en kent sinds fase 1 negen soorten gebeurtenissen in
 plaats van een: dat er een advies is gegenereerd (`ADVICE_GENERATED`), dat een
 account is aangemaakt (`ACCOUNT_CREATED`), dat een aanmelding lukte of mislukte
 (`LOGIN_SUCCEEDED`, `LOGIN_FAILED`), dat iemand uitlogde (`LOGOUT`), dat een
@@ -107,11 +113,21 @@ toestemming is gegeven of ingetrokken (`CONSENT_GRANTED`,
 een account is verwijderd (`ACCOUNT_DELETED`). Bij de eerste regel staat een
 sha256 van het token, het viercijferige postcodegebied, het
 betrouwbaarheidsniveau en de twee versienummers van de motor en de regeltabel.
-Bij de zeven andere staat een `user_id`, een geheel getal, en nooit een
-e-mailadres: deze tabel wordt nooit opgeruimd, dus wat erin staat overleeft het
-account dat het beschrijft, en een getal dat naar een verwijderde rij wijst is
-een lege verwijzing waar een e-mailadres een blijvend persoonsgegeven zou zijn
-in een tabel zonder bewaartermijn.
+De acht andere dragen geen vaste vorm, en dat is opzettelijk beschreven in
+plaats van vereenvoudigd tot een: de meeste dragen een `user_id`, een geheel
+getal of `null`, en nooit een e-mailadres. `null` betekent dat een mislukte
+aanmelding een adres probeerde dat bij geen account hoort; er is dan niets om
+naar te verwijzen, en dat is het punt, niet een omissie. Een toestemmingsregel
+draagt daarnaast een `kind` (`METER_LINK` of `LEAD_GENERATION`), want anders
+staat er een toestemming zonder te zeggen waarvoor. En een mislukte
+tokenvernieuwing draagt geen `user_id` maar alleen `reused`, een boolean die
+onderscheidt of het ging om een hergebruikt token of om een andere fout: op dat
+moment is de sessie al ontkoppeld van de aanvraag, en een `user_id` verzinnen
+zou een koppeling suggereren die er niet is. In alle gevallen geldt: deze
+tabel wordt nooit opgeruimd, dus wat erin staat overleeft het account dat het
+beschrijft, en een getal dat naar een verwijderde rij wijst is een lege
+verwijzing waar een e-mailadres een blijvend persoonsgegeven zou zijn in een
+tabel zonder bewaartermijn.
 
 **Niet het token zelf.** Het token is geen verwijzing naar een advies, het is
 de enige sleutel die het opent, en deze tabel wordt nooit opgeruimd. Een token
@@ -411,6 +427,18 @@ onder `/api/auth/` beantwoordt uitsluitend `get` en `post`. De route vraagt het
 wachtwoord opnieuw, dus bezit van de sessiecookie alleen is niet genoeg: wie de
 cookie steelt maar het wachtwoord niet heeft, kan het account niet verwijderen.
 Dat is precies de autorisatie die bij de tokenroute ontbrak en ontbreekt.
+
+Diezelfde vraag om het wachtwoord heeft een keerzijde die hier eerlijk genoemd
+hoort te worden: fase 1 kent geen route om een vergeten wachtwoord te
+herstellen (`docs/decisions.md` entry 31), dus wie het wachtwoord kwijt is kan
+`/api/auth/delete/` niet bereiken en heeft dan geen zelfbedieningsweg meer om
+het account te laten verwijderen. Het account zelf blijft dan bestaan, niet
+tijdelijk: er is geen opruiming die een `User`-rij aanraakt. Wat de bestaande
+opruiming wel doet is elk `StoredAdvice` na negentig dagen laten vervallen, dus
+wat materieel overblijft is een e-mailadres, een wachtwoordhash en een paar
+toestemmingsrijen. Dat is de dunste vorm die dit account kan aannemen, en het
+is niet niets. Dit is de zwakste plek van dit ontwerp, aanvaardbaar zolang fase
+1 en fase 2 dicht op elkaar zitten en het aantal accounts klein is.
 
 Wat er dan gebeurt staat in `delete_account` in `backend/accounts/service.py`,
 in een transactie. `CASCADE` neemt `Consent`, elke `RefreshSession` en elk

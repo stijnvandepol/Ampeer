@@ -99,6 +99,20 @@ def test_revoking_ends_only_the_session_that_was_offered(_account: User) -> None
 
 
 @pytest.mark.django_db
+def test_revoking_an_already_revoked_session_touches_nothing_a_second_time(
+    _account: User,
+) -> None:
+    """`revoke`'s `session.revoked_at is None` half of the short-circuit: a
+    session already ended stays exactly as it was, rather than getting its
+    `revoked_at` bumped forward on a second logout for the same cookie."""
+    _, refresh = tokens.issue(_account)
+    tokens.revoke(refresh)
+    first = RefreshSession.objects.get(user=_account).revoked_at
+    tokens.revoke(refresh)
+    assert RefreshSession.objects.get(user=_account).revoked_at == first
+
+
+@pytest.mark.django_db
 def test_revoking_a_token_with_no_recorded_session_does_nothing_and_raises_nothing(
     _account: User,
 ) -> None:

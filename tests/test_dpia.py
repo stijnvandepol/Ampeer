@@ -191,7 +191,7 @@ def test_no_table_has_a_column_for_an_address() -> None:
 
 
 def test_the_audit_log_records_exactly_what_the_document_says_it_does() -> None:
-    """Eight event types today, and the document explains why two more are absent.
+    """Nine event types today, and the document explains why two more are absent.
 
     A ninth kind arriving means a handling arrived with it, which is precisely
     when a privacy document has to be reread rather than assumed.
@@ -240,7 +240,16 @@ AUDIT_CONTEXT_PHRASES = {
     "confidence": "betrouwbaarheidsniveau",
     "engine_version": "versienummers van de motor",
     "advice_version": "de regeltabel",
+    "user_id": "`user_id`",
+    "kind": "`kind`",
+    "reused": "`reused`",
 }
+
+#: Every accounts/ source file, walked rather than named one by one: eleven
+#: AuditEvent.record() call sites exist today across views.py and service.py,
+#: and a twelfth arriving with a new keyword should fail this test rather than
+#: silently ship a document that no longer says what the log carries.
+ACCOUNTS = REPO_ROOT / "backend" / "accounts"
 
 
 def _audit_context_keys() -> list[str]:
@@ -264,6 +273,30 @@ def _audit_context_keys() -> list[str]:
     return [keyword.arg for keyword in calls[0].keywords if keyword.arg]
 
 
+def _accounts_audit_context_keys() -> set[str]:
+    """Every keyword an `AuditEvent.record(` call writes, anywhere under
+    backend/accounts/.
+
+    Matched on the callee's own name (`AuditEvent`) and not merely the method
+    name `record`, so `Consent.record(user, kind, action)`, which shares the
+    method name but takes no keywords, cannot be mistaken for the audit call
+    it sits beside on the same lines.
+    """
+    keys: set[str] = set()
+    for path in sorted(ACCOUNTS.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "record"
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "AuditEvent"
+            ):
+                keys.update(keyword.arg for keyword in node.keywords if keyword.arg)
+    return keys
+
+
 def test_the_document_names_everything_the_audit_line_carries() -> None:
     """Chapter 2 listed two of the five fields, and got one of those wrong.
 
@@ -278,10 +311,12 @@ def test_the_document_names_everything_the_audit_line_carries() -> None:
     hold the service to, and it was describing a worse service than the one
     that runs. The other three fields it did not mention at all.
 
-    Both directions are asserted. A sixth field cannot join the audit line
-    without a sentence about it, and a sentence cannot outlive the field.
+    Both directions are asserted, over every AuditEvent.record() call this
+    repository writes: the one in backend/advice/service.py and every one
+    under backend/accounts/. A sixth field cannot join the audit line without
+    a sentence about it, and a sentence cannot outlive the field.
     """
-    keys = set(_audit_context_keys())
+    keys = set(_audit_context_keys()) | _accounts_audit_context_keys()
     assert keys == set(AUDIT_CONTEXT_PHRASES), (
         f"the audit line carries {sorted(keys)} and this table describes "
         f"{sorted(AUDIT_CONTEXT_PHRASES)}. Chapter 2 has to say what is written down."
