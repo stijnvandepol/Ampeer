@@ -16,6 +16,7 @@ from helpers.accounts import TEST_PASSWORD as PASSWORD
 from rest_framework.test import APIClient
 
 from accounts.models import Consent, RefreshSession, User
+from accounts.nl import CONSENT_TEXT_VERSION
 from advice.models import AuditEvent, StoredAdvice
 
 BODY = {
@@ -23,6 +24,9 @@ BODY = {
     "password": PASSWORD,
     "consent_meter_link": True,
     "consent_lead_generation": False,
+    # Required since the consent text got a lock: a body without it is a page
+    # that did not read the sentence it is agreeing to.
+    "text_version": CONSENT_TEXT_VERSION,
 }
 
 

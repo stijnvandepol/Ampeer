@@ -18,7 +18,7 @@ from rest_framework.request import Request
 from rest_framework.test import APIClient, APIRequestFactory
 
 from accounts.models import Consent, User
-from accounts.nl import NL
+from accounts.nl import CONSENT_TEXT_VERSION, NL
 from accounts.views import _AuthAPIView
 from advice.models import AuditEvent
 
@@ -27,6 +27,9 @@ BODY = {
     "password": PASSWORD,
     "consent_meter_link": True,
     "consent_lead_generation": False,
+    # Required since the consent text got a lock: a body without it is a page
+    # that did not read the sentence it is agreeing to.
+    "text_version": CONSENT_TEXT_VERSION,
 }
 
 
@@ -634,7 +637,11 @@ def test_a_consent_can_be_withdrawn_and_given_again(client: Any) -> None:
 
     again = client.post(
         "/api/auth/consent/",
-        {"kind": "METER_LINK", "action": "GRANTED"},
+        {
+            "kind": "METER_LINK",
+            "action": "GRANTED",
+            "text_version": CONSENT_TEXT_VERSION,
+        },
         content_type="application/json",
         **_csrf(client),
     )
@@ -702,3 +709,133 @@ def test_an_access_token_in_a_header_is_not_accepted(client: Any) -> None:
         "an access token was accepted out of a header, so there are two places it can be "
         "replayed from and only one of them was designed for"
     )
+
+
+def test_the_consent_texts_are_public_and_come_from_nl_py(client: Any) -> None:
+    """The one route on this API that describes nobody.
+
+    No account, no cookie, no CSRF token: a visitor who has never been here
+    has to be able to read the sentence before agreeing to it, and the
+    registration form cannot be shown until it has. Asserted against nl.py
+    rather than against a literal, because the whole point of chapter 5 of
+    the design is that there is one copy of these sentences.
+    """
+    response = client.get("/api/auth/consent-texts/")
+    assert response.status_code == 200, response.content
+    assert response.json() == {
+        "text_version": CONSENT_TEXT_VERSION,
+        "texts": {
+            "LEAD_GENERATION": NL["CONSENT_LEAD_GENERATION"],
+            "METER_LINK": NL["CONSENT_METER_LINK"],
+        },
+    }
+
+
+def test_the_consent_text_keys_are_the_consent_kinds(client: Any) -> None:
+    """A third kind of consent that the frontend never shows is drift, and it
+    falls over here, on the side where it was added."""
+    texts = client.get("/api/auth/consent-texts/").json()["texts"]
+    assert sorted(texts) == sorted(Consent.KINDS)
+    for kind, sentence in texts.items():
+        assert sentence == NL[f"CONSENT_{kind}"]
+        assert sentence.strip(), f"{kind} carries an empty sentence"
+
+
+def test_the_consent_texts_are_not_cached_by_anything_in_between(client: Any) -> None:
+    """`_AuthAPIView` puts `private, no-store` on every answer under /api/auth/.
+
+    Strictly too strong for this one, which describes no household. It stays
+    because an exception on the base class for one route makes the base class
+    weaker than it is now, and a cache that does not keep this costs nothing.
+    """
+    response = client.get("/api/auth/consent-texts/")
+    assert response.headers["Cache-Control"] == "private, no-store"
+
+
+@pytest.mark.django_db
+def test_registering_under_a_stale_consent_text_is_refused(client: Any) -> None:
+    """The gap chapter 5.2 closes: a tab left open for an hour while the text
+    is rewritten and rolled out, after which `Consent.record` stamps the new
+    version on a row whose owner read the old sentence."""
+    body = BODY | {"text_version": "1999-01-01"}
+    response = client.post(
+        "/api/auth/register/", body, content_type="application/json", **_csrf(client)
+    )
+    assert response.status_code == 400
+    assert response.json()["text_version"] == [NL["consent_text_stale"]]
+    assert User.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_registering_without_a_text_version_is_refused(client: Any) -> None:
+    """Required on this serializer, so a missing field is DRF's own 400 and
+    never a silent registration under whatever version happens to be current."""
+    body = {key: value for key, value in BODY.items() if key != "text_version"}
+    response = client.post(
+        "/api/auth/register/", body, content_type="application/json", **_csrf(client)
+    )
+    assert response.status_code == 400
+    assert "text_version" in response.json()
+
+
+@pytest.mark.django_db
+def test_granting_a_consent_under_a_stale_text_is_refused(client: Any) -> None:
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    response = client.post(
+        "/api/auth/consent/",
+        {"kind": "LEAD_GENERATION", "action": "GRANTED", "text_version": "1999-01-01"},
+        content_type="application/json",
+        **_csrf(client),
+    )
+    assert response.status_code == 400
+    assert response.json()["text_version"] == [NL["consent_text_stale"]]
+    user = User.objects.get(email="iemand@voorbeeld.nl")
+    assert Consent.current(user, Consent.LEAD_GENERATION) is False
+
+
+@pytest.mark.django_db
+def test_granting_a_consent_without_a_text_version_is_refused(client: Any) -> None:
+    """Absent and wrong are answered by the same comparison, and the message is
+    the same one: either way the client did not send the version it displayed.
+    One branch, one key, which is what chapter 5.2 asks for."""
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    response = client.post(
+        "/api/auth/consent/",
+        {"kind": "LEAD_GENERATION", "action": "GRANTED"},
+        content_type="application/json",
+        **_csrf(client),
+    )
+    assert response.status_code == 400
+    assert response.json()["text_version"] == [NL["consent_text_stale"]]
+
+
+@pytest.mark.django_db
+def test_withdrawing_a_consent_needs_no_text_version_at_all(client: Any) -> None:
+    """Article 7(3): withdrawing has to be as easy as giving. Refusing a
+    withdrawal because the wording changed in the meantime is exactly that
+    not being true, so the field is ignored here rather than merely optional."""
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    user = User.objects.get(email="iemand@voorbeeld.nl")
+    response = client.post(
+        "/api/auth/consent/",
+        {"kind": "METER_LINK", "action": "WITHDRAWN"},
+        content_type="application/json",
+        **_csrf(client),
+    )
+    assert response.status_code == 200
+    assert Consent.current(user, Consent.METER_LINK) is False
+
+
+@pytest.mark.django_db
+def test_withdrawing_with_a_stale_text_version_is_still_accepted(client: Any) -> None:
+    """The other half of ignoring it. A field that is merely optional would
+    still be validated when present, and a tab that has been open since the
+    last rewrite is precisely the tab somebody withdraws from."""
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    response = client.post(
+        "/api/auth/consent/",
+        {"kind": "METER_LINK", "action": "WITHDRAWN", "text_version": "1999-01-01"},
+        content_type="application/json",
+        **_csrf(client),
+    )
+    assert response.status_code == 200

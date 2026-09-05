@@ -1,4 +1,4 @@
-"""The account routes. Eight of them, and only `get` and `post` among them.
+"""The account routes. Nine of them, and only `get` and `post` among them.
 
 That is not a workaround for a test. docs/dpia.md chapter 7 describes an API
 that reads and computes, and says that rectification adds a row rather than
@@ -26,7 +26,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from accounts import cookies, service, tokens
 from accounts.authentication import CookieJWTAuthentication, enforce_csrf
 from accounts.models import Consent, User
-from accounts.nl import NL
+from accounts.nl import CONSENT_TEXT_VERSION, NL
 from accounts.serializers import ConsentSerializer, LoginSerializer, RegisterSerializer
 from advice.models import AuditEvent
 from advice.views import _NoStoreAPIView
@@ -210,6 +210,35 @@ class RefreshView(_AuthAPIView):
         response = Response(status=status.HTTP_200_OK)
         cookies.set_tokens(response, access, refresh)
         return response
+
+
+class ConsentTextsView(_AuthAPIView):
+    """The sentences a household agrees to, and the version they are agreed under.
+
+    Public, because the registration form may not be shown until it has them:
+    a `true` sent for a sentence nobody read is not consent. On `auth-read`
+    rather than a scope of its own, for the same reason `me/` is: this is a
+    call at the start of a page load, and 120 an hour is the measure for that.
+    A seventh `auth` rate for an answer that touches no database and is the
+    same for everybody would be a number nobody derived from anything.
+
+    The view composes nothing and formats nothing. The keys are
+    `sorted(Consent.KINDS)` and the values are `NL["CONSENT_" + kind]`,
+    literally, which is what makes the sentence on the screen and the sentence
+    behind the recorded version the same string.
+    """
+
+    authentication_classes: Sequence[type[BaseAuthentication]] = ()
+    permission_classes: Sequence[type[BasePermission]] = (AllowAny,)
+    throttle_scope = "auth-read"
+
+    def get(self, request: Request) -> Response:
+        return Response(
+            {
+                "text_version": CONSENT_TEXT_VERSION,
+                "texts": {kind: NL[f"CONSENT_{kind}"] for kind in sorted(Consent.KINDS)},
+            }
+        )
 
 
 class MeView(_AuthAPIView):

@@ -9,6 +9,7 @@ from __future__ import annotations
 from django.urls import URLPattern, path
 
 from accounts.views import (
+    ConsentTextsView,
     ConsentView,
     DeleteView,
     ExportView,
@@ -26,6 +27,7 @@ urlpatterns: list[URLPattern] = [
     path("logout/", LogoutView.as_view(), name="auth-logout"),
     path("me/", MeView.as_view(), name="auth-me"),
     path("consent/", ConsentView.as_view(), name="auth-consent"),
+    path("consent-texts/", ConsentTextsView.as_view(), name="auth-consent-texts"),
     path("export/", ExportView.as_view(), name="auth-export"),
     path("delete/", DeleteView.as_view(), name="auth-delete"),
 ]

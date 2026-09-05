@@ -16,6 +16,7 @@ from django.conf import settings
 from helpers.accounts import TEST_PASSWORD
 
 from accounts.models import Consent, RefreshSession, User
+from accounts.nl import CONSENT_TEXT_VERSION
 from advice.models import AuditEvent
 
 EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[a-z]{2,}", re.IGNORECASE)
@@ -36,6 +37,7 @@ def test_no_audit_line_the_account_layer_writes_carries_an_address(client: Any) 
         "password": TEST_PASSWORD,
         "consent_meter_link": True,
         "consent_lead_generation": True,
+        "text_version": CONSENT_TEXT_VERSION,
     }
     client.get("/api/auth/me/")
     csrf = {"HTTP_X_CSRFTOKEN": client.cookies["csrftoken"].value}
