@@ -11,12 +11,6 @@ from rest_framework import serializers
 from accounts.models import Consent, User
 from accounts.nl import NL
 
-#: The one Django validator message whose shipped Dutch translation does not
-#: match the text it actually raises; see `RegisterSerializer.validate_password`.
-#: `%(min_length)d` matches the parameter Django's own
-#: `MinimumLengthValidator` raises its `ValidationError` with.
-_PASSWORD_TOO_SHORT_NL = "wachtwoord moet minimaal %(min_length)d tekens bevatten"
-
 
 class LoginSerializer(serializers.Serializer[dict[str, Any]]):
     email = serializers.EmailField(error_messages={"invalid": NL["email_invalid"]})
@@ -52,23 +46,19 @@ class RegisterSerializer(LoginSerializer):
         `CommonPasswordValidator` and `UserAttributeSimilarityValidator` all
         translate correctly this way.
 
-        `MinimumLengthValidator` is the one exception, and the earlier
-        docstring here (before this fix round) was wrong about why: it is not
-        a settings problem. `MinimumLengthValidator.get_error_message()`
-        formats "...at least %d character(s)" with a positional placeholder,
-        but the Dutch catalogue Django ships
-        (`django/contrib/auth/locale/nl/LC_MESSAGES/django.po`) only
-        translates the differently worded "...at least %(min_length)d
-        character(s)" message that `get_help_text()` uses on a path this
-        validator never takes. That mismatch is inside Django's own bundled
-        translation data in this installed version, not something
-        `USE_I18N`, `LANGUAGE_CODE` or a middleware can fix, so this one code
-        is corrected by hand.
-
-        `_PASSWORD_TOO_SHORT_NL` belongs in `accounts/nl.py` by this
-        project's own convention; it is a module-level constant here instead
-        because `nl.py` is task 5's file and outside this fix round's
-        ownership. See the task 9 report for the follow-up this leaves.
+        `MinimumLengthValidator` is the one exception, and it is not a
+        settings problem. Django's shipped Dutch catalogue
+        (`django/contrib/auth/locale/nl/LC_MESSAGES/django.po:274-284`) does
+        contain a "too short" translation, keyed to the
+        `"...at least %(min_length)d character(s)"` wording that
+        `get_help_text()` raises. `get_error_message()`, the method
+        `validate()` actually calls, formats a *different* string,
+        `"...at least %d character(s)"` with a bare positional `%d`, which
+        matches no msgid in that catalogue. That mismatch is inside Django's
+        own bundled translation data in this installed version, not
+        something `USE_I18N`, `LANGUAGE_CODE` or a middleware can fix, so
+        `NL["password_too_short"]` corrects this one code by hand rather than
+        passing `error.messages` straight through.
         """
         try:
             validate_password(value)
@@ -76,7 +66,7 @@ class RegisterSerializer(LoginSerializer):
             messages: list[str] = []
             for sub_error in error.error_list:
                 if sub_error.code == "password_too_short" and sub_error.params:
-                    messages.append(_PASSWORD_TOO_SHORT_NL % sub_error.params)
+                    messages.append(NL["password_too_short"] % sub_error.params)
                 else:
                     messages.extend(sub_error.messages)
             raise serializers.ValidationError(messages) from error

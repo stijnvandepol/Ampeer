@@ -8,6 +8,10 @@ e-mailadres in" would be a sentence somebody is spoken to in, and then
 docs/decisions.md entry 1 about the register applies. `email_taken`,
 `email_invalid`, `credentials_invalid`, `password_required`, `csrf_failed`,
 `consent_kind_unknown` and `consent_action_unknown` are this category.
+`password_too_short` is one of them too, and it is the first entry in this
+table to carry a `%(...)` placeholder: the caller formats it with a value it
+alone knows (the configured minimum length), so the string here stays a
+template and not a hardcoded number.
 
 A second category is not about a field at all: it tells the reader something
 about their own session or sign-in state, and there is no field to name
@@ -36,6 +40,17 @@ NL: Final[dict[str, str]] = {
     "email_invalid": "geen geldig e-mailadres",
     "credentials_invalid": "e-mailadres of wachtwoord klopt niet",
     "password_required": "wachtwoord ontbreekt",
+    #: `MinimumLengthValidator.get_error_message()` (in
+    #: django.contrib.auth.password_validation) raises "...at least %d
+    #: character(s)" with a bare, positional `%d`. Django's own shipped
+    #: catalogue (django/contrib/auth/locale/nl/LC_MESSAGES/django.po:274-284)
+    #: does contain a Dutch "too short" translation, but keyed to the
+    #: differently formatted "...at least %(min_length)d character(s)" that
+    #: only `get_help_text()` raises, on a path this validator never takes, so
+    #: the message actually raised never matches a Dutch msgid in that
+    #: catalogue. See accounts/serializers.py::RegisterSerializer.validate_password
+    #: and the task 9 report for the full diagnosis.
+    "password_too_short": "wachtwoord moet minimaal %(min_length)d tekens bevatten",
     "not_signed_in": "u bent niet ingelogd",
     "session_expired": "uw sessie is verlopen, log opnieuw in",
     "csrf_failed": "deze pagina stond te lang open, herlaad hem en probeer het opnieuw",

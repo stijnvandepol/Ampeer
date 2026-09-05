@@ -17,7 +17,6 @@ from rest_framework.test import APIClient, APIRequestFactory
 
 from accounts.models import Consent, User
 from accounts.nl import NL
-from accounts.serializers import _PASSWORD_TOO_SHORT_NL
 from accounts.views import _AuthAPIView
 from advice.models import AuditEvent
 
@@ -145,16 +144,17 @@ def test_registering_with_an_email_already_in_use_is_refused(client: Any) -> Non
 @pytest.mark.django_db
 def test_a_short_password_is_refused_in_dutch(client: Any) -> None:
     """Asserts the Dutch sentence itself, not merely that a `password` key
-    exists: `MinimumLengthValidator.get_error_message()` raises an English
-    message that Django's own shipped Dutch catalogue does not translate (a
-    msgid mismatch inside Django 5.2.17, not a project settings problem; see
-    `accounts.serializers._PASSWORD_TOO_SHORT_NL` and the task 9 report), so a
-    test that only checked for the key's presence would pass on the English
-    text just as well.
+    exists: `MinimumLengthValidator.get_error_message()` raises a message
+    keyed to no Dutch msgid in Django's shipped catalogue (Django's
+    `django.po` does translate "too short", but only the differently
+    formatted string `get_help_text()` raises; a mismatch inside Django
+    5.2.17 itself, not a project settings problem; see `NL["password_too_short"]`
+    in `accounts/nl.py` and the task 9 report), so a test that only checked
+    for the key's presence would pass on the English text just as well.
 
     Red-proof, run manually and reverted (not committed, since it would
     require monkeypatching `MinimumLengthValidator.get_error_message` itself
-    to fake a mismatch): temporarily changing `_PASSWORD_TOO_SHORT_NL`'s
+    to fake a mismatch): temporarily changing `NL["password_too_short"]`'s
     `%(min_length)d` to `%(min_length)s` raises a `KeyError`-free but visibly
     different string, and reverting `RegisterSerializer.validate_password` to
     `raise serializers.ValidationError(list(error.messages)) from error` (the
@@ -165,14 +165,14 @@ def test_a_short_password_is_refused_in_dutch(client: Any) -> None:
         "/api/auth/register/", body, content_type="application/json", **_csrf(client)
     )
     assert response.status_code == 400
-    assert response.json()["password"] == [_PASSWORD_TOO_SHORT_NL % {"min_length": 12}]
+    assert response.json()["password"] == [NL["password_too_short"] % {"min_length": 12}]
 
 
 @pytest.mark.django_db
 def test_a_password_failing_a_different_validator_still_translates(client: Any) -> None:
     """The `else` branch in `validate_password`: a code other than
     `password_too_short` is left to Django's own translation rather than
-    routed through `_PASSWORD_TOO_SHORT_NL`. An all-digit password fails
+    routed through `NL["password_too_short"]`. An all-digit password fails
     `NumericPasswordValidator`, whose message Django's shipped Dutch
     catalogue does translate correctly (verified directly against
     `django.contrib.auth.password_validation` in this project's Django
