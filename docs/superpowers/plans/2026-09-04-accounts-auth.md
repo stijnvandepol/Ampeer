@@ -2,7 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** in progress
+**Status:** delivered
+
+> **Status op 2026-09-04: opgeleverd.** Elk bestand dat dit plan noemt staat in de
+> boom, wat `tests/test_plans.py` voor alle zeven plannen controleert en wat rood
+> wordt op de dag dat een ervan niet meer klopt. Wat die test niet kan zeggen is
+> of elke stap is uitgevoerd zoals hij hier staat; daar zijn de commitgeschiedenis
+> en de suite voor.
 
 **Goal:** Een huishouden kan een account aanmaken bij de start van een meterkoppeling, inloggen, zijn twee toestemmingen geven en intrekken, zijn gegevens exporteren en zijn account verwijderen, zonder dat de anonieme rekenmachine iets van dat alles merkt.
 
