@@ -36,7 +36,7 @@
 
 ## Het werkmodel
 
-1. **Het plan draait serieel**, taak 1 tot en met 14, in deze volgorde en nooit twee tegelijk. superpowers:subagent-driven-development is hier de uitvoeringsautoriteit en zegt met zoveel woorden "Never dispatch multiple implementation subagents in parallel (conflicts)". Drie taken schrijven in `docs/dpia.md`, drie in `tests/test_accounts_recovery.py`, twee in `backend/accounts/views.py` en twee in `.github/workflows/deploy.yml`; twee daarvan naast elkaar botsen gegarandeerd.
+1. **Het plan draait serieel**, taak 1 tot en met 14, in deze volgorde en nooit twee tegelijk. superpowers:subagent-driven-development is hier de uitvoeringsautoriteit en zegt met zoveel woorden "Never dispatch multiple implementation subagents in parallel (conflicts)". Drie taken schrijven in `docs/dpia.md`, drie in `tests/test_stack_smoke.py`, twee in `tests/test_accounts_recovery.py`, twee in `backend/accounts/views.py` en twee in `infra/README.md`; twee daarvan naast elkaar botsen gegarandeerd.
 2. **Een taak bezit paden exclusief zolang hij draait.** Twee taken die in hetzelfde bestand schrijven kunnen nooit tegelijk. De tabel hieronder zegt per taak welke paden dat zijn.
 3. **Uitvoerende agents committen, en niets daarbuiten.** Elke taak commit op `feat/accounts-recovery`, met alleen de bestanden gestaged die zijn eigen Files-blok noemt, en met de boodschap die de taak voorschrijft. Nooit `push`, nooit `rebase`, nooit `checkout`, nooit `amend`, nooit een andere branch aanraken. En nooit `git checkout --`, `git restore`, `git stash` of `git reset`: een tijdelijke bewerking voor een rode-proef wordt met de hand teruggezet, want die commando's gooien ook het werk weg dat er nog niet in zit.
 4. **Elk test- en poortcommando draait op de voorgrond.** Nooit een achtergrondoptie, nooit een pipe naar `tail` of `head`: de exitcode die je leest hoort van het gereedschap zelf te komen en niet van het laatste programma in een pijp.
@@ -72,21 +72,21 @@
 | 3 | `backend/accounts/recovery.py`, `tests/test_accounts_recovery.py` |
 | 4 | `backend/accounts/nl.py`, `backend/accounts/views.py`, `tests/helpers/consent_texts_fixture.py`, `frontend/tests/fixtures/consent-texts.json`, `tests/test_frontend_contract.py`, `tests/test_accounts_api.py` |
 | 5 | `backend/accounts/views.py`, `backend/accounts/urls.py`, `backend/accounts/serializers.py`, `backend/ampeer/settings/base.py`, `frontend/tests/fixtures/me-response.json`, `tests/test_accounts_recovery.py`, `tests/test_accounts_api.py` |
-| 6 | `backend/accounts/mailer.py`, `backend/ampeer/settings/base.py`, `backend/ampeer/settings/dev.py`, `backend/ampeer/settings/prod.py`, `tests/test_accounts_mail.py`, `tests/test_boundaries.py`, `tests/test_infra.py`, `tests/test_deploy_workflow.py`, `tests/test_backend_settings.py`, `scripts/preflight_env.sh`, `infra/docker-compose.yml`, `infra/.env.example`, `.github/workflows/deploy.yml` |
-| 7 | `backend/accounts/management/commands/send_outbound_mail.py`, `backend/accounts/management/commands/purge_expired_sessions.py`, `tests/test_accounts_mail.py`, `tests/test_dpia.py`, `docs/dpia.md`, `infra/systemd/ampeer-mail.service`, `infra/systemd/ampeer-mail.timer`, `infra/README.md`, `.github/workflows/deploy.yml`, `tests/test_stack_smoke.py` |
+| 6 | `backend/accounts/mailer.py`, `backend/ampeer/settings/base.py`, `backend/ampeer/settings/dev.py`, `backend/ampeer/settings/test.py`, `backend/ampeer/settings/prod.py`, `tests/test_accounts_mail.py`, `tests/test_boundaries.py`, `tests/test_infra.py`, `tests/test_deploy_workflow.py`, `tests/test_backend_settings.py`, `tests/test_stack_smoke.py`, `scripts/preflight_env.sh`, `scripts/gates.sh`, `infra/docker-compose.yml`, `infra/.env.example`, `infra/README.md`, `.github/workflows/ci.yml`, `.github/workflows/deploy.yml` |
+| 7 | `backend/accounts/management/commands/send_outbound_mail.py`, `backend/accounts/management/commands/purge_expired_sessions.py`, `tests/test_accounts_mail.py`, `tests/test_dpia.py`, `docs/dpia.md`, `infra/systemd/ampeer-mail.service`, `infra/systemd/ampeer-mail.timer`, `infra/README.md`, `tests/test_stack_smoke.py` |
 | 8 | `frontend/src/lib/accounts.ts`, `frontend/tests/lib/accounts.test.ts` |
 | 9 | `frontend/src/app/_account/fragment.ts`, `frontend/src/app/_account/messages.ts`, `frontend/src/app/_account/ResetRequestForm.tsx`, `frontend/src/app/_account/ResetConfirmForm.tsx`, `frontend/tests/account/fragment.test.ts`, `frontend/tests/account/messages.test.ts`, `frontend/tests/account/ResetRequestForm.test.tsx`, `frontend/tests/account/ResetConfirmForm.test.tsx`, `frontend/tests/ui-strings.txt` |
 | 10 | `frontend/src/app/_account/AccountPage.tsx`, `frontend/src/app/_account/SignInForm.tsx`, `frontend/src/app/_account/ConsentRow.tsx`, `frontend/src/app/_account/RegisterForm.tsx`, `frontend/tests/account/AccountPage.test.tsx`, `frontend/tests/account/ConsentRow.test.tsx`, `frontend/tests/account/RegisterForm.test.tsx`, `frontend/tests/account/SignInForm.test.tsx`, `frontend/tests/ui-strings.txt`, `tests/test_frontend_contract.py` |
 | 11 | `frontend/e2e/account.spec.ts` |
 | 12 | `tests/test_stack_smoke.py`, `infra/compose.test.yml` |
-| 13 | `docs/decisions.md`, `docs/dpia.md`, `docs/superpowers/specs/2026-09-04-accounts-auth-design.md`, `docs/superpowers/specs/2026-09-05-accounts-frontend-design.md` |
+| 13 | `docs/decisions.md`, `docs/dpia.md`, `docs/superpowers/specs/2026-09-04-accounts-auth-design.md`, `docs/superpowers/specs/2026-09-05-accounts-frontend-design.md`, `docs/superpowers/specs/2026-09-06-accounts-recovery-design.md` |
 | 14 | `docs/superpowers/plans/2026-09-06-accounts-recovery.md`, `pyproject.toml`, `frontend/vitest.config.ts` |
 
-Gedeelde bestanden en de keten die ze veilig houdt: `views.py` door 4 en 5; `tests/test_accounts_api.py` door 4 en 5; `tests/test_accounts_recovery.py` door 3 en 5; `settings/base.py` door 5 en 6; `tests/test_accounts_mail.py` door 6 en 7; `tests/test_dpia.py` en `docs/dpia.md` door 2, 7 en 13; `.github/workflows/deploy.yml` door 6 en 7; `tests/test_stack_smoke.py` door 7 en 12; `tests/test_frontend_contract.py` door 4 en 10; `ui-strings.txt` door 9 en 10. Elk paar staat in die volgorde achter elkaar in de serie.
+Gedeelde bestanden en de keten die ze veilig houdt: `views.py` door 4 en 5; `tests/test_accounts_api.py` door 4 en 5; `tests/test_accounts_recovery.py` door 3 en 5; `settings/base.py` door 5 en 6; `tests/test_accounts_mail.py` door 6 en 7; `tests/test_dpia.py` en `docs/dpia.md` door 2, 7 en 13; `infra/README.md` door 6 en 7; `tests/test_stack_smoke.py` door 6, 7 en 12; `tests/test_frontend_contract.py` door 4 en 10; `ui-strings.txt` door 9 en 10. Elk paar staat in die volgorde achter elkaar in de serie. `.github/workflows/deploy.yml` wordt sinds de pre-flight scan alleen door taak 6 geschreven.
 
 ---
 
-## Elf dingen die dit plan vastlegt en die de spec impliciet liet
+## Veertien dingen die dit plan vastlegt en die de spec impliciet liet
 
 **`me-response.json` verandert in taak 5 en niet in taak 8.** `test_the_me_fixture_has_the_shape_the_view_answers` in `tests/test_accounts_api.py` legt de fixture langs `_shape` naast het echte antwoord van `me/`. Zodra taak 5 `email_verified_at` aan `me/` toevoegt, is die test rood totdat de fixture het veld ook draagt. De fixture is dus een backend-bestand in de zin van die test, en taak 8 leest hem alleen.
 
@@ -100,9 +100,15 @@ Gedeelde bestanden en de keten die ze veilig houdt: `views.py` door 4 en 5; `tes
 
 **Er komt geen `.gitkeep` in `infra/fixtures/mail/`.** `.gitignore` negeert `infra/fixtures/` in zijn geheel, dus een bestand daaronder is niet te committen. De map wordt aangemaakt door `main()` in `tests/test_stack_smoke.py`, dat de andere twee fixtures ook al schrijft, met `chmod 0o777` als beste poging voor een Linux-host waar de container als uid 10001 moet kunnen schrijven. Op Docker Desktop is die chmod overbodig en onschadelijk.
 
-**`AMPEER_MAIL_FILE_DIR` is een vijfde naam, en hij hoort niet in de env-file.** `prod.py` leest hem met een standaardwaarde `/srv/mail`, want de map is een eigenschap van de container en niet van de host. `infra/compose.test.yml` mount `./fixtures/mail` op dat pad als literal, zonder interpolatie, zodat `test_the_environment_fixture_names_every_variable_the_stack_reads` er niets van hoeft te weten. De env-fixture, `.env.example` en de preflight kennen de vier andere namen.
+**`AMPEER_MAIL_FILE_DIR` is een vijfde naam, en hij hoort niet in de env-file.** `prod.py` leest hem uit de omgeving met `os.environ.get` en de standaardwaarde `/srv/mail`, want de map is een eigenschap van de container en niet van de host. `infra/compose.test.yml` zet die naam als literal in `environment:` en mount `./fixtures/mail` op datzelfde pad, zonder interpolatie, zodat `test_the_environment_fixture_names_every_variable_the_stack_reads` er niets van hoeft te weten. De env-fixture, `.env.example` en de preflight kennen de vier andere namen.
 
-**De twee hashes in `deploy.yml` bewegen in taak 6.** `test_the_deploy_pins_the_checksum_of_the_preflight_it_runs` en het bijbehorende `COMPOSE_SHA256` vergelijken de sha256 van `scripts/preflight_env.sh` en `infra/docker-compose.yml` met een literal in de workflow. Taak 6 wijzigt beide bestanden en herrekent beide hashes in dezelfde commit; taak 7 raakt de workflow daarna alleen voor de `--check`-stap.
+**De twee hashes in `deploy.yml` bewegen in taak 6, en alleen daar.** `test_the_deploy_pins_the_checksum_of_the_preflight_it_runs` in `tests/test_stack_smoke.py` en `test_the_deploy_pins_the_checksum_of_the_compose_file_it_runs` in `tests/test_deploy_workflow.py` vergelijken de sha256 van `scripts/preflight_env.sh` en `infra/docker-compose.yml` met een literal in de workflow. Taak 6 wijzigt beide bestanden, herrekent beide hashes en voegt de `--check`-stap toe, alles in dezelfde commit; geen andere taak raakt de workflow.
+
+**Geen commit draagt een test die het plan zelf rood weet.** De eerste opzet liet `test_the_environment_fixture_names_every_variable_the_stack_reads` van taak 6 tot taak 12 rood staan en liet taak 7 een deploy-stap toevoegen waarvan de paartabel in `tests/test_deploy_workflow.py` niet van taak 7 was. Zes commits met een bekende rode test zijn zes valstrikken voor een bisect. Daarom doet taak 6 alles wat aan de vier nieuwe instellingen hangt in één commit: de vier namen in compose, `.env.example`, de preflight, `REQUIRED_ENV` in twee testbestanden, de env-fixture in `tests/test_stack_smoke.py`, de `env:`-tabel van de deploy-check in `.github/workflows/ci.yml` en de prefix in `scripts/gates.sh`, de `--check`-stap in `deploy.yml` met zijn regel in de paartabel en in de samenvatting in `infra/README.md`, en de twee hashes. Taak 7 en taak 12 vinden die test groen aan.
+
+**`settings/test.py` legt het transport zelf vast.** `test.py` opent met `from ampeer.settings.dev import *`, en taak 6 zet `file` in `dev.py`. Zonder een eigen regel zou de suite op `file` draaien, met een map vol mails onder `data/` en een `mailer.MEMORY.sent` die nooit gevuld wordt. `test.py` pint `AMPEER_MAIL_TRANSPORT = "memory"` terug, met de reden erbij, zoals het dat al doet voor `DEBUG`, `CACHES` en `CORS_ALLOW_CREDENTIALS`; `test_the_test_suite_runs_on_the_memory_transport` is daarmee een echte bewaker.
+
+**De regeneratie van `ui-strings.txt` krijgt een regel en geen verwachte lijst.** De extractor in `e2e/language.spec.ts` leest JSX-tekst, een vaste lijst naamgevende attributen, variabele-initialisaties en return-expressies; `id` en `aria-labelledby` staan daar niet bij, en een moduleconstante met een object-literal wel. Een vooraf opgeschreven diff die dat niet weet leert de uitvoerder de diff te wantrouwen in plaats van te lezen. Taak 9 en taak 10 zeggen daarom: regenereer, lees de diff, en elke toegevoegde regel is óf een zin die deze taak schreef óf de kop van een element-id die deze taak schreef; al het andere is een bevinding. De regel uit de kop van het bestand blijft: een regeneratie is nooit wat een build groen maakt.
 
 **Als de toestemmingsteksten niet laden, heeft de accountweergave ook geen labels.** Ze komen uit hetzelfde antwoord. `ConsentRow` krijgt `label: string | null`; bij `null` staat er geen labelalinea en draagt de beschrijving van de knop alleen de uitlegzin die er al was. Twee rijen lezen dan gelijk voor een schermlezer. Dat is dezelfde vorm van achteruitgang die spec 6.3 van het frontend-ontwerp al aanvaardt voor de tekst zelf, en hij is bereikbaar in precies één toestand: de API is weg terwijl de pagina open staat.
 
@@ -166,7 +172,7 @@ Alleen als de eerste stap iets veranderde; anders is dit plan al gecommit door d
 - Modify: `backend/accounts/models.py`
 - Create: `backend/accounts/migrations/0004_recovery.py` (via `makemigrations`)
 - Modify: `backend/advice/models.py`
-- Create: `tests/test_accounts_models.py`
+- Modify: `tests/test_accounts_models.py`
 - Modify: `tests/test_dpia.py`, `docs/dpia.md`
 
 **Interfaces:**
@@ -175,27 +181,16 @@ Alleen als de eerste stap iets veranderde; anders is dit plan al gecommit door d
 
 - [ ] **Step 1: Schrijf de falende tests**
 
-`tests/test_accounts_models.py`, compleet:
+`tests/test_accounts_models.py` bestaat al, met elf tests over wat een account is (het verlagen van het adres, de `Lower("email")`-constraint via `bulk_create`, Argon2id, `__str__`, de sessiedigest, de opruiming, de drie armen van `is_spent`, hergebruik dat de keten intrekt). Die blijven staan, met hun docstring bovenaan: ze zijn de enige directe dekking van vijf gedragingen en een vloer van 99,05 verliest ze niet zonder het te merken. Voeg onderaan het bestand toe, onder de bestaande tests; breid het importblok bovenaan uit met wat hieronder nieuw is (`call_command`, `OneTimeToken`, `OutboundMail`, `AuditEvent`, `token_digest`; `timedelta`, `pytest`, `timezone`, `TEST_PASSWORD` en `User` staan er al) en laat de bestaande imports staan:
 
 ```text
-"""The two recovery tables and the one new column, before any route exists.
-
-Asserted on the model and on the schema rather than through a request, because
-the properties below decide what a route may say later: a token that reads
-usable after it was spent is a token that opens something twice.
-"""
-
-from __future__ import annotations
-
-from datetime import timedelta
-
-import pytest
-from django.core.management import call_command
-from django.utils import timezone
-from helpers.accounts import TEST_PASSWORD
-
-from accounts.models import OneTimeToken, OutboundMail, User
-from advice.models import AuditEvent, token_digest
+# ---------------------------------------------------------------------------
+# The two recovery tables and the one new column, before any route exists.
+#
+# Asserted on the model and on the schema rather than through a request,
+# because the properties below decide what a route may say later: a token
+# that reads usable after it was spent is a token that opens something twice.
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -478,7 +473,7 @@ betekenen.
 POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5433 POSTGRES_DB=ampeer POSTGRES_USER=ampeer POSTGRES_PASSWORD=devtest uv run --no-sync pytest tests/test_accounts_models.py tests/test_dpia.py tests/test_accounts_privacy.py -q
 ```
 
-Verwacht: alles groen, inclusief `test_no_table_has_a_column_for_an_address`, dat nu drie modellen in `accounts/models.py` meer leest.
+Verwacht: alles groen, de elf bestaande tests in `tests/test_accounts_models.py` erbij, en inclusief `test_no_table_has_a_column_for_an_address`, dat nu twee modellen in `accounts/models.py` meer leest.
 
 - [ ] **Step 8: Toon aan dat de DPIA-binding rood kan worden**
 
@@ -529,7 +524,7 @@ Boodschap: `feat(accounts): a one-time token table, an outbox, and when an addre
   - `request_email_verification(user: User) -> None`
   - `confirm_email_verification(raw_token: str) -> User`
 
-De module staat naast `service.py` en niet erin, om de reden die spec 3.6 geeft: `_audit_context_keys` in `tests/test_dpia.py` eist dat `service.py` precies één `record()`-aanroep bevat.
+De module staat naast `service.py` en niet erin, om één reden: één module per vocabulaire. `service.py` gaat over export en verwijdering en blijft de tweefunctiemodule die hij is; alles wat een token in een verandering van toestand omzet staat hier. Spec 3.6 en een eerdere versie van dit plan gaven een tweede reden, dat `tests/test_dpia.py` van `service.py` precies één auditregel eist; dat is niet zo (`_audit_context_keys` leest `backend/advice/service.py`, en de wandeling over `backend/accounts/` telt niets), en taak 13 corrigeert de spec op dat punt. De docstring van de module noemt alleen de reden die waar is.
 
 - [ ] **Step 1: Schrijf de falende tests**
 
@@ -765,10 +760,10 @@ def test_no_column_anywhere_holds_a_raw_token(_account: User) -> None:
         values.extend(str(item) for pair in line.context.items() for item in pair)
     assert values, "nothing was read, so nothing was checked"
     assert all(raw not in value for value in values)
-    assert all(token_digest(raw) != value or value == token_digest(raw) for value in values)
+    assert token_digest(raw) in values, "the token table was not among what was read"
 ```
 
-De laatste assertie zegt met opzet niets tegen de digest: die hoort er te staan, en het is het ruwe token dat nergens mag staan.
+De laatste assertie is de bewaker van de scan zelf: de digest hóórt in `OneTimeToken` te staan, dus als hij niet tussen de gelezen waarden zit, heeft de lus de tokentabel niet gelezen en zegt de assertie ervoor niets. Het ruwe token is wat nergens mag staan, en dat is de assertie in het midden.
 
 - [ ] **Step 2: Zie ze falen**
 
@@ -785,11 +780,12 @@ Verwacht: `ImportError` op `accounts.recovery`. Plak de eerste regel.
 ```text
 """Password reset and address confirmation, as four handlings and a mint.
 
-Beside service.py and not inside it: tests/test_dpia.py reads service.py on
-the assumption that it writes exactly one audit line, and says so in its own
-assertion message. This module writes four kinds of line and keeps that
-assumption true by living next door; the walk over every file under
-backend/accounts/ still reads its keywords.
+Beside service.py and not inside it, because the two modules speak two
+vocabularies: service.py is about export and deletion and stays the two
+function module it is, and everything that turns a token into a change of
+state lives here. tests/test_dpia.py walks every file under backend/accounts/
+for the keywords an audit line carries, so nothing about that check depends
+on which of the two files a line is written from.
 
 The raw token is returned by `mint` and never stored. It exists in the memory
 of the command that sends the mail and in the mail itself, and the digest in
@@ -959,13 +955,14 @@ POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5433 POSTGRES_DB=ampeer POSTGRES_USER=ampe
 
 Verwacht: alles groen. `test_the_document_names_everything_the_audit_line_carries` blijft groen omdat deze module alleen `user_id` als sleutelwoord schrijft, dat de DPIA al noemt.
 
-- [ ] **Step 5: Toon aan dat drie controles rood kunnen worden**
+- [ ] **Step 5: Toon aan dat vier controles rood kunnen worden**
 
-Drie tijdelijke bewerkingen in `recovery.py`, elk apart, elk met de hand teruggezet, elk met het transcript in het rapport:
+Vier tijdelijke bewerkingen in `recovery.py`, elk apart, elk met de hand teruggezet, elk met het transcript in het rapport:
 
 1. Haal `.update(superseded_at=now)` weg door de filterregel in `mint` te vervangen door `pass` (laat de `raw =`-regel staan): `test_a_new_token_supersedes_the_older_unspent_one_of_the_same_kind` wordt rood op `superseded_at is not None`.
 2. Verplaats `validate_password(password, user)` tot ná `_spend(row)`: `test_the_password_validators_apply_on_a_reset_and_spend_nothing` wordt rood op `row.is_usable`.
 3. Vervang `.select_for_update()` door niets: `test_the_token_row_is_locked_before_it_is_read` wordt rood met "no longer locks the token row".
+4. Laat `mint` tijdelijk het ruwe token in plaats van de digest in `token_sha256` schrijven: `test_no_column_anywhere_holds_a_raw_token` wordt rood op `raw not in value`, en na terugzetten groen op alle drie de asserties.
 
 - [ ] **Step 6: mypy en ruff**
 
@@ -1670,11 +1667,13 @@ Boodschap: `feat(accounts): four routes to reset a password and confirm an addre
 
 **Files:**
 - Create: `backend/accounts/mailer.py`, `tests/test_accounts_mail.py`
-- Modify: `backend/ampeer/settings/base.py`, `backend/ampeer/settings/dev.py`, `backend/ampeer/settings/prod.py`, `tests/test_boundaries.py`, `tests/test_infra.py`, `tests/test_deploy_workflow.py`, `tests/test_backend_settings.py`, `scripts/preflight_env.sh`, `infra/docker-compose.yml`, `infra/.env.example`, `.github/workflows/deploy.yml`
+- Modify: `backend/ampeer/settings/base.py`, `backend/ampeer/settings/dev.py`, `backend/ampeer/settings/test.py`, `backend/ampeer/settings/prod.py`, `tests/test_boundaries.py`, `tests/test_infra.py`, `tests/test_deploy_workflow.py`, `tests/test_backend_settings.py`, `tests/test_stack_smoke.py`, `scripts/preflight_env.sh`, `scripts/gates.sh`, `infra/docker-compose.yml`, `infra/.env.example`, `infra/README.md`, `.github/workflows/ci.yml`, `.github/workflows/deploy.yml`
 
 **Interfaces:**
 - Consumes: `requests` (al in `uv.lock`); `settings`.
-- Produces: `mailer.RESEND_ENDPOINT`, `mailer.TIMEOUT_SECONDS`, `mailer.Message(to, subject, text, idempotency_key)`, `mailer.TransportError(status)`, `mailer.Transport` (protocol met `send(message) -> str`), `mailer.ResendTransport`, `mailer.FileTransport`, `mailer.MemoryTransport` met `sent: list[Message]`, `mailer.transport() -> Transport`; de settings `AMPEER_MAIL_TRANSPORT`, `AMPEER_MAIL_FROM`, `AMPEER_SITE_ORIGIN`, `AMPEER_MAIL_FILE_DIR`, `RESEND_API_KEY`; de vier namen in `.env.example`, compose, de preflight en `REQUIRED_ENV`.
+- Produces: `mailer.RESEND_ENDPOINT`, `mailer.TIMEOUT_SECONDS`, `mailer.Message(to, subject, text, idempotency_key)`, `mailer.TransportError(status)`, `mailer.Transport` (protocol met `send(message) -> str`), `mailer.ResendTransport`, `mailer.FileTransport`, `mailer.MemoryTransport` met `sent: list[Message]`, `mailer.transport() -> Transport`; de settings `AMPEER_MAIL_TRANSPORT`, `AMPEER_MAIL_FROM`, `AMPEER_SITE_ORIGIN`, `AMPEER_MAIL_FILE_DIR`, `RESEND_API_KEY`; de vier namen in `.env.example`, compose, de preflight, de twee `REQUIRED_ENV`-lijsten, de env-fixture, `ci.yml` en `gates.sh`; de deploy-stap `send_outbound_mail --check` met haar regel in de paartabel en in de README-samenvatting.
+
+Deze taak is de grootste van het plan, en dat is een keuze: alles wat aan de vier nieuwe instellingen hangt landt in één commit, zodat geen commit een test draagt die het plan zelf rood weet (zie de lijst van veertien dingen).
 
 - [ ] **Step 1: De falende tests voor de module**
 
@@ -2054,6 +2053,19 @@ RESEND_API_KEY = ""
 AMPEER_MAIL_TRANSPORT = "file"
 ```
 
+`backend/ampeer/settings/test.py`, onder het `CORS_ALLOW_CREDENTIALS = False`-blok, in dezelfde vorm als de drie pins erboven:
+
+```text
+# Pinned back to memory for the reason DEBUG, CACHES and CORS_ALLOW_CREDENTIALS
+# are pinned above: this file inherits dev.py, and dev.py chooses the file
+# transport so a developer can open a mail from data/mail/. Inherited here
+# that would fill data/mail/ on every run and leave mailer.MEMORY.sent empty,
+# so every command test would read nothing and say so. The suite never
+# reaches the network, and tests/test_accounts_mail.py asserts the value that
+# actually arrives here rather than the one dev.py sets.
+AMPEER_MAIL_TRANSPORT = "memory"
+```
+
 `backend/ampeer/settings/prod.py`, onder `AMPEER_NEDU_PROFILE_PATH = _required(...)`:
 
 ```text
@@ -2071,8 +2083,13 @@ if AMPEER_MAIL_TRANSPORT not in {"resend", "file"}:
 AMPEER_MAIL_FROM = _required("AMPEER_MAIL_FROM")
 AMPEER_SITE_ORIGIN = _required("AMPEER_SITE_ORIGIN")
 RESEND_API_KEY = _required("RESEND_API_KEY") if AMPEER_MAIL_TRANSPORT == "resend" else ""
-AMPEER_MAIL_FILE_DIR = "/srv/mail"
+# The file transport's directory. A property of the container and not of the
+# host, so it has a default and is not in the env file: infra/compose.test.yml
+# names it beside the mount it belongs to, and nothing else ever sets it.
+AMPEER_MAIL_FILE_DIR = os.environ.get("AMPEER_MAIL_FILE_DIR", "/srv/mail")
 ```
+
+met `import os` bij de imports als het er nog niet staat (lees het bestand: `_required` leest `os.environ` al).
 
 - [ ] **Step 5: De grenstest**
 
@@ -2160,6 +2177,21 @@ def test_the_module_that_speaks_http_never_assembles_its_url(module: str) -> Non
 ```
 
 met `import pytest` bij de imports en de regel `module = STRICT_DESTINATION_MODULE` uit het lichaam verwijderd. De docstring blijft; voeg één zin toe: "Since 2026-09-06 the same three checks run over accounts/mailer.py."
+
+5. De `constants`-comprehension in diezelfde test leest alleen `ast.Assign`, en `RESEND_ENDPOINT: Final = "..."` is een `ast.AnnAssign`; zonder deze wijziging is het nieuwe geval permanent rood. Vervang de comprehension door:
+
+```text
+    constants = {
+        target.id
+        for node in tree.body
+        for target in (
+            node.targets if isinstance(node, ast.Assign) else [node.target] if isinstance(node, ast.AnnAssign) else []
+        )
+        if isinstance(target, ast.Name) and target.id.isupper()
+    }
+```
+
+en zet erboven het commentaar: `# An annotated assignment (RESEND_ENDPOINT: Final = ...) is a constant too; pvgis.py writes its URL unannotated, mailer.py does not, and the check has to see both.` Hiermee wordt ook `TIMEOUT_SECONDS` zichtbaar, wat onschadelijk is.
 
 - [ ] **Step 6: De omgeving**
 
@@ -2251,13 +2283,79 @@ sha256sum scripts/preflight_env.sh infra/docker-compose.yml
 
 `PREFLIGHT_SHA256` wordt de eerste, `COMPOSE_SHA256` de tweede. Lees het commentaar boven beide regels: het zegt al dat de host een stale kopie weigert, en dat is precies wat de eigenaar na deze cyclus te doen krijgt (hoofdstuk 9 van de spec: `preflight_env.sh` en `docker-compose.yml` opnieuw naar `/srv/ampeer/` kopiëren).
 
+Ook in `tests/test_deploy_workflow.py`: de module-tuple `REQUIRED_ENV` (regel 59 tot 69) krijgt de vier namen na `"POSTGRES_HOST",`, in dezelfde volgorde als in de preflight, en het commentaar erboven zegt "The thirteen names" in plaats van "The nine names". Zonder die vier levert `_complete` een env-file met negen namen en valt elk geval in `TestThePreflight` op de fixture in plaats van op wat het beweert; de override `values["AMPEER_MAIL_TRANSPORT"] = "resend"` blijft nodig omdat de vulwaarde `"set"` het `case`-blok zou raken.
+
+`.github/workflows/ci.yml`, de stap "Django deployment checklist, under production settings": voeg aan de `env:`-tabel toe, na `DJANGO_CORS_ALLOWED_ORIGINS`:
+
+```text
+          AMPEER_MAIL_TRANSPORT: resend
+          AMPEER_MAIL_FROM: noreply@ampeer.nl
+          AMPEER_SITE_ORIGIN: https://ampeer.nl
+```
+
+en in het `run:`-blok, naast de twee gegenereerde geheimen, een derde op dezelfde manier: `RESEND_API_KEY="$(uv run python -c 'import secrets; print("ci-" + secrets.token_urlsafe(24))')"` en `export ... RESEND_API_KEY`. Gegenereerd en niet met `re_` beginnend, om de reden die het commentaar boven de stap al geeft: niets in dit bestand mag op een geheim lijken. `test_the_deploy_check_in_ci_knows_every_setting_production_requires` in `tests/test_backend_settings.py` leest deze stap en eist elke naam uit `REQUIRED_ENV` daar; zonder deze wijziging is die test rood zodra de vier namen aan die `REQUIRED_ENV` zijn toegevoegd, en de poort `django-deploy-check` valt op `RuntimeError: AMPEER_MAIL_TRANSPORT is not set`.
+
+`scripts/gates.sh`, de functie `django_deploy_check()`: dezelfde vier, in dezelfde vorm als de regels die er staan: `AMPEER_MAIL_TRANSPORT=resend AMPEER_MAIL_FROM=noreply@ampeer.nl AMPEER_SITE_ORIGIN=https://ampeer.nl \` als extra regel, en `RESEND_API_KEY="$(uv run python -c 'import secrets; print("gate-" + secrets.token_urlsafe(24))')" \` naast de twee gegenereerde waarden. Geen jobnaam en geen poortnaam verandert.
+
+`.github/workflows/deploy.yml`, twee bewerkingen. De stap "Check the nine variables and the profile file" heet voortaan "Check the thirteen variables and the profile file"; niets anders aan die stap. En na de stap "Confirm expired advice is still being deleted" een tweede stap in dezelfde vorm:
+
+```text
+      # The same question for the outbox: a mail waiting longer than fifteen
+      # minutes means the timer has stopped or the provider refuses
+      # everything, and either is a deploy worth stopping on. After migrate,
+      # for the reason the step above gives.
+      - name: Confirm the outbox is being emptied
+        run: >-
+          docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env"
+          run --rm --entrypoint python api backend/manage.py send_outbound_mail --check
+```
+
+Het command zelf bestaat pas na taak 7; op een host draait deze stap pas na de deploy van deze branch, en dan bestaat het. `tests/test_deploy_workflow.py`, `README_STEP_WORDS`: de regel `("Check the nine variables", "runs the preflight"),` wordt `("Check the thirteen variables", "runs the preflight"),` en na `("Confirm expired advice", ...)` komt `("Confirm the outbox", "`send_outbound_mail --check`"),`. `infra/README.md`, de samenvatting die begint met "- `deploy` on the self-hosted runner": na "`purge_expired_advice --check`" komt ", `send_outbound_mail --check`" in dezelfde zin, zodat `test_the_readme_summary_names_every_step_the_deploy_runs` de nieuwe regel van de paartabel in die alinea vindt. Voeg naast `test_the_deploy_checks_that_retention_is_still_running` in `tests/test_stack_smoke.py` toe:
+
+```text
+def test_the_deploy_checks_that_the_outbox_is_being_emptied() -> None:
+    """The same shape as the retention check, for the mails a household is
+    waiting on. Neither notices a timer that was never enabled."""
+    workflow = DEPLOY_WORKFLOW.read_text(encoding="utf-8")
+    assert "send_outbound_mail --check" in workflow
+```
+
+`tests/test_stack_smoke.py`, de env-fixture: in `env_fixture_lines`, na `"POSTGRES_HOST=db",`:
+
+```text
+        # The file transport: the two recovery checks of task 12 read the
+        # mail back out of infra/fixtures/mail/, which the override mounts on
+        # /srv/mail. The only file in the repository that ever says `file`;
+        # the preflight refuses it on a host.
+        "AMPEER_MAIL_TRANSPORT=file",
+        # Unused under the file transport and interpolated by compose all the
+        # same. Not beginning with `re_`, the prefix of a real Resend key, so
+        # this line can never be mistaken for one.
+        "RESEND_API_KEY=smoke-check-placeholder-not-a-secret",
+        # The reserved suffix again: nothing can ever be delivered to it.
+        "AMPEER_MAIL_FROM=noreply@ampeer.smoke.invalid",
+        # Where the links in a mail point, which for this stack is the
+        # published port. The check reads the token off that link's fragment.
+        "AMPEER_SITE_ORIGIN=http://127.0.0.1:8080",
+```
+
+en in `test_the_environment_fixture_holds_no_value_that_could_be_mistaken_for_real` wordt het tuple van prefixen `("DJANGO_SECRET_KEY=", "POSTGRES_PASSWORD=", "RESEND_API_KEY=")`, met één assertie erbij in de lus:
+
+```text
+        if line.startswith("RESEND_API_KEY="):
+            assert not line.split("=", 1)[1].startswith("re_"), line
+```
+
+Meer niet in dat bestand: de mount, `MAIL_FIXTURE_DIR` en de live checks zijn van taak 12.
+
 - [ ] **Step 7: Groen**
 
 ```bash
 POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5433 POSTGRES_DB=ampeer POSTGRES_USER=ampeer POSTGRES_PASSWORD=devtest uv run --no-sync pytest tests/test_accounts_mail.py tests/test_boundaries.py tests/test_infra.py tests/test_deploy_workflow.py tests/test_backend_settings.py tests/test_stack_smoke.py -q
+bash scripts/gates.sh django-deploy-check
 ```
 
-Verwacht: alles groen. Let op `test_the_environment_fixture_names_every_variable_the_stack_reads` in `test_stack_smoke.py`: die leest compose en de env-fixture, en compose interpoleert nu vier namen die de fixture nog niet kent. Die test is rood tot taak 12 de fixture aanvult, en dat is de bedoeling: hij bewijst dat de koppeling werkt. Meld hem als de enige rode in het rapport, met de vier namen in zijn melding, en verander niets aan `tests/test_stack_smoke.py` (taak 7 en 12 bezitten dat bestand).
+Verwacht: alles groen, ook `test_the_environment_fixture_names_every_variable_the_stack_reads` (de fixture kent de vier namen sinds stap 6), `test_the_pairing_covers_every_step_the_deploy_has` (vijftien regels tegenover vijftien stappen), `test_the_readme_summary_names_every_step_the_deploy_runs`, `test_the_deploy_check_in_ci_knows_every_setting_production_requires` en `test_the_test_suite_runs_on_the_memory_transport`; en de poort `django-deploy-check` exit 0. Een rode test hier is een bevinding en geen bedoeling: deze taak laat niets rood achter.
 
 - [ ] **Step 8: Toon aan dat de grenstest het gat ziet**
 
@@ -2267,7 +2365,7 @@ Maak tijdelijk `backend/accounts/_probe.py` met één regel, `from django.core.m
 uv run --no-sync pytest tests/test_boundaries.py::test_only_these_modules_can_reach_outside_this_machine -q
 ```
 
-Verwacht: rood, met `backend/accounts/_probe.py: ['django.core.mail']` in de melding. Verwijder het bestand. Draai daarna hetzelfde met een tijdelijke `import smtplib` in `mailer.py`: rood, want `mailer.py` mag alleen `requests`. Zet terug. Vervang daarna tijdelijk `requests.post(RESEND_ENDPOINT, ...)` door `requests.post("https://api.resend.com/emails", ...)` en draai `test_the_module_that_speaks_http_never_assembles_its_url[backend/accounts/mailer.py]`: rood op "not a module level constant". Zet terug. Haal ten slotte het `case`-blok uit de preflight en draai `tests/test_deploy_workflow.py -k refuses_any_transport`: drie keer rood. Zet terug. Plak alle vier.
+Verwacht: rood, met `backend/accounts/_probe.py: ['django.core.mail']` in de melding. Verwijder het bestand. Draai daarna hetzelfde met een tijdelijke `import smtplib` in `mailer.py`: rood, want `mailer.py` mag alleen `requests`. Zet terug. Vervang daarna tijdelijk `requests.post(RESEND_ENDPOINT, ...)` door `requests.post("https://api.resend.com/emails", ...)` en draai `test_the_module_that_speaks_http_never_assembles_its_url[backend/accounts/mailer.py]`: rood op "not a module level constant". Zet terug. Zet daarna in `tests/test_boundaries.py` de `constants`-comprehension tijdelijk terug op alleen `ast.Assign` en draai hetzelfde geval: rood, want `RESEND_ENDPOINT` is dan geen constante meer; zet terug. Haal ten slotte het `case`-blok uit de preflight en draai `tests/test_deploy_workflow.py -k refuses_any_transport`: drie keer rood. Zet terug. Plak alle vijf.
 
 - [ ] **Step 9: mypy, ruff, shellcheck, dan commit**
 
@@ -2275,7 +2373,7 @@ Verwacht: rood, met `backend/accounts/_probe.py: ['django.core.mail']` in de mel
 uv run --no-sync mypy --strict backend tests
 uv run --no-sync ruff check . && uv run --no-sync ruff format --check .
 bash scripts/gates.sh shellcheck
-git add backend/accounts/mailer.py tests/test_accounts_mail.py backend/ampeer/settings/base.py backend/ampeer/settings/dev.py backend/ampeer/settings/prod.py tests/test_boundaries.py tests/test_infra.py tests/test_deploy_workflow.py tests/test_backend_settings.py scripts/preflight_env.sh infra/docker-compose.yml infra/.env.example .github/workflows/deploy.yml
+git add backend/accounts/mailer.py tests/test_accounts_mail.py backend/ampeer/settings/base.py backend/ampeer/settings/dev.py backend/ampeer/settings/test.py backend/ampeer/settings/prod.py tests/test_boundaries.py tests/test_infra.py tests/test_deploy_workflow.py tests/test_backend_settings.py tests/test_stack_smoke.py scripts/preflight_env.sh scripts/gates.sh infra/docker-compose.yml infra/.env.example infra/README.md .github/workflows/ci.yml .github/workflows/deploy.yml
 git commit
 ```
 
@@ -2289,11 +2387,11 @@ Boodschap: `feat(accounts): one module reaches Resend, three transports, and the
 
 **Files:**
 - Create: `backend/accounts/management/commands/send_outbound_mail.py`, `infra/systemd/ampeer-mail.service`, `infra/systemd/ampeer-mail.timer`
-- Modify: `backend/accounts/management/commands/purge_expired_sessions.py`, `tests/test_accounts_mail.py`, `tests/test_dpia.py`, `docs/dpia.md`, `infra/README.md`, `.github/workflows/deploy.yml`, `tests/test_stack_smoke.py`
+- Modify: `backend/accounts/management/commands/purge_expired_sessions.py`, `tests/test_accounts_mail.py`, `tests/test_dpia.py`, `docs/dpia.md`, `infra/README.md`, `tests/test_stack_smoke.py` (alleen de test op de twee units)
 
 **Interfaces:**
-- Consumes: `recovery.mint`, `mailer.transport`, `mailer.Message`, `mailer.TransportError`, `NL["MAIL_*"]`, `settings.AMPEER_SITE_ORIGIN`, `OutboundMail`, `AuditEvent.MAIL_SENT`.
-- Produces: `python backend/manage.py send_outbound_mail [--check]`; de constanten `BACKOFF`, `GIVE_UP_AFTER`, `OVERDUE_AFTER` in het command; `purge_expired_sessions` ruimt drie tabellen op; de twee units; de deploy-stap; `AUDIT_CONTEXT_PHRASES["provider_id"]`.
+- Consumes: `recovery.mint`, `mailer.transport`, `mailer.Message`, `mailer.TransportError`, `NL["MAIL_*"]`, `settings.AMPEER_SITE_ORIGIN`, `OutboundMail`, `AuditEvent.MAIL_SENT`; de deploy-stap `send_outbound_mail --check` die taak 6 al in `deploy.yml` zette.
+- Produces: `python backend/manage.py send_outbound_mail [--check]`; de constanten `BACKOFF`, `GIVE_UP_AFTER`, `OVERDUE_AFTER` in het command; `purge_expired_sessions` ruimt drie tabellen op; de twee units; `AUDIT_CONTEXT_PHRASES["provider_id"]`.
 
 - [ ] **Step 1: De falende tests**
 
@@ -2367,8 +2465,9 @@ def test_a_verification_mail_carries_the_other_link(_account: User) -> None:
 
 @pytest.mark.django_db
 def test_a_transport_failure_leaves_no_token_behind(_account: User, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Spec 4.4: the mint and the send share a transaction, so a mail that
-    never left leaves no digest of a token nobody received."""
+    """Spec 4.4: the mint and the send share a savepoint inside the command's
+    transaction, so a mail that never left leaves no digest of a token nobody
+    received."""
     monkeypatch.setattr(mailer, "transport", lambda: _Failing(503))
     recovery.request_password_reset(_account.email)
     before = timezone.now()
@@ -2514,13 +2613,17 @@ schedule needs a timer and not a queue. This is the only process in this
 repository that opens a connection to the mail provider, and it never runs
 inside a request.
 
-The order inside one row is exact. The token is minted before the send,
-because it has to be in the mail, and the mint and the send share one
-savepoint: a transport error leaves that savepoint with an exception, which
-rolls the mint back, so no digest of a token nobody received survives. The
-outbox row is then updated in the enclosing transaction with the attempt and
-the wait. Two writes, in that order, and the first commits only if the
-transport took the message.
+The order inside one row is exact, and it is one transaction with a
+savepoint inside it, not two transactions. The outer `atomic()` takes the
+row's lock with SKIP LOCKED and holds it across the send, so a second run of
+this command never claims the same row. Inside it, the mint and the send
+share a savepoint: a transport error leaves that savepoint with an exception,
+which rolls the mint back, so no digest of a token nobody received survives,
+while the row itself is still locked and is then updated with the attempt
+and the wait. Two writes, in that order, and the first commits only if the
+transport took the message. Spec 4.4 describes the same property in the
+words "two transactions"; the savepoint is how it is delivered without
+letting go of the row in between.
 """
 
 from __future__ import annotations
@@ -2696,7 +2799,7 @@ persoonsgegeven en het is wel het enige waarmee een verzending bij die
 verwerker teruggevonden kan worden.
 ```
 
-- [ ] **Step 6: De units, de README en de deploy-stap**
+- [ ] **Step 6: De units en de README**
 
 `infra/systemd/ampeer-mail.service`:
 
@@ -2799,29 +2902,9 @@ household is already too late; only `list-timers` answers that question, and
 it is written down here rather than papered over.
 ```
 
-`.github/workflows/deploy.yml`: na de stap "Confirm expired advice is still being deleted" een tweede stap in dezelfde vorm:
+De deploy-stap "Confirm the outbox is being emptied" staat sinds taak 6 in `.github/workflows/deploy.yml`, met haar regel in de paartabel en in de README-samenvatting; deze taak raakt de workflow niet. Wat deze taak wel toevoegt is het command dat die stap aanroept, en één test op de twee units. `tests/test_stack_smoke.py`, na `test_the_deploy_checks_that_the_outbox_is_being_emptied` uit taak 6:
 
 ```text
-      # The same question for the outbox: a mail waiting longer than fifteen
-      # minutes means the timer has stopped or the provider refuses
-      # everything, and either is a deploy worth stopping on. After migrate,
-      # for the reason the step above gives.
-      - name: Confirm the outbox is being emptied
-        run: >-
-          docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env"
-          run --rm --entrypoint python api backend/manage.py send_outbound_mail --check
-```
-
-`tests/test_stack_smoke.py`: voeg naast `test_the_deploy_checks_that_retention_is_still_running` toe:
-
-```text
-def test_the_deploy_checks_that_the_outbox_is_being_emptied() -> None:
-    """The same shape as the retention check, for the mails a household is
-    waiting on. Neither notices a timer that was never enabled."""
-    workflow = DEPLOY_WORKFLOW.read_text(encoding="utf-8")
-    assert "send_outbound_mail --check" in workflow
-
-
 def test_the_mail_unit_runs_the_command_every_minute() -> None:
     service = (INFRA / "systemd" / "ampeer-mail.service").read_text(encoding="utf-8")
     timer = (INFRA / "systemd" / "ampeer-mail.timer").read_text(encoding="utf-8")
@@ -2838,7 +2921,7 @@ def test_the_mail_unit_runs_the_command_every_minute() -> None:
 POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5433 POSTGRES_DB=ampeer POSTGRES_USER=ampeer POSTGRES_PASSWORD=devtest uv run --no-sync pytest tests/test_accounts_mail.py tests/test_dpia.py tests/test_stack_smoke.py tests/test_deploy_workflow.py tests/test_accounts_privacy.py -q
 ```
 
-Verwacht: alles groen behalve `test_the_environment_fixture_names_every_variable_the_stack_reads`, dat rood blijft tot taak 12 (zie taak 6 stap 7). `test_the_document_names_everything_the_audit_line_carries` ziet nu `provider_id` in het command en in de DPIA. `test_no_audit_line_the_account_layer_writes_carries_an_address` blijft groen omdat `MAIL_SENT` het adres niet draagt.
+Verwacht: alles groen. `test_the_document_names_everything_the_audit_line_carries` ziet nu `provider_id` in het command en in de DPIA. `test_no_audit_line_the_account_layer_writes_carries_an_address` blijft groen omdat `MAIL_SENT` het adres niet draagt. `test_the_mail_unit_runs_the_command_every_minute` leest de twee units die deze taak schreef.
 
 - [ ] **Step 8: Toon aan dat drie controles rood kunnen worden**
 
@@ -2853,7 +2936,7 @@ Plak alle drie.
 ```bash
 uv run --no-sync mypy --strict backend tests
 uv run --no-sync ruff check . && uv run --no-sync ruff format --check .
-git add backend/accounts/management/commands/send_outbound_mail.py backend/accounts/management/commands/purge_expired_sessions.py tests/test_accounts_mail.py tests/test_dpia.py docs/dpia.md infra/systemd/ampeer-mail.service infra/systemd/ampeer-mail.timer infra/README.md .github/workflows/deploy.yml tests/test_stack_smoke.py
+git add backend/accounts/management/commands/send_outbound_mail.py backend/accounts/management/commands/purge_expired_sessions.py tests/test_accounts_mail.py tests/test_dpia.py docs/dpia.md infra/systemd/ampeer-mail.service infra/systemd/ampeer-mail.timer infra/README.md tests/test_stack_smoke.py
 git commit
 ```
 
@@ -2938,24 +3021,25 @@ describe("the two shape guards that grew a key", () => {
     await expect(getConsentTexts()).rejects.toBeInstanceOf(ApiError);
   });
 
-  it("sends the four recovery bodies exactly as the API reads them", async () => {
+  it("sends the three recovery bodies exactly as the API reads them, and none for a resend", async () => {
     const fetchMock = stub(202, {});
     await requestPasswordReset({ email: "iemand@voorbeeld.nl" });
     await confirmPasswordReset({ token: "t".repeat(43), password: "pw" });
     await confirmEmailVerification({ token: "v".repeat(43) });
-    const bodies = fetchMock.mock.calls.map((call) =>
-      JSON.parse(String((call[1] as RequestInit).body)),
-    );
-    expect(bodies).toEqual([
+    await requestEmailVerification();
+    const bodies = fetchMock.mock.calls.map((call) => (call[1] as RequestInit).body);
+    expect(bodies.slice(0, 3).map((body) => JSON.parse(String(body)))).toEqual([
       { email: "iemand@voorbeeld.nl" },
       { token: "t".repeat(43), password: "pw" },
       { token: "v".repeat(43) },
     ]);
+    expect(bodies[3]).toBeUndefined();
     const paths = fetchMock.mock.calls.map((call) => new URL(String(call[0])).pathname);
     expect(paths).toEqual([
       "/api/auth/reset/request/",
       "/api/auth/reset/confirm/",
       "/api/auth/verify/confirm/",
+      "/api/auth/verify/request/",
     ]);
   });
 });
@@ -3086,12 +3170,16 @@ export async function confirmEmailVerification(
 
 - [ ] **Step 4: Groen, en de contractlaag**
 
+Drie commando's, apart, omdat de tweede rood hoort te zijn en een `&&` de derde dan nooit zou draaien:
+
 ```bash
-cd frontend && pnpm vitest run tests/lib/accounts.test.ts && pnpm typecheck && pnpm lint && cd ..
+cd frontend && pnpm vitest run tests/lib/accounts.test.ts
+cd frontend && pnpm typecheck
+cd frontend && pnpm lint
 POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5433 POSTGRES_DB=ampeer POSTGRES_USER=ampeer POSTGRES_PASSWORD=devtest uv run --no-sync pytest tests/test_frontend_contract.py -q
 ```
 
-Verwacht: groen. `test_every_path_the_frontend_calls_is_one_the_backend_serves[accounts]` ziet dertien paden en vindt ze alle dertien in `urls.py`. `pnpm typecheck` is hier al rood op `ConsentRow.tsx`, `RegisterForm.tsx` en `AccountPage.tsx` als `Me` en `ConsentTexts` strenger zijn geworden dan hun gebruikers: controleer dat elke typefout in een bestand van taak 9 of 10 zit en meld ze bij naam in het rapport; ze zijn de reden dat die taken bestaan. Is er een typefout in een bestand dat geen enkele taak bezit, stop dan en meld dat.
+Verwacht: Vitest groen; `pnpm typecheck` rood, en alleen op `ConsentRow.tsx`, `RegisterForm.tsx` en `AccountPage.tsx`, omdat `Me` en `ConsentTexts` strenger zijn geworden dan hun gebruikers: controleer dat elke typefout in een bestand van taak 9 of 10 zit en meld ze bij naam in het rapport; ze zijn de reden dat die taken bestaan. Is er een typefout in een bestand dat geen enkele taak bezit, stop dan en meld dat. `pnpm lint` groen. De contracttest groen: `test_every_path_the_frontend_calls_is_one_the_backend_serves[accounts]` ziet dertien paden en vindt ze alle dertien in `urls.py`.
 
 - [ ] **Step 5: Toon aan dat de padcontrole rood kan worden**
 
@@ -3340,6 +3428,20 @@ describe("choosing a new password with a link", () => {
       "wachtwoord moet minimaal 12 tekens bevatten",
     );
     expect(screen.queryByRole("button", { name: "Wachtwoord vergeten?" })).not.toBeInTheDocument();
+  });
+
+  it("shows a 429 as the API wrote it, and never English", async () => {
+    stub(429, {
+      detail: "te veel verzoeken achter elkaar; probeer het over 900 seconden opnieuw",
+    });
+    render(<ResetConfirmForm token={TOKEN} onReset={vi.fn()} onRequestNew={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText("Nieuw wachtwoord"), "een-ander-wachtwoord");
+    await userEvent.click(screen.getByRole("button", { name: "Wachtwoord opslaan" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "te veel verzoeken achter elkaar; probeer het over 900 seconden opnieuw",
+    );
+    expect(screen.getByLabelText("Nieuw wachtwoord")).not.toHaveAttribute("aria-invalid", "true");
+    expect(document.body.textContent).not.toContain("API returned");
   });
 
   it("never renders the token anywhere in the document", () => {
@@ -3650,7 +3752,7 @@ Verwacht: de vier nieuwe testbestanden groen; `typecheck` mogelijk nog rood op d
 cd frontend && pnpm build && UPDATE_UI_STRINGS=1 pnpm e2e language; git diff frontend/tests/ui-strings.txt
 ```
 
-Verwacht in de diff, en niets anders: de nieuwe regels `Als dit adres bij ons bekend is, staat er binnen enkele minuten een e-mail voor u klaar. De link daarin werkt een uur.`, `Nieuw wachtwoord`, `Stuur een herstellink`, `Terug naar inloggen`, `Wachtwoord herstellen`, `Wachtwoord opslaan`, `Wachtwoord vergeten?`, `nieuw-wachtwoord`, `wachtwoord-herstellen`. Een regel die daar niet bij hoort is een string die per ongeluk in een component terecht is gekomen. Draai daarna `pnpm e2e language` zonder de variabele: groen.
+Lees de diff regel voor regel. De regel is: elke toegevoegde regel is óf een zin die deze taak in een van de twee formulieren schreef (de zin na de 202, de labels, de knopteksten, de kop "Nieuw wachtwoord") óf de kop van een element-id die deze taak schreef, en er verdwijnt niets. Een regel die daar niet bij hoort is een string die per ongeluk in een component terecht is gekomen, en dat is een bevinding en geen regel om te laten staan. Er staat hier met opzet geen lijst van verwachte regels: de extractor leest JSX-tekst, een vaste lijst naamgevende attributen, variabele-initialisaties en return-expressies, en niet `id` of `aria-labelledby`; een lijst die dat vergeet leert je de diff te wantrouwen (zie de lijst van veertien dingen). Noteer de toegevoegde regels in het rapport. Draai daarna `pnpm e2e language` zonder de variabele: groen.
 
 - [ ] **Step 8: Toon aan dat twee controles rood kunnen worden**
 
@@ -3692,7 +3794,8 @@ describe("a link with a token in its fragment", () => {
 
   it("opens the new-password form on a reset fragment when nobody is signed in", async () => {
     window.history.replaceState(null, "", `/account/#herstel=${TOKEN}`);
-    const { seen } = stub([
+    const replaceState = vi.spyOn(window.history, "replaceState");
+    stub([
       { status: 401, body: { detail: "u bent niet ingelogd" } },
       { status: 200 },
       { status: 401, body: { detail: "u bent niet ingelogd" } },
@@ -3702,9 +3805,12 @@ describe("a link with a token in its fragment", () => {
       await screen.findByRole("heading", { name: "Nieuw wachtwoord" }),
     ).toBeInTheDocument();
     expect(window.location.hash).toBe("");
+    // The fragment left the address bar through replaceState and not through
+    // a navigation: the page, not the browser, took the token out of history.
+    expect(replaceState).toHaveBeenCalledWith(expect.anything(), "", "/account/");
     expect(document.body.innerHTML).not.toContain(TOKEN);
-    expect(seen.filter((url) => url.endsWith("/reset/confirm/"))).toHaveLength(0);
     expect(document.activeElement).toBe(document.body);
+    replaceState.mockRestore();
   });
 
   it("ignores a reset fragment when somebody is signed in", async () => {
@@ -3743,12 +3849,36 @@ describe("a link with a token in its fragment", () => {
 
   it("confirms an address only after the first me/, and asks me/ again when signed in", async () => {
     window.history.replaceState(null, "", `/account/#verificatie=${TOKEN}`);
-    const { seen } = stub([
-      { status: 200, body: me },
-      { status: 200, body: consentTexts },
-      { status: 204 },
-      { status: 200, body: { ...me, email_verified_at: "2026-09-06T10:00:00+00:00" } },
-    ]);
+    // Answered by path and not by position: the confirmation is posted from
+    // the session callback, before React has mounted AccountView and started
+    // its consent-texts effect, so the order between those two requests is an
+    // implementation detail this test must not depend on. What it asserts is
+    // the order between me/ and verify/confirm/, which is the rule.
+    const seen: string[] = [];
+    let meCalls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        seen.push(url);
+        const path = new URL(url).pathname;
+        if (path === "/api/auth/me/") {
+          meCalls += 1;
+          const body = meCalls === 1 ? me : { ...me, email_verified_at: "2026-09-06T10:00:00+00:00" };
+          return new Response(JSON.stringify(body), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (path === "/api/auth/consent-texts/")
+          return new Response(JSON.stringify(consentTexts), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        if (path === "/api/auth/verify/confirm/") return new Response(null, { status: 204 });
+        throw new Error(`no answer planned for ${path}`);
+      }),
+    );
     render(<AccountPage />);
     expect(await screen.findByText("Uw e-mailadres is bevestigd.")).toBeInTheDocument();
     const paths = seen.map((url) => new URL(url).pathname);
@@ -4105,7 +4235,7 @@ De rendering: boven `state.notice` komt de bevestigingsregel, zowel in de uitgel
       )}
 ```
 
-`AccountView` krijgt twee props erbij, `justRegistered: boolean` en niets anders; de `signed_in`-tak wordt:
+`AccountView` krijgt één prop erbij, `justRegistered: boolean`, en niets anders; de `signed_in`-tak wordt:
 
 ```tsx
   if (state.status === "signed_in") {
@@ -4244,7 +4374,7 @@ cd frontend && pnpm vitest run && pnpm typecheck && pnpm lint && pnpm format:che
 cd frontend && pnpm build && UPDATE_UI_STRINGS=1 pnpm e2e language; git diff frontend/tests/ui-strings.txt
 ```
 
-Verwacht in de diff: weg is de regel `Bent u uw wachtwoord kwijt, dan kunnen wij het niet herstellen. Er is nog geen wachtwoordherstel, en zonder uw wachtwoord komt u ook niet meer bij de knop waarmee u uw account verwijdert.` en de twee labelregels `Doorgeven aan een installateur` en `Kwartiergegevens van uw slimme meter`; erbij komen `De bevestigingsmail is onderweg.`, `E-mailadres bevestigd`, `E-mailadres nog niet bevestigd`, `Er is een e-mail onderweg om uw adres te bevestigen.`, `Uw e-mailadres is bevestigd.`, `Uw wachtwoord is gewijzigd. Log in met uw nieuwe wachtwoord.`, `Verstuur de bevestigingsmail opnieuw`, `Voor het koppelen van een slimme meter is een bevestigd e-mailadres nodig.` Verander daarna met de hand de kop van het bestand: de zin "(the no-password-reset sentence, the deletion sentence)" wordt "(the deletion sentence, the sentence that linking a meter needs a confirmed address)". Draai `pnpm e2e language` zonder de variabele: groen, en `pnpm vitest run` nog een keer: alle Vitest-drempels boven 97 / 94 / 96 / 98.
+Lees de diff regel voor regel, met dezelfde regel als in taak 9. Weg horen te zijn: de zin `Bent u uw wachtwoord kwijt, dan kunnen wij het niet herstellen. Er is nog geen wachtwoordherstel, en zonder uw wachtwoord komt u ook niet meer bij de knop waarmee u uw account verwijdert.` en de twee labelregels `Doorgeven aan een installateur` en `Kwartiergegevens van uw slimme meter`, want die drie zinnen staan niet meer in `src/`. Erbij komen de zinnen die deze taak in `AccountPage.tsx` schreef (de statusregels, de zin na registratie, de zin na bevestiging, de zin na een gewijzigd wachtwoord, de herstuurknop, de staande mededeling over de meterkoppeling) en de vier waarden van `GROUP_HEADING`, want dat is een moduleconstante met een object-literal en die leest de extractor wel, waar hij `aria-labelledby` zelf niet leest. Elke andere toegevoegde regel is een string die per ongeluk in een component terecht is gekomen, en een bevinding. Noteer de toegevoegde regels in het rapport. Verander daarna met de hand de kop van het bestand: de zin "(the no-password-reset sentence, the deletion sentence)" wordt "(the deletion sentence, the sentence that linking a meter needs a confirmed address)". Draai `pnpm e2e language` zonder de variabele: groen, en `pnpm vitest run` nog een keer: alle Vitest-drempels boven 97 / 94 / 96 / 98.
 
 Daarna de contractlaag:
 
@@ -4480,7 +4610,7 @@ Boodschap: `test(e2e): the reset round, the request round and the confirmation r
 
 **Interfaces:**
 - Consumes: `_Session`, `_fresh_email`, `_assert_session_cookie_attributes`, `needs_stack`, `env_fixture_lines`, `main`; de vier routes; het `file`-transport; het command.
-- Produces: `MAIL_FIXTURE_DIR`, `_run_outbox()`, `_link_from_newest_mail(kind)`, `test_live_a_reset_link_closes_the_loop`, `test_live_a_verification_link_sets_the_timestamp`; de env-fixture met vier namen erbij; de mount in de override.
+- Produces: `MAIL_FIXTURE_DIR`, `_run_outbox()`, `_link_token_from_newest_mail(fragment: str) -> str`, `test_live_a_verification_link_sets_the_timestamp`, `test_live_a_reset_link_closes_the_loop` (in die volgorde: de tweede leest het account dat de eerste registreerde); de mount in de override. De vier namen in de env-fixture staan er sinds taak 6.
 
 - [ ] **Step 1: De override en de fixture**
 
@@ -4502,33 +4632,7 @@ Boodschap: `test(e2e): the reset round, the request round and the confirmation r
 
 Lees eerst hoe `volumes` daar nu staat (één regel met het profiel) en voeg de tweede regel toe onder dezelfde sleutel; compose voegt lijsten van een override toe aan die van het basisbestand behalve op hetzelfde doelpad, en `/srv/mail` komt in het basisbestand niet voor.
 
-`tests/test_stack_smoke.py`: constante `MAIL_FIXTURE_DIR = FIXTURES / "mail"` naast `ENV_FIXTURE`; in `env_fixture_lines`, na `"POSTGRES_HOST=db",`:
-
-```text
-        # The file transport: the two recovery checks read the mail back out
-        # of infra/fixtures/mail/, which the override mounts on /srv/mail.
-        # The only file in the repository that ever says `file`; the
-        # preflight refuses it on a host.
-        "AMPEER_MAIL_TRANSPORT=file",
-        # Unused under the file transport and interpolated by compose all the
-        # same. Not beginning with `re_`, the prefix of a real Resend key, so
-        # this line can never be mistaken for one.
-        "RESEND_API_KEY=smoke-check-placeholder-not-a-secret",
-        # The reserved suffix again: nothing can ever be delivered to it.
-        "AMPEER_MAIL_FROM=noreply@ampeer.smoke.invalid",
-        # Where the links in a mail point, which for this stack is the
-        # published port. The check reads the token off that link's fragment.
-        "AMPEER_SITE_ORIGIN=http://127.0.0.1:8080",
-```
-
-In `test_the_environment_fixture_holds_no_value_that_could_be_mistaken_for_real`: het tuple van prefixen wordt `("DJANGO_SECRET_KEY=", "POSTGRES_PASSWORD=", "RESEND_API_KEY=")`, en één assertie erbij in de lus:
-
-```text
-        if line.startswith("RESEND_API_KEY="):
-            assert not line.split("=", 1)[1].startswith("re_"), line
-```
-
-In `main()`, vóór het schrijven van de env-fixture:
+`tests/test_stack_smoke.py`: constante `MAIL_FIXTURE_DIR = FIXTURES / "mail"` naast `ENV_FIXTURE`. De vier namen in `env_fixture_lines` en de `re_`-assertie staan er sinds taak 6; lees ze en verander er niets aan. In `main()`, vóór het schrijven van de env-fixture:
 
 ```text
     MAIL_FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
@@ -4546,9 +4650,6 @@ en één regel in de uitvoer: `print(f"prepared {MAIL_FIXTURE_DIR}")`.
 Na `test_live_a_stale_version_is_refused_over_the_real_route`:
 
 ```text
-#: The override's project name, so the command below runs in the stack the
-#: live checks are talking to and not in a production one. Read from the file
-#: rather than written here, for the reason test_the_override_runs_under_a_project_name_of_its_own gives.
 def _run_outbox() -> None:
     """Run send_outbound_mail once, inside the api container of the local stack.
 
@@ -4599,78 +4700,21 @@ def _link_token_from_newest_mail(fragment: str) -> str:
     return match.group(1)
 
 
-@needs_stack
-def test_live_a_reset_link_closes_the_loop() -> None:
-    """The whole recovery flow over one real connection, with the mail read
-    back out of a file: request, send, follow, set, sign in, and the address
-    confirmed on the way. No layer above this can prove that the link in the
-    mail is the link the API accepts.
-    """
-    from accounts.nl import CONSENT_TEXT_VERSION
-
-    assert STACK is not None
-    session = _Session(STACK)
-    session.request("GET", "/api/auth/me/")
-    email = _fresh_email()
-    session.json(
-        "POST",
-        "/api/auth/register/",
-        {
-            "email": email,
-            "password": TEST_PASSWORD,
-            "consent_meter_link": False,
-            "consent_lead_generation": False,
-            "text_version": CONSENT_TEXT_VERSION,
-        },
-    )
-    session.json("POST", "/api/auth/logout/")
-    # Registration queued a confirmation mail; send it now so the reset mail
-    # below is the newest file and so nothing is left waiting.
-    _run_outbox()
-    _link_token_from_newest_mail("verificatie")
-
-    answer = session.json("POST", "/api/auth/reset/request/", {"email": email})
-    assert answer == {}
-    _run_outbox()
-    token = _link_token_from_newest_mail("herstel")
-
-    status, payload = session.request(
-        "POST",
-        "/api/auth/reset/confirm/",
-        {"token": token, "password": OTHER_PASSWORD},
-        {"X-CSRFToken": session.cookies["csrftoken"]},
-    )
-    assert status == 204, payload
-    assert not any(header.startswith("ampeer_") for header in session.set_cookie), (
-        f"a reset signed somebody in: {session.set_cookie}"
-    )
-
-    status, _ = session.request(
-        "POST",
-        "/api/auth/login/",
-        {"email": email, "password": TEST_PASSWORD},
-        {"X-CSRFToken": session.cookies["csrftoken"]},
-    )
-    assert status == 401, "the old password still works after a reset"
-    session.json("POST", "/api/auth/login/", {"email": email, "password": OTHER_PASSWORD})
-    _assert_session_cookie_attributes(session, "login/ after a reset")
-    me = session.json("GET", "/api/auth/me/")
-    assert me["email_verified_at"] is not None, "a completed reset did not confirm the address"
-
-    status, payload = session.request(
-        "POST",
-        "/api/auth/reset/confirm/",
-        {"token": token, "password": OTHER_PASSWORD},
-        {"X-CSRFToken": session.cookies["csrftoken"]},
-    )
-    assert status == 400 and b"token" in payload, (status, payload)
-    session.json("POST", "/api/auth/delete/", {"password": OTHER_PASSWORD})
+#: The one account the two recovery checks share, set by the verification
+#: check and read by the reset check. One registration instead of two, on
+#: purpose: auth-register allows five an hour per caller and the four
+#: existing live checks already spend three, so a second registration here
+#: would put every rerun inside the hour on a 429. pytest runs the functions
+#: of a module in definition order, which is why the verification check is
+#: written first.
+_RECOVERY_ACCOUNT: dict[str, str] = {}
 
 
 @needs_stack
 def test_live_a_verification_link_sets_the_timestamp() -> None:
     """The mail registration itself queued, followed on a session that is not
-    signed in, and `me/` afterwards saying when."""
+    signed in, and `me/` afterwards saying when. Leaves the account in place
+    for the reset check below."""
     from accounts.nl import CONSENT_TEXT_VERSION
 
     assert STACK is not None
@@ -4703,7 +4747,66 @@ def test_live_a_verification_link_sets_the_timestamp() -> None:
     assert status == 204, payload
 
     assert session.json("GET", "/api/auth/me/")["email_verified_at"] is not None
-    session.json("POST", "/api/auth/delete/", {"password": TEST_PASSWORD})
+    session.json("POST", "/api/auth/logout/")
+    _RECOVERY_ACCOUNT["email"] = email
+
+
+@needs_stack
+def test_live_a_reset_link_closes_the_loop() -> None:
+    """The whole recovery flow over one real connection, with the mail read
+    back out of a file: request, send, follow, set, sign in. No layer above
+    this can prove that the link in the mail is the link the API accepts.
+
+    Runs on the account the verification check registered, so the address is
+    already confirmed here; that a completed reset confirms an address on its
+    own is proved in tests/test_accounts_recovery.py and not repeated over
+    the wire.
+    """
+    assert STACK is not None
+    email = _RECOVERY_ACCOUNT.get("email")
+    assert email, (
+        "no account to reset: the verification check runs first and registers it, "
+        "and the two share one registration on purpose"
+    )
+    session = _Session(STACK)
+    session.request("GET", "/api/auth/me/")
+
+    answer = session.json("POST", "/api/auth/reset/request/", {"email": email})
+    assert answer == {}
+    _run_outbox()
+    token = _link_token_from_newest_mail("herstel")
+
+    status, payload = session.request(
+        "POST",
+        "/api/auth/reset/confirm/",
+        {"token": token, "password": OTHER_PASSWORD},
+        {"X-CSRFToken": session.cookies["csrftoken"]},
+    )
+    assert status == 204, payload
+    assert not any(header.startswith("ampeer_") for header in session.set_cookie), (
+        f"a reset signed somebody in: {session.set_cookie}"
+    )
+
+    status, _ = session.request(
+        "POST",
+        "/api/auth/login/",
+        {"email": email, "password": TEST_PASSWORD},
+        {"X-CSRFToken": session.cookies["csrftoken"]},
+    )
+    assert status == 401, "the old password still works after a reset"
+    session.json("POST", "/api/auth/login/", {"email": email, "password": OTHER_PASSWORD})
+    _assert_session_cookie_attributes(session, "login/ after a reset")
+    assert session.json("GET", "/api/auth/me/")["email_verified_at"] is not None
+
+    status, payload = session.request(
+        "POST",
+        "/api/auth/reset/confirm/",
+        {"token": token, "password": OTHER_PASSWORD},
+        {"X-CSRFToken": session.cookies["csrftoken"]},
+    )
+    assert status == 400 and b"token" in payload, (status, payload)
+    session.json("POST", "/api/auth/delete/", {"password": OTHER_PASSWORD})
+    _RECOVERY_ACCOUNT.clear()
 ```
 
 Met `import shutil` bij de imports en `OTHER_PASSWORD` erbij in de import uit `helpers.accounts`. `test_every_live_check_is_gated_on_the_same_variable` ziet de twee nieuwe functies vanzelf.
@@ -4714,7 +4817,7 @@ Met `import shutil` bij de imports en `OTHER_PASSWORD` erbij in de import uit `h
 uv run --no-sync pytest tests/test_stack_smoke.py -q -rs
 ```
 
-Verwacht: zes `SKIPPED` met de reden die de variabele noemt, de rest groen, inclusief `test_the_environment_fixture_names_every_variable_the_stack_reads`, dat sinds taak 6 rood was en nu de vier namen vindt. Haal daarna `@needs_stack` tijdelijk van `test_live_a_verification_link_sets_the_timestamp` en draai `tests/test_stack_smoke.py::test_every_live_check_is_gated_on_the_same_variable`: rood met "is not gated on". Zet terug. Plak.
+Verwacht: zes `SKIPPED` met de reden die de variabele noemt, de rest groen. Haal daarna `@needs_stack` tijdelijk van `test_live_a_verification_link_sets_the_timestamp` en draai `tests/test_stack_smoke.py::test_every_live_check_is_gated_on_the_same_variable`: rood met "is not gated on". Zet terug. Plak.
 
 - [ ] **Step 4: Tegen de echte stack**
 
@@ -4729,7 +4832,7 @@ docker compose -f infra/docker-compose.yml -f infra/compose.test.yml --env-file 
 AMPEER_SMOKE_BASE_URL=http://127.0.0.1:8080 uv run --no-sync pytest tests/test_stack_smoke.py -q -rs
 ```
 
-Verwacht: zes `PASSED` op de live checks en geen skip. De registratie in de twee nieuwe checks en in de bestaande spendt samen vier van `auth-register`'s vijf per uur per beller; draai de live suite één keer, en bij een 429 een verse stack (`down -v`, `up -d`, `migrate`) en niet een hoger tarief. Controleer na afloop dat `infra/fixtures/mail/` leeg is: de hulp verwijdert elk bestand dat hij las. Breek af met:
+Verwacht: zes `PASSED` op de live checks en geen skip. De ene registratie in de twee nieuwe checks en de drie in de bestaande spenden samen vier van `auth-register`'s vijf per uur per beller, met één over; draai de live suite één keer, en bij een 429 een verse stack (`down -v`, `up -d`, `migrate`) en niet een hoger tarief. Controleer na afloop dat `infra/fixtures/mail/` leeg is: de hulp verwijdert elk bestand dat hij las. Breek af met:
 
 ```bash
 docker compose -f infra/docker-compose.yml -f infra/compose.test.yml --env-file infra/fixtures/env.smoke down -v
@@ -4755,13 +4858,13 @@ Boodschap: `test(smoke): a reset link and a confirmation link, read out of the m
 **Hangt af van:** taak 12.
 
 **Files:**
-- Modify: `docs/decisions.md`, `docs/dpia.md`, `docs/superpowers/specs/2026-09-04-accounts-auth-design.md`, `docs/superpowers/specs/2026-09-05-accounts-frontend-design.md`
+- Modify: `docs/decisions.md`, `docs/dpia.md`, `docs/superpowers/specs/2026-09-04-accounts-auth-design.md`, `docs/superpowers/specs/2026-09-05-accounts-frontend-design.md`, `docs/superpowers/specs/2026-09-06-accounts-recovery-design.md`
 
 **Interfaces:**
 - Consumes: alles uit taak 2 tot en met 12.
-- Produces: zeven entries in `docs/decisions.md` (Engels, het bestaande formaat), twee bijgewerkte punten onder "What was not decided here", de DPIA-hoofdstukken 2, 5, 6, 7 en 10, en de twee eerdere ontwerpen bijgewerkt waar ze door dit ontwerp zijn ingehaald.
+- Produces: zeven entries in `docs/decisions.md` (Engels, het bestaande formaat), twee bijgewerkte punten onder "What was not decided here" plus het openingswoord van die lijst, de DPIA-hoofdstukken 0, 2, 5, 6, 7 en 10, de twee eerdere ontwerpen bijgewerkt waar ze door dit ontwerp zijn ingehaald, en drie correcties in het herstelontwerp zelf waar de code het inhaalde.
 
-`docs/decisions.md` is Engels; de DPIA en de specs zijn Nederlands. Geen em-dash in een van de vier.
+`docs/decisions.md` is Engels; de DPIA en de specs zijn Nederlands. Geen em-dash in een van de vijf.
 
 - [ ] **Step 1: De zeven entries**
 
@@ -4980,7 +5083,7 @@ Voeg aan het eind van de lijst een nieuw punt toe:
   and chapter 10 of the DPIA does not list it yet for that reason.
 ```
 
-En de zin "Six sit outside that document." wordt "Seven sit outside that document."; tel na het schrijven de punten in die lijst en laat het woord kloppen.
+En de zin "Six sit outside that document." wordt "Seven sit outside that document."; tel na het schrijven de punten in die lijst en laat het woord kloppen. De openingszin van dezelfde sectie, "Four belong to the controller and are written up with their trade-offs in chapter 10 of `docs/dpia.md`", wordt "Five belong to the controller ...", want stap 4 maakt dat hoofdstuk vijf punten lang; geen test bindt dit woord, en dat is precies waarom het hier staat.
 
 - [ ] **Step 3: De controle op dat bestand**
 
@@ -5071,6 +5174,8 @@ nog niet kan: het adres zelf wijzigen; wie een ander adres wil, verwijdert zijn
 account en maakt een nieuw.
 ```
 
+Hoofdstuk 0, regel 13: "Vier dingen zijn beslissingen van de verwerkingsverantwoordelijke en staan in hoofdstuk 10" wordt "Vijf dingen zijn ..."; `test_the_opening_points_at_the_chapter_that_holds_the_open_decisions` leidt dat telwoord af uit de lijst in hoofdstuk 10 en zoekt het hier.
+
 Hoofdstuk 10: "Vier dingen kan dit document niet" wordt "Vijf dingen kan dit document niet", en na punt 4 komt:
 
 ```text
@@ -5114,6 +5219,12 @@ ontwerp leidt. De regel eronder blijft: wat op het scherm staat is wat waar is.
 
 Hoofdstuk 10 daar: de twee punten "Geen wachtwoordherstel-UI" en "Geen e-mailverificatie" krijgen elk "(omgekeerd op 2026-09-06, zie het herstelontwerp)" erachter. Hoofdstuk 11: de regel bij `_account/ConsentRow.tsx` verliest "met `CONSENT_LABELS`" als die er staat, en zegt dat de labels sinds 2026-09-06 uit `consent-texts/` komen.
 
+`docs/superpowers/specs/2026-09-06-accounts-recovery-design.md`, drie plaatsen waar de code het ontwerp inhaalde, elk met de datum erbij zodat een lezer ziet dat het een correctie is:
+
+1. Hoofdstuk 4.4: de zinnen die "twee transacties" beschrijven (de outbox-rij "in een tweede, eigen transactie" bijgewerkt) worden vervangen door wat het command doet: één transactie die de rij met `SKIP LOCKED` vergrendelt en over de verzending heen vasthoudt, met daarbinnen een savepoint om de mint en de verzending, zodat een transportfout de mint terugdraait terwijl de rij vergrendeld blijft en daarna in dezelfde transactie de poging en de wachttijd krijgt. De eigenschap blijft: geen digest van een token dat niemand ontving. Zeg erbij dat twee losse transacties de rij tussen de twee zouden loslaten, wat stap 1 van dat hoofdstuk juist verbiedt.
+2. Hoofdstuk 3.6: de reden voor `recovery.py` naast `service.py` wordt de ware: één module per vocabulaire. De zin dat `tests/test_dpia.py` van `service.py` precies één auditregel eist gaat weg; die test leest `backend/advice/service.py`.
+3. Hoofdstuk 11: de migratie heet `backend/accounts/migrations/0004_recovery.py`, want de boom stond bij het schrijven op `0003_refreshsession.py`; het hoofdstuk zei `0002`.
+
 - [ ] **Step 6: De documentcontroles**
 
 ```bash
@@ -5123,15 +5234,15 @@ uv run --no-sync pytest tests/test_plans.py tests/test_decisions.py tests/test_d
 Verwacht: alles groen behalve `test_a_plan_marked_in_progress_is_actually_unfinished[2026-09-06-accounts-recovery.md]`, die nu rood is omdat elk bestand dat dit plan noemt bestaat. Dat is de zelfvervallende marker uit taak 1 die zijn werk doet, en taak 14 zet hem om. Is hij niet rood, dan noemt dit plan nog een bestand dat niet bestaat en dat is de vraag om te beantwoorden voordat u verder gaat. `test_the_chapter_of_open_decisions_states_how_many_there_are` telt vijf punten en leest "Vijf". Controleer daarna op em-dashes:
 
 ```bash
-grep -c $'\xe2\x80\x94' docs/decisions.md docs/dpia.md docs/superpowers/specs/2026-09-04-accounts-auth-design.md docs/superpowers/specs/2026-09-05-accounts-frontend-design.md
+grep -c $'\xe2\x80\x94' docs/decisions.md docs/dpia.md docs/superpowers/specs/2026-09-04-accounts-auth-design.md docs/superpowers/specs/2026-09-05-accounts-frontend-design.md docs/superpowers/specs/2026-09-06-accounts-recovery-design.md
 ```
 
-Verwacht: vier keer `0`.
+Verwacht: vijf keer `0`.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add docs/decisions.md docs/dpia.md docs/superpowers/specs/2026-09-04-accounts-auth-design.md docs/superpowers/specs/2026-09-05-accounts-frontend-design.md
+git add docs/decisions.md docs/dpia.md docs/superpowers/specs/2026-09-04-accounts-auth-design.md docs/superpowers/specs/2026-09-05-accounts-frontend-design.md docs/superpowers/specs/2026-09-06-accounts-recovery-design.md
 git commit
 ```
 
@@ -5200,6 +5311,8 @@ git commit
 
 Boodschap: `test(coverage): raise the floors to what the branch measures on the runner`, met de oude en nieuwe getallen en de meting in het lichaam. Is geen enkele vloer gestegen, dan is er niets te committen en zegt het rapport dat met de meting erbij.
 
+Komt een Vitest-meting ónder zijn vloer uit, wat voor `branches` bij 94 het meest nabij ligt (deze cyclus voegt takken toe die geen test bereikt: de liveness-guards in `AccountPage.tsx`, de `busy`-bewaking in de twee formulieren), dan is dat een bevinding en geen instelling: verlaag niets, meld het gemeten getal en de tak die het verschil maakt in het rapport, en stop. De controller beslist dan welke test erbij komt; een vloer gaat nooit omlaag om een build groen te maken.
+
 - [ ] **Step 5: Draai de Python-poorten**
 
 ```bash
@@ -5212,7 +5325,7 @@ bash scripts/gates.sh pip-audit sbom gitleaks
 
 Beoordeel elke poort op de exitcode en nooit op een grep over de uitvoer. Voor `gitleaks` staat hier met opzet geen uitsluiting: de placeholder voor `RESEND_API_KEY` in de env-fixture begint niet met `re_` en de fixture is git-ignored; komt hier toch een melding, dan is dat een echte vondst. Let verder op:
 
-- **`django-deploy-check`**: `manage.py check --deploy` onder prod-instellingen leest nu vier variabelen meer; de poort zet ze zelf of meldt welke ontbreekt. Een NOT RUN hier is geen pass.
+- **`django-deploy-check`**: `manage.py check --deploy` onder prod-instellingen leest nu vier variabelen meer, en `scripts/gates.sh` zet ze sinds taak 6 zelf, zoals `ci.yml` dat in de `quality`-job doet. Meldt de poort toch dat er een ontbreekt, dan is taak 6 niet af. Een NOT RUN hier is geen pass.
 - **`semgrep`**: leest `frontend/src`, dus ook `fragment.ts`; `history.replaceState` en `window.location` zijn geen klok en geen URL uit invoer. Een bevinding op `ampeer-no-url-from-user-input` of `ampeer-no-reading-the-clock` is een echte bevinding.
 - **`bandit`**: `subprocess` in `tests/test_stack_smoke.py` valt buiten zijn bereik (beslissing 7); `mailer.py` bevat geen `assert` en geen shell.
 - Een poort die NOT RUN meldt is geen geslaagde poort. Noteer welke.
@@ -5255,16 +5368,16 @@ De pull request gaat naar `dev` en daarna naar `main`, met alle vereiste checks 
 | 3.3 | token dan wachtwoord, `token_invalid`, validators met gebruiker, `revoke_all`, 204 zonder cookies | 3, 5 |
 | 3.4 | `verify/request/` ingelogd en gededupliceerd, registratie zet klaar, `verify/confirm/` publiek, `me/` met het veld | 3, 5 |
 | 3.5 | `auth-reset` 10/uur, de som 490, 73 keer | 5 |
-| 3.6 | `recovery.py` naast `service.py`, de zes exports | 3 |
+| 3.6 | `recovery.py` naast `service.py`, de zes exports; de reden die de spec geeft is onjuist en wordt in 13 gecorrigeerd | 3, 13 |
 | 3.7 | labels in `consent-texts/` onder `text_version`, fixture, contracttest | 4, 10 |
 | 4.1 | outbox in plaats van request of Celery | 7, 13 (beslissing 43) |
 | 4.2 | `OutboundMail` zonder adres, token, onderwerp of body; één onverzonden per soort | 2, 3 |
 | 4.3 | het token ontstaat bij het versturen | 7 |
-| 4.4 | claim met SKIP LOCKED, mint en send in één transactie, backoff, 24 uur, 4xx, `--check`, opruiming | 7 |
+| 4.4 | claim met SKIP LOCKED, mint en send onder één savepoint in de transactie die de rij vasthoudt, backoff, 24 uur, 4xx, `--check`, opruiming; de spec zegt "twee transacties" en 13 herschrijft dat naar wat het command doet | 7, 13 |
 | 4.5 | `mailer.py`: literal, `requests`, timeout 10, Bearer, idempotentiesleutel, geen SDK | 6 |
-| 4.6 | drie transporten, `prod.py` weigert `memory`, preflight weigert alles behalve `resend`, de vier variabelen, de placeholders | 6, 12 |
-| 4.7 | de grenstest strenger: gepunte namen, `django.core.mail`, derde module, tuple van strikte modules | 6 |
-| 4.8 | de units, de README, de deploy-stap | 7 |
+| 4.6 | drie transporten, `prod.py` weigert `memory`, `test.py` pint `memory`, preflight weigert alles behalve `resend`, de vier variabelen, de placeholders in de env-fixture | 6 |
+| 4.7 | de grenstest strenger: gepunte namen, `django.core.mail`, derde module, tuple van strikte modules, ook `AnnAssign`-constanten | 6 |
+| 4.8 | de units en de README-sectie (7); de deploy-stap met haar paarregel en samenvatting (6) | 6, 7 |
 | 5.1 | vier auditsoorten, `provider_id`, nooit adres of token, geen regel voor een geweigerde link | 2, 7, 3 |
 | 5.2 | wat Resend ziet en bewaart | 13 |
 | 5.3 | DPIA hoofdstuk 2, 5, 6, 7, 10 | 2, 7, 13 |
@@ -5283,7 +5396,7 @@ De pull request gaat naar `dev` en daarna naar `main`, met alle vereiste checks 
 | 8.4 | laag 4 | 4, 5, 8, 10 |
 | 8.5 | laag 5 | 12 |
 | 8.6 | de vloeren op de runner | 14 |
-| 9 | deploy: wat de eigenaar doet, de deploy-job, `--no-interpolate` | 6, 7, 14 (de slotalinea) |
+| 9 | deploy: wat de eigenaar doet, de deploy-job, `ci.yml` en `gates.sh` die de vier namen kennen, `--no-interpolate` | 6, 7, 14 (de slotalinea) |
 | 10 | wat niet in v1 zit | geen taak bouwt het; 13 noteert onbevestigde accounts |
 | 11 | de bestandenlijst | elk bestand daaruit staat in precies één Files-blok, behalve de gedeelde die de bezitstabel noemt |
 | 12 | definition of done | 12 en 14 draaien wat de punten afdwingt |
@@ -5301,13 +5414,13 @@ Gecontroleerd op elke plek waar ze voorkomen: `OneTimeToken`, `OutboundMail`, `P
 
 ### Kan elke rode-proef echt vuren
 
-Per taak nagelopen. Taak 1: de markering weghalen laat de strenge lezing twintig ontbrekende bestanden vinden; de tweede tak wordt in taak 14 stap 1 uit zichzelf rood. Taak 2: een soort uit de DPIA-lijst halen raakt de gelijkheid; `superseded_at` uit `is_usable` halen raakt de tweede assertie van de waarheidstabel. Taak 3: de `update` weghalen raakt de supersede-test, de validatie verplaatsen raakt de "spend nothing"-test, het slot weghalen raakt de AST-test. Taak 4: één letter in de fixture raakt de byte-vergelijking. Taak 5: een 404 voor onbekend raakt de gelijkheid van twee antwoorden, de aanroep uit `RegisterView` halen raakt de outbox-telling. Taak 6: een tijdelijk bestand met `django.core.mail` raakt de gelijkheid over de hele mapping, `smtplib` in `mailer.py` ook, een URL-literal in de aanroep raakt de constante-controle, het `case`-blok uit de preflight raakt drie geparametriseerde gevallen. Taak 7: de binnenste transactie weghalen laat een digest achter, `_retryable` op `True` laat een 401 doorgaan, `provider_id` uit de tabel halen raakt de sleutelwoordvergelijking. Taak 8: één letter in een pad raakt de padcontrole. Taak 9: `{40,}` raakt het geval met 44 tekens, `fields.token ??` weghalen raakt de beschrijving van het veld. Taak 10: de volgorde van fragment en `me/` omdraaien raakt de padvolgorde, het fragment bij een 200 wel tonen raakt de negeertest, `CONSENT_LABELS` terugzetten raakt de contracttest. Taak 11: `replaceState` uitzetten raakt de hash-assertie, de bevestiging vóór `me/` posten raakt de volgorde. Taak 12: de decorator weghalen maakt de poort om de poort rood. Taak 13: een pad verminken maakt `tests/test_decisions.py` rood. Taak 14: een vloer boven de meting geeft exit 1.
+Per taak nagelopen. Taak 1: de markering weghalen laat de strenge lezing twintig ontbrekende bestanden vinden; de tweede tak wordt in taak 14 stap 1 uit zichzelf rood. Taak 2: een soort uit de DPIA-lijst halen raakt de gelijkheid; `superseded_at` uit `is_usable` halen raakt de tweede assertie van de waarheidstabel. Taak 3: de `update` weghalen raakt de supersede-test, de validatie verplaatsen raakt de "spend nothing"-test, het slot weghalen raakt de AST-test, het ruwe token in de digestkolom schrijven raakt de waardescan. Taak 4: één letter in de fixture raakt de byte-vergelijking. Taak 5: een 404 voor onbekend raakt de gelijkheid van twee antwoorden, de aanroep uit `RegisterView` halen raakt de outbox-telling. Taak 6: een tijdelijk bestand met `django.core.mail` raakt de gelijkheid over de hele mapping, `smtplib` in `mailer.py` ook, een URL-literal in de aanroep raakt de constante-controle, de comprehension terug op alleen `ast.Assign` maakt `RESEND_ENDPOINT` onzichtbaar voor diezelfde controle, het `case`-blok uit de preflight raakt drie geparametriseerde gevallen. Taak 7: de binnenste transactie weghalen laat een digest achter, `_retryable` op `True` laat een 401 doorgaan, `provider_id` uit de tabel halen raakt de sleutelwoordvergelijking. Taak 8: één letter in een pad raakt de padcontrole. Taak 9: `{40,}` raakt het geval met 44 tekens, `fields.token ??` weghalen raakt de beschrijving van het veld. Taak 10: de volgorde van fragment en `me/` omdraaien raakt de padvolgorde (de bevestigingstest antwoordt per pad, zodat alleen die volgorde telt), het fragment bij een 200 wel tonen raakt de negeertest, `CONSENT_LABELS` terugzetten raakt de contracttest, en de `replaceState`-spy in de fragmenttest wordt rood zodra de pagina het fragment laat staan. Taak 11: `replaceState` uitzetten raakt de hash-assertie, de bevestiging vóór `me/` posten raakt de volgorde. Taak 12: de decorator weghalen maakt de poort om de poort rood. Taak 13: een pad verminken maakt `tests/test_decisions.py` rood. Taak 14: een vloer boven de meting geeft exit 1.
 
-Eén proef die in een eerdere opzet van dit plan stond en is geschrapt omdat hij niet kon vuren: een test met twee threads op één token onder `transaction=True`, die op Postgres soms slaagt en soms niet afhankelijk van welke thread het slot eerst neemt. Hij is vervangen door de sequentiële test plus de AST-lezing van het slot, en het plan zegt waarom in de lijst van elf dingen.
+Eén proef die in een eerdere opzet van dit plan stond en is geschrapt omdat hij niet kon vuren: een test met twee threads op één token onder `transaction=True`, die op Postgres soms slaagt en soms niet afhankelijk van welke thread het slot eerst neemt. Hij is vervangen door de sequentiële test plus de AST-lezing van het slot, en het plan zegt waarom in de lijst van veertien dingen.
 
 ### Zijn de afhankelijkheden eerlijk over gedeelde bestanden
 
-`backend/accounts/views.py` wordt door taak 4 en 5 geschreven, in die volgorde. `tests/test_accounts_recovery.py` door 3 en 5. `tests/test_accounts_api.py` door 4 en 5. `backend/ampeer/settings/base.py` door 5 en 6. `tests/test_accounts_mail.py` door 6 en 7. `tests/test_dpia.py` en `docs/dpia.md` door 2, 7 en 13. `.github/workflows/deploy.yml` door 6 en 7. `tests/test_stack_smoke.py` door 7 en 12. `tests/test_frontend_contract.py` door 4 en 10. `frontend/tests/ui-strings.txt` door 9 en 10. Geen enkel bestand wordt door twee taken geschreven die niet in een `Hangt af van`-keten aan elkaar vastzitten, en de keten is de serie zelf.
+`backend/accounts/views.py` wordt door taak 4 en 5 geschreven, in die volgorde. `tests/test_accounts_recovery.py` door 3 en 5. `tests/test_accounts_api.py` door 4 en 5. `backend/ampeer/settings/base.py` door 5 en 6. `tests/test_accounts_mail.py` door 6 en 7. `tests/test_dpia.py` en `docs/dpia.md` door 2, 7 en 13. `infra/README.md` door 6 en 7. `tests/test_stack_smoke.py` door 6, 7 en 12. `tests/test_frontend_contract.py` door 4 en 10. `frontend/tests/ui-strings.txt` door 9 en 10. `.github/workflows/deploy.yml` alleen door 6, sinds de pre-flight scan. Geen enkel bestand wordt door twee taken geschreven die niet in een `Hangt af van`-keten aan elkaar vastzitten, en de keten is de serie zelf. En sinds diezelfde scan laat geen taak een test rood achter die het plan zelf rood weet: wat aan de vier nieuwe instellingen hangt, landt in taak 6 in één commit.
 
 ### De markering
 
