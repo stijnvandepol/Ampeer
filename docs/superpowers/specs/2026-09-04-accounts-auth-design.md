@@ -295,7 +295,12 @@ Voor `/api/auth/delete/` komt daar een tweede, technische reden bij, en die staa
 
 Alle negen erven van `_AuthAPIView`, dat op zijn beurt van `_NoStoreAPIView` uit
 `backend/advice/views.py` erft. Daarmee dragen ze `Cache-Control: private, no-store`, want elk
-van deze antwoorden beschrijft één huishouden. `_AuthAPIView` voegt daar één ding aan toe, zie
+van deze antwoorden beschrijft één huishouden. Op één na: `consent-texts/` beschrijft er geen,
+het antwoord is voor iedereen hetzelfde en zou dus gecachet mogen worden. Die route draagt de
+header toch, omdat een uitzondering op de basisklasse de header van de acht andere routes
+afhankelijk maakt van wie eraan denkt hem te zetten. Een verkeerd gecachet antwoord op
+`me/` of `export/` is een huishouden dat de gegevens van een ander ziet; wat deze regel kost
+is één keer opnieuw ophalen van twee zinnen. `_AuthAPIView` voegt daar één ding aan toe, zie
 5.5. De throttleklasse komt uit `DEFAULT_THROTTLE_CLASSES` in `base.py` en is dus
 `advice.throttling.HashedIdentScopedRateThrottle`, dezelfde die de adviesendpoints gebruiken en
 om dezelfde reden: hij telt per bezoeker zonder een adres neer te zetten.
