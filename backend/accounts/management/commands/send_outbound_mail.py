@@ -17,6 +17,17 @@ and the wait. Two writes, in that order, and the first commits only if the
 transport took the message. Spec 4.4 describes the same property in the
 words "two transactions"; the savepoint is how it is delivered without
 letting go of the row in between.
+
+A row is claimed one at a time, so one row's failure cannot be allowed to
+stop every row after it: a mailer bug that raises something other than
+`TransportError` (fix round 1 found one such gap, in `ResendTransport.send`)
+must not wedge the whole outbox behind a row nobody can move past. Such a
+row is therefore deferred exactly like a transport failure, the run moves on
+to the next row, and only once the whole batch is done does the command
+report the count and exit non-zero, so the unit shows failed while the next
+tick still drains everything after the poison row. Only the exception's
+class name reaches the journal, never `str(error)`, which could carry an
+address if the failure happened while composing the message.
 """
 
 from __future__ import annotations
@@ -92,8 +103,13 @@ class Command(BaseCommand):
 
     def handle(self, *args: Any, **options: Any) -> None:
         if not options["check"]:
-            sent, deferred = self._deliver()
+            sent, deferred, faulted = self._deliver()
             self.stdout.write(f"sent {sent} messages, deferred {deferred}")
+            if faulted:
+                raise CommandError(
+                    f"{faulted} row(s) raised something other than a transport failure; "
+                    "deferred like any other and left for the next run"
+                )
         overdue = OutboundMail.objects.filter(
             failed_at__isnull=True, created_at__lte=timezone.now() - OVERDUE_AFTER
         ).count()
@@ -103,9 +119,9 @@ class Command(BaseCommand):
                 "the timer has stopped or the transport refuses everything"
             )
 
-    def _deliver(self) -> tuple[int, int]:
+    def _deliver(self) -> tuple[int, int, int]:
         sender = mailer.transport()
-        sent = deferred = 0
+        sent = deferred = faulted = 0
         while True:
             with transaction.atomic():
                 row = (
@@ -115,7 +131,7 @@ class Command(BaseCommand):
                     .first()
                 )
                 if row is None:
-                    return sent, deferred
+                    return sent, deferred, faulted
                 try:
                     with transaction.atomic():
                         raw = recovery.mint(row.user, row.kind)
@@ -123,6 +139,20 @@ class Command(BaseCommand):
                 except mailer.TransportError as error:
                     self._defer(row, error.status)
                     deferred += 1
+                    continue
+                except Exception as error:  # noqa: BLE001
+                    # Anything else is a bug, in this command or in the
+                    # transport, and not a signal about this particular
+                    # address. The savepoint above still rolled the mint
+                    # back; this row is deferred exactly like a transport
+                    # failure, so it does not wedge every row after it. Blind
+                    # on purpose: whatever this raises, one poison row must
+                    # defer and let the claim move to the next row rather
+                    # than kill the whole run.
+                    self.stdout.write(f"row {row.pk} deferred after {type(error).__name__}")
+                    self._defer(row, 0)
+                    deferred += 1
+                    faulted += 1
                     continue
                 AuditEvent.record(
                     AuditEvent.MAIL_SENT,

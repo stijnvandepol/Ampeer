@@ -646,7 +646,10 @@ def test_the_mail_unit_runs_the_command_every_minute() -> None:
     assert "backend/manage.py send_outbound_mail" in service
     assert "--entrypoint python" in service
     assert "OnCalendar=*-*-* *:*:00" in timer
-    assert "Persistent=true" not in timer
+    # Line-anchored rather than a substring check: the file may still mention
+    # the flag in a comment explaining why it is absent, as ampeer-mail.timer
+    # does; only an actual `[Timer]` directive line has to be missing.
+    assert not any(line.startswith("Persistent=") for line in timer.splitlines())
     assert "INSTALLED BY HAND" in service[:400]
 
 

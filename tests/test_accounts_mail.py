@@ -105,6 +105,21 @@ def test_a_success_without_an_id_is_refused_rather_than_logged_as_sent() -> None
     assert caught.value.status == 200
 
 
+def test_a_success_with_an_unparsable_body_is_a_transport_error_too() -> None:
+    """Fix round 1: `response.json()` used to run outside the `try`, so a 200
+    whose body is not JSON raised past this function instead of becoming a
+    `TransportError` the caller already knows how to defer."""
+    transport = mailer.ResendTransport(api_key="sleutel", sender="noreply@ampeer.nl")
+    response = _answer(200)
+    response.json.side_effect = ValueError("not json")
+    with (
+        mock.patch.object(requests, "post", return_value=response),
+        pytest.raises(mailer.TransportError) as caught,
+    ):
+        transport.send(MESSAGE)
+    assert caught.value.status == 200
+
+
 def test_the_file_transport_writes_one_readable_file_per_message(tmp_path: Path) -> None:
     transport = mailer.FileTransport(tmp_path / "mail")
     provider_id = transport.send(MESSAGE)
@@ -359,25 +374,79 @@ def test_a_failed_row_is_never_picked_up_again(
     assert transport.attempts == 1
 
 
+class _PoisonMiddle:
+    """Sends normally, except the second message, which raises an exception
+    that is not `TransportError` (fix round 1: `ResendTransport.send` could
+    do exactly this on a 200 with an unparsable body, before that was fixed
+    in mailer.py). The message is one an address could plausibly appear in,
+    to prove the command never writes `str(error)` anywhere it can be read."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+        self.sent: list[mailer.Message] = []
+
+    def send(self, message: mailer.Message) -> str:
+        self.calls += 1
+        if self.calls == 2:
+            raise RuntimeError("iemand@voorbeeld.nl")
+        self.sent.append(message)
+        return f"memory-{message.idempotency_key}"
+
+
+@pytest.mark.django_db
+def test_a_poison_row_is_deferred_and_the_others_still_send(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    accounts = [
+        User.objects.create_user(email=f"lid{i}@voorbeeld.nl", password=TEST_PASSWORD)
+        for i in range(3)
+    ]
+    for account in accounts:
+        recovery.request_password_reset(account.email)
+    rows = list(OutboundMail.objects.order_by("id"))
+    middle_pk = rows[1].pk
+    sender = _PoisonMiddle()
+    monkeypatch.setattr(mailer, "transport", lambda: sender)
+    out = io.StringIO()
+    with pytest.raises(CommandError, match="1 row"):
+        call_command("send_outbound_mail", stdout=out)
+    output = out.getvalue()
+    assert len(sender.sent) == 2
+    assert OutboundMail.objects.filter(pk__in=[rows[0].pk, rows[2].pk]).count() == 0
+    row = OutboundMail.objects.get(pk=middle_pk)
+    assert row.attempts == 1
+    assert row.failed_at is None
+    assert "RuntimeError" in output
+    assert "iemand@voorbeeld.nl" not in output
+
+
 @pytest.mark.django_db
 def test_the_command_exits_nonzero_when_something_is_overdue(
     _account: User, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The half that notices. `--check` sends nothing and asks one question:
     is anything unsent older than fifteen minutes?"""
-    monkeypatch.setattr(mailer, "transport", lambda: _Failing(0))
+    # The real memory transport, not `_Failing`, for the two `--check` calls:
+    # the row stays due (its `next_attempt_at` is untouched) the whole time,
+    # so if `--check` ever called `_deliver()` by mistake it would actually
+    # be delivered and removed, leaving nothing for the overdue check to
+    # find. That turns the wrong behaviour into a missing `CommandError`
+    # rather than a merely dead assertion on `MEMORY.sent`.
+    monkeypatch.setattr(mailer, "transport", lambda: mailer.MEMORY)
     recovery.request_password_reset(_account.email)
     _run("--check")
     OutboundMail.objects.update(created_at=timezone.now() - timedelta(minutes=16))
     with pytest.raises(CommandError, match="waiting"):
         _run("--check")
     assert mailer.MEMORY.sent == []
+    # Only the final, real run needs the send to keep failing: the row has
+    # to still be there, still overdue, after `_deliver()` has had its turn.
+    monkeypatch.setattr(mailer, "transport", lambda: _Failing(0))
     with pytest.raises(CommandError, match="waiting"):
         _run()
 
 
-@pytest.mark.django_db
-def test_two_overlapping_runs_never_send_one_row_twice(_account: User) -> None:
+def test_the_claim_reads_the_source_for_skip_locked() -> None:
     """`FOR UPDATE SKIP LOCKED`, read off the source like the lock in
     recovery.py: the behavioural half is that a row locked by another run is
     skipped, which two processes on Postgres provide and one test process
@@ -412,3 +481,16 @@ def test_the_purge_removes_expired_tokens_and_old_failures(_account: User) -> No
     assert "1 failed mails" in out.getvalue()
     assert OneTimeToken.objects.get().token_sha256 == token_digest(live)
     assert OutboundMail.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_the_purge_keeps_a_spent_but_unexpired_token(_account: User) -> None:
+    """The docstring's claim: a rotated refresh session is kept for the same
+    reason (it is the evidence that a token was spent), and a spent
+    `OneTimeToken` is kept here too, on `expires_at` and not on `spent_at`."""
+    raw = recovery.mint(_account, OneTimeToken.EMAIL_VERIFY)
+    OneTimeToken.objects.filter(token_sha256=token_digest(raw)).update(spent_at=timezone.now())
+    out = io.StringIO()
+    call_command("purge_expired_sessions", stdout=out)
+    assert "0 expired one-time tokens" in out.getvalue()
+    assert OneTimeToken.objects.count() == 1

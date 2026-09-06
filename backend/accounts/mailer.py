@@ -82,7 +82,13 @@ class ResendTransport:
             raise TransportError(0) from error
         if response.status_code != 200:
             raise TransportError(response.status_code)
-        body = response.json()
+        try:
+            body = response.json()
+        except ValueError as error:
+            # A 200 whose body cannot be parsed is not a delivery this
+            # command can point at in MAIL_SENT, so it is a transport
+            # failure and not an exception the caller has to guard against.
+            raise TransportError(response.status_code) from error
         provider_id = body.get("id") if isinstance(body, dict) else None
         if not isinstance(provider_id, str) or not provider_id:
             # A 200 that names no delivery is not a delivery this command
