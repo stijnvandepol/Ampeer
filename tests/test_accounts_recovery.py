@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import ast
 import secrets
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, TypedDict
 
@@ -450,7 +450,7 @@ def test_a_verification_confirm_answers_204_and_me_carries_the_timestamp(client:
     )
     assert response.status_code == 204
     after = client.get("/api/auth/me/").json()
-    assert isinstance(after["email_verified_at"], str)
+    assert datetime.fromisoformat(after["email_verified_at"]) is not None
     again = client.post(
         "/api/auth/verify/confirm/", {"token": raw}, content_type="application/json", **headers
     )
@@ -492,6 +492,37 @@ def test_the_public_recovery_routes_refuse_a_post_without_the_csrf_header(client
     ):
         response = strict.post(path, body, format="json")
         assert response.status_code == 403, (path, response.content)
+
+
+@pytest.mark.django_db
+def test_the_eleventh_reset_request_in_an_hour_is_refused_in_dutch(client: Any) -> None:
+    """The auth-reset scope was declared and counted, and no request ever
+    reached its refusal; the review drove it by hand. Now the suite does,
+    and asserts the Dutch sentence with the header's own number.
+
+    Ten reset requests to real and fake addresses, the route answers alike
+    with no audit line for unknown ones, consume the whole of `auth-reset`'s
+    10/hour; the eleventh is throttled before the handler ever runs, so its
+    `detail` owes nothing to whether the address is real or not.
+    """
+    headers = _csrf(client)
+    for i in range(10):  # requests 1 through 10
+        response = client.post(
+            "/api/auth/reset/request/",
+            {"email": f"iemand-{i}@voorbeeld.nl"},
+            content_type="application/json",
+            **headers,
+        )
+        assert response.status_code == 202, response.content
+    eleventh = client.post(  # request 11
+        "/api/auth/reset/request/",
+        {"email": "iemand-10@voorbeeld.nl"},
+        content_type="application/json",
+        **headers,
+    )
+    assert eleventh.status_code == 429, eleventh.content
+    seconds = int(eleventh["Retry-After"])
+    assert eleventh.json()["detail"] == NL["throttled"] % {"seconds": seconds}
 
 
 @pytest.mark.django_db
