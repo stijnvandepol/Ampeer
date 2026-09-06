@@ -13,6 +13,23 @@ export const metadata: Metadata = {
   // A string and not a URL instance, for the reason privacy/page.tsx gives:
   // Next treats a URL here as a base and canonicalises the page to the root.
   alternates: { canonical: PATH },
+  /*
+   * Not in any index, and not followed out of, the same tag advies/layout.tsx
+   * carries and for a neighbouring reason.
+   *
+   * Leaving this route out of SITEMAP_ROUTES says which pages this product
+   * wants found; it does not say anything a crawler has to obey. Nothing here
+   * is an answer to a search: the whole page is a sign-in form, a
+   * registration form and a visitor's own account, and a search result
+   * leading to it is a result that helps nobody. Worse, the same address in an
+   * index is where a phishing page wants to be, next to the real one.
+   *
+   * A meta tag and NOT a Disallow in robots.txt: a disallowed URL is never
+   * fetched, so the noindex on it is never read, and a page can still be
+   * indexed from an inbound link alone. The tag is the control a crawler has
+   * to come in to obey.
+   */
+  robots: { index: false, follow: false },
 };
 
 /**

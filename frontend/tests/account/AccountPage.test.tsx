@@ -4,6 +4,7 @@ import me from "../fixtures/me-response.json";
 import consentTexts from "../fixtures/consent-texts.json";
 import exportPayload from "../fixtures/export-response.json";
 import { AccountPage } from "@/app/_account/AccountPage";
+import AccountRoute, { metadata } from "@/app/account/page";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -751,5 +752,44 @@ describe("the account view", () => {
       "e-mailadres of wachtwoord klopt niet",
     );
     expect(screen.getByText(me.email)).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The route file, which is the half of this page that ships without JavaScript
+// ---------------------------------------------------------------------------
+
+describe("the account route as Next will call it", () => {
+  it("ships the heading and the paragraph that say what this page is", () => {
+    // The client component underneath asks `me/` on mount. A request that
+    // never settles keeps this render on the loading sentence, so what is
+    // asserted below is what the server component itself put in
+    // out/account/index.html and not something a fetch decided.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(() => new Promise(() => {})),
+    );
+    render(<AccountRoute />);
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Uw account" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Voor de rekenmachine is geen account nodig\./),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Uw gegevens worden opgehaald.",
+    );
+  });
+
+  it("names itself once and asks not to be indexed", () => {
+    expect(metadata.title).toBe("Uw account");
+    expect(String(metadata.description).length).toBeGreaterThan(50);
+    expect(metadata.alternates?.canonical).toBe("/account/");
+    // A string and not a URL, for the reason the file gives: Next reads a URL
+    // here as a base and canonicalises the page to the root.
+    expect(typeof metadata.alternates?.canonical).toBe("string");
+    // Absent from the sitemap says which pages this product wants found. Only
+    // this tag says it to a crawler that arrived by an inbound link.
+    expect(metadata.robots).toEqual({ index: false, follow: false });
   });
 });

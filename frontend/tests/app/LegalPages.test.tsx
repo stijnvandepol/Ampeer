@@ -401,6 +401,13 @@ describe("the crawler files, once the legal pages exist", () => {
     expect(urls).toContain(`${SITE_ORIGIN}/privacy/`);
     expect(urls).toContain(`${SITE_ORIGIN}/over-ons/`);
     expect(sitemap()).toHaveLength(SITEMAP_ROUTES.length);
+    // And leaves out the one route that is not an answer to a search. The
+    // account page's own file says it is deliberately absent; a comment is
+    // not a check, and this is the line that would go red if somebody added
+    // it. The tag in that file's metadata is the other half: this list says
+    // which pages the product wants found, the tag is what a crawler that
+    // arrived by an inbound link has to obey.
+    expect(urls).not.toContain(`${SITE_ORIGIN}/account/`);
     for (const entry of sitemap()) {
       expect(entry.url.endsWith("/")).toBe(true);
       expect(entry.lastModified).toBeUndefined();
