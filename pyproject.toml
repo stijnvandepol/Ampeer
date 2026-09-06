@@ -168,9 +168,10 @@ omit = ["backend/manage.py", "backend/ampeer/wsgi.py"]
 precision = 2
 # Measured at two decimals, not read off the rounded TOTAL row. Raised from
 # 97 to 98 on 2026-08-20 after covering the ingest CLI took the tree to
-# 98.03. May be raised, never lowered: a floor below the current level makes
-# a regression invisible.
-fail_under = 98
+# 98.03, then from 98 to 99.06 on 2026-09-06 at the end of the accounts
+# frontend branch. May be raised, never lowered: a floor below the current
+# level makes a regression invisible.
+fail_under = 99.06
 show_missing = true
 
 [tool.bandit]

@@ -36,10 +36,15 @@ export default defineConfig({
         // the audits added seventy-five tests and every number rose. Ratcheting
         // is the point: a floor left where it was is a floor that stops noticing
         // regressions the moment the tree gets better than it.
-        statements: 96,
-        branches: 93,
+        //
+        // Raised again 96/93/96/97 -> 97/94/96/98 on 2026-09-06, at the end of
+        // the accounts frontend branch, from a measurement of 97.27 / 94.76 /
+        // 96.63 / 98.14 rounded down. Functions stays at 96 because the
+        // rounded-down measurement is 96 too: equal is not lower.
+        statements: 97,
+        branches: 94,
         functions: 96,
-        lines: 97,
+        lines: 98,
       },
     },
   },
