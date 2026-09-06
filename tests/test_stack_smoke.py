@@ -205,6 +205,25 @@ def _fresh_email() -> str:
     return f"smoke-{secrets.token_hex(6)}@voorbeeld.invalid"
 
 
+def _assert_session_cookie_attributes(session: _Session, issued_by: str) -> None:
+    """The four attributes a browser enforces, off one pair of Set-Cookie lines."""
+    access = session.attributes("ampeer_access")
+    refresh = session.attributes("ampeer_refresh")
+    assert "httponly" in access, (
+        f"the access cookie {issued_by} set is readable from JavaScript: {access}"
+    )
+    assert "httponly" in refresh, (
+        f"the refresh cookie {issued_by} set is readable from JavaScript: {refresh}"
+    )
+    assert access.get("samesite") == "Strict", (issued_by, access)
+    assert refresh.get("samesite") == "Strict", (issued_by, refresh)
+    # Two different paths on purpose: the access token reaches every API route
+    # and the refresh token only the two that need it, so it does not travel
+    # on every request the access token makes.
+    assert access.get("path") == "/api/", (issued_by, access)
+    assert refresh.get("path") == "/api/auth/", (issued_by, refresh)
+
+
 @needs_stack
 def test_live_the_session_cookies_carry_the_attributes_a_browser_enforces() -> None:
     """The header on the wire, and not the morsel Django built.
@@ -214,6 +233,17 @@ def test_live_the_session_cookies_carry_the_attributes_a_browser_enforces() -> N
     process. This reads the text that travelled through nginx under
     ampeer.settings.prod, which is what a browser actually interprets, and it
     is the only place the deployed settings are the ones being described.
+
+    Both routes that hand out a session are read, and that is the second thing
+    this proves. Every other live check here signs in by registering, so until
+    now nothing in this file had ever completed a `login/` at all: the one
+    route a returning visitor uses was covered only by the Django test client,
+    which never sees these headers. And the cookies are set from two call
+    sites, so "register/ gets them right" is not a statement about login/.
+
+    Registering once and reusing that account is deliberate: `auth-register`
+    is five an hour and this file is meant to be runnable more than once in a
+    sitting.
     """
     from accounts.nl import CONSENT_TEXT_VERSION
 
@@ -225,28 +255,27 @@ def test_live_the_session_cookies_carry_the_attributes_a_browser_enforces() -> N
         "the 401 did not hand out a CSRF token, so nobody can ever sign in"
     )
 
+    email = _fresh_email()
     session.json(
         "POST",
         "/api/auth/register/",
         {
-            "email": _fresh_email(),
+            "email": email,
             "password": TEST_PASSWORD,
             "consent_meter_link": False,
             "consent_lead_generation": False,
             "text_version": CONSENT_TEXT_VERSION,
         },
     )
-    access = session.attributes("ampeer_access")
-    refresh = session.attributes("ampeer_refresh")
-    assert "httponly" in access, f"the access cookie is readable from JavaScript: {access}"
-    assert "httponly" in refresh, f"the refresh cookie is readable from JavaScript: {refresh}"
-    assert access.get("samesite") == "Strict", access
-    assert refresh.get("samesite") == "Strict", refresh
-    # Two different paths on purpose: the access token reaches every API route
-    # and the refresh token only the two that need it, so it does not travel
-    # on every request the access token makes.
-    assert access.get("path") == "/api/", access
-    assert refresh.get("path") == "/api/auth/", refresh
+    _assert_session_cookie_attributes(session, "register/")
+
+    # Out and back in on the same account. `logout/` revokes the refresh token
+    # and clears both cookies, so what login/ answers with is a new pair and
+    # not the old one echoed back.
+    session.json("POST", "/api/auth/logout/")
+    session.json("POST", "/api/auth/login/", {"email": email, "password": TEST_PASSWORD})
+    _assert_session_cookie_attributes(session, "login/")
+
     session.json("POST", "/api/auth/delete/", {"password": TEST_PASSWORD})
 
 
