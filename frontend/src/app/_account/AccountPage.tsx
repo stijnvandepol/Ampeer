@@ -93,8 +93,18 @@ export function AccountPage() {
 
   useEffect(() => {
     // `alive` rather than an abort: the answer decides what is on the screen,
-    // and setting state on a component that has gone is a warning in
-    // development and a leak in a test that renders this twice.
+    // and setting state on a component that has gone is exactly the shape of
+    // a stale-answer bug even where React swallows it.
+    //
+    // THIS GUARD AND THE ONE IN `AccountView` BELOW STAND UNTESTED, on
+    // purpose. Three tests used to assert `console.error` was not called
+    // after a late answer, and on 2026-09-06 all three stayed green with the
+    // guard deleted: React 19 drops an update whose fiber has no root before
+    // it reaches the act check, so nothing is logged either way. A probe that
+    // recorded every console channel, unhandled rejections and the DOM
+    // produced byte-identical output with the guard present and absent. There
+    // is no assertion that can tell the two apart, so there is no test here
+    // rather than three that read green by construction.
     let alive = true;
     void loadSession().then((next) => {
       if (alive) setState(next);
@@ -225,6 +235,8 @@ function AccountView({
   const [password, setPassword] = useState("");
 
   useEffect(() => {
+    // Untested for the reason spelled out at the guard in `AccountPage`
+    // above: nothing observable differs between this guard and no guard.
     let alive = true;
     getConsentTexts()
       .then((answer) => {
