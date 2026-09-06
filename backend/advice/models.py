@@ -149,6 +149,19 @@ class AuditEvent(models.Model):
     DATA_EXPORTED = "DATA_EXPORTED"
     ACCOUNT_DELETED = "ACCOUNT_DELETED"
 
+    #: The four that arrived with password reset and address confirmation.
+    #: A reset request is logged only for an address that belongs to an
+    #: account, with `user_id` and nothing else; for an unknown address there
+    #: is nothing to point at and the log stays silent, because a line about
+    #: it would have to carry the address to mean anything. `MAIL_SENT`
+    #: carries the kind and the id the mail provider returned: that id is not
+    #: a personal datum and is the only handle by which one delivery can be
+    #: found at the processor.
+    PASSWORD_RESET_REQUESTED = "PASSWORD_RESET_REQUESTED"
+    PASSWORD_RESET_COMPLETED = "PASSWORD_RESET_COMPLETED"
+    EMAIL_VERIFIED = "EMAIL_VERIFIED"
+    MAIL_SENT = "MAIL_SENT"
+
     event_type = models.CharField(max_length=64, db_index=True)
     occurred_at = models.DateTimeField(auto_now_add=True, db_index=True)
     #: Context without a personal detail: the token and the four digit

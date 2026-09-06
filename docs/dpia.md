@@ -104,16 +104,21 @@ zes mislukte aanmeldingen staan alle drie op nul rijen.
 
 ### Het auditlogboek
 
-`AuditEvent` is append-only en kent sinds fase 1 negen soorten gebeurtenissen in
-plaats van een: dat er een advies is gegenereerd (`ADVICE_GENERATED`), dat een
+`AuditEvent` is append-only en kent sinds fase 1 dertien soorten gebeurtenissen
+in plaats van een: dat er een advies is gegenereerd (`ADVICE_GENERATED`), dat een
 account is aangemaakt (`ACCOUNT_CREATED`), dat een aanmelding lukte of mislukte
 (`LOGIN_SUCCEEDED`, `LOGIN_FAILED`), dat iemand uitlogde (`LOGOUT`), dat een
 toestemming is gegeven of ingetrokken (`CONSENT_GRANTED`,
 `CONSENT_WITHDRAWN`), dat gegevens zijn geexporteerd (`DATA_EXPORTED`) en dat
-een account is verwijderd (`ACCOUNT_DELETED`). Bij de eerste regel staat een
+een account is verwijderd (`ACCOUNT_DELETED`), en sinds het derde deel van fase 1
+ook dat om wachtwoordherstel is gevraagd voor een adres dat bij een account
+hoort (`PASSWORD_RESET_REQUESTED`), dat een herstel is voltooid
+(`PASSWORD_RESET_COMPLETED`), dat een e-mailadres is bevestigd
+(`EMAIL_VERIFIED`) en dat een bericht bij de mailverwerker is afgeleverd
+(`MAIL_SENT`). Bij de eerste regel staat een
 sha256 van het token, het viercijferige postcodegebied, het
 betrouwbaarheidsniveau en de twee versienummers van de motor en de regeltabel.
-De acht andere dragen geen vaste vorm, en dat is opzettelijk beschreven in
+De twaalf andere dragen geen vaste vorm, en dat is opzettelijk beschreven in
 plaats van vereenvoudigd tot een: de meeste dragen een `user_id`, een geheel
 getal of `null`, en nooit een e-mailadres. `null` betekent dat een mislukte
 aanmelding een adres probeerde dat bij geen account hoort; er is dan niets om
@@ -127,7 +132,9 @@ zou een koppeling suggereren die er niet is. In alle gevallen geldt: deze
 tabel wordt nooit opgeruimd, dus wat erin staat overleeft het account dat het
 beschrijft, en een getal dat naar een verwijderde rij wijst is een lege
 verwijzing waar een e-mailadres een blijvend persoonsgegeven zou zijn in een
-tabel zonder bewaartermijn.
+tabel zonder bewaartermijn. Een herstelverzoek voor een adres dat bij geen
+account hoort, wordt niet gelogd: een regel daarover zou het adres zelf moeten
+dragen om iets te betekenen.
 
 **Niet het token zelf.** Het token is geen verwijzing naar een advies, het is
 de enige sleutel die het opent, en deze tabel wordt nooit opgeruimd. Een token

@@ -191,7 +191,7 @@ def test_no_table_has_a_column_for_an_address() -> None:
 
 
 def test_the_audit_log_records_exactly_what_the_document_says_it_does() -> None:
-    """Nine event types today, and the document explains why two more are absent.
+    """Thirteen event types today, and the document explains why two more are absent.
 
     A ninth kind arriving means a handling arrived with it, which is precisely
     when a privacy document has to be reread rather than assumed.
@@ -219,6 +219,10 @@ def test_the_audit_log_records_exactly_what_the_document_says_it_does() -> None:
         "CONSENT_WITHDRAWN",
         "DATA_EXPORTED",
         "ACCOUNT_DELETED",
+        "PASSWORD_RESET_REQUESTED",
+        "PASSWORD_RESET_COMPLETED",
+        "EMAIL_VERIFIED",
+        "MAIL_SENT",
     ], (
         f"the audit log now records {kinds}; docs/dpia.md chapter 2 lists what it records "
         "and why the two that are still absent are absent. Both have to change together."

@@ -8,6 +8,7 @@ promise per module stays checkable, where a longer exception would not.
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any, ClassVar
 
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
@@ -53,6 +54,15 @@ class User(AbstractBaseUser):
     is_active = models.BooleanField(default=True)
     #: Not `auto_now_add`, for the same reason `StoredAdvice.created_at` is not.
     date_joined = models.DateTimeField(default=timezone.now, editable=False)
+
+    #: When the address was confirmed as this person's, by a confirmation
+    #: link or by a completed password reset. A timestamp and not a flag,
+    #: because "when" is the question a privacy document asks and a flag
+    #: cannot answer it. Null means never, which is true of every account
+    #: made before this column existed. Nothing in phase 1 reads it; phase 2
+    #: requires it before a meter is linked, and that is the only place it
+    #: blocks anything.
+    email_verified_at = models.DateTimeField(null=True, blank=True)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS: ClassVar[list[str]] = []
@@ -185,3 +195,90 @@ class RefreshSession(models.Model):
     @property
     def is_spent(self) -> bool:
         return self.rotated_at is not None or self.revoked_at is not None
+
+
+class OneTimeToken(models.Model):
+    """One link that works once, without the link.
+
+    The same shape as `RefreshSession` above, for a second vocabulary: the
+    row holds the sha256 of the token and never the token, so a copy of this
+    table hands nobody a working link. `token_digest` is the same unsalted
+    sha256 the advice token and the refresh session use, with the same
+    argument: the input is 256 bits from `secrets.token_urlsafe`, so there
+    is no dictionary to run and no salt that adds anything.
+
+    Why not `django.contrib.auth.tokens.PasswordResetTokenGenerator`, which
+    decision 31 pointed at: it hashes `last_login` into the token, so a
+    confirmation link would die the moment the new account signs in, and it
+    has no notion of "spent", so a reset link would stay valid until the
+    password changed. `spent_at` answers that in one column.
+    """
+
+    PASSWORD_RESET = "PASSWORD_RESET"
+    EMAIL_VERIFY = "EMAIL_VERIFY"
+    KINDS: ClassVar[frozenset[str]] = frozenset({PASSWORD_RESET, EMAIL_VERIFY})
+
+    #: One hour for a link that sets a password, seven days for a link that
+    #: confirms a fact about an address. Counted from `issued_at`, which is
+    #: the moment of sending and not the moment of asking.
+    LIFETIMES: ClassVar[dict[str, timedelta]] = {
+        PASSWORD_RESET: timedelta(hours=1),
+        EMAIL_VERIFY: timedelta(days=7),
+    }
+
+    user = models.ForeignKey(
+        "accounts.User", on_delete=models.CASCADE, related_name="one_time_tokens"
+    )
+    kind = models.CharField(max_length=16, db_index=True)
+    token_sha256 = models.CharField(max_length=64, unique=True, db_index=True)
+    issued_at = models.DateTimeField()
+    expires_at = models.DateTimeField(db_index=True)
+    spent_at = models.DateTimeField(null=True, blank=True)
+    #: Set on every older unspent token of the same kind when a new one is
+    #: minted, so a person has at most one usable link per kind at a time.
+    superseded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering: ClassVar[list[str]] = ["-issued_at"]
+
+    @property
+    def is_usable(self) -> bool:
+        """The one question the three routes that read a token ask."""
+        return (
+            self.spent_at is None
+            and self.superseded_at is None
+            and self.expires_at > timezone.now()
+        )
+
+
+class OutboundMail(models.Model):
+    """One message waiting to leave, described by what it is and not by what it says.
+
+    No address (it is on `User`, read at the moment of sending), no subject,
+    no body and no token: the token does not exist yet when this row is
+    written, because it is minted by the command that sends the mail, so the
+    only two places a raw token ever is are that command's memory and the
+    mail itself. `tests/test_dpia.py` keeps asserting that no table has an
+    address column, and this table keeps that true.
+
+    CASCADE, so an account deleted before its mail left takes the row with
+    it: nothing goes out to an address that no longer belongs to an account.
+    """
+
+    user = models.ForeignKey(
+        "accounts.User", on_delete=models.CASCADE, related_name="outbound_mails"
+    )
+    kind = models.CharField(max_length=16, db_index=True)
+    created_at = models.DateTimeField(default=timezone.now, editable=False)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    #: From when the command may pick this row up again. Now on creation,
+    #: later after a failed attempt.
+    next_attempt_at = models.DateTimeField(db_index=True)
+    #: The HTTP status of the last attempt, 0 for no answer at all.
+    last_status = models.PositiveSmallIntegerField(null=True, blank=True)
+    #: When the command gave up. A row with this set is never retried and is
+    #: removed seven days later by `purge_expired_sessions`.
+    failed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering: ClassVar[list[str]] = ["id"]

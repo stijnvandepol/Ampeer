@@ -5,11 +5,13 @@ from __future__ import annotations
 from datetime import timedelta
 
 import pytest
+from django.core.management import call_command
 from django.db.utils import IntegrityError
 from django.utils import timezone
 from helpers.accounts import OTHER_PASSWORD, TEST_PASSWORD
 
-from accounts.models import User
+from accounts.models import OneTimeToken, OutboundMail, User
+from advice.models import AuditEvent, token_digest
 
 
 @pytest.mark.django_db
@@ -225,3 +227,106 @@ def test_presenting_a_rotated_token_is_the_signal_to_revoke_the_whole_chain() ->
     unrelated.refresh_from_db()
     assert other_session.revoked_at == revoked_at, "the victim's other session must be revoked too"
     assert unrelated.revoked_at is None, "a different account's session must be left alone"
+
+
+# ---------------------------------------------------------------------------
+# The two recovery tables and the one new column, before any route exists.
+#
+# Asserted on the model and on the schema rather than through a request,
+# because the properties below decide what a route may say later: a token
+# that reads usable after it was spent is a token that opens something twice.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def _account() -> User:
+    return User.objects.create_user(email="iemand@voorbeeld.nl", password=TEST_PASSWORD)
+
+
+@pytest.mark.django_db
+def test_a_new_account_has_no_verified_address(_account: User) -> None:
+    """Null means never confirmed, which is true of every account that exists
+    before this cycle and of every account at the moment it is made."""
+    assert _account.email_verified_at is None
+
+
+@pytest.mark.django_db
+def test_a_token_is_usable_until_spent_superseded_or_expired(_account: User) -> None:
+    now = timezone.now()
+    row = OneTimeToken.objects.create(
+        user=_account,
+        kind=OneTimeToken.PASSWORD_RESET,
+        token_sha256=token_digest("een-ruw-token"),
+        issued_at=now,
+        expires_at=now + timedelta(hours=1),
+    )
+    assert row.is_usable
+    row.spent_at = now
+    assert not row.is_usable
+    row.spent_at = None
+    row.superseded_at = now
+    assert not row.is_usable
+    row.superseded_at = None
+    row.expires_at = now - timedelta(seconds=1)
+    assert not row.is_usable
+
+
+def test_the_two_lifetimes_are_one_hour_and_seven_days() -> None:
+    """Spec 2.1. A reset link is a password; a confirmation link is a fact
+    about an address that does not change. Read off the model so a later edit
+    of either number shows up here and not only in a mail nobody rereads."""
+    assert OneTimeToken.LIFETIMES[OneTimeToken.PASSWORD_RESET] == timedelta(hours=1)
+    assert OneTimeToken.LIFETIMES[OneTimeToken.EMAIL_VERIFY] == timedelta(days=7)
+    assert set(OneTimeToken.LIFETIMES) == OneTimeToken.KINDS
+
+
+@pytest.mark.django_db
+def test_an_outbox_row_starts_unsent_and_due_now(_account: User) -> None:
+    before = timezone.now()
+    row = OutboundMail.objects.create(
+        user=_account, kind=OneTimeToken.EMAIL_VERIFY, next_attempt_at=before
+    )
+    assert row.attempts == 0
+    assert row.failed_at is None
+    assert row.last_status is None
+    assert row.created_at >= before
+
+
+@pytest.mark.django_db
+def test_deleting_the_account_takes_its_tokens_and_its_outbox_rows(_account: User) -> None:
+    """A mail to an address that no longer belongs to an account must not
+    leave, and a token for a user who is gone must not be findable."""
+    now = timezone.now()
+    OneTimeToken.objects.create(
+        user=_account,
+        kind=OneTimeToken.EMAIL_VERIFY,
+        token_sha256=token_digest("nog-een-token"),
+        issued_at=now,
+        expires_at=now + timedelta(days=7),
+    )
+    OutboundMail.objects.create(user=_account, kind=OneTimeToken.EMAIL_VERIFY, next_attempt_at=now)
+    _account.delete()
+    assert OneTimeToken.objects.count() == 0
+    assert OutboundMail.objects.count() == 0
+
+
+def test_the_audit_log_knows_the_four_new_handlings() -> None:
+    """Every entry on AuditEvent is a handling that exists, and these four
+    arrive with this cycle. tests/test_dpia.py binds the same four to
+    docs/dpia.md chapter 2; this pins the constants' own spelling."""
+    for name in (
+        "PASSWORD_RESET_REQUESTED",
+        "PASSWORD_RESET_COMPLETED",
+        "EMAIL_VERIFIED",
+        "MAIL_SENT",
+    ):
+        assert getattr(AuditEvent, name) == name
+
+
+@pytest.mark.django_db
+def test_the_migrations_describe_the_models_exactly() -> None:
+    """`makemigrations --check` exits non-zero when a model has drifted from
+    its migrations. Run here rather than remembered, because a model edit
+    without a migration passes every other test in this suite and fails on
+    the first deploy."""
+    call_command("makemigrations", "accounts", "--check", "--dry-run", verbosity=0)
