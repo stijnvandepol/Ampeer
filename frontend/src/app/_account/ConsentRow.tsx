@@ -71,6 +71,13 @@ export function ConsentCheckbox({
  * button's own label paragraph: two rows on the same screen must not read as
  * two buttons with nothing distinguishing them.
  *
+ * The consent sentence itself is named too, and that is the point rather than
+ * a nicety. It is the only text that says what is being agreed to, it is the
+ * text the API recorded, and a description of three or four words leaves a
+ * screen reader user on the toggle hearing the heading of a paragraph they
+ * were never read. The label comes first so the row is identified before it
+ * is explained.
+ *
  * The same `aria-describedby` also carries the explanation for why granting
  * is blocked, when it is. A `disabled` button drops out of the tab order and,
  * in most assistive tech, the accessibility tree along with it, so a sentence
@@ -96,8 +103,13 @@ export function ConsentRow({
   const action: ConsentAction = granted ? "WITHDRAWN" : "GRANTED";
   const unavailable = !granted && text === null;
   const labelId = `consent-label-${kind.toLowerCase()}`;
+  const textId = `consent-text-${kind.toLowerCase()}`;
   const explanationId = `consent-unavailable-${kind.toLowerCase()}`;
-  const describedBy = [labelId, unavailable ? explanationId : null]
+  const describedBy = [
+    labelId,
+    text === null ? null : textId,
+    unavailable ? explanationId : null,
+  ]
     .filter((value): value is string => value !== null)
     .join(" ");
   return (
@@ -106,7 +118,9 @@ export function ConsentRow({
         {CONSENT_LABELS[kind]}
       </p>
       {text !== null && (
-        <p className="max-w-[60ch] text-sm text-ink-muted">{text}</p>
+        <p id={textId} className="max-w-[60ch] text-sm text-ink-muted">
+          {text}
+        </p>
       )}
       <p className="text-sm">
         {granted ? "Toestemming gegeven" : "Geen toestemming gegeven"}

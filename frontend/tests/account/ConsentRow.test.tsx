@@ -103,6 +103,12 @@ describe("the account view's consent row", () => {
     // action is one of two words regardless of which consent it acts on.
     // What has to differ is the DESCRIPTION, so a screen reader user can
     // tell the two rows apart.
+    //
+    // And the description is the label PLUS the consent sentence, not the
+    // label alone. The sentence is the only text saying what is agreed to and
+    // it is the text the API recorded; a description that stopped at three
+    // words would leave somebody on the toggle hearing a heading for a
+    // paragraph nobody read to them.
     render(
       <>
         <ConsentRow
@@ -121,19 +127,19 @@ describe("the account view's consent row", () => {
         />
       </>,
     );
+    const meterDescription = `${CONSENT_LABELS.METER_LINK} ${consentTexts.texts.METER_LINK}`;
+    const leadDescription = `${CONSENT_LABELS.LEAD_GENERATION} ${consentTexts.texts.LEAD_GENERATION}`;
     const meterButton = screen.getByRole("button", {
       name: "Toestemming geven",
-      description: CONSENT_LABELS.METER_LINK,
+      description: meterDescription,
     });
     const leadButton = screen.getByRole("button", {
       name: "Toestemming geven",
-      description: CONSENT_LABELS.LEAD_GENERATION,
+      description: leadDescription,
     });
     expect(meterButton).not.toBe(leadButton);
-    expect(meterButton).toHaveAccessibleDescription(CONSENT_LABELS.METER_LINK);
-    expect(leadButton).toHaveAccessibleDescription(
-      CONSENT_LABELS.LEAD_GENERATION,
-    );
+    expect(meterButton).toHaveAccessibleDescription(meterDescription);
+    expect(leadButton).toHaveAccessibleDescription(leadDescription);
   });
 
   it("describes the disabled grant button with the explanation for why", () => {
