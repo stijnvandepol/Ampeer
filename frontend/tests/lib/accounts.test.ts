@@ -545,6 +545,11 @@ describe("the two shape guards that grew a key", () => {
     await expect(getMe()).rejects.toBeInstanceOf(ApiError);
   });
 
+  it("refuses a me/ whose confirmation timestamp is not a string", async () => {
+    stub(200, { ...me, email_verified_at: 1725580800 });
+    await expect(getMe()).rejects.toBeInstanceOf(ApiError);
+  });
+
   it("accepts a me/ whose address is confirmed at a time", async () => {
     stub(200, { ...me, email_verified_at: "2026-09-06T10:00:00+00:00" });
     const answer = await getMe();
