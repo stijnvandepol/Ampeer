@@ -4,6 +4,8 @@ import me from "../fixtures/me-response.json";
 import exportPayload from "../fixtures/export-response.json";
 import { ApiError, postEstimate } from "@/lib/api";
 import {
+  confirmEmailVerification,
+  confirmPasswordReset,
   deleteAccount,
   exportAccount,
   getConsentTexts,
@@ -13,6 +15,8 @@ import {
   postConsent,
   refresh,
   register,
+  requestEmailVerification,
+  requestPasswordReset,
 } from "@/lib/accounts";
 
 const REGISTER_INPUT = {
@@ -42,7 +46,7 @@ function stub(status: number, body: unknown) {
   return fetchMock;
 }
 
-/** The nine calls, each with the status and body its own route answers with. */
+/** The thirteen calls, each with the status and body its own route answers with. */
 const CALLS: readonly {
   readonly name: string;
   readonly status: number;
@@ -103,6 +107,38 @@ const CALLS: readonly {
     body: null,
     method: "POST",
     run: () => deleteAccount("een-heel-lang-wachtwoord"),
+  },
+  {
+    name: "reset-request",
+    status: 202,
+    body: {},
+    method: "POST",
+    run: () => requestPasswordReset({ email: "iemand@voorbeeld.nl" }),
+  },
+  {
+    name: "reset-confirm",
+    status: 204,
+    body: null,
+    method: "POST",
+    run: () =>
+      confirmPasswordReset({
+        token: "a".repeat(43),
+        password: "een-ander-wachtwoord",
+      }),
+  },
+  {
+    name: "verify-request",
+    status: 202,
+    body: {},
+    method: "POST",
+    run: requestEmailVerification,
+  },
+  {
+    name: "verify-confirm",
+    status: 204,
+    body: null,
+    method: "POST",
+    run: () => confirmEmailVerification({ token: "a".repeat(43) }),
   },
 ];
 
@@ -500,4 +536,55 @@ describe("the duplicated error reduction", () => {
       expect(fromAccounts.fields).toEqual(fromAdvice.fields);
     },
   );
+});
+
+describe("the two shape guards that grew a key", () => {
+  it("refuses a me/ that does not say whether the address is confirmed", async () => {
+    const { email_verified_at: _dropped, ...withoutIt } = me;
+    stub(200, withoutIt);
+    await expect(getMe()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("accepts a me/ whose address is confirmed at a time", async () => {
+    stub(200, { ...me, email_verified_at: "2026-09-06T10:00:00+00:00" });
+    const answer = await getMe();
+    expect(answer.email_verified_at).toBe("2026-09-06T10:00:00+00:00");
+  });
+
+  it("refuses consent texts without the labels, and labels without a kind", async () => {
+    const { labels: _dropped, ...withoutLabels } = consentTexts;
+    stub(200, withoutLabels);
+    await expect(getConsentTexts()).rejects.toBeInstanceOf(ApiError);
+    stub(200, {
+      ...consentTexts,
+      labels: { METER_LINK: consentTexts.labels.METER_LINK },
+    });
+    await expect(getConsentTexts()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("sends the three recovery bodies exactly as the API reads them, and none for a resend", async () => {
+    const fetchMock = stub(202, {});
+    await requestPasswordReset({ email: "iemand@voorbeeld.nl" });
+    await confirmPasswordReset({ token: "t".repeat(43), password: "pw" });
+    await confirmEmailVerification({ token: "v".repeat(43) });
+    await requestEmailVerification();
+    const bodies = fetchMock.mock.calls.map(
+      (call) => (call[1] as RequestInit).body,
+    );
+    expect(bodies.slice(0, 3).map((body) => JSON.parse(String(body)))).toEqual([
+      { email: "iemand@voorbeeld.nl" },
+      { token: "t".repeat(43), password: "pw" },
+      { token: "v".repeat(43) },
+    ]);
+    expect(bodies[3]).toBeUndefined();
+    const paths = fetchMock.mock.calls.map(
+      (call) => new URL(String(call[0])).pathname,
+    );
+    expect(paths).toEqual([
+      "/api/auth/reset/request/",
+      "/api/auth/reset/confirm/",
+      "/api/auth/verify/confirm/",
+      "/api/auth/verify/request/",
+    ]);
+  });
 });
