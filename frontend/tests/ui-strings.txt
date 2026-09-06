@@ -105,6 +105,7 @@ Adviesversie
 Alleen als het bij u uitkomt, en bij een deel van de huishoudens komt dat er niet uit. Nu geen batterij is bij ons een volwaardige uitkomst, en wij verdienen niets aan de andere.
 Alleen als het bij u uitkomt. Voor een deel van de huishoudens is het antwoord nee, en dat is bij ons een geldige en volwaardige uitkomst.
 Alles daarover staat in
+Als dit adres bij ons bekend is, staat er binnen enkele minuten een e-mail voor u klaar. De link daarin werkt een uur.
 Ampeer
 Ampeer rekent uit wat het einde van de saldering u kost. Wij verkopen niets en wij bemiddelen niets. Hieronder staat waarvan Ampeer betaald wordt, en wie erachter zit.
 Ampeer stelt u een paar vragen en rekent daar een antwoord mee uit. Deze pagina zegt wat wij daarvan bewaren, hoe lang, en wie het verder kan zien. Wij hebben het zo kort mogelijk opgeschreven.
@@ -291,6 +292,7 @@ Neutrale energie-adviseur voor Nederlandse huishoudens met zonnepanelen. Verkoop
 Niemand weet wat de terugleververgoeding in 2027 werkelijk wordt. Wij rekenen met een band en niet met een getal.
 Niet om bij ons een antwoord te krijgen. Wij bouwen uw jaar op uit standaardprofielen en uw eigen opgave. Echte meetgegevens maken het antwoord scherper, maar zijn geen voorwaarde.
 Niets. Er is geen abonnement, geen proefperiode en geen versie die wel geld kost. Wij verkopen geen panelen, geen batterijen en geen energiecontract, wij plaatsen geen advertenties en wij verkopen uw gegevens niet door.
+Nieuw wachtwoord
 Nog geen account? Account aanmaken
 Noord
 Noordoost
@@ -332,9 +334,11 @@ Snavelbiesstraat 8, 5445 NV Landhorst
 Soms, en soms niet. Op een dynamisch contract zitten geen aparte terugleverkosten, maar beweegt uw prijs per uur mee. Of het bij u gunstig uitpakt hangt af van uw patroon, en dat rekenen wij door.
 Stijn IT, eenmanszaak
 Stond vast
+Stuur een herstellink
 Systeem
 Tabel
 Terug
+Terug naar inloggen
 Terugverdientijd
 Thema
 Toestemming gegeven
@@ -417,6 +421,9 @@ Waarom wij dit vragen
 Waarover varieert dit bedrag?
 Waarvan Ampeer betaald wordt
 Wachtwoord
+Wachtwoord herstellen
+Wachtwoord opslaan
+Wachtwoord vergeten?
 Wanneer laadt uw elektrische auto?
 Wat Ampeer van u vraagt, waarom, hoe lang wij het bewaren en wat u eraan kunt doen. In gewone taal, zonder verwijzing naar een document dat u niet krijgt te zien.
 Wat Ampeer voor u uitrekent
@@ -591,6 +598,7 @@ password
 per jaar
 per kWh
 postalAddress
+reset
 rgb(
 ronde
 route-
@@ -607,12 +615,14 @@ the address that answers questions about personal data
 the registered name of the controller, including its legal form, or the full name of the natural person
 toestemming
 toestemming-
+token
 tot
 try{var c=localStorage.getItem("
 van
 van de 96 kwartieren gebruikte dit huishouden zijn eigen opwek,
 van het net gehaald
 var(
+verify
 vraag-titel
 vraag-toelichting
 vragen

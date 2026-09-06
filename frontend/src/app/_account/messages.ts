@@ -33,17 +33,22 @@ const API_ERROR_DEFAULT_MESSAGE = /^advice API returned \d+$/;
  * could not read.
  */
 /**
- * The three fields the two account forms bind an input, or a dedicated
- * element, to. A fourth key DRF might one day send would be silently
- * dropped rather than guessed at, the same rule `readErrorBody` in
- * `accounts.ts` already follows for a value it cannot show.
+ * The four fields the account forms bind an input, or a dedicated element,
+ * to. A fifth key DRF might one day send would be silently dropped rather
+ * than guessed at, the same rule `readErrorBody` in `accounts.ts` already
+ * follows for a value it cannot show.
+ *
+ * `token` has no input of its own; `ResetConfirmForm` hangs its sentence on
+ * the password field, because that is the only field on that form and the
+ * sentence is about the link the form was opened with.
  */
-export type AccountField = "email" | "password" | "text_version";
+export type AccountField = "email" | "password" | "text_version" | "token";
 
 const ACCOUNT_FIELDS: readonly AccountField[] = [
   "email",
   "password",
   "text_version",
+  "token",
 ];
 
 /**
