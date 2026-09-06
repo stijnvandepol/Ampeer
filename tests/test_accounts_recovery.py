@@ -1,0 +1,234 @@
+"""The four recovery handlings, as functions, before a route touches them.
+
+Every assertion here is about a property a route may later rely on: one use
+per token, the same refusal for every bad token, a password that is validated
+before anything is spent, and tables that never hold a raw token.
+"""
+
+from __future__ import annotations
+
+import ast
+import secrets
+from datetime import timedelta
+from pathlib import Path
+
+import pytest
+from django.utils import timezone
+from helpers.accounts import OTHER_PASSWORD, TEST_PASSWORD
+
+from accounts import recovery, tokens
+from accounts.models import OneTimeToken, OutboundMail, RefreshSession, User
+from advice.models import AuditEvent, token_digest
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+RECOVERY = REPO_ROOT / "backend" / "accounts" / "recovery.py"
+
+
+@pytest.fixture
+def _account() -> User:
+    return User.objects.create_user(email="iemand@voorbeeld.nl", password=TEST_PASSWORD)
+
+
+@pytest.mark.django_db
+def test_minting_writes_a_digest_and_returns_the_token_once(_account: User) -> None:
+    raw = recovery.mint(_account, OneTimeToken.PASSWORD_RESET)
+    assert len(raw) == len(secrets.token_urlsafe(recovery.TOKEN_BYTES))
+    row = OneTimeToken.objects.get(user=_account)
+    assert row.token_sha256 == token_digest(raw)
+    assert row.is_usable
+    assert row.expires_at - row.issued_at == OneTimeToken.LIFETIMES[OneTimeToken.PASSWORD_RESET]
+
+
+@pytest.mark.django_db
+def test_a_new_token_supersedes_the_older_unspent_one_of_the_same_kind(_account: User) -> None:
+    """Spec 2.3: at most one usable link per person per kind."""
+    first = recovery.mint(_account, OneTimeToken.PASSWORD_RESET)
+    recovery.mint(_account, OneTimeToken.EMAIL_VERIFY)
+    second = recovery.mint(_account, OneTimeToken.PASSWORD_RESET)
+    rows = {row.token_sha256: row for row in OneTimeToken.objects.filter(user=_account)}
+    assert rows[token_digest(first)].superseded_at is not None
+    assert rows[token_digest(second)].is_usable
+    verify = OneTimeToken.objects.get(user=_account, kind=OneTimeToken.EMAIL_VERIFY)
+    assert verify.is_usable, "a reset token must not supersede a verification token"
+
+
+@pytest.mark.django_db
+def test_minting_an_unknown_kind_is_refused(_account: User) -> None:
+    with pytest.raises(ValueError, match="kind"):
+        recovery.mint(_account, "SOMETHING_ELSE")
+
+
+@pytest.mark.django_db
+def test_a_reset_request_for_a_known_address_enqueues_exactly_once(_account: User) -> None:
+    recovery.request_password_reset("IEMAND@voorbeeld.nl")
+    recovery.request_password_reset("iemand@voorbeeld.nl")
+    assert OutboundMail.objects.filter(user=_account, kind=OneTimeToken.PASSWORD_RESET).count() == 1
+    assert AuditEvent.objects.filter(event_type=AuditEvent.PASSWORD_RESET_REQUESTED).count() == 1
+    line = AuditEvent.objects.get(event_type=AuditEvent.PASSWORD_RESET_REQUESTED)
+    assert line.context == {"user_id": _account.pk}
+
+
+@pytest.mark.django_db
+def test_a_reset_request_for_an_unknown_or_inactive_address_writes_nothing(_account: User) -> None:
+    """No row and no audit line: a line about an unknown address would have
+    to carry the address to mean anything."""
+    recovery.request_password_reset("niemand@voorbeeld.nl")
+    _account.is_active = False
+    _account.save(update_fields=["is_active"])
+    recovery.request_password_reset("iemand@voorbeeld.nl")
+    assert OutboundMail.objects.count() == 0
+    assert AuditEvent.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_a_reset_token_can_be_used_exactly_once(_account: User) -> None:
+    """The second use reads a row with `spent_at` filled and is refused; the
+    password is set once. The lock that makes this hold under a real race is
+    read off the source in the test below, because two threads inside one
+    pytest-django transaction cannot see each other's rows at all."""
+    tokens.issue(_account)
+    raw = recovery.mint(_account, OneTimeToken.PASSWORD_RESET)
+    recovery.confirm_password_reset(raw, OTHER_PASSWORD)
+    with pytest.raises(recovery.TokenInvalid):
+        recovery.confirm_password_reset(raw, TEST_PASSWORD)
+    _account.refresh_from_db()
+    assert _account.check_password(OTHER_PASSWORD)
+    assert not _account.check_password(TEST_PASSWORD)
+
+
+def test_the_token_row_is_locked_before_it_is_read() -> None:
+    """`select_for_update()` inside `transaction.atomic()`, read off recovery.py
+    the way tests/test_dpia.py reads the views, so the lock cannot be dropped
+    in a refactor that keeps every behavioural test green."""
+    tree = ast.parse(RECOVERY.read_text(encoding="utf-8"))
+    locked = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Attribute) and node.attr == "select_for_update"
+    ]
+    assert locked, "recovery.py no longer locks the token row before reading it"
+    atomic = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.With)
+        and any(
+            isinstance(item.context_expr, ast.Call)
+            and ast.unparse(item.context_expr.func) == "transaction.atomic"
+            for item in node.items
+        )
+    ]
+    assert len(atomic) >= 2, (
+        "confirm_password_reset and confirm_email_verification each hold a transaction"
+    )
+
+
+@pytest.mark.django_db
+def test_expired_spent_superseded_and_unknown_tokens_all_raise_the_same_class(
+    _account: User,
+) -> None:
+    now = timezone.now()
+    spent = recovery.mint(_account, OneTimeToken.PASSWORD_RESET)
+    recovery.confirm_password_reset(spent, OTHER_PASSWORD)
+    superseded = recovery.mint(_account, OneTimeToken.PASSWORD_RESET)
+    recovery.mint(_account, OneTimeToken.PASSWORD_RESET)
+    expired = recovery.mint(_account, OneTimeToken.EMAIL_VERIFY)
+    OneTimeToken.objects.filter(token_sha256=token_digest(expired)).update(
+        expires_at=now - timedelta(seconds=1)
+    )
+    for raw in (spent, superseded, "dit-token-bestaat-niet"):
+        with pytest.raises(recovery.TokenInvalid):
+            recovery.confirm_password_reset(raw, TEST_PASSWORD)
+    with pytest.raises(recovery.TokenInvalid):
+        recovery.confirm_email_verification(expired)
+    with pytest.raises(recovery.TokenInvalid):
+        # A verification token offered to the reset route: the kind is part
+        # of the lookup, so a link for one purpose cannot serve the other.
+        recovery.confirm_password_reset(
+            recovery.mint(_account, OneTimeToken.EMAIL_VERIFY), OTHER_PASSWORD
+        )
+
+
+@pytest.mark.django_db
+def test_a_completed_reset_revokes_every_session_and_verifies_the_address(_account: User) -> None:
+    tokens.issue(_account)
+    tokens.issue(_account)
+    raw = recovery.mint(_account, OneTimeToken.PASSWORD_RESET)
+    before = timezone.now()
+    user = recovery.confirm_password_reset(raw, OTHER_PASSWORD)
+    assert user.pk == _account.pk
+    assert not RefreshSession.objects.filter(user=_account, revoked_at__isnull=True).exists()
+    _account.refresh_from_db()
+    assert _account.email_verified_at is not None
+    assert _account.email_verified_at >= before
+    kinds = list(AuditEvent.objects.order_by("id").values_list("event_type", flat=True))
+    assert kinds == [AuditEvent.PASSWORD_RESET_COMPLETED, AuditEvent.EMAIL_VERIFIED]
+
+
+@pytest.mark.django_db
+def test_a_reset_on_an_already_verified_address_does_not_verify_it_again(_account: User) -> None:
+    first = recovery.mint(_account, OneTimeToken.EMAIL_VERIFY)
+    recovery.confirm_email_verification(first)
+    _account.refresh_from_db()
+    stamped = _account.email_verified_at
+    raw = recovery.mint(_account, OneTimeToken.PASSWORD_RESET)
+    recovery.confirm_password_reset(raw, OTHER_PASSWORD)
+    _account.refresh_from_db()
+    assert _account.email_verified_at == stamped
+    assert AuditEvent.objects.filter(event_type=AuditEvent.EMAIL_VERIFIED).count() == 1
+
+
+@pytest.mark.django_db
+def test_the_password_validators_apply_on_a_reset_and_spend_nothing(_account: User) -> None:
+    """A rejected password leaves the token usable: the household reads the
+    message and tries again with the same link."""
+    raw = recovery.mint(_account, OneTimeToken.PASSWORD_RESET)
+    with pytest.raises(recovery.PasswordRejected) as caught:
+        recovery.confirm_password_reset(raw, "kort")
+    assert any(error.code == "password_too_short" for error in caught.value.error.error_list)
+    row = OneTimeToken.objects.get(token_sha256=token_digest(raw))
+    assert row.is_usable
+    _account.refresh_from_db()
+    assert _account.check_password(TEST_PASSWORD)
+    assert AuditEvent.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_a_verification_confirms_once_and_writes_one_line(_account: User) -> None:
+    raw = recovery.mint(_account, OneTimeToken.EMAIL_VERIFY)
+    recovery.confirm_email_verification(raw)
+    with pytest.raises(recovery.TokenInvalid):
+        recovery.confirm_email_verification(raw)
+    _account.refresh_from_db()
+    assert _account.email_verified_at is not None
+    assert AuditEvent.objects.filter(event_type=AuditEvent.EMAIL_VERIFIED).count() == 1
+
+
+@pytest.mark.django_db
+def test_requesting_a_verification_dedupes_and_stops_once_verified(_account: User) -> None:
+    recovery.request_email_verification(_account)
+    recovery.request_email_verification(_account)
+    assert OutboundMail.objects.filter(kind=OneTimeToken.EMAIL_VERIFY).count() == 1
+    OutboundMail.objects.all().delete()
+    _account.email_verified_at = timezone.now()
+    _account.save(update_fields=["email_verified_at"])
+    recovery.request_email_verification(_account)
+    assert OutboundMail.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_no_column_anywhere_holds_a_raw_token(_account: User) -> None:
+    """Value based, like test_no_session_row_carries_anything_that_opens_a_session:
+    the raw token is searched for in every text column of the three tables."""
+    recovery.request_password_reset(_account.email)
+    raw = recovery.mint(_account, OneTimeToken.PASSWORD_RESET)
+    values: list[str] = []
+    for row in OneTimeToken.objects.all():
+        values.extend([row.kind, row.token_sha256])
+    for mail in OutboundMail.objects.all():
+        values.append(mail.kind)
+    for line in AuditEvent.objects.all():
+        values.append(line.event_type)
+        values.extend(str(item) for pair in line.context.items() for item in pair)
+    assert values, "nothing was read, so nothing was checked"
+    assert all(raw not in value for value in values)
+    assert token_digest(raw) in values, "the token table was not among what was read"
