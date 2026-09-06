@@ -180,6 +180,13 @@ precision = 2
 # output. A required check that prints FAIL and exits green is worse than a
 # missing one. At 99.05 the same run prints PASS and still fails on a single
 # lost line: 2410/2434 rounds to 99.01, which is below 99.05.
+#
+# The measurement that counts is the CI runner's, not a developer machine's.
+# A machine that has run tools/ingest_profiles.py carries the NEDU file that
+# two tests skip without, and on 2026-09-06 one of those tests was the only
+# caller of a method, so the tree measured 99.06 on Windows and 99.01 on the
+# runner, and the floor set from the local figure went red in CI on its first
+# run. Set the floor from a run without data/, or from the runner.
 fail_under = 99.05
 show_missing = true
 
