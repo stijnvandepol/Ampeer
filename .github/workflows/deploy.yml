@@ -201,7 +201,7 @@ jobs:
       # request, so this literal cannot drift from the repository. It can only
       # disagree with the host, which is exactly the disagreement worth
       # stopping a deploy for.
-      PREFLIGHT_SHA256: ba4e2c41d55386f20ac6b6ed8ece2d0c5aa6f59099eea18e884d32fb82c34f78
+      PREFLIGHT_SHA256: 340123413b1879fb7fc48b3333eca230e64c582492ed2193597f792dcd99d5e5
       # The sha256 of infra/docker-compose.yml in this repository at this tag,
       # for the same reason and with one difference: this is the file that
       # decides what actually runs.
@@ -221,7 +221,7 @@ jobs:
       # drift from the repository. Changing that file therefore means changing
       # this line in the same commit, which is the point: it can then only
       # disagree with the host.
-      COMPOSE_SHA256: fec6efb96c64a80349871c4b34828a4d0079ac127f8c851fd6dcb20d756c9bd8
+      COMPOSE_SHA256: 87bbd8d3d9a2cbc98581aa728dfe597c65f29e39d15aa40420f15842c731185c
       # The sha256 of scripts/backup_db.sh in this repository at this tag, for
       # the same reason as the two above. This one guards a retention window:
       # an older copy on the host keeps a different number of dumps and allows
@@ -296,7 +296,7 @@ jobs:
       # without its executable bit fails on a missing variable it can report
       # rather than on "permission denied" from a step whose name says
       # something else.
-      - name: Check the nine variables and the profile file
+      - name: Check the thirteen variables and the profile file
         run: bash "$STACK/preflight_env.sh" "$STACK/.env"
 
       - name: Log in to the registry
@@ -519,6 +519,15 @@ jobs:
         run: >-
           docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env"
           run --rm --entrypoint python api backend/manage.py purge_expired_advice --check
+
+      # The same question for the outbox: a mail waiting longer than fifteen
+      # minutes means the timer has stopped or the provider refuses
+      # everything, and either is a deploy worth stopping on. After migrate,
+      # for the reason the step above gives.
+      - name: Confirm the outbox is being emptied
+        run: >-
+          docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env"
+          run --rm --entrypoint python api backend/manage.py send_outbound_mail --check
 
       # always(), because the deploys that fail are the ones that would
       # otherwise leave a registry credential in ~/.docker/config.json on a

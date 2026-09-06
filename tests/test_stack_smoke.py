@@ -633,6 +633,13 @@ def test_the_deploy_checks_that_retention_is_still_running() -> None:
     )
 
 
+def test_the_deploy_checks_that_the_outbox_is_being_emptied() -> None:
+    """The same shape as the retention check, for the mails a household is
+    waiting on. Neither notices a timer that was never enabled."""
+    workflow = DEPLOY_WORKFLOW.read_text(encoding="utf-8")
+    assert "send_outbound_mail --check" in workflow
+
+
 def test_the_purge_unit_fails_when_the_purge_achieved_nothing() -> None:
     """The other of the two places, on the host.
 
@@ -767,6 +774,20 @@ def env_fixture_lines(profile_path: str) -> list[str]:
         "POSTGRES_USER=ampeer",
         "POSTGRES_PASSWORD=smoke-check-placeholder-not-a-secret",
         "POSTGRES_HOST=db",
+        # The file transport: the two recovery checks of task 12 read the
+        # mail back out of infra/fixtures/mail/, which the override mounts on
+        # /srv/mail. The only file in the repository that ever says `file`;
+        # the preflight refuses it on a host.
+        "AMPEER_MAIL_TRANSPORT=file",
+        # Unused under the file transport and interpolated by compose all the
+        # same. Not beginning with `re_`, the prefix of a real Resend key, so
+        # this line can never be mistaken for one.
+        "RESEND_API_KEY=smoke-check-placeholder-not-a-secret",
+        # The reserved suffix again: nothing can ever be delivered to it.
+        "AMPEER_MAIL_FROM=noreply@ampeer.smoke.invalid",
+        # Where the links in a mail point, which for this stack is the
+        # published port. The check reads the token off that link's fragment.
+        "AMPEER_SITE_ORIGIN=http://127.0.0.1:8080",
         # Not a release. The local run builds both images from this tree and
         # tags them with this string, so nothing here can be confused with
         # something CI published.
@@ -805,8 +826,10 @@ def test_the_environment_fixture_holds_no_value_that_could_be_mistaken_for_real(
     from /srv/ampeer/.env, and a placeholder that looks like a key is a key
     somebody ships."""
     for line in env_fixture_lines("/tmp/profile.csv"):
-        if line.startswith(("DJANGO_SECRET_KEY=", "POSTGRES_PASSWORD=")):
+        if line.startswith(("DJANGO_SECRET_KEY=", "POSTGRES_PASSWORD=", "RESEND_API_KEY=")):
             assert "placeholder-not-a-secret" in line, line
+        if line.startswith("RESEND_API_KEY="):
+            assert not line.split("=", 1)[1].startswith("re_"), line
 
 
 def test_the_environment_fixture_cannot_satisfy_the_readiness_check_by_accident() -> None:

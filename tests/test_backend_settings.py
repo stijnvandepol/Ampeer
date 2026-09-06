@@ -34,6 +34,12 @@ REQUIRED_ENV = {
     # because a permissive fallback here is an API any page on the internet can
     # read a household's figures out of, and it fails silently from this side.
     "DJANGO_CORS_ALLOWED_ORIGINS": "https://ampeer.nl,https://www.ampeer.nl",
+    # How the mail leaves. `resend` here so the key below is exercised too;
+    # a deployment on the local stack's `file` never reaches this dict.
+    "AMPEER_MAIL_TRANSPORT": "resend",
+    "RESEND_API_KEY": "test-key-not-a-real-resend-key",
+    "AMPEER_MAIL_FROM": "noreply@ampeer.test.invalid",
+    "AMPEER_SITE_ORIGIN": "https://ampeer.test.invalid",
 }
 
 

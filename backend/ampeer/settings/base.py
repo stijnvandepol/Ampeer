@@ -265,6 +265,23 @@ AMPEER_PROFILE_YEAR = 2025
 #: How long a stored advice stays retrievable.
 AMPEER_ADVICE_TTL_DAYS = 90
 
+#: How a mail leaves, and from whom. Base is the test suite's answer: the
+#: memory transport delivers nothing and the suite never touches the network.
+#: dev.py writes files; prod.py reads all of these from the environment and
+#: refuses `memory`. See accounts/mailer.py.
+AMPEER_MAIL_TRANSPORT = "memory"
+AMPEER_MAIL_FROM = "noreply@ampeer.test.invalid"
+#: Where the links in a mail point. The page reads the token off the fragment
+#: of this origin's /account/ route, so it has to be the origin a household
+#: sees and not the API's.
+AMPEER_SITE_ORIGIN = "http://127.0.0.1:3000"
+#: The file transport's directory. A property of the process, not of the
+#: host, so it is not in the env file: prod.py fixes it to /srv/mail and
+#: infra/compose.test.yml mounts the fixture directory there.
+AMPEER_MAIL_FILE_DIR = str(BASE_DIR.parent / "data" / "mail")
+#: Empty everywhere but production. Never a default with a value.
+RESEND_API_KEY = ""
+
 
 #: Which origins the browser may read an answer from.
 #:

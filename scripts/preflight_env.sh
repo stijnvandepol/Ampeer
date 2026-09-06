@@ -8,8 +8,8 @@
 # one that says so. When this script changes, the copy on the host has to be
 # replaced by hand as well; nothing detects that it was not.
 #
-# Why it exists at all. prod.py requires nine variables and gives none of them a
-# default, which is correct: a default for a secret is a secret in the
+# Why it exists at all. prod.py requires thirteen variables and gives none of
+# them a default, which is correct: a default for a secret is a secret in the
 # repository with extra steps. The consequence is that a missing one does not
 # produce a warning, it produces a container that exits, is restarted by the
 # daemon, exits again, and keeps doing that. On a host nobody is logged in to,
@@ -29,7 +29,7 @@ set -euo pipefail
 
 ENV_FILE="${1:-/srv/ampeer/.env}"
 
-# The nine names prod.py refuses to start without. Written out rather than
+# The thirteen names prod.py refuses to start without. Written out rather than
 # derived from infra/.env.example, because a list that follows the file it is
 # supposed to check cannot disagree with it; tests/test_deploy_workflow.py
 # compares the two and fails on the drift instead.
@@ -56,6 +56,10 @@ REQUIRED=(
   POSTGRES_USER
   POSTGRES_PASSWORD
   POSTGRES_HOST
+  AMPEER_MAIL_TRANSPORT
+  RESEND_API_KEY
+  AMPEER_MAIL_FROM
+  AMPEER_SITE_ORIGIN
 )
 
 fail() {
@@ -163,6 +167,24 @@ case "${PROXIES}" in
     fail "prod.py refuses anything else while importing settings, so the api"
     fail "container would restart in a loop instead of reporting this. Two here:"
     fail "the tunnel connector and nginx. Zero is legal and means neither."
+    exit 1
+    ;;
+esac
+
+# AMPEER_MAIL_TRANSPORT decides whether a household ever receives a mail.
+# prod.py accepts `file` as well as `resend`, because the local stack runs
+# under prod settings and its live checks read the mail out of a file. On a
+# host `file` is the quietest outage there is: every reset mail is written
+# to disk inside a container and nobody is told. So a host is held to
+# `resend` here, before any container starts, and the local stack's env
+# fixture is the only file in the repository that ever says `file`.
+TRANSPORT="${VALUES[AMPEER_MAIL_TRANSPORT]}"
+case "${TRANSPORT}" in
+  resend) ;;
+  *)
+    fail "AMPEER_MAIL_TRANSPORT is not 'resend'."
+    fail "prod.py would start and write every mail to a file inside the container,"
+    fail "and no household would receive one. Set it to resend on a host."
     exit 1
     ;;
 esac

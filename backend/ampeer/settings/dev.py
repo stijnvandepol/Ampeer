@@ -52,3 +52,7 @@ CORS_ALLOWED_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000", "http:
 # to there.
 CORS_ALLOW_CREDENTIALS = True
 AMPEER_COOKIE_SECURE = False
+
+# A developer reads the mail as a file under data/mail/, which .gitignore
+# already keeps out of the tree along with the rest of data/.
+AMPEER_MAIL_TRANSPORT = "file"

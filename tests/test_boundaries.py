@@ -7,6 +7,8 @@ import pathlib
 import string
 from urllib.parse import urlsplit
 
+import pytest
+
 import ampeer_advice
 import ampeer_sim
 
@@ -29,13 +31,25 @@ TOOLS_ROOT = REPO_ROOT / "tools"
 
 
 def _imported_module_names(path: pathlib.Path) -> set[str]:
+    """Both the top-level name and the full dotted name of every import.
+
+    The full name is what lets `django.core.mail` be forbidden below: until
+    2026-09-06 only the first segment was kept, so Django's own mail API,
+    which imports smtplib inside .venv where this scan never walks, was
+    invisible to a rule written to be categorical.
+    """
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     names: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            names.update(alias.name.split(".")[0] for alias in node.names)
+            for alias in node.names:
+                names.add(alias.name)
+                names.add(alias.name.split(".")[0])
         elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            names.add(node.module)
             names.add(node.module.split(".")[0])
+            # `from django.core import mail` names the same module.
+            names.update(f"{node.module}.{alias.name}" for alias in node.names)
     return names
 
 
@@ -101,43 +115,39 @@ NETWORK_CLIENTS = frozenset(
         "telnetlib",
         "smtplib",
         "xmlrpc",
+        #: Django's own mail API, by its dotted name: `from django.core.mail import
+        #: send_mail` opens an SMTP connection from inside .venv, where this scan
+        #: never walks. This project sends through accounts/mailer.py and nothing
+        #: else, so the framework's own channel is forbidden outright.
+        "django.core.mail",
     }
 )
 
-#: The only module allowed to reach outside this machine, and where it may go.
-#:
-#: CLAUDE.md permits three external sources, PVGIS, ENTSO-E and KNMI. Only PVGIS
-#: is fetched today, so only its host is here. The allowlist is one constant in
-#: one module rather than a settings entry, because a configuration layer that
-#: exactly one caller reads is a layer that hides where the value comes from.
-#: A second source is what makes that question real, and adding one means
-#: adding it here on purpose.
 #: Every module allowed to open an outbound connection, and where each may go.
 #:
-#: Two, and the second was invisible here until 2026-08-23 because the scan
-#: walked the packages and backend/ only. tools/ingest_profiles.py downloads the
-#: NEDU standard profiles, whose licence forbids committing them, so a fetch is
-#: the only way they arrive.
-#:
-#: Its host is not one of the three CLAUDE.md names. That is worth reading
-#: rather than waving through, and it is recorded in docs/decisions.md under
-#: what was not decided here: the rule there is written about the backend, which
-#: never fetches, and this is a build time command somebody runs by hand. The
-#: allowlist in that document naming three sources while the repository reaches
-#: a fourth is Stijn's line to move, not mine.
+#: Three. pvgis.py is reached by a web request; ingest_profiles.py is a build
+#: time command somebody runs by hand; mailer.py runs under a systemd timer
+#: and reaches the mail provider, which is the only destination a household's
+#: data ever travels to from this machine. The allowlist is one constant in
+#: one module rather than a settings entry, because a configuration layer
+#: that exactly one caller reads is a layer that hides where the value comes
+#: from. CLAUDE.md names these same destinations since 2026-09-06; before
+#: that it named three sources of which one was never reached, and the gap
+#: is recorded as answered in docs/decisions.md.
 OUTBOUND_MODULES: dict[str, frozenset[str]] = {
     "ampeer_sim/production/pvgis.py": frozenset({"re.jrc.ec.europa.eu"}),
     "tools/ingest_profiles.py": frozenset({"energiedatawijzer.nl"}),
+    "backend/accounts/mailer.py": frozenset({"api.resend.com"}),
 }
 
-#: The module whose destination must be a bare constant at the call site.
+#: The modules whose destination must be a bare constant at the call site.
 #:
-#: Only one, and the distinction is real rather than a convenience. pvgis.py is
-#: reached by a web request, so its destination has to be fixed where a reviewer
-#: sees it. ingest_profiles.py hands its URL down through two functions before
-#: requests sees it, which the check below cannot follow, so that file is held
-#: to a different and separately stated argument.
-STRICT_DESTINATION_MODULE = "ampeer_sim/production/pvgis.py"
+#: Two, and both are reached from a process nobody watches: pvgis.py by a web
+#: request, mailer.py by a timer. ingest_profiles.py hands its URL down
+#: through two functions before requests sees it, which the check below
+#: cannot follow, so that file is held to a different and separately stated
+#: argument.
+STRICT_DESTINATION_MODULES = ("ampeer_sim/production/pvgis.py", "backend/accounts/mailer.py")
 
 #: The one network client either of them may import.
 #:
@@ -211,7 +221,8 @@ def test_only_these_modules_can_reach_outside_this_machine() -> None:
     )
 
 
-def test_the_module_that_speaks_http_never_assembles_its_url() -> None:
+@pytest.mark.parametrize("module", STRICT_DESTINATION_MODULES)
+def test_the_module_that_speaks_http_never_assembles_its_url(module: str) -> None:
     """The other half of the rule: the destination is fixed, not computed.
 
     Confining outbound traffic to one module says nothing about where that
@@ -233,16 +244,25 @@ def test_the_module_that_speaks_http_never_assembles_its_url() -> None:
     What this does not see is an outbound call written in this module without a
     timeout and without a literal. That residue is one file wide, and the test
     above is what keeps it one file wide.
+
+    Since 2026-09-06 the same three checks run over accounts/mailer.py.
     """
-    module = STRICT_DESTINATION_MODULE
     path = REPO_ROOT / module
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 
+    # An annotated assignment (RESEND_ENDPOINT: Final = ...) is a constant too;
+    # pvgis.py writes its URL unannotated, mailer.py does not, and the check
+    # has to see both.
     constants = {
         target.id
         for node in tree.body
-        if isinstance(node, ast.Assign)
-        for target in node.targets
+        for target in (
+            node.targets
+            if isinstance(node, ast.Assign)
+            else [node.target]
+            if isinstance(node, ast.AnnAssign)
+            else []
+        )
         if isinstance(target, ast.Name) and target.id.isupper()
     }
 

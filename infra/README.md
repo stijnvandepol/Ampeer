@@ -282,7 +282,7 @@ A tag matching `v*` on `main` triggers `.github/workflows/deploy.yml`:
   script's digest, runs the preflight, logs in to GHCR, `pull`, confirms the
   pulled digests, records the running release, confirms a recent backup exists,
   `migrate`, `up -d`, falls back if that failed,
-  `purge_expired_advice --check`, `docker logout`
+  `purge_expired_advice --check`, `send_outbound_mail --check`, `docker logout`
 
 No checkout, no `docker build`, no token that can read the repository, and
 nothing on the host that is not one of those commands.

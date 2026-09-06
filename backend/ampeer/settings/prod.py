@@ -39,6 +39,25 @@ SECRET_KEY = _required("DJANGO_SECRET_KEY")
 ALLOWED_HOSTS = [host for host in _required("DJANGO_ALLOWED_HOSTS").split(",") if host]
 AMPEER_NEDU_PROFILE_PATH = _required("AMPEER_NEDU_PROFILE_PATH")
 
+# How the mail leaves. `resend` on a host; `file` only for the local stack,
+# which runs under these settings so the live checks read a real deployment
+# and not a rehearsal of one. `memory` is refused: a container on it would
+# report every mail as sent and deliver none. scripts/preflight_env.sh
+# refuses `file` on a host for the same reason, before a container starts.
+AMPEER_MAIL_TRANSPORT = _required("AMPEER_MAIL_TRANSPORT")
+if AMPEER_MAIL_TRANSPORT not in {"resend", "file"}:
+    raise RuntimeError(
+        f"AMPEER_MAIL_TRANSPORT is {AMPEER_MAIL_TRANSPORT!r}; a deployment sends through "
+        "resend or, on the local stack only, writes files"
+    )
+AMPEER_MAIL_FROM = _required("AMPEER_MAIL_FROM")
+AMPEER_SITE_ORIGIN = _required("AMPEER_SITE_ORIGIN")
+RESEND_API_KEY = _required("RESEND_API_KEY") if AMPEER_MAIL_TRANSPORT == "resend" else ""
+# The file transport's directory. A property of the container and not of the
+# host, so it has a default and is not in the env file: infra/compose.test.yml
+# names it beside the mount it belongs to, and nothing else ever sets it.
+AMPEER_MAIL_FILE_DIR = os.environ.get("AMPEER_MAIL_FILE_DIR", "/srv/mail")
+
 # No default and no wildcard. An origin list that falls back to something
 # permissive is an API any page on the internet can read a household's figures
 # out of, and the failure is silent from this side: the request succeeds and
