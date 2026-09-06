@@ -412,7 +412,12 @@ geen afhankelijkheid bij.
 weigert `memory` bij het opstarten: dat transport bestaat om een test iets te laten lezen en
 hoort nooit in een container. `file` is toegestaan in `prod.py` om één reden: de lokale
 stack draait onder `ampeer.settings.prod`, en de live check uit hoofdstuk 8 leest de mail uit
-een bestand. `RESEND_API_KEY` is verplicht bij `resend`; `AMPEER_MAIL_FROM` en
+een bestand. Dat maakt `file` op een echte host tot een stille storing: elke mail zou netjes
+naar schijf gaan en niemand zou er een ontvangen. Daarom weigert `scripts/preflight_env.sh`,
+dat op de host draait en `/srv/ampeer/.env` leest, elke waarde anders dan `resend`, en de
+deploy stopt voordat er een container start. De env-fixture van de lokale stack is de enige
+plek in de repository waar `file` geschreven wordt, en `tests/test_deploy_workflow.py` leest
+de preflight om vast te houden dat die weigering er staat. `RESEND_API_KEY` is verplicht bij `resend`; `AMPEER_MAIL_FROM` en
 `AMPEER_SITE_ORIGIN` zijn altijd verplicht, zonder standaardwaarde, zoals elke waarde in dat
 bestand die een veiligheidseigenschap bepaalt. Een ontbrekende sleutel stopt het proces.
 
@@ -794,6 +799,9 @@ In `tests/test_accounts_mail.py`:
   `requests` gemockt op de aanroep, en de idempotentiesleutel `outbox-<id>`.
 - `test_the_file_transport_writes_one_readable_file_per_message`.
 - `test_prod_settings_refuse_the_memory_transport`.
+- `test_the_host_preflight_refuses_any_transport_but_resend`, in
+  `tests/test_deploy_workflow.py`, dat `scripts/preflight_env.sh` leest zoals de andere
+  tests daar de deploy-scripts lezen: rood zodra de weigering uit 4.6 uit het script verdwijnt.
 
 In `tests/test_boundaries.py`, uitgebreid:
 
@@ -880,7 +888,9 @@ Wat op de host verandert, en wie het doet:
 - **Eigenaar, in `/srv/ampeer/.env`:** `AMPEER_MAIL_TRANSPORT=resend`, `RESEND_API_KEY`,
   `AMPEER_MAIL_FROM=noreply@ampeer.nl`, `AMPEER_SITE_ORIGIN=https://ampeer.nl`.
   `scripts/preflight_env.sh` en `tests/test_infra.py` houden `infra/.env.example` en compose
-  gelijk, dus een vergeten naam valt in de deploy.
+  gelijk, dus een vergeten naam valt in de deploy. Dezelfde preflight weigert op de host
+  elke `AMPEER_MAIL_TRANSPORT` anders dan `resend` (4.6), zodat een host nooit stil naar
+  schijf mailt.
 - **Eigenaar, op de host:** `cp infra/systemd/ampeer-mail.* /etc/systemd/system/`,
   `systemctl daemon-reload`, `systemctl enable --now ampeer-mail.timer`, en
   `systemctl list-timers ampeer-mail.timer` als controle. Zoals bij de purge-timer installeert
@@ -988,6 +998,7 @@ Nieuw en gewijzigd, tests, infra en documenten:
 | `tests/test_frontend_contract.py` | Laag 4 |
 | `tests/test_stack_smoke.py` | De twee live checks; de vier variabelen in de env-fixture; de placeholder-regel voor `RESEND_API_KEY` |
 | `tests/helpers/consent_texts_fixture.py` | De labels in de fixture |
+| `tests/test_deploy_workflow.py` | `test_the_host_preflight_refuses_any_transport_but_resend` (4.6) |
 | `infra/docker-compose.yml` | De vier variabelen naar `api` |
 | `infra/compose.test.yml` | De mount van `infra/fixtures/mail/` |
 | `infra/fixtures/mail/.gitkeep` | Nieuw; de map is git-ignored op inhoud |
@@ -995,6 +1006,7 @@ Nieuw en gewijzigd, tests, infra en documenten:
 | `infra/README.md` | Sectie 3: de tweede timer; sectie 1: de vier variabelen |
 | `infra/.env.example` | De vier namen |
 | `.github/workflows/` | `send_outbound_mail --check` in de deploy-job, na `migrate`; geen jobnaam verandert |
+| `scripts/preflight_env.sh` | Weigert op de host elke `AMPEER_MAIL_TRANSPORT` anders dan `resend` (4.6) |
 | `docs/dpia.md` | Hoofdstuk 5.3 |
 | `docs/decisions.md` | De zeven entries uit hoofdstuk 13; het beantwoorde punt over de vierde bron; het punt over onbevestigde accounts onder wat niet besloten is |
 | `docs/superpowers/specs/2026-09-04-accounts-auth-design.md` | Hoofdstuk 10 daar krijgt de zin dat dit document het omkeert; de routetabel in 5.1 wordt dertien |
