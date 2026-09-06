@@ -1277,8 +1277,12 @@ reductions of their text and neither adds a claim, a purpose or a scope; the
 one asymmetry runs in the safe direction, since `LEAD_GENERATION`'s label
 omits the text's limitation "als ik daar zelf om vraag", so a visitor can
 expect to have consented to more than the row records, never less.
-`ConsentRow` and `ConsentCheckbox` also keep a label and its text inside one
-`<label>` element, so the two are never encountered apart.
+`ConsentCheckbox` keeps a label and its text inside one `<label>` element, so
+the two are never encountered apart. `ConsentRow` renders the label and the
+text as two separate `<p>` elements, with no `<label>` at all: only the
+label paragraph is wired to the toggle button, through that button's
+`aria-describedby`, while the text paragraph sits beside it in the same row
+with no ARIA link of its own.
 
 **Lives in:** `backend/accounts/nl.py`,
 `frontend/src/app/_account/ConsentRow.tsx`.

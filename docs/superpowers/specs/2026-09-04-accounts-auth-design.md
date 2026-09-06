@@ -293,7 +293,7 @@ en `/api/auth/consent/` is er het bewijs van: intrekken is een nieuwe rij.
 
 Voor `/api/auth/delete/` komt daar een tweede, technische reden bij, en die staat in 8.2.
 
-Alle acht erven van `_AuthAPIView`, dat op zijn beurt van `_NoStoreAPIView` uit
+Alle negen erven van `_AuthAPIView`, dat op zijn beurt van `_NoStoreAPIView` uit
 `backend/advice/views.py` erft. Daarmee dragen ze `Cache-Control: private, no-store`, want elk
 van deze antwoorden beschrijft één huishouden. `_AuthAPIView` voegt daar één ding aan toe, zie
 5.5. De throttleklasse komt uit `DEFAULT_THROTTLE_CLASSES` in `base.py` en is dus
