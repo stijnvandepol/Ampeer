@@ -255,9 +255,10 @@ class ConsentTextsView(_AuthAPIView):
     same for everybody would be a number nobody derived from anything.
 
     The view composes nothing and formats nothing. The keys are
-    `sorted(Consent.KINDS)` and the values are `NL["CONSENT_" + kind]`,
-    literally, which is what makes the sentence on the screen and the sentence
-    behind the recorded version the same string.
+    `sorted(Consent.KINDS)` under both `texts` and `labels`, and the values
+    are `NL["CONSENT_" + kind]` and `NL["CONSENT_LABEL_" + kind]`, literally,
+    which is what makes the sentence on the screen and the sentence behind
+    the recorded version the same string.
     """
 
     authentication_classes: Sequence[type[BaseAuthentication]] = ()
@@ -269,6 +270,7 @@ class ConsentTextsView(_AuthAPIView):
             {
                 "text_version": CONSENT_TEXT_VERSION,
                 "texts": {kind: NL[f"CONSENT_{kind}"] for kind in sorted(Consent.KINDS)},
+                "labels": {kind: NL[f"CONSENT_LABEL_{kind}"] for kind in sorted(Consent.KINDS)},
             }
         )
 

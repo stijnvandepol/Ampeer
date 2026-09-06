@@ -8,7 +8,7 @@ e-mailadres in" would be a sentence somebody is spoken to in, and then
 docs/decisions.md entry 1 about the register applies. `email_taken`,
 `email_invalid`, `credentials_invalid`, `password_required`, `csrf_failed`,
 `consent_kind_unknown`, `consent_action_unknown`, `consent_text_stale`,
-`throttled` and `throttled_unknown_wait` are this category. `consent_text_stale`
+`token_invalid`, `throttled` and `throttled_unknown_wait` are this category. `consent_text_stale`
 names the `text_version` field and says nothing about a typed value, only
 that the page behind it is too old.
 `password_too_short` is one of them too, and it is the first entry in this
@@ -33,16 +33,31 @@ The consent texts are a third category, and deliberately so: those are
 sentences to a household, so they do use "u". They also carry a version,
 because article 7(1) of the GDPR asks to be able to demonstrate what was
 agreed to, and a reworded text with no version makes that impossible to
-answer afterwards.
+answer afterwards. The two `CONSENT_LABEL_` entries belong to this category
+too since 2026-09-06: a label is the heading a row is shown under, it is read
+together with its text, and decision 38 records the rule for editing one: a
+label may narrow what it says only as far as the text still covers, and it
+may never claim less than the row records. Both are under the same version
+as the texts, so a label edit bumps it exactly as a text edit does.
+
+A fourth category is the mail. `MAIL_RESET_SUBJECT`, `MAIL_RESET_BODY`,
+`MAIL_VERIFY_SUBJECT` and `MAIL_VERIFY_BODY` are letters to a household, so
+they address the reader with "u", and they carry no version because nothing
+is recorded against them. Plain text with one placeholder, `%(link)s`, that
+the sending command fills in. Written without accents on "een uur" and "een
+keer", the way the first category writes them, because a mail client shows
+plain text as it arrives.
 """
 
 from __future__ import annotations
 
 from typing import Final
 
-#: Bumped whenever any CONSENT_ text below is reworded, never otherwise. The
-#: value is stored on every Consent row, so a bump changes what new rows claim
-#: and leaves the old ones pointing at what they actually agreed to.
+#: Bumped whenever any CONSENT_ text or CONSENT_LABEL_ entry below is
+#: reworded, never otherwise. The value is stored on every Consent row, so a
+#: bump changes what new rows claim and leaves the old ones pointing at what
+#: they actually agreed to. A label counts because label and text are read
+#: together and recorded together; see decision 38 in docs/decisions.md.
 CONSENT_TEXT_VERSION: Final = "2026-09-04"
 
 NL: Final[dict[str, str]] = {
@@ -73,6 +88,7 @@ NL: Final[dict[str, str]] = {
     ),
     "consent_kind_unknown": "onbekende toestemming",
     "consent_action_unknown": "onbekende handeling",
+    "token_invalid": "deze link is verlopen of al gebruikt; vraag een nieuwe aan",
     "CONSENT_METER_LINK": (
         "Ik geef Ampeer toestemming om de kwartiergegevens van mijn slimme meter te "
         "verwerken om mijn advies nauwkeuriger te maken. Ik kan deze toestemming op elk "
@@ -82,5 +98,33 @@ NL: Final[dict[str, str]] = {
         "Ik geef Ampeer toestemming om mijn gegevens door te geven aan een installateur "
         "als ik daar zelf om vraag. Dit is niet nodig om Ampeer te gebruiken en het "
         "verandert niets aan het advies dat ik krijg."
+    ),
+    "CONSENT_LABEL_METER_LINK": "Kwartiergegevens van uw slimme meter",
+    "CONSENT_LABEL_LEAD_GENERATION": "Doorgeven aan een installateur",
+    "MAIL_RESET_SUBJECT": "Uw wachtwoord bij Ampeer herstellen",
+    "MAIL_RESET_BODY": (
+        "U heeft gevraagd om een nieuw wachtwoord voor uw account bij Ampeer.\n"
+        "\n"
+        "Open deze link om een nieuw wachtwoord te kiezen. De link werkt een uur en kan een keer\n"
+        "gebruikt worden:\n"
+        "\n"
+        "%(link)s\n"
+        "\n"
+        "Heeft u dit niet gevraagd, dan hoeft u niets te doen. Uw wachtwoord blijft zoals het was.\n"
+        "\n"
+        "Op dit bericht kunt u niet antwoorden.\n"
+    ),
+    "MAIL_VERIFY_SUBJECT": "Bevestig uw e-mailadres bij Ampeer",
+    "MAIL_VERIFY_BODY": (
+        "Met dit e-mailadres is een account bij Ampeer aangemaakt.\n"
+        "\n"
+        "Open deze link om te bevestigen dat dit adres van u is. De link werkt zeven dagen:\n"
+        "\n"
+        "%(link)s\n"
+        "\n"
+        "Heeft u geen account aangemaakt, dan heeft iemand anders uw adres ingevuld. U hoeft niets te\n"
+        "doen: zonder bevestiging kan dat account geen slimme meter koppelen.\n"
+        "\n"
+        "Op dit bericht kunt u niet antwoorden.\n"
     ),
 }

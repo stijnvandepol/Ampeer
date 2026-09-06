@@ -795,6 +795,9 @@ def test_the_fixture_keys_are_the_consent_kinds() -> None:
     assert sorted(payload["texts"]) == sorted(Consent.KINDS)
     for kind, sentence in payload["texts"].items():
         assert sentence.strip(), f"{kind} carries an empty sentence"
+    assert sorted(payload["labels"]) == sorted(Consent.KINDS)
+    for kind, label in payload["labels"].items():
+        assert label.strip(), f"{kind} carries an empty label"
 
 
 def test_no_consent_text_lives_in_the_frontend() -> None:

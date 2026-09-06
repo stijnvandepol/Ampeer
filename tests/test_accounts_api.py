@@ -807,6 +807,10 @@ def test_the_consent_texts_are_public_and_come_from_nl_py(client: Any) -> None:
             "LEAD_GENERATION": NL["CONSENT_LEAD_GENERATION"],
             "METER_LINK": NL["CONSENT_METER_LINK"],
         },
+        "labels": {
+            "LEAD_GENERATION": NL["CONSENT_LABEL_LEAD_GENERATION"],
+            "METER_LINK": NL["CONSENT_LABEL_METER_LINK"],
+        },
     }
 
 
@@ -940,6 +944,22 @@ def test_the_me_fixture_has_the_shape_the_view_answers(client: Any) -> None:
         "GET me/ no longer has the shape frontend/tests/fixtures/me-response.json "
         "describes; update the fixture and the shape check in accounts.ts together"
     )
+
+
+@pytest.mark.django_db
+def test_the_consent_texts_carry_their_labels_under_the_same_version(client: Any) -> None:
+    """Decision 38 closed: the label a row is shown under travels with the
+    sentence it heads, under one version, so a label edit is caught the way
+    a text edit already is."""
+    response = client.get("/api/auth/consent-texts/")
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body) == {"text_version", "texts", "labels"}
+    assert sorted(body["labels"]) == sorted(Consent.KINDS)
+    assert body["labels"]["METER_LINK"] == NL["CONSENT_LABEL_METER_LINK"]
+    assert body["labels"]["LEAD_GENERATION"] == NL["CONSENT_LABEL_LEAD_GENERATION"]
+    for label in body["labels"].values():
+        assert label and len(label) < 60, "a label is a heading, not a sentence"
 
 
 @pytest.mark.django_db
