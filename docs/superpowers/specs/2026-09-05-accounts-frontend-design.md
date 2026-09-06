@@ -172,6 +172,10 @@ foutlichamen wordt door beide reducties gehaald en de uitkomsten moeten gelijk z
 er een, dan is dat rood in `tests/lib/accounts.test.ts`. Komt er ooit een derde client, dan is
 dat het moment om de gedeelde module alsnog te maken.
 
+`fieldMessages` zelf wordt uit `_flow/messages.ts` geïmporteerd en niet nog eens geschreven, want
+dat is precies de functie waar de redenering hierboven over één `ApiError` over gaat: alleen
+`readErrorBody` bestaat twee keer.
+
 ### 4.2 De negen aanroepen, met hun antwoordvorm
 
 Dit is wat de vormcontrole per route moet vaststellen. `void` betekent dat het antwoord geen
@@ -215,6 +219,10 @@ zou een `JSON.stringify` van een geparste boom zijn die het stilletjes doet.
 Fouten worden gereduceerd zoals `api.ts` dat doet: `{ veld: [melding] }` uit DRF wordt
 `fields`, een `{"detail": "..."}` wordt de boodschap. Een 429 draagt een `detail` en die wordt
 letterlijk getoond, want de API weet hoe lang het duurt en de frontend niet.
+
+Een `ApiError` uit `accounts.ts` draagt een lege `message` als de API geen `detail` stuurde, zodat
+`describeAuthError` de Engelse standaardboodschap van `ApiError` zelf (`api.ts`'s eigen
+`` advice API returned ${status} ``) nooit aan een huishouden toont.
 
 ## 5. De ene backend-wijziging
 
@@ -320,7 +328,9 @@ de vraag die de accountweergave vult.
 
 Fouten: een 401 draagt `credentials_invalid` en dat is met opzet hetzelfde antwoord voor een
 onbekend adres en een fout wachtwoord. Een 403 draagt `csrf_failed`. Een 429 draagt zijn eigen
-`detail`. Alle drie worden letterlijk getoond.
+`detail`. Alle drie worden letterlijk getoond. Omdat ze letterlijk getoond worden, beantwoordt
+de API een 429 zelf in het Nederlands, via een `throttled()`-overschrijving op `_AuthAPIView` die
+de zin uit `nl.py` haalt in plaats van op DRF's eigen, onvertaalde Engelse tekst te vertrouwen.
 
 ### 6.2 Registreren
 
@@ -352,9 +362,19 @@ Na een 201 zijn beide cookies gezet. Dan volgt `GET me/` en daarna de accountwee
 ### 6.3 Account
 
 - **Het e-mailadres**, uit `me/`. Verder geen profiel, want er is niets anders.
-- **Twee toestemmingsrijen.** Elke rij draagt een Nederlands label dat zegt waar de rij over
-  gaat (interfacetekst, in `ui-strings.txt`), de zin uit `consent-texts/` (API-tekst), de
-  huidige stand uit `me/`, en een schakelaar.
+- **Twee toestemmingsrijen, `METER_LINK` eerst.** Elke rij draagt een Nederlands label dat zegt
+  waar de rij over gaat (interfacetekst, in `ui-strings.txt`), de zin uit `consent-texts/`
+  (API-tekst), de huidige stand uit `me/`, en een schakelaar. De renderorde is `METER_LINK` vóór
+  `LEAD_GENERATION`, op beide plekken waar toestemmingen getoond worden (hier en in 6.2), via een
+  `CONSENT_RENDER_ORDER`-constante op de renderplek en niet door `CONSENT_KINDS` zelf te
+  herschikken: dat laatste is alfabetisch, wat de toestemming die betaalt boven de toestemming
+  zet die het advies beter maakt, op het scherm waar de neutraliteit van dit product zichtbaar
+  is.
+  Elk label staat naast zijn eigen zin en is een strikte inperking daarvan: een label mag nooit
+  meer beloven dan de zin waarnaast het staat, en elke toekomstige wijziging van een label wordt
+  daartegen nagelopen. Een gedateerd `label`-veld in `consent-texts/`, zodat een labelwijziging
+  net zo vastligt als een tekstwijziging via `text_version`, staat gepland voor de eerstvolgende
+  wijziging aan `backend/accounts/`.
   Omzetten is `POST consent/` met `kind`, `action` en, bij `GRANTED`, `text_version`. Het
   antwoord `{ kind, granted }` is de nieuwe stand van die rij. Er wordt geen tweede `me/`
   gedaan: de API heeft de vraag net beantwoord, en een tweede aanroep zou de rij kunnen vullen
@@ -369,9 +389,22 @@ Na een 201 zijn beide cookies gezet. Dan volgt `GET me/` en daarna de accountwee
   Dat de lijst `advices` in fase 1 leeg is, is geen fout van deze knop. De weergave zegt niets
   over die lijst en verzint er geen zin bij.
 - **"Uitloggen"** doet `POST logout/`. Na de 204 is de weergave `signed_out`.
-- **"Account verwijderen"** klapt uit naar één wachtwoordveld en een bevestigknop. Ingeklapt
-  staat er een knop en geen waarschuwing: dit is de zwaarste handeling op de pagina en ze hoort
-  niet als aanbod te lezen, maar ook niet als dreiging.
+- **"Account verwijderen"** klapt uit naar één zin die zegt wat verwijderen wegneemt en wat
+  blijft staan, dan één wachtwoordveld en een bevestigknop. Ingeklapt staat er een knop en geen
+  waarschuwing: dit is de zwaarste handeling op de pagina en ze hoort niet als aanbod te lezen,
+  maar ook niet als dreiging. De zin staat er wel zodra het blok openklapt, vóór het
+  wachtwoordveld, en zonder aandrang:
+
+  > "Hiermee verdwijnen uw e-mailadres, uw twee toestemmingen, uw opgeslagen adviezen en uw
+  > sessies. In ons logboek blijft alleen de regel staan dat een account is verwijderd, met een
+  > nummer dat nergens meer heen wijst."
+
+  Dat is `delete_account` in `backend/accounts/service.py` in gewone taal: de CASCADE neemt het
+  e-mailadres, beide toestemmingen en elk opgeslagen advies mee, en het logboek houdt alleen de
+  regel dat er iets verwijderd is. Zonder deze zin vraagt het scherm alleen om een wachtwoord en
+  een klik, en dat is een bevestiging die niets bevestigt. Dit is het spiegelbeeld van
+  toestemming: de zin moet gelezen zijn voordat het vinkje gezet wordt, dus moet het gevolg
+  gelezen zijn voordat de knop wordt ingedrukt.
 
 ### 6.4 Wat er na de 204 op `delete/` gebeurt
 
@@ -446,7 +479,13 @@ Toegankelijkheid, in de poort en niet in een controle achteraf:
 
 - WCAG 2.2 AA, met axe over `/account/` in beide toestanden en beide paletten
 - Elke fout wordt aangekondigd in een `role="alert"` binnen `main`, zoals de vragenstroom dat
-  doet, en elke veldfout is met `aria-describedby` aan zijn eigen veld gekoppeld
+  doet, en elke veldfout is met `aria-describedby` aan zijn eigen veld gekoppeld. Veldfouten
+  komen via een eigen, per-veld toegang op `fieldMessages` (`fieldErrors` in
+  `_account/messages.ts`), zodat elk veld zijn eigen meldingen krijgt in plaats van dat ze worden
+  samengevoegd in de ene alinea met `role="alert"`, die alleen overblijft voor meldingen die geen
+  veld noemen
+- Op beide toestemmingsschermen (6.2 en 6.3) rendert `METER_LINK` als eerste en
+  `LEAD_GENERATION` als tweede, op de renderplek zelf en niet door `CONSENT_KINDS` te herschikken
 - Het uitklappen van het verwijderblok is een `<button>` met `aria-expanded`, en de focus gaat
   naar het wachtwoordveld dat verschijnt
 - De hele pagina is met het toetsenbord te bedienen, inclusief de twee schakelaars en het
@@ -510,7 +549,13 @@ want dat is de reden dat de vijfde bestaat.
    - een echte inlogronde over HTTP, waarna de `Set-Cookie`-attributen stuk voor stuk uit het
      antwoord worden gelezen: `httponly`, `samesite=Strict`, en `path=/api/` respectievelijk
      `path=/api/auth/`. Niet "de aanroep gaf 200"
-   - een POST zonder `X-CSRFToken` geeft 403
+   - een POST zonder `X-CSRFToken` geeft 403. Deze aanroep stuurt wel een productie-vormige
+     `Origin`-header (`https://127.0.0.1`, zonder poort, want nginx zet `Host` op `$host`) mee op
+     elk onveilig verzoek, want `infra/nginx/nginx.conf` zet `X-Forwarded-Proto: https`
+     onvoorwaardelijk en Django eist dan een `Origin` of `Referer` vóórdat het naar het token
+     kijkt. Zonder die header zou de weigering om de verkeerde reden 403 geven; de controle laat
+     daarom alleen het token weg en draagt een positieve controle in dezelfde test: dezelfde
+     sessie mét het token komt wel langs de CSRF-check
    - `test_the_consent_text_shown_is_the_text_recorded`: `GET consent-texts/` levert versie V
      en de twee zinnen; `POST register/` met die V en `consent_meter_link: true`; `POST
      export/` geeft de `Consent`-rij terug en de `text_version` daarop is V. Dat is de lus die
@@ -556,18 +601,19 @@ Nieuw, frontend:
 | Bestand | Inhoud |
 |---|---|
 | `frontend/src/lib/accounts.ts` | De client uit hoofdstuk 4 |
-| `frontend/src/app/account/page.tsx` | De route. De statische `<h1>` en alinea, met de weergaven eronder |
+| `frontend/src/app/account/page.tsx` | De route: een servercomponent die `metadata`, de `<h1>` en de alinea draagt, met `<AccountPage />` eronder. Geen `account/layout.tsx`: alleen `AccountPage.tsx` is een clientcomponent, dus `page.tsx` kan `metadata` gewoon zelf exporteren. Anders dan `berekenen/`, waar `page.tsx` zelf een clientcomponent is en daarom wel een `layout.tsx` nodig heeft |
 | `frontend/src/app/_account/AccountPage.tsx` | De drie weergaven en de toestand ertussen |
 | `frontend/src/app/_account/SignInForm.tsx` | 6.1 |
 | `frontend/src/app/_account/RegisterForm.tsx` | 6.2 |
-| `frontend/src/app/_account/ConsentRow.tsx` | Eén toestemmingsrij, gebruikt in 6.2 en 6.3 |
+| `frontend/src/app/_account/ConsentRow.tsx` | Twee componenten, niet één: `ConsentCheckbox` voor 6.2 en `ConsentRow` voor 6.3, de twee kleine componenten uit hoofdstuk 8. Ze delen het label per soort en de regel dat de zin uit de API komt, en verschillen in wat er gebeurt als je erop drukt |
 | `frontend/src/app/_account/session.ts` | De laadvolgorde en de ene wissel uit 2.1 |
-| `frontend/src/app/_account/messages.ts` | `describeAuthError`, naar het model van `_flow/messages.ts` |
+| `frontend/src/app/_account/messages.ts` | `describeAuthError`, naar het model van `_flow/messages.ts`, plus `fieldErrors`, de per-veld toegang uit hoofdstuk 8 |
 | `frontend/src/app/_account/download.ts` | Het exportbestand uit de ruwe antwoordtekst |
 | `frontend/tests/lib/accounts.test.ts` | Laag 1 |
 | `frontend/tests/account/AccountPage.test.tsx` | Laag 2 |
 | `frontend/tests/account/SignInForm.test.tsx` | Laag 2 |
 | `frontend/tests/account/RegisterForm.test.tsx` | Laag 2 |
+| `frontend/tests/account/ConsentRow.test.tsx` | Laag 2, voor beide componenten uit `ConsentRow.tsx`; niet in `RegisterForm.test.tsx`, waar de eerste versie ze nog meetestte |
 | `frontend/tests/account/session.test.ts` | Laag 2, de wissel en de toestand uit 6.5 |
 | `frontend/tests/account/messages.test.ts` | Laag 2, wat er op het scherm komt bij een 400, 401, 403 en 429 |
 | `frontend/tests/fixtures/consent-texts.json` | Gegenereerd uit `nl.py`, niet met de hand |
@@ -601,7 +647,7 @@ Gewijzigd, tests en documenten:
 | `tests/test_accounts_api.py` | De negende route: statuscode, vorm, en dat de teksten uit `nl.py` komen. Plus de 400 op een verouderde `text_version` bij `register/` en bij `consent/` met `GRANTED`, en dat `WITHDRAWN` zonder het veld slaagt |
 | `tests/test_frontend_contract.py` | Laag 4, inclusief het geparametriseerde padpaar |
 | `tests/test_stack_smoke.py` | Laag 5 |
-| `tests/helpers/` | De generator voor de `consent-texts`-fixture, naast `advice_fixture.py` en langs hetzelfde patroon: gegenereerd, byte voor byte vergeleken, en niet met de hand bij te werken |
+| `tests/helpers/consent_texts_fixture.py` | De generator voor de `consent-texts`-fixture, naast `advice_fixture.py` en langs hetzelfde patroon: gegenereerd, byte voor byte vergeleken, en niet met de hand bij te werken |
 | `docs/dpia.md` | Regel 358: "acht routes" wordt "negen routes", met erbij dat de negende publiek is en geen persoonsgegeven teruggeeft |
 | `docs/decisions.md` | Twee entries: `text_version` in het verzoek als grendel, en de ene tokenwissel bij het laden als uitzondering op de retry-regel |
 | `docs/superpowers/specs/2026-09-04-accounts-auth-design.md` | De tabel in 5.1 en de zin "Acht routes" eronder krijgen de negende erbij, met een verwijzing naar dit document |

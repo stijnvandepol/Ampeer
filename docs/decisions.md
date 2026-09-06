@@ -1158,6 +1158,220 @@ figures so whoever changes one finds the other.
 `test_something_ahead_of_django_limits_the_rate` to fail at 37.5x against the
 50x floor it asks for, exactly as it did before this decision.
 
+### 34. The version of the consent text travels in the request
+
+**Decided:** `RegisterSerializer` and `ConsentSerializer` carry a `text_version`
+field, and a value that is not `CONSENT_TEXT_VERSION` is a 400 under that field
+name. On a withdrawal the field is ignored entirely.
+
+**Because:** the column exists to answer article 7(1), which is to demonstrate
+what was agreed to. Without this lock the window is small and real: a tab left
+open for an hour while the text is rewritten and rolled out, after which
+`Consent.record` stamps the new version on a row whose owner read the old
+sentence. Nothing anywhere could then see the difference. The withdrawal
+exception is article 7(3): taking consent back may never be harder than giving
+it, and refusing a withdrawal because the wording changed is exactly that.
+
+**Lives in:** `backend/accounts/serializers.py`, with the message in
+`backend/accounts/nl.py` under `consent_text_stale`.
+
+**To reverse:** drop the two validators. The cost is that the guarantee in
+chapter 5 of the frontend design becomes a claim nothing checks, and
+`test_live_the_consent_text_shown_is_the_text_recorded` is the test that would
+then be measuring an agreement rather than a mechanism.
+
+### 35. One token exchange at page load, and it is not a retry
+
+**Decided:** a 401 on `me/` while `/account/` is loading is followed by exactly
+one `POST refresh/` and one more `GET me/`. A second 401 ends it. A 401 later in
+the session exchanges nothing. `api.ts`'s rule that nothing is ever retried on
+any status stays as it is, and this exchange lives in one function.
+
+**Because:** the access token lives fifteen minutes and the refresh token
+fourteen days, so without the exchange a fourteen day token is worthless from
+minute sixteen. It is not a repetition of the same request: a different
+credential sits under the second one. A second 401 after a successful rotation
+means the cookie the server has just set is not being accepted, which no further
+attempt repairs, and continuing would rotate once per page load, empty the
+auth-refresh bucket of 60 an hour and, once an already exchanged token is
+offered again, revoke every session that account has. A client that keeps trying
+signs the visitor out everywhere.
+
+**Lives in:** `frontend/src/app/_account/session.ts`.
+
+**To reverse:** the sentence to change is the one in `accounts.ts`'s header
+saying the exchange is not in that module. Moving it there is what would make
+this a retry.
+
+### 36. Field errors are rendered one field at a time, not folded into one alert
+
+**Decided:** `_account/messages.ts` exports `fieldErrors`, a per-field accessor
+built on `error.fields` the same way `fieldMessages` in `_flow/messages.ts`
+reads it, and imports that function rather than redefining it. `SignInForm`
+and `RegisterForm` render each field's own messages linked to that field by
+`aria-describedby`, and the form-level `role="alert"` paragraph carries only
+the messages that name no field: a 401's `detail`, a 429, the network
+sentence.
+
+**Because:** chapter 8 of the frontend design binds a field error to its field
+by `aria-describedby`, which one joined sentence in a form-level alert cannot
+do. `describeAuthError` returns a single string, so the two forms as first
+drafted folded a genuine `email` or `password` 400 from `register/` into that
+one alert, on the first screen a household reaching this route sees.
+
+**Lives in:** `frontend/src/app/_account/messages.ts`,
+`frontend/src/app/_account/SignInForm.tsx`,
+`frontend/src/app/_account/RegisterForm.tsx`.
+
+**To reverse:** delete `fieldErrors` and go back to `describeAuthError` alone
+for every message. The two forms then read correctly again only as long as no
+field ever carries two different validation failures at once, which is the
+case `aria-describedby` exists for.
+
+### 37. The consent rendered first is the one that improves the advice, not the one alphabetically first
+
+**Decided:** on both consent surfaces, `RegisterForm.tsx` and
+`AccountPage.tsx`, a `CONSENT_RENDER_ORDER` constant lists `METER_LINK`
+before `LEAD_GENERATION`, and each surface maps over that constant rather
+than over `CONSENT_KINDS`. `CONSENT_KINDS` itself is untouched.
+
+**Because:** `CONSENT_KINDS` is `["LEAD_GENERATION", "METER_LINK"]`,
+alphabetical order, and review of the registration form found the commercial
+consent rendering above the one that improves the advice, on the one screen
+where the neutrality this product is built on is visible. Reordering
+`CONSENT_KINDS` was rejected because that constant is also the iteration
+order `MeView` and the frontend's shape check use to decide which two kinds
+exist at all, and changing it to fix a render order would make an unrelated
+contract depend on which consent happens to be listed first.
+
+**Lives in:** `CONSENT_RENDER_ORDER` in
+`frontend/src/app/_account/RegisterForm.tsx` and in
+`frontend/src/app/_account/AccountPage.tsx`.
+
+**To reverse:** delete the two constants and map over `CONSENT_KINDS`
+directly. The order becomes alphabetical again, which is what put
+`LEAD_GENERATION` first the first time.
+
+### 38. A consent's label is a strict reduction of its text, and a future edit is re-checked against that
+
+**Decided:** the two consent kind labels in `CONSENT_LABELS`
+(`frontend/src/app/_account/ConsentRow.tsx`) stand as written, beside the two
+texts in `backend/accounts/nl.py`:
+
+| Kind | Label | Text |
+|---|---|---|
+| `METER_LINK` | "Kwartiergegevens van uw slimme meter" | "Ik geef Ampeer toestemming om de kwartiergegevens van mijn slimme meter te verwerken om mijn advies nauwkeuriger te maken. Ik kan deze toestemming op elk moment intrekken." |
+| `LEAD_GENERATION` | "Doorgeven aan een installateur" | "Ik geef Ampeer toestemming om mijn gegevens door te geven aan een installateur als ik daar zelf om vraag. Dit is niet nodig om Ampeer te gebruiken en het verandert niets aan het advies dat ik krijg." |
+
+Any future edit to a label is re-checked against its text: a label may
+narrow what it says only as far as the text still covers, and it may never
+claim less than its row records. A versioned `label` field on
+`consent-texts/`, so a label edit is caught the same mechanical way
+`text_version` already catches a text edit, is scheduled for the next
+backend touch of `backend/accounts/`.
+
+**Because:** `text_version` locks a change to the recorded text, but a label
+edit is invisible to it today: nothing would notice a label narrowed below
+the text it sits beside. Read side by side, both labels are strict
+reductions of their text and neither adds a claim, a purpose or a scope; the
+one asymmetry runs in the safe direction, since `LEAD_GENERATION`'s label
+omits the text's limitation "als ik daar zelf om vraag", so a visitor can
+expect to have consented to more than the row records, never less.
+`ConsentRow` and `ConsentCheckbox` also keep a label and its text inside one
+`<label>` element, so the two are never encountered apart.
+
+**Lives in:** `backend/accounts/nl.py`,
+`frontend/src/app/_account/ConsentRow.tsx`.
+
+**To reverse:** drop the re-check rule and let a label be edited
+independently of its text. Nothing today would then catch a label narrowed
+below what the text beside it says, since only `text_version` is enforced.
+
+### 39. The deletion confirmation says what deletion removes, before the button that does it
+
+**Decided:** the account view's delete panel shows one sentence, read before
+the password field, saying what deletion removes and what stays:
+
+> "Hiermee verdwijnen uw e-mailadres, uw twee toestemmingen, uw opgeslagen
+> adviezen en uw sessies. In ons logboek blijft alleen de regel staan dat een
+> account is verwijderd, met een nummer dat nergens meer heen wijst."
+
+**Because:** the frontend design's chapter 6.3 as written asked only for
+"one password field and a confirm button", which tells a visitor nothing
+about what they destroy. A confirmation that does not inform is a hesitation
+prompt, not a confirmation, and this is the mirror of consent: the text must
+be read before the tick, so the consequence must be read before the button.
+The sentence matches `delete_account` in `backend/accounts/service.py` (the
+CASCADE takes the email, both consents and every stored advice) and the
+DPIA's own line about the audit id that outlives the account and points
+nowhere afterwards.
+
+**Lives in:** `DELETION_CONSEQUENCES` in
+`frontend/src/app/_account/AccountPage.tsx`, `delete_account` in
+`backend/accounts/service.py`.
+
+**To reverse:** delete the sentence. The panel goes back to a password field
+and a button with no stated consequence.
+
+### 40. A 429 on `/api/auth/` answers in Dutch from this project's own table, not DRF's
+
+**Decided:** `_AuthAPIView.throttled()` overrides DRF's default handling of a
+429. `wait` is turned into whole seconds with the same rounding DRF itself
+uses to build `Retry-After`, and the exception's `detail` is built from
+`nl.py`'s `throttled` (with the seconds filled in) or, when `wait` is `None`,
+`throttled_unknown_wait`. `wait` is set on the raised exception after
+construction, never passed to `Throttled()`.
+
+**Because:** DRF's own Dutch catalogue carries no translation for the
+throttle message, so under `LANGUAGE_CODE = "nl-nl"` the default `detail` is
+the English "Request was throttled. Expected available in {wait} seconds."
+verbatim, and `describeAuthError` shows `detail` on screen by design. Left
+alone, a Dutch site would answer a rate-limited visitor in English at the one
+moment it refuses them. `Throttled.__init__` appends its own English
+"Expected available in N seconds." to whatever `detail` it is given whenever
+`wait` is not `None`, regardless of who supplied that `detail`, which is why
+`wait` cannot be passed to the constructor and is set on the instance
+afterwards instead: `exception_handler` still reads `exc.wait` to build
+`Retry-After`, but the English sentence never gets appended. The advice flow
+never had this gap: `_flow/messages.ts` maps a 429 to its own Dutch sentence
+and never reads `detail`, so its English never reaches a screen.
+
+**Lives in:** `throttled` on `_AuthAPIView` in `backend/accounts/views.py`,
+`NL["throttled"]` and `NL["throttled_unknown_wait"]` in
+`backend/accounts/nl.py`.
+
+**To reverse:** delete the override and let DRF's default `Throttled` stand.
+The English sentence returns on every 429 this API answers, since
+`describeAuthError` shows `detail` literally by design.
+
+### 41. The stack-smoke client sends the Origin header a real browser would, not none
+
+**Decided:** `_Session` in `tests/test_stack_smoke.py` sends
+`Origin: https://127.0.0.1`, no port, on every non-GET request against the
+compose stack, and the CSRF-refusal check omits only the `X-CSRFToken`
+header, never the Origin, with a positive control in the same test: the same
+session with the token present gets past CSRF on `login/`.
+
+**Because:** `infra/nginx/nginx.conf` sets `X-Forwarded-Proto: https`
+unconditionally, because nothing reaches the container except through the
+tunnel, so there is no plain-http caller for whom that would be a lie, and
+`prod.py`'s trust in that header then makes Django treat every request
+through the stack as arriving over https. Django's `CsrfViewMiddleware`, the
+same code DRF's `CSRFCheck` runs, requires an `Origin` or a `Referer` on
+every unsafe request before it ever looks at the token, and the local stack
+has no `CSRF_TRUSTED_ORIGINS`. A check that sent neither header would 403 on
+the missing Origin and read as proof that the missing token was refused,
+which is not what it measured; the positive control is what proves the 403
+in the real check is about the token. `proxy_set_header Host $host;` is why
+the Origin carries no port here.
+
+**Lives in:** `tests/test_stack_smoke.py`, `infra/nginx/nginx.conf`.
+
+**To reverse:** drop the Origin header from `_Session` and the positive
+control from the test. Every non-GET check would then 403 on Origin instead
+of on the token, and the CSRF-refusal check would pass for a reason other
+than the one its name claims.
+
 ## What was not decided here
 
 Four belong to the controller and are written up with their trade-offs in
@@ -1332,3 +1546,12 @@ Six sit outside that document.
 - **The order the two open pull requests are merged in.** #23 carries this
   branch into `dev` and #22 carries `dev` into `main`, so #23 goes first and #22
   is rerun afterwards.
+- **Whether `branch = true` belongs in the coverage configuration
+  (`pyproject.toml`).** Statement coverage reads a multi-line ternary as one
+  statement, so an arm no test takes still counts as covered. Found on task
+  10b's `wait is None` arm in `_AuthAPIView.throttled`, which then got a
+  direct test rather than relying on the ternary's other arm to cover both.
+  Turning branch coverage on would expose every such arm across the
+  repository at once, and it may drop the measured figure below a floor that
+  may only rise, so it is a decision with its own measurement, not a flag
+  flip.

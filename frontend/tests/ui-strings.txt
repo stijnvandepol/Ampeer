@@ -5,10 +5,13 @@
 #
 # THE RULE FOR A LINE IN THIS FILE
 #
-# A line here must be one of three things: navigation, a form label or heading,
-# or a message about the request the visitor just made. It may name the shape of
-# a figure, because that is interface text. It may never be a sentence about the
-# household's electricity. Advice text arrives from the API, which is the
+# A line here must be one of four things: navigation, a form label or heading,
+# a message about the request the visitor just made, or a standing disclosure: a
+# sentence that is always on the page and states a fact about the service
+# rather than about one request (the no-password-reset sentence, the deletion
+# sentence). It may name the shape of a figure, because that is interface text.
+# It may never be a sentence about the household's electricity. Advice text
+# arrives from the API, which is the
 # language boundary: `title`, `text`, `confidence_label`, `basis_text`,
 # `varied_text`, `pinned_text` and `production_source_text` are written in
 # ampeer_advice/nl.py, keyed by rule id, so a change of wording and a change of

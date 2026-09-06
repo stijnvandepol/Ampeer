@@ -280,8 +280,12 @@ verliest zijn zeggingskracht, en dat is de bedoeling.
 | `POST /api/auth/consent/` | Geeft of trekt één toestemming in | `auth-write` |
 | `POST /api/auth/export/` | Geeft alles terug wat dit account betreft | `auth-export` |
 | `POST /api/auth/delete/` | Verwijdert het account en alles wat eraan hangt | `auth-write` |
+| `GET /api/auth/consent-texts/` | Publiek. De twee toestemmingsteksten en hun versie | `auth-read` |
 
-Acht routes, en uitsluitend `get` en `post`. Dat is geen toeval en ook geen omweg om een test te
+Negen routes, en uitsluitend `get` en `post`. De negende, `consent-texts/`, is ontworpen in
+`docs/superpowers/specs/2026-09-05-accounts-frontend-design.md`, hoofdstuk 5.1, en niet hier: dit
+document bouwt de acht routes hierboven, dat document voegt de negende toe voor de reden die daar
+staat. Dat is geen toeval en ook geen omweg om een test te
 plezieren. `tests/test_dpia.py::test_the_api_answers_only_the_verbs_the_document_describes`
 weigert een `delete`, `put` of `patch` ergens in deze API omdat hoofdstuk 7 van de DPIA zegt dat
 rectificatie een rij toevoegt in plaats van er een te wijzigen. Dit ontwerp houdt zich daaraan
