@@ -209,6 +209,40 @@ describe("focus, so a keyboard user is not left on a control the view just remov
       await screen.findByRole("heading", { name: "Uw gegevens" }),
     ).toHaveFocus();
   });
+
+  it("leaves focus at the top of the document when the page has only just loaded", async () => {
+    // Nobody has done anything yet: `me/` answered, the form replaced the
+    // loading sentence, and that is the page arriving rather than a view the
+    // visitor asked for. Focus moved down into the form here would carry a
+    // keyboard or screen reader visitor past the skip link, the navigation,
+    // the h1 and the paragraph saying what this page is.
+    stub([
+      { status: 401, body: { detail: "u bent niet ingelogd" } },
+      {
+        status: 401,
+        body: { detail: "uw sessie is verlopen, log opnieuw in" },
+      },
+    ]);
+    render(<AccountPage />);
+    await screen.findByRole("heading", { name: "Inloggen" });
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("leaves focus at the top when a valid cookie lands on the account view", async () => {
+    // The same moment on the other branch: this visitor was still signed in,
+    // so the account view is the first thing they see rather than the answer
+    // to a form they submitted.
+    stub([
+      { status: 200, body: me },
+      { status: 200, body: consentTexts },
+    ]);
+    render(<AccountPage />);
+    await screen.findByText(me.email);
+    expect(
+      screen.getByRole("heading", { name: "Uw gegevens" }),
+    ).not.toHaveFocus();
+    expect(document.activeElement).toBe(document.body);
+  });
 });
 
 describe("the account view", () => {

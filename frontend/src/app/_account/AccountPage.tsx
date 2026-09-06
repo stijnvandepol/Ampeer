@@ -85,6 +85,22 @@ export function AccountPage() {
   // `role="alert"` because it always describes a failure, and "your account
   // has been deleted" is not a failure but the requested result.
   const [confirmation, setConfirmation] = useState<string | null>(null);
+  // False until the visitor has done something on this route, and the gate on
+  // every focus move below.
+  //
+  // The first settle, `loading` -> `signed_out` or `signed_in`, is not
+  // something they did: it is this page finishing the question it asked
+  // `me/` before anybody touched it. Moving focus there carries a keyboard
+  // or screen reader visitor past the skip link, the navigation, the `<h1>`
+  // and the paragraph that says what this page is, and lands them in the
+  // middle of the document without their asking. So focus stays where the
+  // browser put it, at the top, until the visitor switches view, signs in,
+  // registers, signs out or deletes, all of which they asked for.
+  //
+  // State and not a ref, so the value is fixed at the moment the handler runs
+  // and read at render like any other: a ref written in a handler and read in
+  // an effect works today and depends on effect ordering to keep working.
+  const [visitorActed, setVisitorActed] = useState(false);
   // Where focus goes once the signed-out view settles or changes. The signed-in
   // view owns its own heading and manages its own focus, in `AccountView`
   // below, because it mounts fresh every time `me/` answers with a person.
@@ -126,18 +142,21 @@ export function AccountPage() {
   // destructive action on this route deserves better than a confirmation
   // that might go unheard.
   useEffect(() => {
+    if (!visitorActed) return;
     if (state.status !== "signed_out") return;
     if (confirmation !== null) confirmationRef.current?.focus();
     else signedOutRegion.current?.focus();
-  }, [state.status, view, confirmation]);
+  }, [state.status, view, confirmation, visitorActed]);
 
   function signedIn(who: Me): void {
+    setVisitorActed(true);
     setState({ status: "signed_in", me: who });
   }
 
   // A confirmation belongs to the sign-in view it was raised on; the form the
   // visitor switches to next has nothing to confirm.
   function switchView(next: SignedOutView): void {
+    setVisitorActed(true);
     setConfirmation(null);
     setView(next);
   }
@@ -153,7 +172,9 @@ export function AccountPage() {
     return (
       <AccountView
         me={state.me}
+        focusHeadingOnMount={visitorActed}
         onSignedOut={(line) => {
+          setVisitorActed(true);
           setConfirmation(line);
           setView("sign_in");
           setState(signedOut(null));
@@ -206,9 +227,20 @@ export function AccountPage() {
  */
 function AccountView({
   me,
+  focusHeadingOnMount,
   onSignedOut,
 }: {
   readonly me: Me;
+  /**
+   * Whether the visitor asked to be here, which decides whether focus moves.
+   *
+   * This component mounts on two occasions and they are not the same event:
+   * right after somebody signs in or registers, and on a plain page load by
+   * somebody whose cookies were still valid. The first is a view they asked
+   * for; the second is the page they opened, and taking their focus down to
+   * this heading skips the skip link, the navigation and the `<h1>` above it.
+   */
+  readonly focusHeadingOnMount: boolean;
   readonly onSignedOut: (confirmation: string | null) => void;
 }) {
   const passwordId = useId();
@@ -252,12 +284,14 @@ function AccountView({
     };
   }, []);
 
-  // This component mounts fresh every time `me/` answers with a signed-in
-  // person, at page load or right after signing in, and both are moments
-  // nothing on the page held focus that matters more than this heading.
+  // Right after signing in, focus follows the view that replaced the form the
+  // visitor was standing in, because otherwise they are left on a control
+  // that no longer exists. On a page load it does not move: nothing was
+  // removed from under them, and the top of the document is where a visitor
+  // who has just arrived belongs.
   useEffect(() => {
-    heading.current?.focus();
-  }, []);
+    if (focusHeadingOnMount) heading.current?.focus();
+  }, [focusHeadingOnMount]);
 
   // Focus follows the field that appeared, which is what makes the disclosure
   // usable from a keyboard rather than merely operable.
