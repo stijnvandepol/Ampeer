@@ -924,14 +924,251 @@ assets out inside the model instead. That needs the floor the analysis derives,
 2550 kWh of residual base, and a rule for what happens below it, and it moves
 every asset-owning household's figure up by 36 to 145 percent in one commit.
 
+### 27. The account model was decided in the same task that created the app
+
+**Decided:** `AUTH_USER_MODEL = "accounts.User"` is set in the first commit
+that adds the `accounts` app, before `accounts/migrations/0001_initial.py`
+exists, rather than left on Django's default with a swap planned for later.
+
+**Because:** every foreign key any later task points at the user model bakes
+the target into its own migration's state at the moment that migration is
+written, not at the moment it runs. `Consent.user`, `RefreshSession.user` and
+`StoredAdvice.owner` all arrived in tasks after this one, and each of their
+migrations records `accounts.User` as the model it points at. Setting
+`AUTH_USER_MODEL` after any of those three migrations existed would have meant
+starting them against Django's own `auth.User` and then swapping, which
+Django's own documentation calls out by name as something to avoid once
+migrations exist: doing it means regenerating every migration that references
+the user model and recreating the database behind it, in production the same
+outage decision 8's version bump is designed to make visible rather than
+silent. There was never a point after task 3 where deferring this stayed free.
+
+**Lives in:** `AUTH_USER_MODEL` in `backend/ampeer/settings/base.py`,
+`backend/accounts/migrations/0001_initial.py`.
+
+**To reverse:** there is no cheap reverse. Moving to a different user model now
+means writing the same migrations Django's documentation warns about, against
+a database that already holds `Consent`, `RefreshSession` and `StoredAdvice`
+rows pointing at this one.
+
+### 28. An account's advice rows are deleted with it, not orphaned
+
+**Decided:** `StoredAdvice.owner` is `on_delete=models.CASCADE`, not
+`SET_NULL`.
+
+**Because:** the advice a household made is the only thing this product keeps
+about that household, so deleting the account and leaving the advice behind
+under a cleared `owner` would still answer the token for the rest of the
+ninety days. `SET_NULL` turns a deletion request into a rename: the row
+survives, readable exactly as before, only the link back to the account is
+gone. `CASCADE` is what makes "delete my account" and "delete what you hold
+about me" the same request rather than two, which is the sentence
+`docs/dpia.md` chapter 7 now makes about `POST /api/auth/delete/`. Nothing
+writes this column in phase 1, so today's choice affects nobody yet; it is
+recorded now because adding the column later, the way `year_field`'s
+`shareable_token` argument was, is a migration over every stored advice and
+this decision has to be settled before that migration runs, not after.
+
+**Lives in:** `owner` in `backend/advice/models.py`,
+`backend/accounts/service.py`.
+
+**To reverse:** change the field to `SET_NULL` and add a second, explicit
+delete of the household's own advice rows to `delete_account`, since leaving
+them ownerless is exactly the behaviour this decision rules out.
+
+### 29. Refresh tokens are tracked by a digest of their own app, not simplejwt's blacklist
+
+**Decided:** `backend/accounts/models.py` defines `RefreshSession`, storing
+only `jti_sha256`, rather than enabling simplejwt's `token_blacklist` app.
+
+**Because:** `token_blacklist`'s `OutstandingToken.token` column stores the
+whole refresh JWT in plaintext, which is a working credential sitting in a
+database column. CLAUDE.md forbids exactly that, in the same words
+`docs/dpia.md` chapter 2 already used for the advice token: the thing stored
+must not be a usable key to the thing it protects. `RefreshSession` carries the
+sha256 of the token's `jti` instead, which lets rotation and reuse detection
+work (`rotated_at` records an exchange, and a second exchange of the same
+token revokes every session the account has) without a column anyone could
+present as a bearer token if the database ever leaked.
+
+**Lives in:** `RefreshSession` in `backend/accounts/models.py`.
+
+**To reverse:** add `rest_framework_simplejwt.token_blacklist` to
+`INSTALLED_APPS` and drop `RefreshSession`. The plaintext column comes back
+with it, so this reverse is also the one decision 27's user model constraint
+would not have blocked but this project's own security rule does.
+
+### 30. The axes cache handler was measured before it was trusted, twice
+
+**Decided:** `AXES_HANDLER = "axes.handlers.cache.AxesCacheHandler"` stays,
+with `AXES_CLIENT_IP_CALLABLE` and `AXES_USERNAME_CALLABLE` pointed at
+`accounts.lockout`, rather than the default database handler. `axes` in
+`INSTALLED_APPS` runs its migrations either way, so `AccessAttempt`,
+`AccessLog` and `AccessFailureLog` exist on this database regardless, each
+with an `ip_address` column; what the cache handler buys is that none of the
+three ever receives a row (measured: zero rows in all three after six failed
+HTTP logins).
+
+**Because:** two separate properties had to hold for a shared cache counter to
+be trustworthy for a lockout, and both were measured rather than assumed.
+
+Measurement 1, `tests/test_accounts_lockout_store.py`, asks whether
+`DatabaseCache.incr`, which Django implements as an unlocked get-then-set,
+loses so many concurrent increments that a lockout threshold is never reached.
+Measured on 2026-09-04 against Postgres, 8 threads each writing 25 increments
+to one key: about 25 to 27 of the 200 writes survived across four independent
+runs (25, 25, 26 and, on a fourth run, 27). The spread is tight because
+`200 / 8 = 25` is close to a fixed point of this race for equal, non-
+overlapping worker batches; the fourth run reading 27 rather than 25 or 26 is
+what shows this is a real race with run-to-run variance and not an arithmetic
+identity that happens to equal 25 every time. `DatabaseCache.incr`'s loss
+scales with the concurrency of the writer, which is the wrong direction for a
+defence built to survive an attacker sending more requests, not fewer. What
+bounds the damage is that axes keys on `(username, visitor digest)` rather
+than on a global counter, so attackers arriving from different addresses never
+collide on the same key, and the one case that does collide, a single identity
+hammering a single account, is capped upstream at 10 attempts an hour by the
+`auth-login` throttle scope, far below the 25 to 27 the cache still carries
+correctly under 8-way contention. So the design is layered rather than resting
+on the cache alone: nginx limits the whole service to 10 requests a second,
+DRF's `auth-login` scope limits one visitor to 10 an hour, and axes sits behind
+both as defence in depth rather than as the only thing standing between an
+attacker and the account. `test_the_login_route_throttles_before_axes_contention_could_matter`,
+added in task 9, is the mechanical form of this argument: it asserts the
+throttle refuses an attacker long before contention on the cache key could.
+Anyone who raises `AXES_FAILURE_LIMIT` past 5, or loosens `auth-login` well
+above 10 an hour, changes the numbers this paragraph relies on and should
+re-run this measurement rather than assume it still holds; the two settings
+are coupled through this argument and not through any code that enforces it.
+
+Measurement 2, `tests/test_accounts_lockout.py`, asks a different question:
+whether axes counts anything at all in a stack with no
+`AuthenticationMiddleware` and no session, which this project has neither of.
+Measured on 2026-09-04 with `RequestFactory` requests carrying no middleware
+at all: `AXES_FAILURE_LIMIT` failed calls to `django.contrib.auth.authenticate`
+left the next attempt refused by `AxesProxyHandler.is_allowed`, and the correct
+password was refused with it, confirming the lockout fires exactly at the
+configured limit independent of session middleware.
+
+Together the two measurements are why the cache handler stands: it loses
+writes under heavy contention and still crosses the threshold that matters,
+and it fires correctly in the session-less stack this project actually runs.
+
+**Lives in:** `AXES_HANDLER` in `backend/ampeer/settings/base.py`,
+`backend/accounts/lockout.py`, `tests/test_accounts_lockout_store.py`,
+`tests/test_accounts_lockout.py`.
+
+**To reverse:** switch to the database handler and accept the `ip_address`
+column decision 27's sibling settings were written to avoid, or re-measure
+after any change to `AXES_FAILURE_LIMIT` or `auth-login` before trusting this
+argument again.
+
+### 31. There is no password reset route, and the delete endpoint inherits the consequence
+
+**Decided:** phase 1 ships registration, login, refresh, logout, consent,
+export and delete, and no route to reset a forgotten password.
+
+**Because:** every one of the seven routes that exists has a place to hand a
+visitor who forgot their password: none, because none of them is the recovery
+flow. `DeleteView` asks for the current password before it acts, which is
+exactly right when the caller still knows it and leaves no route at all for a
+caller who does not. That is accepted here rather than treated as a bug: a
+password reset needs an outbound channel this project has never built, and
+`django.contrib.auth.tokens.PasswordResetTokenGenerator` already ships with
+`django.contrib.auth`, which decision 27 already added to `INSTALLED_APPS`.
+What is missing is not the token generator, it is an `EMAIL_BACKEND` and
+somewhere to send the mail, and adding those without adding the flow around
+them would be building half a feature. A household that forgets its password
+today cannot delete its own account through this API and has no self-service
+way to regain access either; both wait on the same missing channel.
+
+**Lives in:** `DeleteView` in `backend/accounts/views.py`, and
+`django.contrib.auth` in `backend/ampeer/settings/base.py`, which is present
+while no email backend is configured beside it.
+
+**To reverse:** configure an `EMAIL_BACKEND`, add a request-reset and
+confirm-reset route built on `PasswordResetTokenGenerator`, and update
+`docs/dpia.md` chapter 7 to describe the new route the same way it describes
+the other eight.
+
+### 32. The login trap fired exactly as designed, and its neighbour lost one assertion
+
+**Decided:** `test_authentication_never_arrives_without_its_defences` in
+`tests/test_backend_settings.py`, laid before this branch existed as a trap
+aimed at the day accounts arrived, fired when task 3 added
+`django.contrib.auth` to `INSTALLED_APPS`, and named exactly what was missing
+until axes, Argon2 and the backend ordering landed with it in the same commit.
+Its neighbour, `test_nothing_authenticates_because_there_is_nothing_to_log_in_to`,
+had its assertion that `"django.contrib.auth" not in settings.INSTALLED_APPS`
+removed rather than reworded, and its docstring narrowed to the three claims
+that are still true: no session middleware, no admin site, and
+`REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"]` stays empty.
+
+**Because:** `AUTH_USER_MODEL` needs `django.contrib.auth` in
+`INSTALLED_APPS` to exist at all, so the neighbour's fourth assertion was
+never going to survive accounts landing; keeping it and reworking it to test
+something else would have hidden that this specific claim, not a nearby one,
+became false. Removing it rather than flipping its polarity is what makes the
+trap test's own green result mean something: the trap is what now stands guard
+over the requirement the removed assertion used to state on its own, so the
+coverage is not thinner, it moved to the test built to catch exactly this.
+
+**Lives in:** `test_authentication_never_arrives_without_its_defences` and
+`test_nothing_authenticates_because_there_is_nothing_to_log_in_to` in
+`tests/test_backend_settings.py`.
+
+**To reverse:** put the removed assertion back and accept that it is
+permanently red for as long as accounts exist, which is the state this entry
+exists to explain rather than let a reader rediscover from a red CI run.
+
+### 33. The global rate ceiling moved from 5 to 10 requests a second when accounts arrived
+
+**Decided:** `limit_req_zone` in `infra/nginx/nginx.conf` raises its rate from
+5r/s to 10r/s.
+
+**Because:** `test_something_ahead_of_django_limits_the_rate` in
+`tests/test_nginx_config.py` sums every `DEFAULT_THROTTLE_RATES` scope into a
+per-visitor rate and requires the nginx ceiling to clear it by at least 50
+times. Before this branch, three advice scopes summed to 0.0722 requests a
+second, and 5r/s cleared that by 69 times. The six new `auth-*` scopes this
+branch adds bring the total to 0.13333 requests a second, and 5r/s against
+that new sum is only 37.5 times, under the 50x the test demands. Raising the
+ceiling to 10r/s restores a 75x margin.
+
+Three cheaper alternatives were measured and rejected before raising the
+ceiling. Halving `auth-read` to 60 an hour still leaves the sum high enough
+that 5r/s only clears it 42.9 times, still under the line. Deleting
+`auth-read` entirely brings the sum to exactly 0.1 requests a second, which
+5r/s clears at exactly 50 times: technically passing and not a margin anybody
+should ship, since it depends on no other scope ever moving by a single
+request an hour. Lowering `auth-login` was not measured because it was refused
+outright: decision 30's whole argument that a lockout counter's measured loss
+is safe rests on `auth-login` capping one identity at 10 attempts an hour, so
+this is the one scope this task will not touch to make a different test pass.
+The next scope this service adds will run the same arithmetic again, and
+`infra/nginx/nginx.conf`'s own comment beside `limit_req_zone` names both
+figures so whoever changes one finds the other.
+
+**Lives in:** `limit_req_zone` in `infra/nginx/nginx.conf`,
+`DEFAULT_THROTTLE_RATES` in `backend/ampeer/settings/base.py`,
+`test_something_ahead_of_django_limits_the_rate` in
+`tests/test_nginx_config.py`.
+
+**To reverse:** lower the rate back to 5r/s and expect
+`test_something_ahead_of_django_limits_the_rate` to fail at 37.5x against the
+50x floor it asks for, exactly as it did before this decision.
+
 ## What was not decided here
 
-Five belong to the controller and are written up with their trade-offs in
+Four belong to the controller and are written up with their trade-offs in
 chapter 10 of `docs/dpia.md`: whether the conclusion of chapter 1 is adopted,
-the legal basis, the seven day backup window, whether deletion on request
-arrives before phase 1, and access to the host including whether `web2` becomes
-ephemeral. They are not repeated here, because two lists of the same open
-questions is how one of them gets answered twice and the other not at all.
+the legal basis, the seven day backup window, and access to the host including
+whether `web2` becomes ephemeral. They are not repeated here, because two
+lists of the same open questions is how one of them gets answered twice and
+the other not at all. A fifth used to stand beside them, whether deletion on
+request arrives before phase 1, and it is answered rather than dropped: decision
+28 and `docs/dpia.md` chapter 7 both describe `POST /api/auth/delete/`, which
+is what answered it.
 
 Six sit outside that document.
 

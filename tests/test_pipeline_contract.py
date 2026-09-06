@@ -1053,29 +1053,130 @@ def test_no_file_still_says_the_security_workflow_runs_on_a_feature_push(path: s
 
 #: Directories whose contents are not this repository's own source: installed
 #: packages, build output, and the profile data that is not committed.
-_NOT_OURS = ("/.venv/", "/node_modules/", "/.git/", "/out/", "/data/", "/.next/", "/htmlcov/")
+_NOT_OURS = (
+    "/.venv/",
+    "/node_modules/",
+    "/.git/",
+    "/out/",
+    "/data/",
+    "/.next/",
+    "/htmlcov/",
+    "/.superpowers/",
+)
 
 _TEST_REFERENCE = re.compile(r"tests/test_[a-z0-9_]+\.py")
 
 
-def _files_that_can_carry_a_reference() -> list[Path]:
+def _files_that_can_carry_a_reference(root: Path = REPO_ROOT) -> list[Path]:
     """Every file of ours that could name a test, pruned during the walk.
 
     Pruned rather than filtered afterwards: rglob descends into .venv and
     node_modules first and discards them second, which cost fourteen seconds
     against a suite that runs in forty. A test slow enough to be noticed is a
     test somebody eventually runs with -k.
+
+    `root` defaults to this repository and exists so a test can point this at
+    a throwaway tree instead, the same reason tests/test_plans.py takes
+    `tmp_path` rather than writing into `PLANS_DIR`.
     """
     suffixes = {".py", ".sh", ".yml", ".yaml", ".ts", ".tsx", ".md", ".toml", ".conf"}
     skip = {name.strip("/") for name in _NOT_OURS}
     found: list[Path] = []
-    for directory, subdirectories, filenames in os.walk(REPO_ROOT):
+    for directory, subdirectories, filenames in os.walk(root):
         subdirectories[:] = [name for name in subdirectories if name not in skip]
         for filename in filenames:
             path = Path(directory) / filename
             if path.suffix in suffixes:
                 found.append(path)
     return found
+
+
+def test_a_directory_named_dot_superpowers_is_never_walked(tmp_path: Path) -> None:
+    """The SDD scratch workspace, which git never sees and os.walk always does.
+
+    `_NOT_OURS`'s own docstring calls itself "directories whose contents are
+    not this repository's own source", and a git-ignored agent workspace is
+    exactly that. Built on a throwaway tree rather than the real repository,
+    so this does not depend on a run happening to be mid-flight when it runs.
+    """
+    # Built from two halves at runtime rather than written out whole: a whole
+    # "tests/test_..._anywhere.py" literal in this plan's own source would be
+    # a reference this very check would flag once the plan is no longer
+    # exempt, which is the trap ruling 6 already names for the status marker.
+    nonexistent = "tests/test_does_not" + "_exist_anywhere.py"
+    (tmp_path / ".superpowers" / "sdd").mkdir(parents=True)
+    carrier = tmp_path / ".superpowers" / "sdd" / "progress.md"
+    carrier.write_text(f"{nonexistent}\n", encoding="utf-8")
+    (tmp_path / "real.md").write_text("tests/test_pipeline_contract.py\n", encoding="utf-8")
+
+    found = {path.name for path in _files_that_can_carry_a_reference(tmp_path)}
+    assert "progress.md" not in found, ".superpowers is walked and should be pruned"
+    assert "real.md" in found, "the walk was pruned so hard it lost a file that is ours"
+
+
+def test_a_spec_is_exempt_only_when_its_own_plan_is_in_progress(tmp_path: Path) -> None:
+    """The pairing, run rather than reasoned about.
+
+    A spec never says "in progress" in its own status line: every spec in
+    docs/superpowers/specs/ opens with "Status: vastgesteld, klaar voor
+    implementatieplan", delivered or not, so a spec's exemption cannot come
+    from its own text. It has to come from the plan it was written for, and
+    this proves it both ways: exempt while that plan is in progress, not
+    exempt the moment the plan says anything else, and not exempt at all when
+    there is no such plan on disk.
+    """
+    plans = tmp_path / "docs" / "superpowers" / "plans"
+    specs = tmp_path / "docs" / "superpowers" / "specs"
+    plans.mkdir(parents=True)
+    specs.mkdir(parents=True)
+    plan = plans / "2026-09-04-accounts-auth.md"
+    spec = specs / "2026-09-04-accounts-auth-design.md"
+    spec.write_text("Status: vastgesteld, klaar voor implementatieplan\n", encoding="utf-8")
+
+    plan.write_text("**Status:** in progress\n", encoding="utf-8")
+    assert _is_in_progress(spec) is True
+
+    plan.write_text("**Status:** delivered\n", encoding="utf-8")
+    assert _is_in_progress(spec) is False
+
+    orphan = specs / "2026-09-04-nothing-design.md"
+    orphan.write_text("Status: vastgesteld, klaar voor implementatieplan\n", encoding="utf-8")
+    assert _is_in_progress(orphan) is False
+
+
+#: The same fail-closed marker tests/test_plans.py uses, read independently
+#: here so this file's own defence does not depend on that module's
+#: internals. A plan without the exact marker (a typo, another word, no
+#: status line at all) falls back to the strict reading, same as there.
+_PLAN_STATUS = re.compile(r"^\*\*Status:\*\*\s*(.+?)\s*$", re.MULTILINE)
+
+#: docs/superpowers/specs/{name}-design.md pairs with docs/superpowers/plans/{name}.md:
+#: the same date-prefixed name, differing only by this suffix.
+_SPEC_SUFFIX = "-design.md"
+
+
+def _plan_that_speaks_for(path: Path) -> Path:
+    """Which file's status marker this path's references are exempt under.
+
+    A plan under docs/superpowers/plans/ speaks for itself. A spec under
+    docs/superpowers/specs/ speaks for the plan it was written for: specs
+    carry no completion status of their own, so a spec's exemption has to
+    come from the plan. Anything else speaks for itself too, which
+    `_is_in_progress` then reads as "not a plan, no marker, not exempt".
+    """
+    posix = path.as_posix()
+    if "docs/superpowers/specs/" in posix and path.name.endswith(_SPEC_SUFFIX):
+        plan_name = path.name[: -len(_SPEC_SUFFIX)] + ".md"
+        return path.parents[1] / "plans" / plan_name
+    return path
+
+
+def _is_in_progress(path: Path) -> bool:
+    plan = _plan_that_speaks_for(path)
+    if not plan.is_file():
+        return False
+    match = _PLAN_STATUS.search(plan.read_text(encoding="utf-8"))
+    return match is not None and match.group(1).strip() == "in progress"
 
 
 def test_every_test_file_named_in_a_comment_exists() -> None:
@@ -1095,9 +1196,19 @@ def test_every_test_file_named_in_a_comment_exists() -> None:
     Only the path is checked. Whether the named test still asserts what the
     comment says it asserts is not mechanically knowable, and pretending
     otherwise would be its own false guarantee.
+
+    A plan still being built, and the spec it was written from, may name a test
+    that does not exist yet. tests/test_plans.py already holds the plan itself
+    to the opposite promise elsewhere, that something it names is still
+    missing, so a second red here would say nothing a reader could not already
+    tell from that test. The exemption is read fresh from the plan's own
+    status line on every run, not assumed, so a finished plan (and its spec)
+    falls straight back under the strict reading below.
     """
     missing: dict[str, set[str]] = {}
     for path in _files_that_can_carry_a_reference():
+        if _is_in_progress(path):
+            continue
         try:
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:  # pragma: no cover - binary with a text suffix

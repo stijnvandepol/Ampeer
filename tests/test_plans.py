@@ -46,6 +46,32 @@ _PARENTHETICAL = re.compile(r"\([^)]*\)")
 #: The spec a plan implements, from the header the plan template requires.
 _SPEC = re.compile(r"^\*\*Spec:\*\*\s*`?([^`\n]+?)`?\s*$", re.MULTILINE)
 
+#: A plan that says exactly this may name files that are not in the tree yet.
+#:
+#: Everything else gets the strict reading, including a plan with no status line
+#: and a plan whose status is misspelled. Fail closed: an exemption that can be
+#: entered by a typo is not an exemption, it is a hole. The pair of tests below
+#: is what keeps the marker from being left on: while it is set, a plan whose
+#: files all exist fails and says to take it off.
+#:
+#: `_STATUS` is anchored with `^`, so it matches at the start of any line, not
+#: only the one at the top of the file. Taak 13 hieronder shows the marker text
+#: as an example inside its own instructions, and if that example sat at column
+#: 0 in a fenced code block it would be a second match `_is_in_progress` could
+#: find. `.search` only reports the first, so today it would stay silent, but
+#: a replace-all across the file (which taak 13 performs) would rewrite the
+#: example along with the real marker. That is why the example in taak 13 is
+#: shown four-space indented rather than as a column-0 code sample: indentation
+#: keeps it from being a candidate for either the regex or the replace-all.
+IN_PROGRESS = "in progress"
+
+_STATUS = re.compile(r"^\*\*Status:\*\*\s*(.+?)\s*$", re.MULTILINE)
+
+
+def _is_in_progress(plan: Path) -> bool:
+    match = _STATUS.search(plan.read_text(encoding="utf-8"))
+    return match is not None and match.group(1).strip() == IN_PROGRESS
+
 
 def _named_paths(plan: Path) -> list[tuple[str, ...]]:
     """Every path a plan names, as the readings each one allows.
@@ -109,23 +135,53 @@ def _exists(candidates: tuple[str, ...]) -> bool:
 
 
 @pytest.mark.parametrize("plan", PLANS, ids=lambda plan: plan.name)
-def test_every_file_a_plan_names_exists(plan: Path) -> None:
+def test_every_file_a_finished_plan_names_exists(plan: Path) -> None:
     """Measured on 2026-08-22: six plans make 172 references to 150 distinct
     names and every one of them is in the tree, so all six are delivered.
 
     The twenty-two named twice are files one plan creates and another modifies,
     which is the seam between two plans and where a rename does the most damage.
 
-    This changes nothing today, which is the usual shape of a guard here. What
-    changes is that the day one of them stops being true, it stops being true
-    out loud.
+    A plan marked in progress is not checked here and is not unchecked either:
+    the test below holds it to the opposite claim, that something it names is
+    still missing. Between the two there is no plan and no state that is green
+    because the question did not apply.
     """
+    if _is_in_progress(plan):
+        return
     missing = sorted({names[0] for names in _named_paths(plan) if not _exists(names)})
     assert not missing, (
         f"{plan.name} names files that are not in the tree:\n"
         + "\n".join(f"  {path}" for path in missing)
         + "\nEither the work is not done, or something was renamed and the plan "
         "still points at where it used to be."
+    )
+
+
+@pytest.mark.parametrize("plan", PLANS, ids=lambda plan: plan.name)
+def test_a_plan_marked_in_progress_is_actually_unfinished(plan: Path) -> None:
+    """The marker cannot be left on, because finishing the work turns it red.
+
+    Two ways an in-progress plan can be lying. It can be finished, in which case
+    the status is stale and the strict check above is not running over a plan
+    that should be under it. Or it can name nothing that exists at all, which is
+    what a plan pointing at a directory that moved looks like, and the marker
+    would hide that for as long as it stayed on.
+    """
+    if not _is_in_progress(plan):
+        return
+    names = _named_paths(plan)
+    assert names, f"{plan.name} is marked '{IN_PROGRESS}' and names no files at all"
+    distinct = {entry[0] for entry in names}
+    missing = {entry[0] for entry in names if not _exists(entry)}
+    assert missing, (
+        f"{plan.name} is marked '{IN_PROGRESS}' and every file it names is in the tree. "
+        f"The work is done: change the status line to something other than '{IN_PROGRESS}', "
+        "which puts the plan back under the strict check."
+    )
+    assert missing != distinct, (
+        f"{plan.name} names {len(distinct)} files and not one of them exists. That is not "
+        "an unfinished plan, that is a plan pointing at somewhere else entirely."
     )
 
 
@@ -153,7 +209,7 @@ def test_the_scan_actually_reads_the_plans() -> None:
     The counts are floors against the 172 and 150 measured today, not the
     numbers themselves, so reworking a plan does not have to touch this test.
     """
-    assert len(PLANS) >= 6, f"only found {[plan.name for plan in PLANS]} under {PLANS_DIR}"
+    assert len(PLANS) >= 7, f"only found {[plan.name for plan in PLANS]} under {PLANS_DIR}"
     named = [names for plan in PLANS for names in _named_paths(plan)]
     assert len(named) >= 150, f"only {len(named)} references found across the plans"
     assert len({names[0] for names in named}) >= 130, (
@@ -167,3 +223,25 @@ def test_the_scan_actually_reads_the_plans() -> None:
         f"the top level of this repository reads as {sorted(TOP_LEVEL)}, so the rule "
         "that separates a whole path from a sibling is not deciding anything"
     )
+
+
+def test_the_status_rule_reads_only_the_exact_marker(tmp_path: Path) -> None:
+    """Both branches of the rule, run rather than reasoned about.
+
+    An escape hatch that is entered by accident is worse than no escape hatch,
+    so everything that is not the exact marker falls back to the strict reading:
+    a misspelling, a status of another word, the prose blockquote the older
+    plans carry, and no status line at all.
+    """
+    cases = [
+        ("**Status:** in progress\n", True),
+        ("**Status:** delivered\n", False),
+        ("**Status:** in-progress\n", False),
+        ("**Status:**in progress\n", True),
+        ("> **Status on 2026-08-22: delivered.**\n", False),
+        ("no status line here at all\n", False),
+    ]
+    for text, expected in cases:
+        plan = tmp_path / "plan.md"
+        plan.write_text(text, encoding="utf-8")
+        assert _is_in_progress(plan) is expected, f"the rule read {text!r} as {not expected}"

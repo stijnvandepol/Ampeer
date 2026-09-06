@@ -285,7 +285,7 @@ def test_no_dutch_text_lives_outside_the_text_module() -> None:
         r"|zonnepanelen|zonnestroom|teruglevert|terugleverkosten|vaatwasser"
         r"|het|een|geen|deze|dat|wordt|worden|zijn|hebben|wettelijk|jaar"
         r"|kosten|bedrag|prijs|meeste|grote|volgens|omdat|maar|ook|nog"
-        r"|de|te)\b",
+        r"|de|te|wachtwoord)\b",
         re.IGNORECASE,
     )
     scanned = [

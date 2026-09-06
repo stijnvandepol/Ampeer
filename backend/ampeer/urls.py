@@ -6,4 +6,5 @@ from django.urls import URLPattern, URLResolver, include, path
 
 urlpatterns: list[URLPattern | URLResolver] = [
     path("api/advice/", include("advice.urls")),
+    path("api/auth/", include("accounts.urls")),
 ]

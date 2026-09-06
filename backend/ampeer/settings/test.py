@@ -26,3 +26,15 @@ CACHES = {
         "LOCATION": "ampeer-tests",
     }
 }
+
+# Pinned back to False for the same reason DEBUG and CACHES are pinned above:
+# the schema and settings under test have to be the ones that ship. dev.py
+# turns this on so a developer's browser can carry the accounts cookies across
+# localhost:3000 to 127.0.0.1:8000, which is cross-site; inheriting that
+# convenience here would make tests/test_advice_api.py's assertion that no
+# advice response carries Access-Control-Allow-Credentials untrue, since
+# django-cors-headers applies this setting to every response, not only the
+# accounts ones. tests/test_backend_settings.py asserts that dev.py's own
+# line still says True, so deleting it here cannot silently break developer
+# login under a fully green suite.
+CORS_ALLOW_CREDENTIALS = False

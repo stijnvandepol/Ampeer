@@ -24,7 +24,17 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DPIA = REPO_ROOT / "docs" / "dpia.md"
 TEXT = DPIA.read_text(encoding="utf-8")
 
+#: One path, unchanged. Two tests read MODELS.read_text directly for a property
+#: of backend/advice/models.py specifically (the token length, and AuditEvent's
+#: own kinds), and widening this to a list would break both with an
+#: AttributeError that this task does not own the file to fix.
 MODELS = REPO_ROOT / "backend" / "advice" / "models.py"
+
+#: The second address to check, kept separate rather than folded into MODELS for
+#: the reason above. _model_field_names is the only reader of both; every other
+#: use of MODELS stays about backend/advice/models.py alone.
+ACCOUNT_MODELS = REPO_ROOT / "backend" / "accounts" / "models.py"
+
 SETTINGS = REPO_ROOT / "backend" / "ampeer" / "settings" / "base.py"
 SERIALIZERS = REPO_ROOT / "backend" / "advice" / "serializers.py"
 BACKUP = REPO_ROOT / "scripts" / "backup_db.sh"
@@ -129,30 +139,35 @@ def test_the_postcode_is_refused_rather_than_shortened() -> None:
 
 
 def _model_field_names() -> dict[str, list[str]]:
-    """Every model in backend/advice/models.py and the fields it declares.
+    """Every model in backend/advice/models.py and backend/accounts/models.py,
+    and the fields each declares.
 
     Read with ast rather than through Django, so this runs without a database
     and without a settings module, which is the same reason
-    tests/test_infra.py reads the Dockerfile instead of a container.
+    tests/test_infra.py reads the Dockerfile instead of a container. Both
+    files are read and merged here, and this is the only function that reads
+    ACCOUNT_MODELS: the app that actually holds the account's personal
+    details would otherwise escape the address check entirely.
     """
-    tree = ast.parse(MODELS.read_text(encoding="utf-8"))
     models: dict[str, list[str]] = {}
-    for node in tree.body:
-        if not isinstance(node, ast.ClassDef):
-            continue
-        fields = [
-            target.id
-            for statement in node.body
-            if isinstance(statement, ast.Assign)
-            for target in statement.targets
-            if isinstance(target, ast.Name)
-            and isinstance(statement.value, ast.Call)
-            and isinstance(statement.value.func, ast.Attribute)
-            and isinstance(statement.value.func.value, ast.Name)
-            and statement.value.func.value.id == "models"
-        ]
-        if fields:
-            models[node.name] = fields
+    for source in (MODELS, ACCOUNT_MODELS):
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        for node in tree.body:
+            if not isinstance(node, ast.ClassDef):
+                continue
+            fields = [
+                target.id
+                for statement in node.body
+                if isinstance(statement, ast.Assign)
+                for target in statement.targets
+                if isinstance(target, ast.Name)
+                and isinstance(statement.value, ast.Call)
+                and isinstance(statement.value.func, ast.Attribute)
+                and isinstance(statement.value.func.value, ast.Name)
+                and statement.value.func.value.id == "models"
+            ]
+            if fields:
+                models[node.name] = fields
     assert models, "no models found; this test no longer reads what it thinks it does"
     return models
 
@@ -176,9 +191,9 @@ def test_no_table_has_a_column_for_an_address() -> None:
 
 
 def test_the_audit_log_records_exactly_what_the_document_says_it_does() -> None:
-    """One event type today, and the document explains why the others are absent.
+    """Nine event types today, and the document explains why two more are absent.
 
-    A second one arriving means a handling arrived with it, which is precisely
+    A ninth kind arriving means a handling arrived with it, which is precisely
     when a privacy document has to be reread rather than assumed.
     """
     tree = ast.parse(MODELS.read_text(encoding="utf-8"))
@@ -194,11 +209,20 @@ def test_the_audit_log_records_exactly_what_the_document_says_it_does() -> None:
         and isinstance(statement.value, ast.Constant)
         and statement.value.value == target.id
     ]
-    assert kinds == ["ADVICE_GENERATED"], (
-        f"the audit log now records {kinds}; docs/dpia.md chapter 2 says it records one "
-        "kind of event and explains why the others are absent. Both have to change together."
+    assert kinds == [
+        "ADVICE_GENERATED",
+        "ACCOUNT_CREATED",
+        "LOGIN_SUCCEEDED",
+        "LOGIN_FAILED",
+        "LOGOUT",
+        "CONSENT_GRANTED",
+        "CONSENT_WITHDRAWN",
+        "DATA_EXPORTED",
+        "ACCOUNT_DELETED",
+    ], (
+        f"the audit log now records {kinds}; docs/dpia.md chapter 2 lists what it records "
+        "and why the two that are still absent are absent. Both have to change together."
     )
-    assert "precies een soort gebeurtenis" in TEXT
 
 
 SERVICE = REPO_ROOT / "backend" / "advice" / "service.py"
@@ -216,7 +240,16 @@ AUDIT_CONTEXT_PHRASES = {
     "confidence": "betrouwbaarheidsniveau",
     "engine_version": "versienummers van de motor",
     "advice_version": "de regeltabel",
+    "user_id": "`user_id`",
+    "kind": "`kind`",
+    "reused": "`reused`",
 }
+
+#: Every accounts/ source file, walked rather than named one by one: eleven
+#: AuditEvent.record() call sites exist today across views.py and service.py,
+#: and a twelfth arriving with a new keyword should fail this test rather than
+#: silently ship a document that no longer says what the log carries.
+ACCOUNTS = REPO_ROOT / "backend" / "accounts"
 
 
 def _audit_context_keys() -> list[str]:
@@ -240,6 +273,30 @@ def _audit_context_keys() -> list[str]:
     return [keyword.arg for keyword in calls[0].keywords if keyword.arg]
 
 
+def _accounts_audit_context_keys() -> set[str]:
+    """Every keyword an `AuditEvent.record(` call writes, anywhere under
+    backend/accounts/.
+
+    Matched on the callee's own name (`AuditEvent`) and not merely the method
+    name `record`, so `Consent.record(user, kind, action)`, which shares the
+    method name but takes no keywords, cannot be mistaken for the audit call
+    it sits beside on the same lines.
+    """
+    keys: set[str] = set()
+    for path in sorted(ACCOUNTS.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "record"
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "AuditEvent"
+            ):
+                keys.update(keyword.arg for keyword in node.keywords if keyword.arg)
+    return keys
+
+
 def test_the_document_names_everything_the_audit_line_carries() -> None:
     """Chapter 2 listed two of the five fields, and got one of those wrong.
 
@@ -254,10 +311,12 @@ def test_the_document_names_everything_the_audit_line_carries() -> None:
     hold the service to, and it was describing a worse service than the one
     that runs. The other three fields it did not mention at all.
 
-    Both directions are asserted. A sixth field cannot join the audit line
-    without a sentence about it, and a sentence cannot outlive the field.
+    Both directions are asserted, over every AuditEvent.record() call this
+    repository writes: the one in backend/advice/service.py and every one
+    under backend/accounts/. A sixth field cannot join the audit line without
+    a sentence about it, and a sentence cannot outlive the field.
     """
-    keys = set(_audit_context_keys())
+    keys = set(_audit_context_keys()) | _accounts_audit_context_keys()
     assert keys == set(AUDIT_CONTEXT_PHRASES), (
         f"the audit line carries {sorted(keys)} and this table describes "
         f"{sorted(AUDIT_CONTEXT_PHRASES)}. Chapter 2 has to say what is written down."
@@ -320,7 +379,14 @@ def test_the_document_quotes_the_permissions_the_backup_check_enforces(mode: str
     assert f"`{mode}`" in TEXT, f"the document does not quote {mode}"
 
 
-VIEWS = REPO_ROOT / "backend" / "advice" / "views.py"
+#: A list rather than one path, because the app that actually holds the personal
+#: details would otherwise escape the verb check entirely. A guard that reads one
+#: file while its commit claims a property of the package is the failure
+#: advice/nl.py already carries a note about.
+VIEWS = [
+    REPO_ROOT / "backend" / "advice" / "views.py",
+    REPO_ROOT / "backend" / "accounts" / "views.py",
+]
 
 #: The HTTP verbs a DRF APIView turns into a handler by defining a method with
 #: that name. OPTIONS is answered by the framework and is not a handling of
@@ -329,24 +395,25 @@ HTTP_HANDLERS = frozenset({"get", "post", "put", "patch", "delete", "head"})
 
 
 def _handlers_per_view() -> dict[str, set[str]]:
-    """Every view in backend/advice/views.py and the verbs it answers.
+    """Every view across the VIEWS list and the verbs it answers.
 
     Read with ast rather than through Django's URL resolver, so this runs
     without a settings module and without a database, for the reason the model
     walk above gives.
     """
-    tree = ast.parse(VIEWS.read_text(encoding="utf-8"))
     views: dict[str, set[str]] = {}
-    for node in tree.body:
-        if not isinstance(node, ast.ClassDef):
-            continue
-        verbs = {
-            statement.name
-            for statement in node.body
-            if isinstance(statement, ast.FunctionDef) and statement.name in HTTP_HANDLERS
-        }
-        if verbs:
-            views[node.name] = verbs
+    for source in VIEWS:
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        for node in tree.body:
+            if not isinstance(node, ast.ClassDef):
+                continue
+            verbs = {
+                statement.name
+                for statement in node.body
+                if isinstance(statement, ast.FunctionDef) and statement.name in HTTP_HANDLERS
+            }
+            if verbs:
+                views[node.name] = verbs
     assert views, "no view handlers found; this test no longer reads what it thinks it does"
     return views
 
@@ -370,8 +437,6 @@ def test_the_api_answers_only_the_verbs_the_document_describes() -> None:
         "that reads and computes and does nothing else; it has to be reread before this "
         "test is updated, and chapter 10 lists the deletion question as unanswered."
     )
-    assert "Er is geen vierde." in TEXT
-    assert "Er is geen verwijderknop en geen verwijderendpoint." in TEXT
 
 
 def test_the_document_says_which_data_an_access_request_does_not_reach() -> None:
@@ -380,8 +445,14 @@ def test_the_document_says_which_data_an_access_request_does_not_reach() -> None
     The stored row holds the answers as well as the advice, and the read route
     returns `stored.advice` alone. Saying inzage works without saying that would
     overstate what a visitor sees about themselves.
+
+    Read explicitly from backend/advice/views.py and not from VIEWS: this
+    assertion is about the token route specifically, not about the account
+    routes VIEWS now also carries, and account/views.py's export route
+    deliberately does return the inputs, which is not the fact this test
+    checks.
     """
-    source = VIEWS.read_text(encoding="utf-8")
+    source = (REPO_ROOT / "backend" / "advice" / "views.py").read_text(encoding="utf-8")
     assert "stored.advice" in source, (
         "the read route no longer returns the advice alone; chapter 7 says it does"
     )
