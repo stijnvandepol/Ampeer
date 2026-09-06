@@ -44,7 +44,7 @@ Copy `infra/.env.example` to **`/srv/ampeer/.env`** on the host and fill it in.
 It is outside git on purpose and there is no default for anything in it: a
 default for a secret is a secret in the repository with extra steps.
 
-`prod.py` refuses to start without these nine, and gives none of them a value:
+`prod.py` refuses to start without these thirteen, and gives none of them a value:
 
 | Name | What goes in it |
 |---|---|
@@ -57,6 +57,10 @@ default for a secret is a secret in the repository with extra steps.
 | `POSTGRES_USER` | Database user |
 | `POSTGRES_PASSWORD` | Database password |
 | `POSTGRES_HOST` | `db`, the compose service name |
+| `AMPEER_MAIL_TRANSPORT` | `resend` on a host. The preflight refuses every other value here: `file` writes each mail to a file inside the container and delivers none |
+| `RESEND_API_KEY` | The Resend key with send permission for the domain below. A credential, like the tunnel token |
+| `AMPEER_MAIL_FROM` | The sender a household sees, `noreply@ampeer.nl`, on a domain verified at Resend with the SPF and DKIM records it hands out |
+| `AMPEER_SITE_ORIGIN` | Where the links in a mail point, `https://ampeer.nl`. The page reads the token off the fragment of that origin's `/account/` route |
 
 Two more names are read by `docker-compose.yml` and are not in that list because
 `prod.py` never sees them:
@@ -168,6 +172,32 @@ systemctl enable --now ampeer-purge.timer
 systemctl list-timers ampeer-purge.timer     # NEXT must be within a day
 systemctl status ampeer-purge.service        # after it has fired once
 ```
+
+### The outbox timer is installed the same way
+
+`infra/systemd/ampeer-mail.service` and `infra/systemd/ampeer-mail.timer`
+send the password reset and address confirmation mails, every minute.
+**Nothing in this repository installs, enables or starts them either.**
+
+```sh
+cp infra/systemd/ampeer-mail.* /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now ampeer-mail.timer
+```
+
+**Verify:**
+
+```sh
+systemctl list-timers ampeer-mail.timer       # NEXT must be within a minute
+docker compose --env-file /srv/ampeer/.env -f /srv/ampeer/docker-compose.yml run --rm --entrypoint python api backend/manage.py send_outbound_mail --check
+```
+
+The second command exits non-zero as soon as an unsent mail is older than
+fifteen minutes, and the deploy job runs it after `migrate` for the same
+reason it runs the purge check there. It does not notice a timer that was
+never enabled until the first mail is fifteen minutes late, which for a
+household is already too late; only `list-timers` answers that question, and
+it is written down here rather than papered over.
 
 ### What notices when the purge stops, and what does not
 

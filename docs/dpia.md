@@ -128,7 +128,14 @@ staat er een toestemming zonder te zeggen waarvoor. En een mislukte
 tokenvernieuwing draagt geen `user_id` maar alleen `reused`, een boolean die
 onderscheidt of het ging om een hergebruikt token of om een andere fout: op dat
 moment is de sessie al ontkoppeld van de aanvraag, en een `user_id` verzinnen
-zou een koppeling suggereren die er niet is. In alle gevallen geldt: deze
+zou een koppeling suggereren die er niet is.
+
+Een regel over een verzonden mail draagt naast `user_id` en `kind` een
+`provider_id`: het bericht-id dat de mailverwerker teruggeeft. Dat id is geen
+persoonsgegeven en het is wel het enige waarmee een verzending bij die
+verwerker teruggevonden kan worden.
+
+In alle gevallen geldt: deze
 tabel wordt nooit opgeruimd, dus wat erin staat overleeft het account dat het
 beschrijft, en een getal dat naar een verwijderde rij wijst is een lege
 verwijzing waar een e-mailadres een blijvend persoonsgegeven zou zijn in een

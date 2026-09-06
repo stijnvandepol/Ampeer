@@ -640,6 +640,16 @@ def test_the_deploy_checks_that_the_outbox_is_being_emptied() -> None:
     assert "send_outbound_mail --check" in workflow
 
 
+def test_the_mail_unit_runs_the_command_every_minute() -> None:
+    service = (INFRA / "systemd" / "ampeer-mail.service").read_text(encoding="utf-8")
+    timer = (INFRA / "systemd" / "ampeer-mail.timer").read_text(encoding="utf-8")
+    assert "backend/manage.py send_outbound_mail" in service
+    assert "--entrypoint python" in service
+    assert "OnCalendar=*-*-* *:*:00" in timer
+    assert "Persistent=true" not in timer
+    assert "INSTALLED BY HAND" in service[:400]
+
+
 def test_the_purge_unit_fails_when_the_purge_achieved_nothing() -> None:
     """The other of the two places, on the host.
 

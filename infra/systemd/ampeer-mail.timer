@@ -1,0 +1,17 @@
+# Installed by hand, see ampeer-mail.service.
+
+[Unit]
+Description=Run Ampeer's outbox every minute
+
+[Timer]
+# Every minute, on the minute. A mail a household is waiting for should not
+# wait for a cron granularity chosen for a daily purge.
+OnCalendar=*-*-* *:*:00
+AccuracySec=10s
+# No catch-up flag here: a missed minute needs no catch-up run, because the
+# next run sends whatever is waiting. The purge timer is different, and says
+# why it needs one.
+Unit=ampeer-mail.service
+
+[Install]
+WantedBy=timers.target

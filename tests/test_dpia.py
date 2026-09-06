@@ -247,6 +247,7 @@ AUDIT_CONTEXT_PHRASES = {
     "user_id": "`user_id`",
     "kind": "`kind`",
     "reused": "`reused`",
+    "provider_id": "`provider_id`",
 }
 
 #: Every accounts/ source file, walked rather than named one by one: eleven

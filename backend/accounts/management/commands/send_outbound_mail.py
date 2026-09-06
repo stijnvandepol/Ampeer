@@ -1,0 +1,144 @@
+"""Send what is waiting in the outbox, minting each token at the moment of sending.
+
+Called every minute by infra/systemd/ampeer-mail.timer, and not by Celery,
+for the reason the two purge commands give: a small amount of work on a
+schedule needs a timer and not a queue. This is the only process in this
+repository that opens a connection to the mail provider, and it never runs
+inside a request.
+
+The order inside one row is exact, and it is one transaction with a
+savepoint inside it, not two transactions. The outer `atomic()` takes the
+row's lock with SKIP LOCKED and holds it across the send, so a second run of
+this command never claims the same row. Inside it, the mint and the send
+share a savepoint: a transport error leaves that savepoint with an exception,
+which rolls the mint back, so no digest of a token nobody received survives,
+while the row itself is still locked and is then updated with the attempt
+and the wait. Two writes, in that order, and the first commits only if the
+transport took the message. Spec 4.4 describes the same property in the
+words "two transactions"; the savepoint is how it is delivered without
+letting go of the row in between.
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+from typing import Any, Final
+
+from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
+from django.utils import timezone
+
+from accounts import mailer, recovery
+from accounts.models import OneTimeToken, OutboundMail
+from accounts.nl import NL
+from advice.models import AuditEvent
+
+#: After the first, second, third and every later failed attempt.
+BACKOFF: Final = (
+    timedelta(minutes=1),
+    timedelta(minutes=5),
+    timedelta(minutes=15),
+    timedelta(minutes=60),
+)
+#: A row older than this is marked failed on its next failure rather than
+#: deferred again. A reset link a day late is a link somebody stopped waiting for.
+GIVE_UP_AFTER: Final = timedelta(hours=24)
+#: `--check` exits non-zero when an unsent row is older than this. The timer
+#: runs every minute; a quarter of an hour is fifteen missed runs.
+OVERDUE_AFTER: Final = timedelta(minutes=15)
+
+_SUBJECT: Final = {
+    OneTimeToken.PASSWORD_RESET: "MAIL_RESET_SUBJECT",
+    OneTimeToken.EMAIL_VERIFY: "MAIL_VERIFY_SUBJECT",
+}
+_BODY: Final = {
+    OneTimeToken.PASSWORD_RESET: "MAIL_RESET_BODY",
+    OneTimeToken.EMAIL_VERIFY: "MAIL_VERIFY_BODY",
+}
+#: The word after `#` in the link. frontend/src/app/_account/fragment.ts reads
+#: exactly these two.
+_FRAGMENT: Final = {
+    OneTimeToken.PASSWORD_RESET: "herstel",
+    OneTimeToken.EMAIL_VERIFY: "verificatie",
+}
+
+
+def _compose(row: OutboundMail, raw_token: str) -> mailer.Message:
+    link = f"{settings.AMPEER_SITE_ORIGIN}/account/#{_FRAGMENT[row.kind]}={raw_token}"
+    return mailer.Message(
+        to=row.user.email,
+        subject=NL[_SUBJECT[row.kind]],
+        text=NL[_BODY[row.kind]] % {"link": link},
+        idempotency_key=f"outbox-{row.pk}",
+    )
+
+
+def _retryable(status: int) -> bool:
+    """A network fault, a timeout, a 429 or a 5xx is worth another attempt. A
+    wrong key or an address the provider refuses is not."""
+    return status == 0 or status == 429 or status >= 500
+
+
+class Command(BaseCommand):
+    help = "Send what is waiting in the outbox; with --check only report what is overdue."
+
+    def add_arguments(self, parser: Any) -> None:
+        parser.add_argument(
+            "--check",
+            action="store_true",
+            help="Send nothing; exit non-zero if an unsent mail is older than fifteen minutes.",
+        )
+
+    def handle(self, *args: Any, **options: Any) -> None:
+        if not options["check"]:
+            sent, deferred = self._deliver()
+            self.stdout.write(f"sent {sent} messages, deferred {deferred}")
+        overdue = OutboundMail.objects.filter(
+            failed_at__isnull=True, created_at__lte=timezone.now() - OVERDUE_AFTER
+        ).count()
+        if overdue:
+            raise CommandError(
+                f"{overdue} mails have been waiting longer than {OVERDUE_AFTER}; "
+                "the timer has stopped or the transport refuses everything"
+            )
+
+    def _deliver(self) -> tuple[int, int]:
+        sender = mailer.transport()
+        sent = deferred = 0
+        while True:
+            with transaction.atomic():
+                row = (
+                    OutboundMail.objects.select_for_update(skip_locked=True)
+                    .filter(failed_at__isnull=True, next_attempt_at__lte=timezone.now())
+                    .order_by("id")
+                    .first()
+                )
+                if row is None:
+                    return sent, deferred
+                try:
+                    with transaction.atomic():
+                        raw = recovery.mint(row.user, row.kind)
+                        provider_id = sender.send(_compose(row, raw))
+                except mailer.TransportError as error:
+                    self._defer(row, error.status)
+                    deferred += 1
+                    continue
+                AuditEvent.record(
+                    AuditEvent.MAIL_SENT,
+                    user_id=row.user_id,
+                    kind=row.kind,
+                    provider_id=provider_id,
+                )
+                row.delete()
+                sent += 1
+
+    def _defer(self, row: OutboundMail, status: int) -> None:
+        now = timezone.now()
+        row.attempts += 1
+        row.last_status = status
+        if not _retryable(status) or now - row.created_at >= GIVE_UP_AFTER:
+            row.failed_at = now
+        else:
+            row.next_attempt_at = now + BACKOFF[min(row.attempts, len(BACKOFF)) - 1]
+        row.save(update_fields=["attempts", "last_status", "failed_at", "next_attempt_at"])
