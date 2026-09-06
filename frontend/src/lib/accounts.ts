@@ -226,9 +226,26 @@ function isExport(value: unknown): boolean {
   );
 }
 
-/** A success whose body is not what this route answers with. */
+/**
+ * A success whose body is not what this route answers with.
+ *
+ * The message is EMPTY, and that is the contract the docstring on `call()`
+ * above states: an `ApiError` from this file carries the API's own sentence or
+ * nothing at all. `describeAuthError` shows a non-empty message word for word,
+ * because almost every one of them is Dutch and came from the API, so an
+ * English sentence put here would be printed at a household unchanged. The
+ * guard that refused the body has no Dutch to offer anyway: it is the frontend
+ * saying it could not read something, and `messages.ts` already holds the one
+ * sentence for exactly that.
+ *
+ * `what` is not thrown away. It goes on `cause`, where a developer reading a
+ * console or a stack trace finds which guard refused which route, and where
+ * nothing that renders will ever look for it.
+ */
 function unreadable(response: Response, what: string): ApiError {
-  return new ApiError(response.status, {}, `auth API returned ${what}`);
+  const error = new ApiError(response.status, {}, "");
+  error.cause = `auth API returned ${what}`;
+  return error;
 }
 
 export async function getConsentTexts(): Promise<ConsentTexts> {

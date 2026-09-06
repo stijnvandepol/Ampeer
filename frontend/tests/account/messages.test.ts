@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api";
+import { getMe } from "@/lib/accounts";
 import { describeAuthError } from "@/app/_account/messages";
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe("what a visitor reads when the account API said no", () => {
   it("shows a 400's field messages, which are Dutch and come from the API", () => {
@@ -59,6 +62,35 @@ describe("what a visitor reads when the account API said no", () => {
     expect(describeAuthError(new TypeError("Failed to fetch"))).toBe(
       "Wij konden de server niet bereiken. Controleer uw verbinding en probeer het opnieuw.",
     );
+  });
+
+  it("says the same about a shape guard's own error, raised by a real call", async () => {
+    // The case above builds the error by hand, which proves what this file
+    // does with an empty message but nothing about whether `accounts.ts`
+    // ever sends one. This drives the client itself: `me/` answers 200 with
+    // a body that is not an account, `isMe` refuses it, and the error that
+    // reaches the screen goes through the same function the page uses. The
+    // guard's own words are English and are for a developer; a household
+    // reads the sentence below or the language boundary has been crossed
+    // from the wrong side.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(
+        async () =>
+          new Response("{}", {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+      ),
+    );
+    const raised: unknown = await getMe().then(
+      () => null,
+      (reason: unknown) => reason,
+    );
+    expect(raised).toBeInstanceOf(ApiError);
+    const shown = describeAuthError(raised);
+    expect(shown).toBe("De server gaf een antwoord dat wij niet konden lezen.");
+    expect(shown).not.toContain("auth API returned");
   });
 
   it("never prints ApiError's own English default, even sent by hand", () => {
