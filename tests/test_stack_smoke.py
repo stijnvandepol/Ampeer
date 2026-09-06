@@ -25,6 +25,7 @@ the override needs:
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import sys
 from pathlib import Path
@@ -32,6 +33,7 @@ from typing import Any
 
 import pytest
 import yaml
+from helpers.accounts import TEST_PASSWORD
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 INFRA = REPO_ROOT / "infra"
@@ -58,10 +60,296 @@ FIXTURE_QUARTERS = 365 * 96
 #: ampeer_sim.profiles.nedu asks for `<name>E1A_AZI_A` in the year row.
 FIXTURE_SERIES = "SMOKE_E1A_AZI_A"
 
+#: The address of a running stack, or nothing. Opt in, because there is no
+#: Docker in CI and a check that cannot run must not read as one that passed.
+SMOKE_BASE_URL_ENV = "AMPEER_SMOKE_BASE_URL"
+
+STACK = os.environ.get(SMOKE_BASE_URL_ENV)
+
+#: Every live check carries this, and the test below is what keeps that true.
+needs_stack = pytest.mark.skipif(
+    STACK is None,
+    reason=(
+        f"{SMOKE_BASE_URL_ENV} is not set. Start the stack per infra/README.md "
+        "section 7 and set it to, for example, http://127.0.0.1:8080"
+    ),
+)
+
+
+def test_every_live_check_is_gated_on_the_same_variable() -> None:
+    """A skipped check is not proof, and an ungated one is worse.
+
+    Every function whose name begins with `test_live_` talks to a machine that
+    is not there in CI. One that lost its marker would not skip, it would fail
+    on a refused connection, and the honest reading of that failure is
+    "somebody forgot a decorator" rather than "the stack is broken". Read off
+    this module rather than listed, so a live check added later is covered
+    without anybody remembering this test exists.
+    """
+    live = [
+        (name, value)
+        for name, value in sorted(globals().items())
+        if name.startswith("test_live_") and callable(value)
+    ]
+    assert live, "no live checks found at all; this test is reading nothing"
+    for name, function in live:
+        marks = getattr(function, "pytestmark", [])
+        reasons = [
+            str(mark.kwargs.get("reason", ""))
+            for mark in marks
+            if getattr(mark, "name", "") == "skipif"
+        ]
+        assert any(SMOKE_BASE_URL_ENV in reason for reason in reasons), (
+            f"{name} is not gated on {SMOKE_BASE_URL_ENV}, so it fails on a refused "
+            "connection in CI instead of saying it did not run"
+        )
+
 
 def _compose_document(path: Path) -> dict[str, Any]:
     document: dict[str, Any] = yaml.safe_load(path.read_text(encoding="utf-8"))
     return document
+
+
+class _Session:
+    """One caller against the running stack, with the raw Set-Cookie kept.
+
+    urllib rather than a new dependency, and deliberately not a client that
+    manages cookies for you: the attributes on those headers are half of what
+    this file is here to read, and a jar that parsed them away would leave the
+    test asserting that a 200 came back.
+    """
+
+    def __init__(self, base: str) -> None:
+        self.base = base.rstrip("/")
+        self.cookies: dict[str, str] = {}
+        self.set_cookie: list[str] = []
+        # infra/nginx/nginx.conf:302 sets `proxy_set_header Host $host;`, and
+        # $host is the Host header with any port stripped (unlike $http_host,
+        # which would keep it). So Django never sees the :8080 this session
+        # connects to, and the Origin a real browser would send here carries
+        # the same bare host.
+        from urllib.parse import urlsplit
+
+        self._origin_host = urlsplit(self.base).hostname
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        body: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> tuple[int, bytes]:
+        import json as jsonlib
+        import urllib.error
+        import urllib.request
+
+        data = None if body is None else jsonlib.dumps(body).encode("utf-8")
+        sending = dict(headers or {})
+        if data is not None:
+            sending["Content-Type"] = "application/json"
+        if self.cookies:
+            sending["Cookie"] = "; ".join(f"{k}={v}" for k, v in self.cookies.items())
+        if method != "GET":
+            # infra/nginx/nginx.conf:316 SETS X-Forwarded-Proto to "https" on
+            # every proxied request (not $scheme, which is http on this plain
+            # socket), and backend/ampeer/settings/prod.py:132 trusts that
+            # header via SECURE_PROXY_SSL_HEADER. So Django treats this
+            # http:// connection as secure, and its CSRF middleware then
+            # demands an Origin (or Referer) header on every unsafe request
+            # before it looks at the token at all. A browser on
+            # https://ampeer.nl/account/ would send exactly this Origin:
+            # https, because that is genuinely the scheme it used.
+            sending["Origin"] = f"https://{self._origin_host}"
+        request = urllib.request.Request(
+            f"{self.base}{path}", data=data, headers=sending, method=method
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=10) as response:
+                status, payload, raw = response.status, response.read(), response.headers
+        except urllib.error.HTTPError as error:
+            status, payload, raw = error.code, error.read(), error.headers
+        self.set_cookie = list(raw.get_all("Set-Cookie") or [])
+        for header in self.set_cookie:
+            name, _, rest = header.partition("=")
+            self.cookies[name.strip()] = rest.split(";", 1)[0]
+        return status, payload
+
+    def json(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
+        import json as jsonlib
+
+        headers = {}
+        token = self.cookies.get("csrftoken")
+        if method != "GET" and token is not None:
+            headers["X-CSRFToken"] = token
+        status, payload = self.request(method, path, body, headers)
+        assert 200 <= status < 300, f"{method} {path} answered {status}: {payload!r}"
+        return jsonlib.loads(payload) if payload else None
+
+    def attributes(self, cookie: str) -> dict[str, str]:
+        """The attributes on one Set-Cookie header, lowercased by name."""
+        for header in self.set_cookie:
+            if not header.startswith(f"{cookie}="):
+                continue
+            found: dict[str, str] = {}
+            for part in header.split(";")[1:]:
+                key, _, value = part.strip().partition("=")
+                found[key.lower()] = value
+            return found
+        raise AssertionError(f"{cookie} was not set at all; headers were {self.set_cookie}")
+
+
+def _fresh_email() -> str:
+    """A new address per run, so a stack that is reused does not collide."""
+    import secrets
+
+    return f"smoke-{secrets.token_hex(6)}@voorbeeld.invalid"
+
+
+@needs_stack
+def test_live_the_session_cookies_carry_the_attributes_a_browser_enforces() -> None:
+    """The header on the wire, and not the morsel Django built.
+
+    tests/test_accounts_api.py already reads httponly, SameSite and the two
+    paths off `response.cookies`, which is Django's own object in Django's own
+    process. This reads the text that travelled through nginx under
+    ampeer.settings.prod, which is what a browser actually interprets, and it
+    is the only place the deployed settings are the ones being described.
+    """
+    from accounts.nl import CONSENT_TEXT_VERSION
+
+    assert STACK is not None
+    session = _Session(STACK)
+    status, _ = session.request("GET", "/api/auth/me/")
+    assert status == 401, "a stranger is signed in, which is a different problem"
+    assert "csrftoken" in session.cookies, (
+        "the 401 did not hand out a CSRF token, so nobody can ever sign in"
+    )
+
+    session.json(
+        "POST",
+        "/api/auth/register/",
+        {
+            "email": _fresh_email(),
+            "password": TEST_PASSWORD,
+            "consent_meter_link": False,
+            "consent_lead_generation": False,
+            "text_version": CONSENT_TEXT_VERSION,
+        },
+    )
+    access = session.attributes("ampeer_access")
+    refresh = session.attributes("ampeer_refresh")
+    assert "httponly" in access, f"the access cookie is readable from JavaScript: {access}"
+    assert "httponly" in refresh, f"the refresh cookie is readable from JavaScript: {refresh}"
+    assert access.get("samesite") == "Strict", access
+    assert refresh.get("samesite") == "Strict", refresh
+    # Two different paths on purpose: the access token reaches every API route
+    # and the refresh token only the two that need it, so it does not travel
+    # on every request the access token makes.
+    assert access.get("path") == "/api/", access
+    assert refresh.get("path") == "/api/auth/", refresh
+    session.json("POST", "/api/auth/delete/", {"password": TEST_PASSWORD})
+
+
+@needs_stack
+def test_live_a_post_without_the_csrf_header_is_refused() -> None:
+    """The half no mock can reach.
+
+    Django's test client sets `_dont_enforce_csrf_checks`, so the check does
+    not run there at all unless a test asks for a strict client; page.route in
+    Playwright answers whatever it is asked and never checks a header. Over the
+    real stack there is nothing to switch on, and this is the request an
+    attacker's page would make.
+
+    The request below carries the same production-shaped Origin header every
+    other write in this file sends (see _Session.request), so the 403 it
+    provokes is about the missing X-CSRFToken and not about Origin or Referer
+    checking failing first. The second request is the positive control that
+    proves that: same session, same body, only the header restored, and
+    Django moves past the CSRF check to answer something that is not 403 (a
+    plain 400 for the bogus credentials below is expected, not a login).
+    """
+    assert STACK is not None
+    session = _Session(STACK)
+    session.request("GET", "/api/auth/me/")
+    assert "csrftoken" in session.cookies, "no token to leave out"
+    body = {"email": "iemand@voorbeeld.invalid", "password": "maakt-niet-uit"}
+    status, payload = session.request("POST", "/api/auth/login/", body)
+    assert status == 403, (
+        f"a state changing request went through without X-CSRFToken and answered {status}: "
+        f"{payload!r}. SameSite would then be the only thing standing between this API "
+        "and a cross site POST."
+    )
+
+    status, payload = session.request(
+        "POST", "/api/auth/login/", body, {"X-CSRFToken": session.cookies["csrftoken"]}
+    )
+    assert status != 403, (
+        f"even with X-CSRFToken present the request still answered 403: {payload!r}, which "
+        "means the first 403 above was never about the missing token"
+    )
+
+
+@needs_stack
+def test_live_the_consent_text_shown_is_the_text_recorded() -> None:
+    """The loop chapter 5 exists to close, over one real HTTP route.
+
+    Shown, sent and recorded are three places. Layer 2 proves that shown equals
+    delivered and layer 4 that delivered equals nl.py; only this puts the whole
+    loop end to end, and only this does it through the database the service
+    actually writes to.
+    """
+    from accounts.nl import NL
+
+    assert STACK is not None
+    session = _Session(STACK)
+    session.request("GET", "/api/auth/me/")
+    texts = session.json("GET", "/api/auth/consent-texts/")
+    version = texts["text_version"]
+    assert texts["texts"]["METER_LINK"] == NL["CONSENT_METER_LINK"]
+
+    password = TEST_PASSWORD
+    session.json(
+        "POST",
+        "/api/auth/register/",
+        {
+            "email": _fresh_email(),
+            "password": password,
+            "consent_meter_link": True,
+            "consent_lead_generation": False,
+            "text_version": version,
+        },
+    )
+    exported = session.json("POST", "/api/auth/export/")
+    rows = [row for row in exported["consents"] if row["kind"] == "METER_LINK"]
+    assert rows, f"the export carries no METER_LINK row: {exported['consents']}"
+    assert rows[0]["text_version"] == version, (
+        f"the row records {rows[0]['text_version']} and the screen showed {version}, "
+        "which is the exact drift the text_version field exists to prevent"
+    )
+    session.json("POST", "/api/auth/delete/", {"password": password})
+
+
+@needs_stack
+def test_live_a_stale_version_is_refused_over_the_real_route() -> None:
+    """The lock, through nginx and the deployed serializer rather than through
+    a serializer imported in the same process as the test."""
+    assert STACK is not None
+    session = _Session(STACK)
+    session.request("GET", "/api/auth/me/")
+    status, payload = session.request(
+        "POST",
+        "/api/auth/register/",
+        {
+            "email": _fresh_email(),
+            "password": TEST_PASSWORD,
+            "consent_meter_link": True,
+            "consent_lead_generation": False,
+            "text_version": "1999-01-01",
+        },
+        {"X-CSRFToken": session.cookies["csrftoken"]},
+    )
+    assert status == 400, f"a stale version was accepted, answering {status}: {payload!r}"
+    assert b"text_version" in payload
 
 
 # ---------------------------------------------------------------------------
