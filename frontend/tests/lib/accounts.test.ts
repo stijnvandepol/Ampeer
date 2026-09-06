@@ -490,6 +490,13 @@ describe("the duplicated error reduction", () => {
       const fromAccounts = (await getMe().catch(
         (error: ApiError) => error,
       )) as ApiError;
+      // Both calls really did reject, and rejected with the class this
+      // comparison is about. Without these two lines a pair of calls that
+      // resolved would put `undefined` on both sides and the comparison
+      // below would hold, which is the shape of a parity check that has
+      // stopped reading anything.
+      expect(fromAdvice).toBeInstanceOf(ApiError);
+      expect(fromAccounts).toBeInstanceOf(ApiError);
       expect(fromAccounts.fields).toEqual(fromAdvice.fields);
     },
   );

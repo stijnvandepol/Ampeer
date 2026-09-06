@@ -447,6 +447,11 @@ describe("the footer, which is where a visitor looks for these", () => {
     ]) {
       expect(hrefs.some((href) => path.test(href ?? ""))).toBe(true);
     }
+    // Four, and a fifth is a finding rather than a detail. "Reaches all four"
+    // is only half a claim while a sixth link could sit beside them
+    // unnoticed, and the footer is the one place on this site where a link
+    // out to a party with something to sell would be least conspicuous.
+    expect(hrefs).toHaveLength(4);
     expect(hrefs.filter((href) => /^https?:/.test(href ?? ""))).toEqual([]);
   });
 });

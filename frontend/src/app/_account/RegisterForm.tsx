@@ -53,7 +53,11 @@ export function RegisterForm({
   const [textsFailed, setTextsFailed] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [given, setGiven] = useState<Record<string, boolean>>({});
+  // Keyed by `ConsentKind` and not by `string`: a typo in a key is then a
+  // build error rather than a checkbox that silently reads `undefined` and
+  // submits a `false` nobody chose. `Partial`, because a box nobody has
+  // touched has no entry at all, which is what `=== true` below reads.
+  const [given, setGiven] = useState<Partial<Record<ConsentKind, boolean>>>({});
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [fields, setFields] = useState<ReturnType<typeof fieldErrors>>({});
