@@ -1,4 +1,4 @@
-"""The account routes. Nine of them, and only `get` and `post` among them.
+"""The account routes. Thirteen of them, and only `get` and `post` among them.
 
 That is not a workaround for a test. docs/dpia.md chapter 7 describes an API
 that reads and computes, and says that rectification adds a row rather than
@@ -23,17 +23,26 @@ from rest_framework.exceptions import (
     NotAuthenticated,
     PermissionDenied,
     Throttled,
+    ValidationError,
 )
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework_simplejwt.exceptions import TokenError
 
-from accounts import cookies, service, tokens
+from accounts import cookies, recovery, service, tokens
 from accounts.authentication import CookieJWTAuthentication, enforce_csrf
 from accounts.models import Consent, User
 from accounts.nl import CONSENT_TEXT_VERSION, NL
-from accounts.serializers import ConsentSerializer, LoginSerializer, RegisterSerializer
+from accounts.serializers import (
+    ConsentSerializer,
+    LoginSerializer,
+    RegisterSerializer,
+    ResetConfirmSerializer,
+    ResetRequestSerializer,
+    TokenSerializer,
+    password_error_messages,
+)
 from advice.models import AuditEvent
 from advice.views import _NoStoreAPIView
 
@@ -161,6 +170,9 @@ class RegisterView(_AuthAPIView):
             password=serializer.validated_data["password"],
         )
         AuditEvent.record(AuditEvent.ACCOUNT_CREATED, user_id=user.pk)
+        # One mail per new account, within the minute: an outbox row, no
+        # network here. Spec 3.4.
+        recovery.request_email_verification(user)
         for kind in serializer.granted_kinds:
             Consent.record(user, kind, Consent.GRANTED)
             AuditEvent.record(AuditEvent.CONSENT_GRANTED, user_id=user.pk, kind=kind)
@@ -292,6 +304,11 @@ class MeView(_AuthAPIView):
                 "consents": {
                     kind: Consent.current(self.user, kind) for kind in sorted(Consent.KINDS)
                 },
+                "email_verified_at": (
+                    None
+                    if self.user.email_verified_at is None
+                    else self.user.email_verified_at.isoformat()
+                ),
             }
         )
 
@@ -380,3 +397,91 @@ class DeleteView(_AuthAPIView):
         response = Response(status=status.HTTP_204_NO_CONTENT)
         cookies.clear_tokens(response)
         return response
+
+
+class ResetRequestView(_AuthAPIView):
+    """Ask for a reset link, and learn nothing from the answer.
+
+    202 with an empty object for every well-formed address, known or not,
+    active or not: a 202 and a 404 would be an address book that can be read
+    at ten requests an hour. No mail leaves in this request and no token is
+    minted; a known address costs one INSERT more than an unknown one, which
+    is under the noise of a database round trip.
+    """
+
+    authentication_classes: Sequence[type[BaseAuthentication]] = ()
+    permission_classes: Sequence[type[BasePermission]] = (AllowAny,)
+    throttle_scope = "auth-reset"
+
+    def post(self, request: Request) -> Response:
+        enforce_csrf(request)
+        serializer = ResetRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        recovery.request_password_reset(serializer.validated_data["email"])
+        return Response({}, status=status.HTTP_202_ACCEPTED)
+
+
+class ResetConfirmView(_AuthAPIView):
+    """Set a new password with a link, and do not sign in.
+
+    Token first, then the password: a bad token is one sentence under
+    `token` for expired, spent, superseded and unknown alike, and a rejected
+    password is the same list of sentences registration gives. 204 without
+    cookies on purpose: `login/` stays the only place a session starts and
+    `LOGIN_SUCCEEDED` is written, so the DPIA's sentence that every sign-in
+    is a line stays true. Axes plays no part here, since nothing goes
+    through `authenticate()`; the token's 256 bits and `auth-reset` do.
+    """
+
+    authentication_classes: Sequence[type[BaseAuthentication]] = ()
+    permission_classes: Sequence[type[BasePermission]] = (AllowAny,)
+    throttle_scope = "auth-reset"
+
+    def post(self, request: Request) -> Response:
+        enforce_csrf(request)
+        serializer = ResetConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            recovery.confirm_password_reset(
+                serializer.validated_data["token"], serializer.validated_data["password"]
+            )
+        except recovery.TokenInvalid as error:
+            raise ValidationError({"token": [NL["token_invalid"]]}) from error
+        except recovery.PasswordRejected as rejected:
+            raise ValidationError(
+                {"password": password_error_messages(rejected.error)}
+            ) from rejected
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class VerifyRequestView(_AuthAPIView):
+    """Send the confirmation mail again. The one recovery route that needs a
+    session, and therefore the one that needs no body. 202 whether or not a
+    mail is written: an address already confirmed answers the same, because
+    `me/` already says so and a 400 would be a second way to read it."""
+
+    throttle_scope = "auth-write"
+
+    def post(self, request: Request) -> Response:
+        recovery.request_email_verification(self.user)
+        return Response({}, status=status.HTTP_202_ACCEPTED)
+
+
+class VerifyConfirmView(_AuthAPIView):
+    """Confirm an address with a link. Public, because the link is opened on
+    whatever device the mail was read on, and a 401 would send a household
+    to a sign-in form to prove what the link already proves."""
+
+    authentication_classes: Sequence[type[BaseAuthentication]] = ()
+    permission_classes: Sequence[type[BasePermission]] = (AllowAny,)
+    throttle_scope = "auth-reset"
+
+    def post(self, request: Request) -> Response:
+        enforce_csrf(request)
+        serializer = TokenSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            recovery.confirm_email_verification(serializer.validated_data["token"])
+        except recovery.TokenInvalid as error:
+            raise ValidationError({"token": [NL["token_invalid"]]}) from error
+        return Response(status=status.HTTP_204_NO_CONTENT)

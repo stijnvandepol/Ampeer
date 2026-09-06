@@ -220,6 +220,12 @@ REST_FRAMEWORK: dict[str, Any] = {
         "auth-write": "20/hour",
         # The most expensive response this API answers.
         "auth-export": "5/hour",
+        # A reset link tried at most as often as a password: the same ten as
+        # auth-login, for reset/request/, reset/confirm/ and verify/confirm/.
+        # Decision 33's sum moves from 480 to 490 an hour, which 10 r/s still
+        # clears with a 73-fold margin; tests/test_nginx_config.py re-runs
+        # that arithmetic.
+        "auth-reset": "10/hour",
     },
     "UNAUTHENTICATED_USER": None,
 }

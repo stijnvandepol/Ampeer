@@ -11,6 +11,7 @@ import ast
 import secrets
 from datetime import timedelta
 from pathlib import Path
+from typing import Any, TypedDict
 
 import pytest
 from django.utils import timezone
@@ -18,6 +19,7 @@ from helpers.accounts import OTHER_PASSWORD, TEST_PASSWORD
 
 from accounts import recovery, tokens
 from accounts.models import OneTimeToken, OutboundMail, RefreshSession, User
+from accounts.nl import CONSENT_TEXT_VERSION, NL
 from advice.models import AuditEvent, token_digest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -298,3 +300,216 @@ def test_no_column_anywhere_holds_a_raw_token(_account: User) -> None:
     assert values, "nothing was read, so nothing was checked"
     assert all(raw not in value for value in values)
     assert token_digest(raw) in values, "the token table was not among what was read"
+
+
+# ---------------------------------------------------------------------------
+# The four routes
+# ---------------------------------------------------------------------------
+
+
+class _CsrfHeader(TypedDict):
+    HTTP_X_CSRFTOKEN: str
+
+
+def _csrf(client: Any) -> _CsrfHeader:
+    client.get("/api/auth/me/")
+    return {"HTTP_X_CSRFTOKEN": client.cookies["csrftoken"].value}
+
+
+def _register(client: Any, email: str = "iemand@voorbeeld.nl") -> _CsrfHeader:
+    headers = _csrf(client)
+    response = client.post(
+        "/api/auth/register/",
+        {
+            "email": email,
+            "password": TEST_PASSWORD,
+            "consent_meter_link": False,
+            "consent_lead_generation": False,
+            "text_version": CONSENT_TEXT_VERSION,
+        },
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 201, response.content
+    return headers
+
+
+@pytest.mark.django_db
+def test_a_reset_request_answers_the_same_for_a_known_and_an_unknown_address(
+    client: Any,
+) -> None:
+    """Byte-identical, and nothing logged for the unknown one. Red-proof: make
+    ResetRequestView answer 404 when recovery finds no user."""
+    _register(client)
+    client.post("/api/auth/logout/", content_type="application/json", **_csrf(client))
+    lines_before = AuditEvent.objects.count()
+    headers = _csrf(client)
+    known = client.post(
+        "/api/auth/reset/request/",
+        {"email": "iemand@voorbeeld.nl"},
+        content_type="application/json",
+        **headers,
+    )
+    unknown = client.post(
+        "/api/auth/reset/request/",
+        {"email": "niemand@voorbeeld.nl"},
+        content_type="application/json",
+        **headers,
+    )
+    assert known.status_code == 202 == unknown.status_code
+    assert known.content == unknown.content == b"{}"
+    assert OutboundMail.objects.filter(kind=OneTimeToken.PASSWORD_RESET).count() == 1
+    assert AuditEvent.objects.count() == lines_before + 1
+
+
+@pytest.mark.django_db
+def test_a_reset_request_without_a_valid_address_is_a_400_under_email(client: Any) -> None:
+    headers = _csrf(client)
+    response = client.post(
+        "/api/auth/reset/request/",
+        {"email": "geen adres"},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 400
+    assert response.json() == {"email": [NL["email_invalid"]]}
+
+
+@pytest.mark.django_db
+def test_a_reset_confirm_sets_the_password_without_a_session(client: Any) -> None:
+    _register(client)
+    user = User.objects.get(email="iemand@voorbeeld.nl")
+    raw = recovery.mint(user, OneTimeToken.PASSWORD_RESET)
+    client.cookies.clear()
+    headers = _csrf(client)
+    response = client.post(
+        "/api/auth/reset/confirm/",
+        {"token": raw, "password": OTHER_PASSWORD},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 204, response.content
+    assert "ampeer_access" not in response.cookies
+    assert "ampeer_refresh" not in response.cookies
+    old = client.post(
+        "/api/auth/login/",
+        {"email": "iemand@voorbeeld.nl", "password": TEST_PASSWORD},
+        content_type="application/json",
+        **headers,
+    )
+    assert old.status_code == 401
+    new = client.post(
+        "/api/auth/login/",
+        {"email": "iemand@voorbeeld.nl", "password": OTHER_PASSWORD},
+        content_type="application/json",
+        **headers,
+    )
+    assert new.status_code == 200, new.content
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("token", ["dit-bestaat-niet", ""])
+def test_a_bad_token_is_one_sentence_under_token(client: Any, token: str) -> None:
+    headers = _csrf(client)
+    response = client.post(
+        "/api/auth/reset/confirm/",
+        {"token": token, "password": OTHER_PASSWORD},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 400
+    assert response.json() == {"token": [NL["token_invalid"]]}
+
+
+@pytest.mark.django_db
+def test_a_rejected_password_on_reset_reads_like_registration(client: Any) -> None:
+    _register(client)
+    user = User.objects.get(email="iemand@voorbeeld.nl")
+    raw = recovery.mint(user, OneTimeToken.PASSWORD_RESET)
+    headers = _csrf(client)
+    response = client.post(
+        "/api/auth/reset/confirm/",
+        {"token": raw, "password": "kort"},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 400
+    assert response.json()["password"][0] == NL["password_too_short"] % {"min_length": 12}
+    assert OneTimeToken.objects.get(token_sha256=token_digest(raw)).is_usable
+
+
+@pytest.mark.django_db
+def test_a_verification_confirm_answers_204_and_me_carries_the_timestamp(client: Any) -> None:
+    headers = _register(client)
+    user = User.objects.get(email="iemand@voorbeeld.nl")
+    raw = recovery.mint(user, OneTimeToken.EMAIL_VERIFY)
+    before = client.get("/api/auth/me/").json()
+    assert before["email_verified_at"] is None
+    response = client.post(
+        "/api/auth/verify/confirm/", {"token": raw}, content_type="application/json", **headers
+    )
+    assert response.status_code == 204
+    after = client.get("/api/auth/me/").json()
+    assert isinstance(after["email_verified_at"], str)
+    again = client.post(
+        "/api/auth/verify/confirm/", {"token": raw}, content_type="application/json", **headers
+    )
+    assert again.status_code == 400
+    assert again.json() == {"token": [NL["token_invalid"]]}
+
+
+@pytest.mark.django_db
+def test_registration_enqueues_a_verification_mail(client: Any) -> None:
+    _register(client)
+    user = User.objects.get(email="iemand@voorbeeld.nl")
+    assert OutboundMail.objects.filter(user=user, kind=OneTimeToken.EMAIL_VERIFY).count() == 1
+
+
+@pytest.mark.django_db
+def test_resending_a_verification_requires_a_session_and_dedupes(client: Any) -> None:
+    stranger = client.post(
+        "/api/auth/verify/request/", content_type="application/json", **_csrf(client)
+    )
+    assert stranger.status_code == 401
+    headers = _register(client)
+    first = client.post("/api/auth/verify/request/", content_type="application/json", **headers)
+    second = client.post("/api/auth/verify/request/", content_type="application/json", **headers)
+    assert first.status_code == 202 == second.status_code
+    assert first.content == b"{}"
+    assert OutboundMail.objects.filter(kind=OneTimeToken.EMAIL_VERIFY).count() == 1
+
+
+@pytest.mark.django_db
+def test_the_public_recovery_routes_refuse_a_post_without_the_csrf_header(client: Any) -> None:
+    from rest_framework.test import APIClient
+
+    strict = APIClient(enforce_csrf_checks=True)
+    strict.get("/api/auth/me/")
+    for path, body in (
+        ("/api/auth/reset/request/", {"email": "iemand@voorbeeld.nl"}),
+        ("/api/auth/reset/confirm/", {"token": "x", "password": OTHER_PASSWORD}),
+        ("/api/auth/verify/confirm/", {"token": "x"}),
+    ):
+        response = strict.post(path, body, format="json")
+        assert response.status_code == 403, (path, response.content)
+
+
+@pytest.mark.django_db
+def test_the_thirteen_routes_each_carry_a_scope_with_a_rate() -> None:
+    """Spec 3.5, beside tests/test_backend_settings.py's resolver walk: the
+    four new views name `auth-reset` or `auth-write`, and nginx's ceiling
+    still clears the summed per-visitor rate by fifty times."""
+    from django.conf import settings
+
+    from accounts import urls, views
+
+    assert len(urls.urlpatterns) == 13
+    rates = settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]
+    assert rates["auth-reset"] == "10/hour"
+    assert views.ResetRequestView.throttle_scope == "auth-reset"
+    assert views.ResetConfirmView.throttle_scope == "auth-reset"
+    assert views.VerifyConfirmView.throttle_scope == "auth-reset"
+    assert views.VerifyRequestView.throttle_scope == "auth-write"
+    per_hour = sum(int(rate.split("/")[0]) for rate in rates.values())
+    assert per_hour == 490
+    assert 10.0 >= 50 * (per_hour / 3600)

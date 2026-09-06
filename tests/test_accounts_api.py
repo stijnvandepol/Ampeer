@@ -697,6 +697,7 @@ def test_me_answers_the_address_and_both_consents(client: Any) -> None:
     assert response.json() == {
         "email": "iemand@voorbeeld.nl",
         "consents": {"METER_LINK": True, "LEAD_GENERATION": False},
+        "email_verified_at": None,
     }
 
 
