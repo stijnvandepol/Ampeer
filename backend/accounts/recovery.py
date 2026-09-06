@@ -54,6 +54,10 @@ def mint(user: User, kind: str) -> str:
     the same statement, so there is at most one usable link per person per
     kind. Called by the command that sends the mail and by nothing else, so
     `issued_at` is the moment of sending.
+
+    Opens no transaction of its own: the send command (spec 4.4) wraps this
+    call and the send in one `atomic()` block, so a send that fails rolls the
+    freshly minted token back with it.
     """
     if kind not in OneTimeToken.KINDS:
         raise ValueError(f"unknown token kind: {kind}")

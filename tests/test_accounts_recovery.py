@@ -96,30 +96,59 @@ def test_a_reset_token_can_be_used_exactly_once(_account: User) -> None:
     assert not _account.check_password(TEST_PASSWORD)
 
 
-def test_the_token_row_is_locked_before_it_is_read() -> None:
-    """`select_for_update()` inside `transaction.atomic()`, read off recovery.py
-    the way tests/test_dpia.py reads the views, so the lock cannot be dropped
-    in a refactor that keeps every behavioural test green."""
-    tree = ast.parse(RECOVERY.read_text(encoding="utf-8"))
-    locked = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Attribute) and node.attr == "select_for_update"
-    ]
-    assert locked, "recovery.py no longer locks the token row before reading it"
-    atomic = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.With)
-        and any(
-            isinstance(item.context_expr, ast.Call)
-            and ast.unparse(item.context_expr.func) == "transaction.atomic"
-            for item in node.items
-        )
-    ]
-    assert len(atomic) >= 2, (
-        "confirm_password_reset and confirm_email_verification each hold a transaction"
+def _is_atomic_with(node: ast.With) -> bool:
+    return any(
+        isinstance(item.context_expr, ast.Call)
+        and ast.unparse(item.context_expr.func) == "transaction.atomic"
+        for item in node.items
     )
+
+
+def _lock_calls_inside_atomic(func: ast.FunctionDef) -> list[bool]:
+    """For every call in `func` that locks a token row, directly with
+    `select_for_update` or through `_lock`, whether it sits inside a `with`
+    whose context expression is `transaction.atomic(...)`. Walks the function
+    body itself, tracking atomic depth, rather than asking only whether the
+    two node kinds both occur somewhere in the file: presence of both does not
+    say the one is nested in the other."""
+    results: list[bool] = []
+
+    def visit(node: ast.AST, atomic_depth: int) -> None:
+        if isinstance(node, ast.With) and _is_atomic_with(node):
+            atomic_depth += 1
+        if isinstance(node, ast.Call):
+            target = node.func
+            locks_the_row = (
+                isinstance(target, ast.Attribute) and target.attr == "select_for_update"
+            ) or (isinstance(target, ast.Name) and target.id == "_lock")
+            if locks_the_row:
+                results.append(atomic_depth > 0)
+        for child in ast.iter_child_nodes(node):
+            visit(child, atomic_depth)
+
+    visit(func, 0)
+    return results
+
+
+def test_the_token_row_is_locked_before_it_is_read() -> None:
+    """`select_for_update()`, direct or through `_lock`, nested inside a `with
+    transaction.atomic():` in each confirm function. Read off recovery.py the
+    way tests/test_dpia.py reads the views, and checked as containment rather
+    than as two counts, so a refactor that lifts the lock above the `with`
+    (still passing every behavioural test, since pytest-django wraps each test
+    in its own transaction) cannot keep this one green."""
+    tree = ast.parse(RECOVERY.read_text(encoding="utf-8"))
+    confirm_functions = {
+        node.name: node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef)
+        and node.name in {"confirm_password_reset", "confirm_email_verification"}
+    }
+    assert confirm_functions.keys() == {"confirm_password_reset", "confirm_email_verification"}
+    for name, func in confirm_functions.items():
+        results = _lock_calls_inside_atomic(func)
+        assert results, f"{name} no longer locks the token row at all"
+        assert all(results), f"{name} locks the token row outside its transaction"
 
 
 @pytest.mark.django_db
@@ -146,6 +175,9 @@ def test_expired_spent_superseded_and_unknown_tokens_all_raise_the_same_class(
         recovery.confirm_password_reset(
             recovery.mint(_account, OneTimeToken.EMAIL_VERIFY), OTHER_PASSWORD
         )
+    with pytest.raises(recovery.TokenInvalid):
+        # And the reverse: a reset token offered to the verification route.
+        recovery.confirm_email_verification(recovery.mint(_account, OneTimeToken.PASSWORD_RESET))
 
 
 @pytest.mark.django_db
@@ -193,6 +225,22 @@ def test_the_password_validators_apply_on_a_reset_and_spend_nothing(_account: Us
 
 
 @pytest.mark.django_db
+def test_the_password_validators_see_the_user_not_only_the_password(_account: User) -> None:
+    """Spec 3.3: the validators run "met de gebruiker erbij", because
+    `UserAttributeSimilarityValidator` compares against the address. A password
+    built from the account's own address clears `MinimumLengthValidator` on
+    its own (nineteen characters), so only passing the user along catches it:
+    drop `, user` from the `validate_password` call in recovery.py and this is
+    the one test in the suite that turns red."""
+    raw = recovery.mint(_account, OneTimeToken.PASSWORD_RESET)
+    with pytest.raises(recovery.PasswordRejected) as caught:
+        recovery.confirm_password_reset(raw, _account.email)
+    assert any(error.code == "password_too_similar" for error in caught.value.error.error_list)
+    row = OneTimeToken.objects.get(token_sha256=token_digest(raw))
+    assert row.is_usable
+
+
+@pytest.mark.django_db
 def test_a_verification_confirms_once_and_writes_one_line(_account: User) -> None:
     raw = recovery.mint(_account, OneTimeToken.EMAIL_VERIFY)
     recovery.confirm_email_verification(raw)
@@ -201,6 +249,24 @@ def test_a_verification_confirms_once_and_writes_one_line(_account: User) -> Non
     _account.refresh_from_db()
     assert _account.email_verified_at is not None
     assert AuditEvent.objects.filter(event_type=AuditEvent.EMAIL_VERIFIED).count() == 1
+
+
+@pytest.mark.django_db
+def test_a_verification_after_a_reset_already_confirmed_the_address_does_not_move_the_stamp(
+    _account: User,
+) -> None:
+    """A verification token minted before a reset stays usable (the two kinds
+    do not supersede each other, spec 2.3): confirming it after the reset has
+    already set `email_verified_at` must not move that timestamp forward."""
+    verify_raw = recovery.mint(_account, OneTimeToken.EMAIL_VERIFY)
+    reset_raw = recovery.mint(_account, OneTimeToken.PASSWORD_RESET)
+    recovery.confirm_password_reset(reset_raw, OTHER_PASSWORD)
+    _account.refresh_from_db()
+    stamped = _account.email_verified_at
+    assert stamped is not None
+    recovery.confirm_email_verification(verify_raw)
+    _account.refresh_from_db()
+    assert _account.email_verified_at == stamped
 
 
 @pytest.mark.django_db
