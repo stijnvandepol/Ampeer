@@ -401,6 +401,13 @@ describe("the crawler files, once the legal pages exist", () => {
     expect(urls).toContain(`${SITE_ORIGIN}/privacy/`);
     expect(urls).toContain(`${SITE_ORIGIN}/over-ons/`);
     expect(sitemap()).toHaveLength(SITEMAP_ROUTES.length);
+    // And leaves out the one route that is not an answer to a search. The
+    // account page's own file says it is deliberately absent; a comment is
+    // not a check, and this is the line that would go red if somebody added
+    // it. The tag in that file's metadata is the other half: this list says
+    // which pages the product wants found, the tag is what a crawler that
+    // arrived by an inbound link has to obey.
+    expect(urls).not.toContain(`${SITE_ORIGIN}/account/`);
     for (const entry of sitemap()) {
       expect(entry.url.endsWith("/")).toBe(true);
       expect(entry.lastModified).toBeUndefined();
@@ -425,7 +432,7 @@ describe("the footer, which is where a visitor looks for these", () => {
     expect(screen.getByText(/verkoopt geen panelen/)).toBeInTheDocument();
   });
 
-  it("reaches all three pages that explain the product rather than sell it", () => {
+  it("reaches all four pages that explain the product rather than sell it", () => {
     const { container } = render(<SiteFooter />);
     const hrefs = [...container.querySelectorAll("a[href]")].map((element) =>
       element.getAttribute("href"),
@@ -434,9 +441,17 @@ describe("the footer, which is where a visitor looks for these", () => {
       /^\/methodologie\/?$/,
       /^\/over-ons\/?$/,
       /^\/privacy\/?$/,
+      // The one entrance to the account, and the only one: the site header
+      // does not change and nothing goes on the advice page.
+      /^\/account\/?$/,
     ]) {
       expect(hrefs.some((href) => path.test(href ?? ""))).toBe(true);
     }
+    // Four, and a fifth is a finding rather than a detail. "Reaches all four"
+    // is only half a claim while a sixth link could sit beside them
+    // unnoticed, and the footer is the one place on this site where a link
+    // out to a party with something to sell would be least conspicuous.
+    expect(hrefs).toHaveLength(4);
     expect(hrefs.filter((href) => /^https?:/.test(href ?? ""))).toEqual([]);
   });
 });

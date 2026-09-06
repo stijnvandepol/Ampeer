@@ -280,8 +280,12 @@ verliest zijn zeggingskracht, en dat is de bedoeling.
 | `POST /api/auth/consent/` | Geeft of trekt één toestemming in | `auth-write` |
 | `POST /api/auth/export/` | Geeft alles terug wat dit account betreft | `auth-export` |
 | `POST /api/auth/delete/` | Verwijdert het account en alles wat eraan hangt | `auth-write` |
+| `GET /api/auth/consent-texts/` | Publiek. De twee toestemmingsteksten en hun versie | `auth-read` |
 
-Acht routes, en uitsluitend `get` en `post`. Dat is geen toeval en ook geen omweg om een test te
+Negen routes, en uitsluitend `get` en `post`. De negende, `consent-texts/`, is ontworpen in
+`docs/superpowers/specs/2026-09-05-accounts-frontend-design.md`, hoofdstuk 5.1, en niet hier: dit
+document bouwt de acht routes hierboven, dat document voegt de negende toe voor de reden die daar
+staat. Dat is geen toeval en ook geen omweg om een test te
 plezieren. `tests/test_dpia.py::test_the_api_answers_only_the_verbs_the_document_describes`
 weigert een `delete`, `put` of `patch` ergens in deze API omdat hoofdstuk 7 van de DPIA zegt dat
 rectificatie een rij toevoegt in plaats van er een te wijzigen. Dit ontwerp houdt zich daaraan
@@ -289,9 +293,14 @@ en `/api/auth/consent/` is er het bewijs van: intrekken is een nieuwe rij.
 
 Voor `/api/auth/delete/` komt daar een tweede, technische reden bij, en die staat in 8.2.
 
-Alle acht erven van `_AuthAPIView`, dat op zijn beurt van `_NoStoreAPIView` uit
+Alle negen erven van `_AuthAPIView`, dat op zijn beurt van `_NoStoreAPIView` uit
 `backend/advice/views.py` erft. Daarmee dragen ze `Cache-Control: private, no-store`, want elk
-van deze antwoorden beschrijft één huishouden. `_AuthAPIView` voegt daar één ding aan toe, zie
+van deze antwoorden beschrijft één huishouden. Op één na: `consent-texts/` beschrijft er geen,
+het antwoord is voor iedereen hetzelfde en zou dus gecachet mogen worden. Die route draagt de
+header toch, omdat een uitzondering op de basisklasse de header van de acht andere routes
+afhankelijk maakt van wie eraan denkt hem te zetten. Een verkeerd gecachet antwoord op
+`me/` of `export/` is een huishouden dat de gegevens van een ander ziet; wat deze regel kost
+is één keer opnieuw ophalen van twee zinnen. `_AuthAPIView` voegt daar één ding aan toe, zie
 5.5. De throttleklasse komt uit `DEFAULT_THROTTLE_CLASSES` in `base.py` en is dus
 `advice.throttling.HashedIdentScopedRateThrottle`, dezelfde die de adviesendpoints gebruiken en
 om dezelfde reden: hij telt per bezoeker zonder een adres neer te zetten.

@@ -1,4 +1,4 @@
-"""The account routes. Eight of them, and only `get` and `post` among them.
+"""The account routes. Nine of them, and only `get` and `post` among them.
 
 That is not a workaround for a test. docs/dpia.md chapter 7 describes an API
 that reads and computes, and says that rectification adds a row rather than
@@ -10,14 +10,20 @@ account needs a body, which is the other half of the reason.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
+from math import ceil
+from typing import Any, NoReturn
 
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.middleware.csrf import get_token
 from rest_framework import status
 from rest_framework.authentication import BaseAuthentication
-from rest_framework.exceptions import AuthenticationFailed, NotAuthenticated, PermissionDenied
+from rest_framework.exceptions import (
+    AuthenticationFailed,
+    NotAuthenticated,
+    PermissionDenied,
+    Throttled,
+)
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -26,7 +32,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from accounts import cookies, service, tokens
 from accounts.authentication import CookieJWTAuthentication, enforce_csrf
 from accounts.models import Consent, User
-from accounts.nl import NL
+from accounts.nl import CONSENT_TEXT_VERSION, NL
 from accounts.serializers import ConsentSerializer, LoginSerializer, RegisterSerializer
 from advice.models import AuditEvent
 from advice.views import _NoStoreAPIView
@@ -65,6 +71,32 @@ class _AuthAPIView(_NoStoreAPIView):
     ) -> Response:
         get_token(request)
         return super().finalize_response(request, response, *args, **kwargs)
+
+    def throttled(self, request: Request, wait: float | None) -> NoReturn:
+        # DRF's Dutch catalogue carries no translation for the throttle
+        # message, so under nl-nl the default detail is English. The
+        # sentence a refused visitor reads is ours, from nl.py, like
+        # password_too_short. `wait` is what DRF computed; it is also what
+        # sets Retry-After, so the number on screen and in the header agree.
+        #
+        # `Throttled.__init__` appends its own English "Expected available in
+        # N seconds." to whatever `detail` it is given, whenever `wait` is
+        # not `None`, regardless of whether that `detail` came from us. So
+        # `wait` is never passed into the constructor: `seconds` is derived
+        # here, the same way DRF derives it (`math.ceil`), and the exception
+        # is built with only our sentence as `detail`.
+        seconds = ceil(wait) if wait is not None else None
+        detail = (
+            NL["throttled"] % {"seconds": seconds}
+            if seconds is not None
+            else NL["throttled_unknown_wait"]
+        )
+        exc = Throttled(detail=detail)
+        # `exception_handler` reads `exc.wait` back to build `Retry-After`;
+        # the rest_framework-stubs omit the attribute even though the
+        # runtime class sets it, so mypy does not know it exists here either.
+        exc.wait = seconds  # type: ignore[attr-defined]
+        raise exc
 
     def get_authenticate_header(self, request: Request) -> str:
         """The `WWW-Authenticate` header DRF asks for before answering a
@@ -210,6 +242,35 @@ class RefreshView(_AuthAPIView):
         response = Response(status=status.HTTP_200_OK)
         cookies.set_tokens(response, access, refresh)
         return response
+
+
+class ConsentTextsView(_AuthAPIView):
+    """The sentences a household agrees to, and the version they are agreed under.
+
+    Public, because the registration form may not be shown until it has them:
+    a `true` sent for a sentence nobody read is not consent. On `auth-read`
+    rather than a scope of its own, for the same reason `me/` is: this is a
+    call at the start of a page load, and 120 an hour is the measure for that.
+    A seventh `auth` rate for an answer that touches no database and is the
+    same for everybody would be a number nobody derived from anything.
+
+    The view composes nothing and formats nothing. The keys are
+    `sorted(Consent.KINDS)` and the values are `NL["CONSENT_" + kind]`,
+    literally, which is what makes the sentence on the screen and the sentence
+    behind the recorded version the same string.
+    """
+
+    authentication_classes: Sequence[type[BaseAuthentication]] = ()
+    permission_classes: Sequence[type[BasePermission]] = (AllowAny,)
+    throttle_scope = "auth-read"
+
+    def get(self, request: Request) -> Response:
+        return Response(
+            {
+                "text_version": CONSENT_TEXT_VERSION,
+                "texts": {kind: NL[f"CONSENT_{kind}"] for kind in sorted(Consent.KINDS)},
+            }
+        )
 
 
 class MeView(_AuthAPIView):

@@ -7,26 +7,35 @@ SameSite, and SameSite is the whole CSRF defence in this deployment.
 
 from __future__ import annotations
 
+import json
 from datetime import timedelta
+from pathlib import Path
 from typing import Any, TypedDict
 
 import pytest
 from django.conf import settings
 from helpers.accounts import TEST_PASSWORD as PASSWORD
-from rest_framework.exceptions import NotAuthenticated
+from rest_framework.exceptions import NotAuthenticated, Throttled
 from rest_framework.request import Request
 from rest_framework.test import APIClient, APIRequestFactory
 
 from accounts.models import Consent, User
-from accounts.nl import NL
+from accounts.nl import CONSENT_TEXT_VERSION, NL
 from accounts.views import _AuthAPIView
 from advice.models import AuditEvent
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+ME_FIXTURE = REPO_ROOT / "frontend" / "tests" / "fixtures" / "me-response.json"
+EXPORT_FIXTURE = REPO_ROOT / "frontend" / "tests" / "fixtures" / "export-response.json"
 
 BODY = {
     "email": "iemand@voorbeeld.nl",
     "password": PASSWORD,
     "consent_meter_link": True,
     "consent_lead_generation": False,
+    # Required since the consent text got a lock: a body without it is a page
+    # that did not read the sentence it is agreeing to.
+    "text_version": CONSENT_TEXT_VERSION,
 }
 
 
@@ -521,6 +530,79 @@ def test_the_login_route_throttles_before_axes_contention_could_matter(client: A
 
 
 @pytest.mark.django_db
+def test_the_login_route_answers_a_throttle_in_dutch_with_a_matching_retry_after(
+    client: Any,
+) -> None:
+    """Controller ruling 54. DRF's Dutch catalogue carries no translation for
+    the throttle message, so under `nl-nl` a 429's `detail` reads English,
+    verbatim, on the one screen that shows a 429's `detail` word for word.
+    `_AuthAPIView.throttled()` replaces it with `NL["throttled"]`, filled in
+    with the same `wait` DRF used to build `Retry-After`, so the number the
+    visitor reads and the number the header carries are the same number.
+
+    Ten logins to a real, freshly registered account, the password right
+    every time so axes never sees a failure to count, spend the whole of
+    `auth-login`'s 10/hour; the eleventh is throttled before the handler, let
+    alone `authenticate()`, ever runs, so its `detail` owes nothing to
+    whether the credentials on that eleventh request are right or wrong.
+    """
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    headers = _csrf(client)
+    for _ in range(10):  # requests 1 through 10, the whole of auth-login's budget
+        response = client.post(
+            "/api/auth/login/",
+            {"email": BODY["email"], "password": PASSWORD},
+            content_type="application/json",
+            **headers,
+        )
+        assert response.status_code == 200, response.content
+    eleventh = client.post(  # request 11
+        "/api/auth/login/",
+        {"email": BODY["email"], "password": PASSWORD},
+        content_type="application/json",
+        **headers,
+    )
+    assert eleventh.status_code == 429, eleventh.content
+    seconds = int(eleventh["Retry-After"])
+    assert eleventh.json()["detail"] == NL["throttled"] % {"seconds": seconds}
+
+
+def test_throttled_speaks_dutch_with_and_without_a_known_wait() -> None:
+    """`_AuthAPIView.throttled()` has two arms: `NL["throttled"] % {"seconds": ...}`
+    when DRF hands over a `wait`, and `NL["throttled_unknown_wait"]` when
+    `wait is None`. Only the first arm is reachable over HTTP in this suite:
+    DRF only calls `throttled()` with `wait=None` when the throttle's rate
+    changes mid-request, which no test here can provoke. The two are one
+    conditional expression, one statement, so the untaken arm still reads as
+    covered by statement coverage; calling `throttled()` directly is the only
+    way to exercise it at all.
+
+    Both arms are checked here rather than only the untaken one, so a
+    regression in the reachable arm does not slip through a test that exists
+    for the other one.
+    """
+    view = _AuthAPIView()
+    request = Request(APIRequestFactory().get("/"))
+
+    with pytest.raises(Throttled) as unknown_wait:
+        view.throttled(request, None)
+    # rest_framework-stubs omit `Throttled.wait` even though the runtime
+    # class sets it; see the matching type: ignore in `_AuthAPIView.throttled`.
+    assert unknown_wait.value.wait is None  # type: ignore[attr-defined]
+    detail = str(unknown_wait.value.detail)
+    assert detail == NL["throttled_unknown_wait"]
+    assert "Expected available" not in detail
+
+    with pytest.raises(Throttled) as known_wait:
+        view.throttled(request, 12.3)
+    seconds = known_wait.value.wait  # type: ignore[attr-defined]
+    assert seconds == 13  # math.ceil(12.3), the same rounding DRF itself uses
+    detail = str(known_wait.value.detail)
+    assert detail == NL["throttled"] % {"seconds": seconds}
+    assert "Expected available" not in detail
+
+
+@pytest.mark.django_db
 def test_axes_locks_out_a_login_over_http_after_five_failed_attempts(client: Any) -> None:
     """This task is the first place `axes` is wired to an HTTP view at all;
     nothing before it proved the lockout actually fires through
@@ -634,7 +716,11 @@ def test_a_consent_can_be_withdrawn_and_given_again(client: Any) -> None:
 
     again = client.post(
         "/api/auth/consent/",
-        {"kind": "METER_LINK", "action": "GRANTED"},
+        {
+            "kind": "METER_LINK",
+            "action": "GRANTED",
+            "text_version": CONSENT_TEXT_VERSION,
+        },
         content_type="application/json",
         **_csrf(client),
     )
@@ -702,3 +788,179 @@ def test_an_access_token_in_a_header_is_not_accepted(client: Any) -> None:
         "an access token was accepted out of a header, so there are two places it can be "
         "replayed from and only one of them was designed for"
     )
+
+
+def test_the_consent_texts_are_public_and_come_from_nl_py(client: Any) -> None:
+    """The one route on this API that describes nobody.
+
+    No account, no cookie, no CSRF token: a visitor who has never been here
+    has to be able to read the sentence before agreeing to it, and the
+    registration form cannot be shown until it has. Asserted against nl.py
+    rather than against a literal, because the whole point of chapter 5 of
+    the design is that there is one copy of these sentences.
+    """
+    response = client.get("/api/auth/consent-texts/")
+    assert response.status_code == 200, response.content
+    assert response.json() == {
+        "text_version": CONSENT_TEXT_VERSION,
+        "texts": {
+            "LEAD_GENERATION": NL["CONSENT_LEAD_GENERATION"],
+            "METER_LINK": NL["CONSENT_METER_LINK"],
+        },
+    }
+
+
+def test_the_consent_text_keys_are_the_consent_kinds(client: Any) -> None:
+    """A third kind of consent that the frontend never shows is drift, and it
+    falls over here, on the side where it was added."""
+    texts = client.get("/api/auth/consent-texts/").json()["texts"]
+    assert sorted(texts) == sorted(Consent.KINDS)
+    for kind, sentence in texts.items():
+        assert sentence == NL[f"CONSENT_{kind}"]
+        assert sentence.strip(), f"{kind} carries an empty sentence"
+
+
+def test_the_consent_texts_are_not_cached_by_anything_in_between(client: Any) -> None:
+    """`_AuthAPIView` puts `private, no-store` on every answer under /api/auth/.
+
+    Strictly too strong for this one, which describes no household. It stays
+    because an exception on the base class for one route makes the base class
+    weaker than it is now, and a cache that does not keep this costs nothing.
+    """
+    response = client.get("/api/auth/consent-texts/")
+    assert response.headers["Cache-Control"] == "private, no-store"
+
+
+@pytest.mark.django_db
+def test_registering_under_a_stale_consent_text_is_refused(client: Any) -> None:
+    """The gap chapter 5.2 closes: a tab left open for an hour while the text
+    is rewritten and rolled out, after which `Consent.record` stamps the new
+    version on a row whose owner read the old sentence."""
+    body = BODY | {"text_version": "1999-01-01"}
+    response = client.post(
+        "/api/auth/register/", body, content_type="application/json", **_csrf(client)
+    )
+    assert response.status_code == 400
+    assert response.json()["text_version"] == [NL["consent_text_stale"]]
+    assert User.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_registering_without_a_text_version_is_refused(client: Any) -> None:
+    """Required on this serializer, so a missing field is DRF's own 400 and
+    never a silent registration under whatever version happens to be current."""
+    body = {key: value for key, value in BODY.items() if key != "text_version"}
+    response = client.post(
+        "/api/auth/register/", body, content_type="application/json", **_csrf(client)
+    )
+    assert response.status_code == 400
+    assert "text_version" in response.json()
+
+
+@pytest.mark.django_db
+def test_granting_a_consent_under_a_stale_text_is_refused(client: Any) -> None:
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    response = client.post(
+        "/api/auth/consent/",
+        {"kind": "LEAD_GENERATION", "action": "GRANTED", "text_version": "1999-01-01"},
+        content_type="application/json",
+        **_csrf(client),
+    )
+    assert response.status_code == 400
+    assert response.json()["text_version"] == [NL["consent_text_stale"]]
+    user = User.objects.get(email="iemand@voorbeeld.nl")
+    assert Consent.current(user, Consent.LEAD_GENERATION) is False
+
+
+@pytest.mark.django_db
+def test_granting_a_consent_without_a_text_version_is_refused(client: Any) -> None:
+    """Absent and wrong are answered by the same comparison, and the message is
+    the same one: either way the client did not send the version it displayed.
+    One branch, one key, which is what chapter 5.2 asks for."""
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    response = client.post(
+        "/api/auth/consent/",
+        {"kind": "LEAD_GENERATION", "action": "GRANTED"},
+        content_type="application/json",
+        **_csrf(client),
+    )
+    assert response.status_code == 400
+    assert response.json()["text_version"] == [NL["consent_text_stale"]]
+
+
+@pytest.mark.django_db
+def test_withdrawing_a_consent_needs_no_text_version_at_all(client: Any) -> None:
+    """Article 7(3): withdrawing has to be as easy as giving. Refusing a
+    withdrawal because the wording changed in the meantime is exactly that
+    not being true, so the field is ignored here rather than merely optional."""
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    user = User.objects.get(email="iemand@voorbeeld.nl")
+    response = client.post(
+        "/api/auth/consent/",
+        {"kind": "METER_LINK", "action": "WITHDRAWN"},
+        content_type="application/json",
+        **_csrf(client),
+    )
+    assert response.status_code == 200
+    assert Consent.current(user, Consent.METER_LINK) is False
+
+
+@pytest.mark.django_db
+def test_withdrawing_with_a_stale_text_version_is_still_accepted(client: Any) -> None:
+    """The other half of ignoring it. A field that is merely optional would
+    still be validated when present, and a tab that has been open since the
+    last rewrite is precisely the tab somebody withdraws from."""
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    response = client.post(
+        "/api/auth/consent/",
+        {"kind": "METER_LINK", "action": "WITHDRAWN", "text_version": "1999-01-01"},
+        content_type="application/json",
+        **_csrf(client),
+    )
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_the_me_fixture_has_the_shape_the_view_answers(client: Any) -> None:
+    """The frontend builds against a file; this is what makes that file a
+    description of this response.
+
+    Shape and not values: an address and a timestamp differ between a fixture
+    and a test database and always will. The keys do not, and the keys are
+    what the browser reads. Along the same `_shape` the advice fixture uses,
+    imported rather than copied: a second definition of that function is a
+    second thing that can drift.
+    """
+    from test_frontend_contract import _shape
+
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    live = client.get("/api/auth/me/").json()
+    committed = json.loads(ME_FIXTURE.read_text(encoding="utf-8"))
+    assert _shape(live) == _shape(committed), (
+        "GET me/ no longer has the shape frontend/tests/fixtures/me-response.json "
+        "describes; update the fixture and the shape check in accounts.ts together"
+    )
+
+
+@pytest.mark.django_db
+def test_the_export_fixture_has_the_shape_the_view_answers(client: Any) -> None:
+    """The same claim for the heaviest answer on this API, and the one the
+    browser hands straight to a file the visitor keeps."""
+    from test_frontend_contract import _shape
+
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    live = client.post("/api/auth/export/", content_type="application/json", **_csrf(client)).json()
+    committed = json.loads(EXPORT_FIXTURE.read_text(encoding="utf-8"))
+    assert _shape(live) == _shape(committed), (
+        "POST export/ no longer has the shape "
+        "frontend/tests/fixtures/export-response.json describes"
+    )
+
+
+def test_the_export_fixture_carries_the_consent_row_that_makes_it_worth_pinning() -> None:
+    """A fixture with an empty `consents` would pin `list` and nothing else,
+    and the four keys inside a row are exactly what the download is for."""
+    committed = json.loads(EXPORT_FIXTURE.read_text(encoding="utf-8"))
+    assert committed["consents"], "the export fixture no longer exercises a consent row"
+    assert set(committed["consents"][0]) == {"kind", "action", "occurred_at", "text_version"}
+    assert committed["advices"] == [], "phase 1 stores no advice against an account"

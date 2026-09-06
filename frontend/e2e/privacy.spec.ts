@@ -27,7 +27,13 @@ import { expect, test } from "@playwright/test";
 const OWN_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
 /** Every page a visitor can reach without an advice in hand, plus one with. */
-const PAGES = ["/", "/einde-saldering/", "/berekenen/", "/methodologie/"];
+const PAGES = [
+  "/",
+  "/einde-saldering/",
+  "/berekenen/",
+  "/methodologie/",
+  "/account/",
+];
 
 function foreignRequests(page: import("@playwright/test").Page): string[] {
   const foreign: string[] = [];
@@ -59,6 +65,10 @@ for (const path of PAGES) {
     ).toEqual([]);
   });
 }
+
+test("checks exactly the five pages this list names, not more and not fewer", () => {
+  expect(PAGES).toHaveLength(5);
+});
 
 test("the fonts are served from this origin rather than fetched from one", async ({
   page,

@@ -9,7 +9,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from accounts.models import Consent, User
-from accounts.nl import NL
+from accounts.nl import CONSENT_TEXT_VERSION, NL
 
 
 class LoginSerializer(serializers.Serializer[dict[str, Any]]):
@@ -27,6 +27,17 @@ class RegisterSerializer(LoginSerializer):
     #: silent True. Not pre-ticked is a property of this line.
     consent_meter_link = serializers.BooleanField()
     consent_lead_generation = serializers.BooleanField()
+
+    #: The version whose text the visitor actually read, sent back so it can be
+    #: compared with the one `Consent.record` is about to stamp. Required here:
+    #: a registration with no version is a form that showed a sentence from
+    #: somewhere else, or none at all.
+    text_version = serializers.CharField()
+
+    def validate_text_version(self, value: str) -> str:
+        if value != CONSENT_TEXT_VERSION:
+            raise serializers.ValidationError(NL["consent_text_stale"])
+        return value
 
     def validate_email(self, value: str) -> str:
         normalized = value.strip().lower()
@@ -99,3 +110,18 @@ class ConsentSerializer(serializers.Serializer[dict[str, Any]]):
         choices=sorted(Consent.ACTIONS),
         error_messages={"invalid_choice": NL["consent_action_unknown"]},
     )
+
+    #: Not required, and that asymmetry is article 7(3) rather than a
+    #: convenience: a withdrawal may never be harder than a grant, so the field
+    #: is ignored entirely when the action is WITHDRAWN.
+    text_version = serializers.CharField(required=False)
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        if attrs["action"] != Consent.GRANTED:
+            return attrs
+        if attrs.get("text_version") != CONSENT_TEXT_VERSION:
+            # Absent and wrong, answered by one comparison. Either way the
+            # client did not send the version it displayed, and the reader's
+            # next move is the same: reload the page.
+            raise serializers.ValidationError({"text_version": NL["consent_text_stale"]})
+        return attrs

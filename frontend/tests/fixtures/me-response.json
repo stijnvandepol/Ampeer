@@ -1,0 +1,7 @@
+{
+  "email": "iemand@voorbeeld.nl",
+  "consents": {
+    "LEAD_GENERATION": false,
+    "METER_LINK": true
+  }
+}

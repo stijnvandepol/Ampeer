@@ -1,0 +1,13 @@
+{
+  "email": "iemand@voorbeeld.nl",
+  "date_joined": "2026-09-05T09:12:44.512000Z",
+  "consents": [
+    {
+      "kind": "METER_LINK",
+      "action": "GRANTED",
+      "occurred_at": "2026-09-05T09:12:44.611000Z",
+      "text_version": "2026-09-04"
+    }
+  ],
+  "advices": []
+}

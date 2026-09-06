@@ -355,9 +355,11 @@ versie van dit document.
 
 De tokenroute kent nog steeds drie handelingen: twee die rekenen en opslaan, en
 een die op een token teruggeeft wat er staat. Sinds fase 1 komt daar een tweede,
-apart bediende API bij, onder `/api/auth/`, met acht routes die geen van alle
-meer dan `get` of `post` beantwoorden. `tests/test_dpia.py` leest beide
-bestanden en valt om zodra een van beide dat niet meer doet.
+apart bediende API bij, onder `/api/auth/`, met negen routes die geen van alle
+meer dan `get` of `post` beantwoorden. De negende is publiek en levert geen
+persoonsgegeven terug: hij geeft de toestemmingsteksten en de versie ervan,
+voor iedereen hetzelfde. `tests/test_dpia.py` leest beide bestanden en valt om
+zodra een van beide dat niet meer doet.
 
 Inzage, overdraagbaarheid en verwijdering veranderen hieronder alle drie voor
 wie een account heeft, en geen van drieen voor de tokenroute: die blijft precies

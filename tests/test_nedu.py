@@ -30,6 +30,24 @@ def test_provider_reads_a_second_category_from_the_same_file() -> None:
     assert np.allclose(fractions, [0.5, 0.5, 0.5, 0.5])
 
 
+def test_provider_reads_the_feed_in_series_from_its_own_column() -> None:
+    """The measured export shape comes from the AMI_I column and no other.
+
+    Until 2026-09-06 the only test that called ``feed_in_fractions`` was gated
+    on the ingested NEDU file, which is absent in CI, so the method was
+    covered on one developer machine and on no runner. The fixture carries an
+    ``E1A_AZI_I`` column on purpose: it ends in ``_I`` too, sits earlier in the
+    row, and would be the wrong answer to a suffix match that stopped short of
+    the type.
+    """
+    provider = NeduFileProvider(FIXTURE)
+    feed_in = provider.feed_in_fractions(2025, ProfileCategory.E1A)
+    assert np.allclose(feed_in, [0.05, 0.15, 0.35, 0.45])
+    assert not np.allclose(feed_in, provider.fractions(2025, ProfileCategory.E1A)), (
+        "the feed-in series is the base series, so the suffix was not read"
+    )
+
+
 def test_provider_rejects_a_year_the_file_does_not_hold() -> None:
     provider = NeduFileProvider(FIXTURE)
     with pytest.raises(ProfileValidationError, match="2026"):
