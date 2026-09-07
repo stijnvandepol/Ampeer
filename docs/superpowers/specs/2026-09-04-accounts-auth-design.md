@@ -280,12 +280,18 @@ verliest zijn zeggingskracht, en dat is de bedoeling.
 | `POST /api/auth/consent/` | Geeft of trekt één toestemming in | `auth-write` |
 | `POST /api/auth/export/` | Geeft alles terug wat dit account betreft | `auth-export` |
 | `POST /api/auth/delete/` | Verwijdert het account en alles wat eraan hangt | `auth-write` |
-| `GET /api/auth/consent-texts/` | Publiek. De twee toestemmingsteksten en hun versie | `auth-read` |
+| `GET /api/auth/consent-texts/` | Publiek. De twee toestemmingsteksten, hun labels en hun versie | `auth-read` |
+| `POST /api/auth/reset/request/` | Publiek. Zet een herstelmail klaar; 202 met `{}` voor elk adres hetzelfde | `auth-reset` |
+| `POST /api/auth/reset/confirm/` | Publiek. Zet met het token en het nieuwe wachtwoord een nieuw wachtwoord, 204 | `auth-reset` |
+| `POST /api/auth/verify/request/` | Ingelogd. Vraagt de bevestigingsmail opnieuw, 202 met `{}` | `auth-write` |
+| `POST /api/auth/verify/confirm/` | Publiek. Bevestigt het adres met het token, 204 | `auth-reset` |
 
-Negen routes, en uitsluitend `get` en `post`. De negende, `consent-texts/`, is ontworpen in
+Dertien routes, en uitsluitend `get` en `post`. De negende, `consent-texts/`, is ontworpen in
 `docs/superpowers/specs/2026-09-05-accounts-frontend-design.md`, hoofdstuk 5.1, en niet hier: dit
 document bouwt de acht routes hierboven, dat document voegt de negende toe voor de reden die daar
-staat. Dat is geen toeval en ook geen omweg om een test te
+staat. De laatste vier, wachtwoordherstel en e-mailbevestiging, zijn ontworpen in
+`docs/superpowers/specs/2026-09-06-accounts-recovery-design.md` en niet hier, op dezelfde manier
+als de negende dat toen was. Dat is geen toeval en ook geen omweg om een test te
 plezieren. `tests/test_dpia.py::test_the_api_answers_only_the_verbs_the_document_describes`
 weigert een `delete`, `put` of `patch` ergens in deze API omdat hoofdstuk 7 van de DPIA zegt dat
 rectificatie een rij toevoegt in plaats van er een te wijzigen. Dit ontwerp houdt zich daaraan
@@ -293,11 +299,11 @@ en `/api/auth/consent/` is er het bewijs van: intrekken is een nieuwe rij.
 
 Voor `/api/auth/delete/` komt daar een tweede, technische reden bij, en die staat in 8.2.
 
-Alle negen erven van `_AuthAPIView`, dat op zijn beurt van `_NoStoreAPIView` uit
+Alle dertien erven van `_AuthAPIView`, dat op zijn beurt van `_NoStoreAPIView` uit
 `backend/advice/views.py` erft. Daarmee dragen ze `Cache-Control: private, no-store`, want elk
 van deze antwoorden beschrijft één huishouden. Op één na: `consent-texts/` beschrijft er geen,
 het antwoord is voor iedereen hetzelfde en zou dus gecachet mogen worden. Die route draagt de
-header toch, omdat een uitzondering op de basisklasse de header van de acht andere routes
+header toch, omdat een uitzondering op de basisklasse de header van de twaalf andere routes
 afhankelijk maakt van wie eraan denkt hem te zetten. Een verkeerd gecachet antwoord op
 `me/` of `export/` is een huishouden dat de gegevens van een ander ziet; wat deze regel kost
 is één keer opnieuw ophalen van twee zinnen. `_AuthAPIView` voegt daar één ding aan toe, zie
@@ -688,6 +694,12 @@ is aangetoond dat het instrument rood kan worden.
 
 ## 10. Wachtwoordherstel ontbreekt, en wat dat kost
 
+Dit hoofdstuk beschrijft de toestand tot 2026-09-06.
+`docs/superpowers/specs/2026-09-06-accounts-recovery-design.md` keert het om: er is
+wachtwoordherstel en e-mailbevestiging, via een outbox en Resend, met een token als rij en niet
+als handtekening. De redenering hieronder blijft staan als de reden waarom het niet in het eerste
+deel zat.
+
 Er komt in v1 geen wachtwoordherstel en geen e-mailverificatie. Beide vragen uitgaande e-mail, en
 daarmee een SMTP-credential in `prod.py`, een afzender, en een tweede kanaal dat vertrouwd moet
 worden. Dat is infrastructuur en geen app, en het hoort niet in dezelfde commit als de
@@ -722,6 +734,7 @@ niet andersom.
   eigendom vestigt is precies de autorisatievraag die `docs/dpia.md` hoofdstuk 7 open laat:
   iedereen aan wie de link ooit is doorgestuurd zou hem kunnen claimen.
 - **Geen wachtwoordherstel en geen e-mailverificatie.** Zie hoofdstuk 10, inclusief het gevolg.
+  (Omgekeerd op 2026-09-06, zie hoofdstuk 10.)
 - **Geen adminsite.** `base.py` sluit die uit met de reden dat een geïnstalleerde app
   aanvalsoppervlak is of er nu een URL naar wijst of niet, en dit ontwerp verandert dat niet.
 - **Geen tweefactorauthenticatie, geen inloggen via derden, geen apparatenoverzicht.**

@@ -10,7 +10,7 @@ machine verlaat. Elk feit hierin is uit de code gelezen of gemeten, niet
 onthouden, en `tests/test_dpia.py` houdt de getallen hieronder naast de plek in
 de code waar ze vandaan komen. Verandert er een, dan valt die test om.
 
-Dit is geen juridisch advies en het is niet ondertekend. Vier dingen zijn
+Dit is geen juridisch advies en het is niet ondertekend. Vijf dingen zijn
 beslissingen van de verwerkingsverantwoordelijke en staan in hoofdstuk 10 met
 de informatie die nodig is om ze te nemen.
 
@@ -80,8 +80,23 @@ wie er een aanmaakt geeft een e-mailadres op en een wachtwoord, en het
 wachtwoord staat nergens in leesbare vorm. `backend/accounts/models.py` hasht
 het met Argon2id voor het de database raakt, en wat er staat is de hash en
 `last_login`, het tijdstip van de laatste geslaagde aanmelding dat
-`AbstractBaseUser` zelf meebrengt. Een mislukte aanmelding wordt niet op het
-account bijgehouden maar in het auditlogboek hieronder.
+`AbstractBaseUser` zelf meebrengt.
+
+Sinds het derde deel van fase 1 staat er ook `email_verified_at` bij: het
+tijdstip waarop het adres is bevestigd via een link uit een mail, of leeg als
+dat nooit is gebeurd. Een tijdstip en geen vlag, omdat "wanneer" de vraag is
+die dit document stelt. Twee tabellen kwamen erbij en geen van beide draagt
+een adres: `OneTimeToken` houdt de sha256 van een herstel- of
+bevestigingslink met de tijdstippen van uitgifte, verloop en gebruik, en
+`OutboundMail` houdt alleen wie een mail moet krijgen, van welke soort en
+sinds wanneer; het adres wordt op het moment van verzenden van het account
+gelezen en het token bestaat dan nog niet. Een tokenrij verdwijnt bij
+verloop (`spent_at` blijft tot dan staan, want een gebruikt token dat nog
+bestaat is wat hergebruik zichtbaar maakt), een outbox-rij bij verzending en
+zeven dagen na een mislukking.
+
+Een mislukte aanmelding wordt niet op het account bijgehouden maar in het
+auditlogboek hieronder.
 
 De rekenmachine zelf blijft anoniem. Een account bestaat naast een advies, niet
 ervoor: `StoredAdvice.owner` in `backend/advice/models.py` staat op elke rij op
@@ -135,13 +150,12 @@ Een regel over een verzonden mail draagt naast `user_id` en `kind` een
 persoonsgegeven en het is wel het enige waarmee een verzending bij die
 verwerker teruggevonden kan worden.
 
-In alle gevallen geldt: deze
-tabel wordt nooit opgeruimd, dus wat erin staat overleeft het account dat het
-beschrijft, en een getal dat naar een verwijderde rij wijst is een lege
-verwijzing waar een e-mailadres een blijvend persoonsgegeven zou zijn in een
-tabel zonder bewaartermijn. Een herstelverzoek voor een adres dat bij geen
-account hoort, wordt niet gelogd: een regel daarover zou het adres zelf moeten
-dragen om iets te betekenen.
+In alle gevallen geldt: deze tabel wordt nooit opgeruimd, dus wat erin staat
+overleeft het account dat het beschrijft, en een getal dat naar een
+verwijderde rij wijst is een lege verwijzing waar een e-mailadres een
+blijvend persoonsgegeven zou zijn in een tabel zonder bewaartermijn. Een
+herstelverzoek voor een adres dat bij geen account hoort, wordt niet gelogd:
+een regel daarover zou het adres zelf moeten dragen om iets te betekenen.
 
 **Niet het token zelf.** Het token is geen verwijzing naar een advies, het is
 de enige sleutel die het opent, en deze tabel wordt nooit opgeruimd. Een token
@@ -262,8 +276,25 @@ en dat is wat hier ontbreekt. Hoofdstuk 10 zet het bij de
 verwerkingsverantwoordelijke, naast de privacyverklaring en het
 verwerkersregister.
 
-Verder wordt niets uitbesteed. Er draait geen andere dienst van derden mee in de
-stack en er gaat geen gegeven naar een advertentie- of analysepartij.
+**Resend, Inc. is sinds het derde deel van fase 1 de tweede verwerker.** Hij
+verstuurt de mails voor wachtwoordherstel en adresbevestiging, en ziet per
+bericht het e-mailadres, het feit dat bij dat adres een account bestaat of om
+herstel is gevraagd, en de inhoud van de mail, waarvan de link een uur of zeven
+dagen een werkende sleutel is. Hij bewaart een eigen verzendlog met adres,
+onderwerp en inhoud, en dat log staat in de Verenigde Staten, ongeacht de
+verzendregio: Resend zegt zelf dat de regio bepaalt waar een mail vandaan
+wordt verstuurd en niet waar accountdata, metadata en logs staan. De doorgifte
+rust op de Standard Contractual Clauses in zijn Data Processing Addendum en op
+zijn certificering onder het EU-US Data Privacy Framework; die DPA is
+voorgetekend bij elk account en te downloaden uit het dashboard. De
+verzendregio is de EU-regio (Ierland), zodat de mail zelf niet via een
+Amerikaans datacenter loopt. Wat Resend niet ziet: de reden voor een
+herstelverzoek, een wachtwoord, een toestemming of een advies. Alleen het
+command `send_outbound_mail` bereikt Resend, onder een timer; geen enkel
+verzoek van een bezoeker doet dat.
+
+Verder wordt niets uitbesteed. Er gaat geen gegeven naar een advertentie- of
+analysepartij.
 
 ## 6. Wat de machine verlaat
 
@@ -280,6 +311,13 @@ op bij PVGIS. Die URL wordt nooit uit gebruikersinvoer opgebouwd; de invoer
 levert alleen gevalideerde parameters, en de postcode gaat als tweecijferig
 gebied naar een middelpunt. Er is geen enkele plek waar de backend een door de
 gebruiker aangeleverde URL ophaalt.
+
+Sinds het derde deel van fase 1 staat `api.resend.com` op die lijst, als
+bestemming van het command dat de outbox leegt. Alleen dat command bereikt
+die host, elke minuut onder een timer, en geen verzoek van een bezoeker; de
+lijst zelf staat als `OUTBOUND_MODULES` in `tests/test_boundaries.py` en die
+test valt om zodra een tweede module dezelfde host aanraakt of Django's eigen
+mail-API ergens wordt geïmporteerd.
 
 ### Het jaar in kwartieren, en waarom dat hier staat
 
@@ -369,10 +407,13 @@ versie van dit document.
 
 De tokenroute kent nog steeds drie handelingen: twee die rekenen en opslaan, en
 een die op een token teruggeeft wat er staat. Sinds fase 1 komt daar een tweede,
-apart bediende API bij, onder `/api/auth/`, met negen routes die geen van alle
-meer dan `get` of `post` beantwoorden. De negende is publiek en levert geen
-persoonsgegeven terug: hij geeft de toestemmingsteksten en de versie ervan,
-voor iedereen hetzelfde. `tests/test_dpia.py` leest beide bestanden en valt om
+apart bediende API bij, onder `/api/auth/`, met dertien routes die geen van alle
+meer dan `get` of `post` beantwoorden. Vier daarvan zijn publiek zonder een
+persoonsgegeven terug te geven: de toestemmingsteksten met hun labels en versie,
+voor iedereen hetzelfde, en de drie routes waarmee een herstellink wordt
+aangevraagd, een herstellink wordt gebruikt en een bevestigingslink wordt
+gebruikt. De aanvraag antwoordt voor elk adres hetzelfde en zegt dus niet of er
+een account bij hoort. `tests/test_dpia.py` leest beide bestanden en valt om
 zodra een van beide dat niet meer doet.
 
 Inzage, overdraagbaarheid en verwijdering veranderen hieronder alle drie voor
@@ -444,17 +485,17 @@ wachtwoord opnieuw, dus bezit van de sessiecookie alleen is niet genoeg: wie de
 cookie steelt maar het wachtwoord niet heeft, kan het account niet verwijderen.
 Dat is precies de autorisatie die bij de tokenroute ontbrak en ontbreekt.
 
-Diezelfde vraag om het wachtwoord heeft een keerzijde die hier eerlijk genoemd
-hoort te worden: fase 1 kent geen route om een vergeten wachtwoord te
-herstellen (`docs/decisions.md` entry 31), dus wie het wachtwoord kwijt is kan
-`/api/auth/delete/` niet bereiken en heeft dan geen zelfbedieningsweg meer om
-het account te laten verwijderen. Het account zelf blijft dan bestaan, niet
-tijdelijk: er is geen opruiming die een `User`-rij aanraakt. Wat de bestaande
-opruiming wel doet is elk `StoredAdvice` na negentig dagen laten vervallen, dus
-wat materieel overblijft is een e-mailadres, een wachtwoordhash en een paar
-toestemmingsrijen. Dat is de dunste vorm die dit account kan aannemen, en het
-is niet niets. Dit is de zwakste plek van dit ontwerp, aanvaardbaar zolang fase
-1 en fase 2 dicht op elkaar zitten en het aantal accounts klein is.
+Diezelfde vraag om het wachtwoord had tot het derde deel van fase 1 een
+keerzijde: er was geen route om een vergeten wachtwoord te herstellen, dus wie
+het kwijt was bereikte `/api/auth/delete/` niet meer. Die route bestaat nu.
+`POST /api/auth/reset/request/` zet een mail klaar naar het adres van het
+account, `POST /api/auth/reset/confirm/` zet met de link uit die mail een nieuw
+wachtwoord, trekt elke sessie in en bevestigt het adres, en daarna werkt
+inloggen, en dus ook verwijderen, met het nieuwe wachtwoord. De link werkt een
+uur en een keer. Wie zijn wachtwoord kwijt is heeft daarmee weer een
+zelfbedieningsweg, en de zwakste plek van het auth-ontwerp is dicht. Wat er
+nog niet kan: het adres zelf wijzigen; wie een ander adres wil, verwijdert zijn
+account en maakt een nieuw.
 
 Wat er dan gebeurt staat in `delete_account` in `backend/accounts/service.py`,
 in een transactie. `CASCADE` neemt `Consent`, elke `RefreshSession` en elk
@@ -550,8 +591,8 @@ beschrijft.
 
 ## 10. Wat bij Stijn ligt
 
-Vier dingen kan dit document niet voor de verwerkingsverantwoordelijke
-beslissen. Een vijfde vraag, of verwijderen op verzoek mogelijk wordt voor fase
+Vijf dingen kan dit document niet voor de verwerkingsverantwoordelijke
+beslissen. Een eerdere vraag, of verwijderen op verzoek mogelijk wordt voor fase
 1, is inmiddels beantwoord: ja. `POST /api/auth/delete/` bestaat, hoofdstuk 7
 beschrijft wat hij doet, en de vier feiten die deze paragraaf eerder opsomde
 zijn opgelost door een account te eisen en het wachtwoord opnieuw te vragen, in
@@ -581,10 +622,28 @@ plaats van bezit van het token als autorisatie te accepteren.
    vervallen advies.
 4. **Toegang tot de host**, en of `web2` ephemeer wordt. Die staat los van dit
    document en is elders opgeschreven.
+5. **Resend als verwerker.** Drie deelvragen. Of de voorgetekende DPA van
+   Resend volstaat als de verwerkersovereenkomst die artikel 28 vraagt, of dat
+   er iets naast moet. Of de verzendregio in het dashboard van Resend op de
+   EU-regio staat, wat een instelling is die dit document veronderstelt en
+   niet kan controleren. En of opslag van het verzendlog in de Verenigde
+   Staten, onder SCC's en het Data Privacy Framework, aanvaardbaar is voor deze
+   dienst, of dat een Europese aanbieder de volgende backend-aanraking wordt.
+   Wat daarbij hoort en niet als zesde punt staat, omdat het dezelfde vraag is
+   als punt 2: de grondslag voor het bevestigen van een adres is geen van de
+   twee toestemmingen. Dit document zet hem voorlopig op noodzaak voor de
+   dienst, want zonder bevestigd adres kan de dienst geen wachtwoord herstellen
+   en straks geen meter koppelen.
 
 Er is verder geen privacyverklaring, geen verwerkersregister en geen vastgelegde
-verwerkersovereenkomst met Cloudflare. Alle drie zijn ze nodig voordat de dienst
-publiek gaat, en alle drie vallen ze buiten wat uit deze repository te schrijven
-is. De verwerkersovereenkomst is wel de enige van de drie die over een verwerking
-gaat die vandaag al draait: hoofdstuk 5 beschrijft wat Cloudflare op elk verzoek
-te zien krijgt.
+verwerkersovereenkomst met Cloudflare en geen beoordeelde met Resend. Alle drie
+zijn ze nodig voordat de dienst publiek gaat, en alle drie vallen ze buiten wat
+uit deze repository te schrijven is. De verwerkersovereenkomst is wel de enige
+van de drie die over een verwerking gaat die vandaag al draait: hoofdstuk 5
+beschrijft wat Cloudflare op elk verzoek te zien krijgt en wat Resend per mail
+te zien krijgt. Voor het register: Resend, Inc., voor het versturen van
+herstel- en bevestigingsmails, ziet e-mailadres en berichtinhoud, bewaart een
+verzendlog in de Verenigde Staten, grondslag voor doorgifte SCC's en DPF,
+overeenkomst de voorgetekende DPA. Voor de privacyverklaring: dat een account
+een adres heeft, dat er mails naar dat adres gaan voor herstel en bevestiging
+en nergens anders voor, en dat een derde partij die mails aflevert.

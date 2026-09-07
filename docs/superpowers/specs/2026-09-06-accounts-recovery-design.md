@@ -241,12 +241,17 @@ vijftig, en het plafond hoeft niet te bewegen.
 
 ### 3.6 `backend/accounts/recovery.py`
 
-De vier handelingen staan in een nieuwe module en niet in `service.py`, om een reden die
-niets met smaak te maken heeft: `_audit_context_keys` in `tests/test_dpia.py` gaat ervan uit
-dat `service.py` precies één `record()`-aanroep bevat, en zegt in zijn eigen assertiebericht
-dat de test herschreven moet worden als dat niet meer zo is. Een tweede module houdt die
-aanname waar, en `_accounts_audit_context_keys` loopt sowieso elk bestand onder
-`backend/accounts/` af, dus de nieuwe sleutelwoorden worden gezien.
+**Correctie, 2026-09-07: deze paragraaf noemde eerder een testconstructie in
+`tests/test_dpia.py` als reden voor de scheiding. Die aanname klopt niet: `_audit_context_keys`
+leest `backend/advice/service.py` en stelt geen eis aan `backend/accounts/service.py`. De echte
+reden staat hieronder.**
+
+De vier handelingen staan in een nieuwe module en niet in `service.py`, en de reden is cohesie
+en niet een test: de twee modules spreken twee vocabulaires. `service.py` gaat over export en
+verwijdering en blijft de module van twee functies die het is; alles wat een token omzet in een
+verandering van status hoort hier. `_accounts_audit_context_keys` in `tests/test_dpia.py` loopt
+sowieso elk bestand onder `backend/accounts/` af voor de sleutelwoorden die een auditregel
+draagt, dus die controle hangt niet af van welk van de twee bestanden een regel schrijft.
 
 De module exporteert:
 
@@ -361,13 +366,23 @@ door `ampeer-mail.timer`. Per run:
 6. Bij een 4xx anders dan 429: `failed_at` meteen. Een verkeerde sleutel of een adres dat
    Resend weigert, wordt niet beter van wachten.
 
-De volgorde van mint en verzending is precies. Het token wordt gemaakt vóór het versturen,
-want het moet in de mail, en de mint en de verzending staan samen in één `atomic()`. Een
-transportfout verlaat dat blok met een exception, en die draait de mint terug: er staat dan
-geen digest in `OneTimeToken` van een token dat niemand heeft ontvangen. De outbox-rij wordt
-daarna in een tweede, eigen transactie bijgewerkt met de poging en de wachttijd. Twee
-transacties, in die volgorde, en de eerste committeert alleen als het transport het bericht
-heeft aangenomen.
+**Correctie, 2026-09-07: deze paragraaf zei eerder "twee transacties". De code die er
+ligt is één transactie met een savepoint erin, en dat is wat hieronder staat.**
+
+De volgorde van mint en verzending is precies, en zit in één transactie en niet in twee.
+De rij wordt geclaimd met `SELECT ... FOR UPDATE SKIP LOCKED` (stap 1 hierboven), en die
+lock blijft staan over de hele verzending heen: geen tweede run kan dezelfde rij oppakken
+zolang de eerste bezig is. Daarbinnen omsluit een savepoint precies de mint en de
+verzending samen: het token wordt gemaakt vlak vóór het versturen, want het moet in de
+mail, en een transportfout verlaat dat savepoint met een exception, die de mint
+terugdraait terwijl de rij zelf vergrendeld blijft. Nog in dezelfde buitenste transactie
+krijgt de rij daarna de poging en de wachttijd bijgewerkt (stap 5 en 6 hierboven). Twee
+schrijfacties, in die volgorde, en de eerste committeert alleen als het transport het
+bericht heeft aangenomen. Twee losse transacties zouden de rij tussen de twee loslaten,
+precies wat stap 1 hierboven verbiedt: een tweede run zou dezelfde rij dan kunnen claimen
+terwijl de eerste nog aan het versturen is. De eigenschap die telt, geen digest van een
+token dat niemand ontving, staat overeind zolang de savepoint dat draagt, en dat is
+zonder de rij tussendoor los te laten.
 
 Het command eindigt met exitcode 1 als er na zijn eigen ronde nog een rij ligt met
 `failed_at` leeg en `created_at` meer dan vijftien minuten geleden. Dat is de helft die
@@ -939,7 +954,7 @@ Nieuw, backend:
 | `backend/accounts/recovery.py` | Hoofdstuk 3.6 |
 | `backend/accounts/mailer.py` | Hoofdstuk 4.5 en de drie transporten uit 4.6 |
 | `backend/accounts/management/commands/send_outbound_mail.py` | Hoofdstuk 4.4 |
-| `backend/accounts/migrations/0002_*.py` | `email_verified_at`, `OneTimeToken`, `OutboundMail`; het nummer volgt op de bestaande migratie |
+| `backend/accounts/migrations/0004_recovery.py` | `email_verified_at`, `OneTimeToken`, `OutboundMail`; het nummer volgt op de bestaande migratie (correctie, 2026-09-07: deze rij zei eerder `0002_*.py`; de boom stond bij het schrijven al op `0003_refreshsession.py`) |
 
 Gewijzigd, backend:
 

@@ -317,11 +317,10 @@ E-mailadres (`type="email"`, `autocomplete="email"`), wachtwoord (`type="passwor
 `autocomplete="current-password"`), knop "Inloggen". Daaronder een schakelaar naar de
 registratieweergave.
 
-En één eerlijke zin: er is geen wachtwoordherstel. Hoofdstuk 10 van het auth-ontwerp noemt dat
-de zwakste plek van dat ontwerp en beschrijft het gevolg, namelijk dat wie zijn wachtwoord
-kwijt is ook het verwijderendpoint niet meer bereikt. Die zin hoort op het scherm te staan
-waar iemand hem nodig heeft, en niet in een document. Het is formuliertekst, dus hij mag in de
-frontend staan en hij staat in `ui-strings.txt`.
+Tot 2026-09-06 stond hier één eerlijke zin: er is geen wachtwoordherstel.
+`docs/superpowers/specs/2026-09-06-accounts-recovery-design.md` verving die zin
+door een knop, "Wachtwoord vergeten?", die naar de aanvraagweergave uit dat
+ontwerp leidt. De regel eronder blijft: wat op het scherm staat is wat waar is.
 
 Na een 200 volgt `GET me/`, want `login/` heeft geen antwoordlichaam. Dat is geen retry: het is
 de vraag die de accountweergave vult.
@@ -584,7 +583,9 @@ voor punt 5: een smoke die stilzwijgend overslaat leest als groen en is niets.
   vraag heeft alleen op `/account/` een antwoord dat iets doet.
 - **Geen wachtwoordherstel-UI.** De backend heeft het niet, en een scherm dat het aanbiedt zou
   een knop zijn die niets doet. Wat er wel is, is de zin uit 6.1 die het zegt.
+  (Omgekeerd op 2026-09-06, zie het herstelontwerp.)
 - **Geen e-mailverificatie.** Zelfde reden, en zie hoofdstuk 10 van het auth-ontwerp.
+  (Omgekeerd op 2026-09-06, zie het herstelontwerp.)
 - **Geen "onthoud mij".** De refresh-cookie leeft veertien dagen en dat is het antwoord op die
   vraag. Een vakje dat suggereert dat het iets omzet zou over niets gaan.
 - **Geen sessieoverzicht en geen "log overal uit".** `RefreshSession` maakt dat later
@@ -605,7 +606,7 @@ Nieuw, frontend:
 | `frontend/src/app/_account/AccountPage.tsx` | De drie weergaven en de toestand ertussen |
 | `frontend/src/app/_account/SignInForm.tsx` | 6.1 |
 | `frontend/src/app/_account/RegisterForm.tsx` | 6.2 |
-| `frontend/src/app/_account/ConsentRow.tsx` | Twee componenten, niet één: `ConsentCheckbox` voor 6.2 en `ConsentRow` voor 6.3, de twee kleine componenten uit hoofdstuk 8. Ze delen het label per soort en de regel dat de zin uit de API komt, en verschillen in wat er gebeurt als je erop drukt |
+| `frontend/src/app/_account/ConsentRow.tsx` | Twee componenten, niet één: `ConsentCheckbox` voor 6.2 en `ConsentRow` voor 6.3, de twee kleine componenten uit hoofdstuk 8. Ze delen de regel dat het label en de zin allebei uit de API komen, sinds 2026-09-06 via `consent-texts/` en niet meer uit een eigen constante, en verschillen in wat er gebeurt als je erop drukt |
 | `frontend/src/app/_account/session.ts` | De laadvolgorde en de ene wissel uit 2.1 |
 | `frontend/src/app/_account/messages.ts` | `describeAuthError`, naar het model van `_flow/messages.ts`, plus `fieldErrors`, de per-veld toegang uit hoofdstuk 8 |
 | `frontend/src/app/_account/download.ts` | Het exportbestand uit de ruwe antwoordtekst |
