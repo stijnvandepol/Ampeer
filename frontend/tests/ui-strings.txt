@@ -8,8 +8,9 @@
 # A line here must be one of four things: navigation, a form label or heading,
 # a message about the request the visitor just made, or a standing disclosure: a
 # sentence that is always on the page and states a fact about the service
-# rather than about one request (the no-password-reset sentence, the deletion
-# sentence). It may name the shape of a figure, because that is interface text.
+# rather than about one request (the deletion sentence, the sentence that
+# linking a meter needs a confirmed address). It may name the shape of a
+# figure, because that is interface text.
 # It may never be a sentence about the household's electricity. Advice text
 # arrives from the API, which is the
 # language boundary: `title`, `text`, `confidence_label`, `basis_text`,
@@ -118,7 +119,6 @@ Beantwoord vier vragen
 Bedragen per kilowattuur, exclusief btw, op een vast contract. De veelgenoemde 3 tot 8 cent is de brutovergoeding, met de terugleverkosten er nog voor. Op een dynamisch contract blijft de vergoeding 5 tot 7 cent en positief. Zie
 Begin een nieuwe berekening
 Bent u het niet eens met wat wij doen, laat het ons weten. U kunt uw bezwaar sturen naar het adres bovenaan deze pagina.
-Bent u uw wachtwoord kwijt, dan kunnen wij het niet herstellen. Er is nog geen wachtwoordherstel, en zonder uw wachtwoord komt u ook niet meer bij de knop waarmee u uw account verwijdert.
 Berekenen
 Betrouwbaarheid:
 Beweeg over de plaat of gebruik de pijltjestoetsen om een kwartier te lezen.
@@ -181,9 +181,10 @@ Dit logboek ruimen wij niet op. Zodra uw advies weg is, wijst die afdruk nergens
 Dit staat op de offerte of de factuur van uw installateur, en meestal ook in de app van uw omvormer. Weet u het niet: tel uw panelen en reken ongeveer 400 wattpiek per paneel. Twaalf panelen is dan ongeveer 4.800.
 Dit staat op uw jaarnota, of in uw account bij uw energieleverancier. Reken zonder het laden van een elektrische auto en zonder een warmtepomp, ook als u die wel heeft. Daar vragen wij zo apart naar en wij tellen ze er dan zelf bij op. Staan ze op uw jaarnota, haal ze er dan af. Een schatting is genoeg: zonder auto en zonder warmtepomp zit een huishouden vaak tussen 2.000 en 3.500 kWh.
 Donker
-Doorgeven aan een installateur
 E-mail
 E-mailadres
+E-mailadres bevestigd
+E-mailadres nog niet bevestigd
 EAST
 Een bedrag met een bandbreedte, niet één getal
 Een bedrag per jaar met de bandbreedte eromheen, hoe zeker dat antwoord is, en drie routes in vaste volgorde: uw eigen ritme verschuiven, slimmer sturen met wat u al heeft, en stroom opslaan in een thuisbatterij. De routes die niets kosten staan altijd bovenaan, ook als er bij u aan een ervan niets te halen valt.
@@ -199,6 +200,7 @@ Einde salderingsregeling: wat het bij u doet
 Elk advies zegt welke regels gevuurd hebben. U ziet dus waarom u juist dit antwoord kreeg.
 Elk antwoord is nodig voor de berekening. Uw postcodegebied kiest de zonnereeks. Uw jaarverbruik schaalt uw verbruiksprofiel. Wattpiek en dakligging bepalen uw opbrengst.
 Elke kolom is een dag, van 1 januari links tot 31 december rechts. Elke rij is een kwartier, van middernacht boven tot middernacht onder.
+Er is een e-mail onderweg om uw adres te bevestigen.
 Er is geen tabel bij ons met een IP-adres erin. Er is ook geen logregel die er een bewaart.
 Er is geen vraag die wij alleen voor de statistiek stellen. Er is ook geen tweede doel: geen advertenties, geen profiel en geen doorverkoop.
 Er is nog geen knop waarmee u uw advies zelf weggooit. Uw advies verdwijnt sowieso na 90 dagen. Wilt u het eerder weg hebben, stuur ons dan een bericht met uw link erbij.
@@ -256,7 +258,6 @@ Kopieer deze link
 Kopieren lukte niet. Neem de link hierboven over.
 Krijg ik straks te horen dat ik een batterij moet kopen?
 KvK-nummer
-Kwartiergegevens van uw slimme meter
 LEAD_GENERATION
 LIMITED_BY_LARGEST_SIMULATED_CAPACITY
 Laatst gewijzigd op 2 september 2026.
@@ -364,6 +365,7 @@ Uw advies is opgehaald.
 Uw advies wordt opgehaald
 Uw antwoorden en uw keuze voor licht of donker staan in de opslag van uw eigen browser. Die blijven op uw apparaat en komen niet bij ons binnen. Sluit u het tabblad, dan zijn uw antwoorden weg.
 Uw boiler, uw laadpaal of uw warmtepomp anders inregelen, of kijken of een ander contract bij uw patroon past. Apparaten die u al heeft, anders gebruikt.
+Uw e-mailadres is bevestigd.
 Uw gegevens
 Uw gegevens worden opgehaald.
 Uw jaar in kwartieren
@@ -375,6 +377,7 @@ Uw meter houdt twee standen bij: wat u afnam en wat u teruggaf. Bij salderen wor
 Uw ritme verschuiven, en slimmer sturen met apparaten die u al heeft. Opslag komt daarna, en bij een deel van de huishoudens komt daar uit: nu geen batterij.
 Uw situatie doorrekenen
 Uw wachtwoord
+Uw wachtwoord is gewijzigd. Log in met uw nieuwe wachtwoord.
 Van uw postcode bewaren wij vier cijfers
 Vanaf 2027
 Vanaf 2027 houdt u van een teruggeleverde kilowattuur op een vast contract
@@ -387,6 +390,7 @@ Verbruiksjaar
 Verder
 Verder gaat er niets naar buiten
 Verfijn uw antwoord
+Verstuur de bevestigingsmail opnieuw
 Verwijderen bevestigen
 Vier vragen over uw dak en uw verbruik, en u ziet wat er vanaf 1 januari 2027 bij u verandert, met de marge eromheen.
 Vier vragen over uw dak en uw verbruik, en u ziet wat het einde van de salderingsregeling bij uw huis doet, met de bandbreedte erbij. Gratis, geen account.
@@ -400,6 +404,7 @@ Vijf vragen erbij maken deze uitkomst scherper: of er overdag iemand thuis is, h
 Volgorde
 Voor de meeste huishoudens wel, maar minder dan nu, en hoeveel minder verschilt sterk. Dat is precies het bedrag dat wij voor u uitrekenen.
 Voor de zonopbrengst gebruiken wij zelfs maar de eerste twee cijfers. Daarmee zoeken wij de instraling van uw regio op.
+Voor het koppelen van een slimme meter is een bevestigd e-mailadres nodig.
 Voor huishoudens met zonnepanelen
 Voortgang
 Vraag
@@ -560,6 +565,7 @@ https://schema.org
 https://www.autoriteitpersoonsgegevens.nl/
 in.
 info@ampeer.nl
+inloggen
 is verantwoordelijk voor de gegevens die via ampeer.nl worden verwerkt. Heeft u een vraag over uw gegevens, mail dan naar het adres hieronder. Wij antwoorden binnen een maand.
 ja
 jaar
@@ -584,6 +590,7 @@ mt-10 text-xl font-medium
 mt-6 font-medium
 mt-8 text-lg font-medium
 nee
+nieuw-wachtwoord
 nl
 nl-NL
 nl_NL
@@ -598,6 +605,7 @@ password
 per jaar
 per kWh
 postalAddress
+registreren
 reset
 rgb(
 ronde
@@ -626,6 +634,7 @@ verify
 vraag-titel
 vraag-toelichting
 vragen
+wachtwoord-herstellen
 wat er met uw postcode en uw verbruik gebeurt
 wat er op 1 januari 2027 verandert
 website

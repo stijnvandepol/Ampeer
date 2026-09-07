@@ -793,3 +793,342 @@ describe("the account route as Next will call it", () => {
     expect(metadata.robots).toEqual({ index: false, follow: false });
   });
 });
+
+describe("a link with a token in its fragment", () => {
+  const TOKEN = "F".repeat(43);
+
+  afterEach(() => {
+    window.history.replaceState(null, "", "/account/");
+  });
+
+  it("opens the new-password form on a reset fragment when nobody is signed in", async () => {
+    window.history.replaceState(null, "", `/account/#herstel=${TOKEN}`);
+    const replaceState = vi.spyOn(window.history, "replaceState");
+    stub([
+      { status: 401, body: { detail: "u bent niet ingelogd" } },
+      { status: 200 },
+      { status: 401, body: { detail: "u bent niet ingelogd" } },
+    ]);
+    render(<AccountPage />);
+    expect(
+      await screen.findByRole("heading", { name: "Nieuw wachtwoord" }),
+    ).toBeInTheDocument();
+    expect(window.location.hash).toBe("");
+    // The fragment left the address bar through replaceState and not through
+    // a navigation: the page, not the browser, took the token out of
+    // history. The first argument is `null`, not `expect.anything()` (which
+    // Vitest's matcher explicitly refuses to match against `null`): the
+    // setup above put the browser in a state of `null` before this render,
+    // and fragment.ts's own contract is to carry that state through
+    // unchanged rather than clobber it, which this pins to the concrete
+    // value rather than to "some value or other".
+    expect(replaceState).toHaveBeenCalledWith(null, "", "/account/");
+    expect(document.body.innerHTML).not.toContain(TOKEN);
+    expect(document.activeElement).toBe(document.body);
+    replaceState.mockRestore();
+  });
+
+  it("ignores a reset fragment when somebody is signed in", async () => {
+    window.history.replaceState(null, "", `/account/#herstel=${TOKEN}`);
+    stub([
+      { status: 200, body: me },
+      { status: 200, body: consentTexts },
+    ]);
+    render(<AccountPage />);
+    expect(await screen.findByText(me.email)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Nieuw wachtwoord" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("returns to signing in with a notice after the password was saved", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    window.history.replaceState(null, "", `/account/#herstel=${TOKEN}`);
+    const { seen } = stub([
+      { status: 401, body: { detail: "u bent niet ingelogd" } },
+      { status: 200 },
+      { status: 401, body: { detail: "u bent niet ingelogd" } },
+      { status: 204 },
+    ]);
+    render(<AccountPage />);
+    await userEvent.type(
+      // `{ selector: "input" }`, the same disambiguation
+      // `ResetConfirmForm.test.tsx` already uses: chapter 6.2 gives this
+      // form's one field the same label text as its own heading, so an
+      // unqualified label-text lookup also matches the (unlabelled here, but
+      // still self-referencing) `<section>` around it.
+      await screen.findByLabelText("Nieuw wachtwoord", { selector: "input" }),
+      "een-ander-wachtwoord",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Wachtwoord opslaan" }),
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Uw wachtwoord is gewijzigd. Log in met uw nieuwe wachtwoord.",
+    );
+    expect(
+      screen.getByRole("heading", { name: "Inloggen" }),
+    ).toBeInTheDocument();
+    expect(seen.at(-1)).toContain("/api/auth/reset/confirm/");
+    expect(seen.filter((url) => url.endsWith("/me/"))).toHaveLength(2);
+  });
+
+  it("asks for a new link once a reset link turns out to be stale", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    window.history.replaceState(null, "", `/account/#herstel=${TOKEN}`);
+    stub([
+      { status: 401, body: { detail: "u bent niet ingelogd" } },
+      { status: 200 },
+      { status: 401, body: { detail: "u bent niet ingelogd" } },
+      {
+        status: 400,
+        body: {
+          token: ["deze link is verlopen of al gebruikt; vraag een nieuwe aan"],
+        },
+      },
+    ]);
+    render(<AccountPage />);
+    await userEvent.type(
+      await screen.findByLabelText("Nieuw wachtwoord", { selector: "input" }),
+      "een-ander-wachtwoord",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Wachtwoord opslaan" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Wachtwoord vergeten?" }),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Wachtwoord herstellen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("confirms an address only after the first me/, and asks me/ again when signed in", async () => {
+    window.history.replaceState(null, "", `/account/#verificatie=${TOKEN}`);
+    // Answered by path and not by position: the confirmation is posted from
+    // the session callback, before React has mounted AccountView and started
+    // its consent-texts effect, so the order between those two requests is an
+    // implementation detail this test must not depend on. What it asserts is
+    // the order between me/ and verify/confirm/, which is the rule.
+    const seen: string[] = [];
+    let meCalls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        seen.push(url);
+        const path = new URL(url).pathname;
+        if (path === "/api/auth/me/") {
+          meCalls += 1;
+          const body =
+            meCalls === 1
+              ? me
+              : { ...me, email_verified_at: "2026-09-06T10:00:00+00:00" };
+          return new Response(JSON.stringify(body), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (path === "/api/auth/consent-texts/")
+          return new Response(JSON.stringify(consentTexts), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        if (path === "/api/auth/verify/confirm/")
+          return new Response(null, { status: 204 });
+        throw new Error(`no answer planned for ${path}`);
+      }),
+    );
+    render(<AccountPage />);
+    expect(
+      await screen.findByText("Uw e-mailadres is bevestigd."),
+    ).toBeInTheDocument();
+    const paths = seen.map((url) => new URL(url).pathname);
+    expect(paths.indexOf("/api/auth/verify/confirm/")).toBeGreaterThan(
+      paths.indexOf("/api/auth/me/"),
+    );
+    expect(paths.filter((path) => path === "/api/auth/me/")).toHaveLength(2);
+    expect(
+      await screen.findByText("E-mailadres bevestigd"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: "Verstuur de bevestigingsmail opnieuw",
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("confirms an address for a visitor who is not signed in, and shows the sign-in form", async () => {
+    window.history.replaceState(null, "", `/account/#verificatie=${TOKEN}`);
+    const { seen } = stub([
+      { status: 401, body: { detail: "u bent niet ingelogd" } },
+      { status: 200 },
+      { status: 401, body: { detail: "u bent niet ingelogd" } },
+      { status: 204 },
+    ]);
+    render(<AccountPage />);
+    expect(
+      await screen.findByText("Uw e-mailadres is bevestigd."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Inloggen" }),
+    ).toBeInTheDocument();
+    expect(seen.filter((url) => url.endsWith("/me/"))).toHaveLength(2);
+  });
+
+  it("shows the API's sentence when the confirmation link is stale", async () => {
+    window.history.replaceState(null, "", `/account/#verificatie=${TOKEN}`);
+    stub([
+      { status: 401, body: { detail: "u bent niet ingelogd" } },
+      { status: 200 },
+      { status: 401, body: { detail: "u bent niet ingelogd" } },
+      {
+        status: 400,
+        body: {
+          token: ["deze link is verlopen of al gebruikt; vraag een nieuwe aan"],
+        },
+      },
+    ]);
+    render(<AccountPage />);
+    // findByText, not findByRole("status"): the loading sentence is also a
+    // role="status" paragraph, present on the very first render, so a plain
+    // findByRole("status") resolves on that one before this effect's fetch
+    // chain has had a turn to run.
+    expect(
+      await screen.findByText(
+        "deze link is verlopen of al gebruikt; vraag een nieuwe aan",
+      ),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("the address line in the account view", () => {
+  it("says the address is not yet confirmed, offers to resend, and says why it matters", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    const { seen } = stub([
+      { status: 200, body: me },
+      { status: 200, body: consentTexts },
+      { status: 202, body: {} },
+    ]);
+    render(<AccountPage />);
+    expect(
+      await screen.findByText("E-mailadres nog niet bevestigd"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Voor het koppelen van een slimme meter is een bevestigd e-mailadres nodig.",
+      ),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "Verstuur de bevestigingsmail opnieuw",
+      }),
+    );
+    expect(
+      await screen.findByText("De bevestigingsmail is onderweg."),
+    ).toBeInTheDocument();
+    expect(seen.at(-1)).toContain("/api/auth/verify/request/");
+  });
+
+  it("shows the API's own sentence when resending the confirmation mail fails", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    stub([
+      { status: 200, body: me },
+      { status: 200, body: consentTexts },
+      {
+        status: 429,
+        body: { detail: "u vraagt dit te vaak, probeer het later opnieuw" },
+      },
+    ]);
+    render(<AccountPage />);
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: "Verstuur de bevestigingsmail opnieuw",
+      }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "u vraagt dit te vaak, probeer het later opnieuw",
+    );
+    expect(
+      screen.getByText("E-mailadres nog niet bevestigd"),
+    ).toBeInTheDocument();
+  });
+
+  it("says the address is confirmed and offers nothing when it is", async () => {
+    stub([
+      {
+        status: 200,
+        body: { ...me, email_verified_at: "2026-09-06T10:00:00+00:00" },
+      },
+      { status: 200, body: consentTexts },
+    ]);
+    render(<AccountPage />);
+    expect(
+      await screen.findByText("E-mailadres bevestigd"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: "Verstuur de bevestigingsmail opnieuw",
+      }),
+    ).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("2026-09-06");
+  });
+
+  it("says a mail is on its way right after registering", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    stub([
+      { status: 401, body: { detail: "u bent niet ingelogd" } },
+      { status: 200 },
+      { status: 401, body: { detail: "u bent niet ingelogd" } },
+      { status: 200, body: consentTexts },
+      { status: 201 },
+      { status: 200, body: me },
+      { status: 200, body: consentTexts },
+    ]);
+    render(<AccountPage />);
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: "Nog geen account? Account aanmaken",
+      }),
+    );
+    await userEvent.type(
+      await screen.findByLabelText("E-mailadres"),
+      "iemand@voorbeeld.nl",
+    );
+    await userEvent.type(
+      screen.getByLabelText("Wachtwoord"),
+      "een-heel-lang-wachtwoord",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Account aanmaken" }),
+    );
+    expect(
+      await screen.findByText(
+        "Er is een e-mail onderweg om uw adres te bevestigen.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("reaches the request form from the sign-in form and back", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    stub([
+      { status: 401, body: { detail: "u bent niet ingelogd" } },
+      { status: 200 },
+      { status: 401, body: { detail: "u bent niet ingelogd" } },
+    ]);
+    render(<AccountPage />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Wachtwoord vergeten?" }),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Wachtwoord herstellen" }),
+    ).toBeInTheDocument();
+    expect(document.activeElement).not.toBe(document.body);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Terug naar inloggen" }),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Inloggen" }),
+    ).toBeInTheDocument();
+  });
+});

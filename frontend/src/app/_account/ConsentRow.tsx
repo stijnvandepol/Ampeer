@@ -3,18 +3,6 @@
 import type { ConsentAction, ConsentKind } from "@/lib/accounts";
 
 /**
- * What each consent is about, in three or four words.
- *
- * Interface text and not the consent itself: this names the row so a reader can
- * see at a glance which one they are looking at. The sentence they agree to is
- * the one from the API, underneath, and it is the only one that is recorded.
- */
-export const CONSENT_LABELS: Readonly<Record<ConsentKind, string>> = {
-  LEAD_GENERATION: "Doorgeven aan een installateur",
-  METER_LINK: "Kwartiergegevens van uw slimme meter",
-};
-
-/**
  * One consent as a checkbox, for the registration form.
  *
  * No `required`, and that is a rule rather than an omission: article 7(4) says
@@ -29,11 +17,13 @@ export const CONSENT_LABELS: Readonly<Record<ConsentKind, string>> = {
  */
 export function ConsentCheckbox({
   kind,
+  label,
   text,
   checked,
   onChange,
 }: {
   readonly kind: ConsentKind;
+  readonly label: string;
   readonly text: string;
   readonly checked: boolean;
   readonly onChange: (checked: boolean) => void;
@@ -49,7 +39,7 @@ export function ConsentCheckbox({
         onChange={(event) => onChange(event.target.checked)}
       />
       <label htmlFor={id} className="max-w-[60ch] text-sm">
-        <span className="block font-medium">{CONSENT_LABELS[kind]}</span>
+        <span className="block font-medium">{label}</span>
         <span className="block text-ink-muted">{text}</span>
       </label>
     </div>
@@ -86,15 +76,24 @@ export function ConsentCheckbox({
  * still exposes `aria-describedby` on a disabled control) even though the
  * button itself cannot be activated, which keeps the visual "unavailable"
  * state exactly as before.
+ *
+ * The label is a prop since 2026-09-06 and comes from the same
+ * `consent-texts/` answer as the sentence, under the same version (decision
+ * 38). When that answer could not be fetched there is no label either, and
+ * the description carries only the explanation; two rows then read alike,
+ * which is the same degradation this row already accepts for the sentence,
+ * reachable only while the API is down with the page open.
  */
 export function ConsentRow({
   kind,
+  label,
   text,
   granted,
   busy,
   onToggle,
 }: {
   readonly kind: ConsentKind;
+  readonly label: string | null;
   readonly text: string | null;
   readonly granted: boolean;
   readonly busy: boolean;
@@ -106,7 +105,7 @@ export function ConsentRow({
   const textId = `consent-text-${kind.toLowerCase()}`;
   const explanationId = `consent-unavailable-${kind.toLowerCase()}`;
   const describedBy = [
-    labelId,
+    label === null ? null : labelId,
     text === null ? null : textId,
     unavailable ? explanationId : null,
   ]
@@ -114,9 +113,11 @@ export function ConsentRow({
     .join(" ");
   return (
     <div className="flex flex-col gap-2 border-t border-hairline pt-4">
-      <p id={labelId} className="font-medium">
-        {CONSENT_LABELS[kind]}
-      </p>
+      {label !== null && (
+        <p id={labelId} className="font-medium">
+          {label}
+        </p>
+      )}
       {text !== null && (
         <p id={textId} className="max-w-[60ch] text-sm text-ink-muted">
           {text}

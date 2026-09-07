@@ -5,7 +5,8 @@ import { getMe, login, type Me } from "@/lib/accounts";
 import { describeAuthError, fieldErrors } from "./messages";
 
 /**
- * Signing in, and the one honest sentence underneath it.
+ * Signing in, and the way out for somebody who cannot: the reset request
+ * stands where a sentence saying there was no reset stood until 2026-09-06.
  *
  * `me/` is asked after the 200 because `login/` answers with no body at all,
  * and that second call is not a retry: it is the question that fills the
@@ -16,9 +17,11 @@ import { describeAuthError, fieldErrors } from "./messages";
 export function SignInForm({
   onSignedIn,
   onRegister,
+  onForgot,
 }: {
   readonly onSignedIn: (me: Me) => void;
   readonly onRegister: () => void;
+  readonly onForgot: () => void;
 }) {
   const emailId = useId();
   const passwordId = useId();
@@ -129,10 +132,10 @@ export function SignInForm({
           {failure}
         </p>
       )}
-      <p className="max-w-[60ch] text-sm text-ink-muted">
-        Bent u uw wachtwoord kwijt, dan kunnen wij het niet herstellen. Er is
-        nog geen wachtwoordherstel, en zonder uw wachtwoord komt u ook niet meer
-        bij de knop waarmee u uw account verwijdert.
+      <p>
+        <button type="button" className="button-quiet" onClick={onForgot}>
+          Wachtwoord vergeten?
+        </button>
       </p>
       <p>
         <button type="button" className="button-quiet" onClick={onRegister}>
