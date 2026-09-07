@@ -41,9 +41,15 @@ export default defineConfig({
         // the accounts frontend branch, from a measurement of 97.27 / 94.76 /
         // 96.63 / 98.14 rounded down. Functions stays at 96 because the
         // rounded-down measurement is 96 too: equal is not lower.
+        //
+        // Raised again 97/94/96/98 -> 97/94/97/98 on 2026-09-07, at the end
+        // of the accounts recovery branch, from a measurement of 97.61 /
+        // 94.36 / 97.04 / 98.63 rounded down. Only functions moves: the
+        // other three round down to their current floor, and equal is not
+        // lower.
         statements: 97,
         branches: 94,
-        functions: 96,
+        functions: 97,
         lines: 98,
       },
     },
