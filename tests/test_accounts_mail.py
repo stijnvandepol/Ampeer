@@ -331,7 +331,10 @@ def test_the_backoff_is_one_five_fifteen_sixty_and_then_failed(
     OutboundMail.objects.filter(pk=row.pk).update(
         next_attempt_at=timezone.now(), created_at=timezone.now() - timedelta(hours=25)
     )
-    _run()
+    # The run that gives up on the row reports it in the same breath: a row
+    # stamped `failed_at` inside the last day is what the command counts.
+    with pytest.raises(CommandError, match="1 were given up on"):
+        _run()
     row.refresh_from_db()
     assert row.failed_at is not None
     assert row.attempts == 6
@@ -343,7 +346,8 @@ def test_a_four_hundred_other_than_429_fails_at_once(
 ) -> None:
     monkeypatch.setattr(mailer, "transport", lambda: _Failing(401))
     recovery.request_password_reset(_account.email)
-    _run()
+    with pytest.raises(CommandError, match="1 were given up on"):
+        _run()
     row = OutboundMail.objects.get()
     assert row.failed_at is not None
     assert row.last_status == 401
@@ -369,8 +373,11 @@ def test_a_failed_row_is_never_picked_up_again(
     transport = _Failing(401)
     monkeypatch.setattr(mailer, "transport", lambda: transport)
     recovery.request_password_reset(_account.email)
-    _run()
-    _run()
+    for _ in range(2):
+        # Both runs end non-zero on the same abandoned row, and only the first
+        # one touched the transport: that is the property under test.
+        with pytest.raises(CommandError, match="1 were given up on"):
+            _run()
     assert transport.attempts == 1
 
 
@@ -444,6 +451,35 @@ def test_the_command_exits_nonzero_when_something_is_overdue(
     monkeypatch.setattr(mailer, "transport", lambda: _Failing(0))
     with pytest.raises(CommandError, match="waiting"):
         _run()
+
+
+@pytest.mark.django_db
+def test_a_row_that_gave_up_at_once_is_counted_although_nothing_is_overdue(
+    _account: User, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The shape a wrong `RESEND_API_KEY` makes. A 401 is not retryable, so
+    the row is stamped `failed_at` on its first attempt and is never an unsent
+    row that has been waiting fifteen minutes. While the overdue count was the
+    only question asked, every mail could fail permanently and the unit,
+    `--check` and the deploy step all stayed green."""
+    monkeypatch.setattr(mailer, "transport", lambda: _Failing(401))
+    recovery.request_password_reset(_account.email)
+    with pytest.raises(CommandError, match="1 were given up on"):
+        _run()
+    row = OutboundMail.objects.get()
+    assert row.failed_at is not None
+    assert row.last_status == 401
+    # There is no unsent row left at all, so no row can ever become overdue:
+    # the only count that can see this outbox is the abandoned one.
+    assert OutboundMail.objects.filter(failed_at__isnull=True).count() == 0
+    with pytest.raises(CommandError, match="0 mails have been waiting .* 1 were given up on"):
+        _run("--check")
+    assert mailer.MEMORY.sent == []
+    # Loud for a day and then quiet, which is what makes it a signal: the row
+    # survives until the purge, and a check that never went green again would
+    # be a check nobody could clear.
+    OutboundMail.objects.update(failed_at=timezone.now() - timedelta(hours=25))
+    _run("--check")
 
 
 def test_the_claim_reads_the_source_for_skip_locked() -> None:

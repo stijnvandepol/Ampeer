@@ -192,12 +192,16 @@ systemctl list-timers ampeer-mail.timer       # NEXT must be within a minute
 docker compose --env-file /srv/ampeer/.env -f /srv/ampeer/docker-compose.yml run --rm --entrypoint python api backend/manage.py send_outbound_mail --check
 ```
 
-The second command exits non-zero as soon as an unsent mail is older than
-fifteen minutes, and the deploy job runs it after `migrate` for the same
-reason it runs the purge check there. It does not notice a timer that was
-never enabled until the first mail is fifteen minutes late, which for a
-household is already too late; only `list-timers` answers that question, and
-it is written down here rather than papered over.
+The second command exits non-zero on two different failures, and it names the
+counts apart: an unsent mail older than fifteen minutes, and a mail the sender
+gave up on within the last day. The first is a timer that has stopped. The
+second is a status nothing will retry, a wrong `RESEND_API_KEY` being the
+likeliest, which fails every mail on its first attempt and therefore leaves
+nothing waiting for the first count to find. The deploy job runs the command
+after `migrate` for the same reason it runs the purge check there. It does not
+notice a timer that was never enabled until the first mail is fifteen minutes
+late, which for a household is already too late; only `list-timers` answers
+that question, and it is written down here rather than papered over.
 
 ### What notices when the purge stops, and what does not
 

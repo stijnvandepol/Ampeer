@@ -28,6 +28,19 @@ report the count and exit non-zero, so the unit shows failed while the next
 tick still drains everything after the poison row. Only the exception's
 class name reaches the journal, never `str(error)`, which could carry an
 address if the failure happened while composing the message.
+
+Every run, with `--check` and without it, ends by counting two kinds of
+trouble and exiting non-zero on either. A row still unsent after
+`OVERDUE_AFTER` is a timer that has stopped or a transport that refuses
+everything. A row already stamped `failed_at` inside the last
+`GIVE_UP_AFTER` is the opposite shape and the one the first version of this
+command could not see: a status the sender will never retry, a wrong
+`RESEND_API_KEY` being the likeliest, makes every row fail on its first
+attempt and leaves the outbox empty of anything overdue, so a check that
+only asked the first question stayed green while no mail was reaching
+anybody. Counting the given-up rows makes that state loud for a day, every
+minute; the purge removes such a row after seven days, which is fine,
+because by then the day of red has been seen.
 """
 
 from __future__ import annotations
@@ -92,13 +105,16 @@ def _retryable(status: int) -> bool:
 
 
 class Command(BaseCommand):
-    help = "Send what is waiting in the outbox; with --check only report what is overdue."
+    help = "Send what is waiting in the outbox; with --check only report what is stuck."
 
     def add_arguments(self, parser: Any) -> None:
         parser.add_argument(
             "--check",
             action="store_true",
-            help="Send nothing; exit non-zero if an unsent mail is older than fifteen minutes.",
+            help=(
+                "Send nothing; exit non-zero if an unsent mail is older than fifteen "
+                "minutes or a mail was given up on in the last day."
+            ),
         )
 
     def handle(self, *args: Any, **options: Any) -> None:
@@ -110,13 +126,21 @@ class Command(BaseCommand):
                     f"{faulted} row(s) raised something other than a transport failure; "
                     "deferred like any other and left for the next run"
                 )
+        self._report_what_is_stuck()
+
+    def _report_what_is_stuck(self) -> None:
+        """Two counts, not one. Waiting too long and given up on are different
+        failures with different causes, so the message names them apart."""
+        now = timezone.now()
         overdue = OutboundMail.objects.filter(
-            failed_at__isnull=True, created_at__lte=timezone.now() - OVERDUE_AFTER
+            failed_at__isnull=True, created_at__lte=now - OVERDUE_AFTER
         ).count()
-        if overdue:
+        abandoned = OutboundMail.objects.filter(failed_at__gte=now - GIVE_UP_AFTER).count()
+        if overdue or abandoned:
             raise CommandError(
-                f"{overdue} mails have been waiting longer than {OVERDUE_AFTER}; "
-                "the timer has stopped or the transport refuses everything"
+                f"{overdue} mails have been waiting longer than {OVERDUE_AFTER} and "
+                f"{abandoned} were given up on in the last {GIVE_UP_AFTER}; "
+                "the timer has stopped, or the transport refuses everything"
             )
 
     def _deliver(self) -> tuple[int, int, int]:
