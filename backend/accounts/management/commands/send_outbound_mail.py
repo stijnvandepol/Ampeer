@@ -99,9 +99,18 @@ def _compose(row: OutboundMail, raw_token: str) -> mailer.Message:
 
 
 def _retryable(status: int) -> bool:
-    """A network fault, a timeout, a 429 or a 5xx is worth another attempt. A
-    wrong key or an address the provider refuses is not."""
-    return status == 0 or status == 429 or status >= 500
+    """A network fault, a timeout, a 200 nobody could read, a 429 or a 5xx is
+    worth another attempt. A wrong key or an address the provider refuses is not.
+
+    200 belongs here because `ResendTransport.send` raises `TransportError(200)`
+    for an answer it accepted and then could not read: no JSON, or JSON without
+    an `id`. That is a message which may well have been delivered, so the
+    question is not whether a retry is safe but whether it is wasteful, and
+    `Idempotency-Key` answers it: the provider recognises the second attempt as
+    the same message. Treating it as permanent is the expensive mistake, because
+    it silently drops a reset link on a body the provider changed the shape of.
+    """
+    return status in (0, 200, 429) or status >= 500
 
 
 class Command(BaseCommand):

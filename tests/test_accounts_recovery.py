@@ -450,7 +450,10 @@ def test_a_verification_confirm_answers_204_and_me_carries_the_timestamp(client:
     )
     assert response.status_code == 204
     after = client.get("/api/auth/me/").json()
-    assert datetime.fromisoformat(after["email_verified_at"]) is not None
+    assert after["email_verified_at"] is not None
+    # The parse is the check. `fromisoformat` either returns a datetime or
+    # raises, so comparing its result to None asserted nothing at all.
+    datetime.fromisoformat(after["email_verified_at"])
     again = client.post(
         "/api/auth/verify/confirm/", {"token": raw}, content_type="application/json", **headers
     )

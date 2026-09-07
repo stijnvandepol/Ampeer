@@ -355,6 +355,25 @@ def test_a_four_hundred_other_than_429_fails_at_once(
 
 
 @pytest.mark.django_db
+def test_a_200_nobody_could_read_is_retried_rather_than_abandoned(
+    _account: User, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`ResendTransport.send` raises `TransportError(200)` when the provider
+    accepted the message and answered with something this code cannot read: no
+    JSON, or JSON without an `id`. The mail may well have gone out, so the
+    question is whether the retry is wasteful rather than whether it is safe,
+    and the `Idempotency-Key` on every message answers that. Abandoning the row
+    instead drops a reset link on nothing worse than a changed response shape."""
+    monkeypatch.setattr(mailer, "transport", lambda: _Failing(200))
+    recovery.request_password_reset(_account.email)
+    _run()
+    row = OutboundMail.objects.get()
+    assert row.failed_at is None
+    assert row.last_status == 200
+    assert row.attempts == 1
+
+
+@pytest.mark.django_db
 def test_a_429_is_retried_like_a_network_fault(
     _account: User, monkeypatch: pytest.MonkeyPatch
 ) -> None:
