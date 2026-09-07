@@ -641,7 +641,13 @@ class TestTheBrowserIsAllowedToReadTheAnswer:
     reads an hour, computes an answer, and the browser drops it.
     """
 
-    ALLOWED = "http://localhost:3000"
+    #: One of the two origins dev.py names, which the test settings inherit.
+    #: It was `http://localhost:3000` until 2026-09-07, when that origin left
+    #: dev.py: a cookie belongs to a site, and localhost is not the site
+    #: 127.0.0.1 is, so no account page served from there could ever hold a
+    #: session. The advice API carries no cookie and did not care, which is
+    #: precisely why the constant had to be read off the settings that ship.
+    ALLOWED = "http://127.0.0.1:3000"
 
     def test_a_preflight_from_the_frontend_is_answered(self) -> None:
         """The POSTs send content-type: application/json, which is outside the

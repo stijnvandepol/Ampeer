@@ -43,13 +43,25 @@ DATABASES = {
 # left open, so a developer meets the same shape of failure locally that a
 # misconfigured production would produce, instead of discovering CORS exists on
 # the day of the deploy.
-CORS_ALLOWED_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000", "http://127.0.0.1:4173"]
+#
+# http://localhost:3000 stood here until 2026-09-07 and could never hold a
+# session, so allowing it only moved the failure somewhere harder to read. A
+# cookie belongs to a SITE, and localhost and 127.0.0.1 are two different
+# sites: a page served from localhost:3000 is not sent the SameSite=Strict
+# session cookie that was set for 127.0.0.1, and the csrftoken cookie carries
+# no Domain attribute, which makes it host-only and equally out of reach.
+# Neither of those is a CORS question, so Access-Control-Allow-Credentials
+# does not reach either one. A developer opens 127.0.0.1:3000.
+CORS_ALLOWED_ORIGINS = ["http://127.0.0.1:3000", "http://127.0.0.1:4173"]
 
-# Cookies are allowed to travel here, because without that a developer cannot
-# log in at all: localhost:3000 to 127.0.0.1:8000 is cross-site, and the
-# browser drops a SameSite=Strict cookie there. Only for the three origins
-# above. prod.py does not set this, and base.py explains why it does not need
-# to there.
+# Cookies are allowed to travel here because both origins above are a
+# different PORT from the API on 8000, which makes every request from them
+# cross-origin: without this the browser refuses the response to a request
+# sent with credentials, so the session never gets used even though the
+# cookie itself was willing to travel. A port is not part of a site, which is
+# why staying on 127.0.0.1 is what makes that cookie willing. Only for the two
+# origins above. prod.py does not set this, and base.py explains why it does
+# not need to there.
 CORS_ALLOW_CREDENTIALS = True
 AMPEER_COOKIE_SECURE = False
 
@@ -63,9 +75,9 @@ AMPEER_COOKIE_SECURE = False
 # content-type because the advice API needs nothing else; the account API
 # does, and only across ports. Second: Django's CSRF check compares the Origin
 # header with the request's own host, so an Origin on port 3000 against a
-# host on port 8000 is refused as cross-site unless it is trusted here. Both
-# lists are the same three origins on purpose: a fourth place to list them is
-# a fourth place for one of them to be forgotten.
+# host on port 8000 is refused unless it is trusted here. Both
+# lists are the same two origins on purpose: a third place to list them is
+# a third place for one of them to be forgotten.
 CORS_ALLOW_HEADERS = [*CORS_ALLOW_HEADERS, "x-csrftoken"]
 CSRF_TRUSTED_ORIGINS = list(CORS_ALLOWED_ORIGINS)
 

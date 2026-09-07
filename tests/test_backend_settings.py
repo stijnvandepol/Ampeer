@@ -852,10 +852,41 @@ def test_development_still_allows_the_cookie_a_developer_needs() -> None:
     environment mirrors production, per Ruling 21, and nothing else in this
     file reads dev.py directly. Without this, a later edit that quietly
     deleted dev.py's own `CORS_ALLOW_CREDENTIALS = True` would leave the
-    whole suite green while a developer's browser dropped every
-    SameSite=Strict cookie: localhost:3000 to 127.0.0.1:8000 is cross-site
-    and this is the one setting that lets it through.
+    whole suite green while a developer's browser refused every authenticated
+    answer: 127.0.0.1:3000 to 127.0.0.1:8000 is cross-origin, and a response
+    to a request sent with credentials is dropped without this header.
     """
     from ampeer.settings import dev
 
     assert dev.CORS_ALLOW_CREDENTIALS is True
+
+
+def test_development_names_only_origins_a_browser_can_hold_a_session_on() -> None:
+    """The rest of what a developer's browser needs, none of which any other
+    test walks.
+
+    Ruling 104 found the first two by hand on 2026-09-07, the first time
+    anybody registered from a real browser against the dev API. The e2e specs
+    answer their own preflights and the stack smoke sends a production shaped
+    Origin, so the whole path had gone unexercised for two cycles. The account
+    client sends X-CSRFToken on every unsafe request, and a preflight that does
+    not name that header makes the browser drop the request before it leaves;
+    Django's CSRF check then compares the Origin with the request's own host
+    and refuses port 3000 against port 8000 unless the origin is trusted.
+
+    The third assertion is the one that makes the other two usable. A cookie
+    belongs to a site, not to an origin, and localhost and 127.0.0.1 are two
+    different sites, so an allowed origin on localhost can never carry the
+    session cookie or the host-only csrftoken cookie no matter what CORS says.
+    Listing one only offers a developer a door that does not open.
+    """
+    from urllib.parse import urlparse
+
+    from ampeer.settings import dev
+
+    assert "x-csrftoken" in dev.CORS_ALLOW_HEADERS
+    assert set(dev.CSRF_TRUSTED_ORIGINS) == set(dev.CORS_ALLOWED_ORIGINS)
+    hosts = [urlparse(origin).hostname for origin in dev.CORS_ALLOWED_ORIGINS]
+    assert "localhost" not in hosts, (
+        f"{hosts} contains localhost, which cannot hold a cookie set for 127.0.0.1"
+    )
