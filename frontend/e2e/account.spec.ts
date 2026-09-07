@@ -823,6 +823,8 @@ test.describe("a link with a token in its fragment", () => {
     expect(bodies).toEqual([{ email: "iemand@voorbeeld.nl" }]);
     await page.getByRole("button", { name: "Terug naar inloggen" }).click();
     await expect(page.getByRole("heading", { name: "Inloggen" })).toBeVisible();
+    await expect(page.locator("body")).not.toContainText("advice API returned");
+    await expect(page.locator("body")).not.toContainText("auth API returned");
   });
 
   test("a confirmation link posts after the first me/ and says the address is confirmed", async ({
@@ -868,6 +870,8 @@ test.describe("a link with a token in its fragment", () => {
     expect(new URL(page.url()).hash).toBe("");
     expect(order.indexOf("confirm")).toBeGreaterThan(order.indexOf("me"));
     expect(order.filter((entry) => entry === "confirm")).toHaveLength(1);
+    await expect(page.locator("body")).not.toContainText("advice API returned");
+    await expect(page.locator("body")).not.toContainText("auth API returned");
   });
 
   test("a stale confirmation link shows the API's sentence and nothing English", async ({
