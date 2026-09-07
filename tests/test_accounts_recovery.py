@@ -459,6 +459,30 @@ def test_a_verification_confirm_answers_204_and_me_carries_the_timestamp(client:
 
 
 @pytest.mark.django_db
+def test_the_export_carries_the_confirmation_timestamp(client: Any) -> None:
+    """Spec 6.4 and the first bullet of the definition of done, and article 15
+    behind both. `me/` has answered this field since the routes landed, so an
+    export without it hands a household less than the screen already shows,
+    and the export is the copy the law is about."""
+    headers = _register(client)
+    user = User.objects.get(email="iemand@voorbeeld.nl")
+    before = client.post("/api/auth/export/", content_type="application/json", **headers).json()
+    assert "email_verified_at" in before, "the export no longer carries the timestamp at all"
+    assert before["email_verified_at"] is None
+    raw = recovery.mint(user, OneTimeToken.EMAIL_VERIFY)
+    confirmed = client.post(
+        "/api/auth/verify/confirm/", {"token": raw}, content_type="application/json", **headers
+    )
+    assert confirmed.status_code == 204
+    after = client.post("/api/auth/export/", content_type="application/json", **headers).json()
+    stamped = after["email_verified_at"]
+    assert stamped is not None
+    # The parse is the check: anything that is not a timestamp raises here.
+    datetime.fromisoformat(stamped)
+    assert stamped == client.get("/api/auth/me/").json()["email_verified_at"]
+
+
+@pytest.mark.django_db
 def test_registration_enqueues_a_verification_mail(client: Any) -> None:
     _register(client)
     user = User.objects.get(email="iemand@voorbeeld.nl")

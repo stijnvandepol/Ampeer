@@ -436,7 +436,8 @@ uit die invoer gemaakt, maar het is niet hetzelfde als het tonen ervan.
 Wie een account heeft, kan sinds fase 1 meer. `GET /api/auth/me/` toont het
 e-mailadres en de actuele stand van beide toestemmingen. `POST
 /api/auth/export/` gaat verder: het geeft het e-mailadres, de datum van
-aanmaken, de volledige geschiedenis van beide toestemmingen (elke rij, niet
+aanmaken, het tijdstip waarop het adres is bevestigd (leeg zolang dat niet is
+gebeurd), de volledige geschiedenis van beide toestemmingen (elke rij, niet
 alleen de laatste) en de lijst van eigen adviezen terug, met daarin zowel de
 antwoorden als het advies zelf. Dat laatste repareert precies het gat dat de
 vorige alinea beschrijft: de invoer wordt hier wel teruggegeven.

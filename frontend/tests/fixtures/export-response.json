@@ -1,6 +1,7 @@
 {
   "email": "iemand@voorbeeld.nl",
   "date_joined": "2026-09-05T09:12:44.512000Z",
+  "email_verified_at": null,
   "consents": [
     {
       "kind": "METER_LINK",

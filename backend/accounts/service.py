@@ -31,6 +31,14 @@ def export_account(user: User) -> dict[str, Any]:
     return {
         "email": user.email,
         "date_joined": user.date_joined.isoformat(),
+        # Beside `date_joined` because it is the same kind of fact about the
+        # account itself, and in here because article 15 owes a copy of every
+        # personal datum the service holds, not of the ones a page happens to
+        # render. `me/` already answers it; an export that left it out would be
+        # a smaller answer than the screen.
+        "email_verified_at": (
+            None if user.email_verified_at is None else user.email_verified_at.isoformat()
+        ),
         "consents": [
             {
                 "kind": row.kind,
