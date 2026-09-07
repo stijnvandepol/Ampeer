@@ -130,8 +130,14 @@ class Command(BaseCommand):
                 "measured_at"
             )
         )
-        if not rows:
-            return 0, 0
+        # No early return for an empty `rows`. `_fold` only ever names links
+        # that have a quarter past the cutoff, so the only way to arrive here
+        # with nothing is a race: an unlink erasing this link's readings
+        # between the id being selected and this transaction opening. That
+        # case needs no branch of its own. An empty `buckets` skips the loop,
+        # and Django resolves `pk__in=[]` to an empty queryset without
+        # issuing a DELETE at all, so the early return saved no query and
+        # only added an arm nothing could reach through this command.
         buckets: dict[datetime, list[QuarterReading]] = {}
         for row in rows:
             hour_start = row.measured_at.replace(minute=0, second=0, microsecond=0)

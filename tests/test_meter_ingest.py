@@ -67,6 +67,41 @@ def test_a_key_that_belongs_to_no_link_is_refused_in_dutch(client: Any) -> None:
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    "header",
+    ["Meter", "Meter one two", "Meter  "],
+    ids=["keyword-alone", "two-values", "trailing-space-only"],
+)
+def test_a_header_that_names_the_keyword_but_carries_no_single_key_is_refused(
+    client: Any, header: str
+) -> None:
+    """The shape between "not for me" and "a key I do not know".
+
+    A header that does not start with `Meter` is answered `None`, because it
+    is somebody else's scheme. Once the keyword is there the caller meant
+    this route, and a header that carries no key, or two, is a device
+    configured wrong: it gets this route's own Dutch sentence, so the line in
+    its log says what is actually the matter instead of DRF's English default
+    for a missing credential.
+
+    Red proof: replace the `len(parts) != 2` raise in
+    `accounts/meter.py` with `return None` and the first case answers DRF's
+    English "Authentication credentials were not provided." instead.
+    """
+    user = _user()
+    _link(user)
+    response = client.post(
+        "/api/meter/readings/",
+        json.dumps(BODY),
+        content_type="application/json",
+        HTTP_AUTHORIZATION=header,
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"] == NL["meter_token_invalid"]
+    assert QuarterReading.objects.count() == 0
+
+
+@pytest.mark.django_db
 def test_a_revoked_links_key_no_longer_works(client: Any) -> None:
     """Red proof: drop `revoked_at__isnull=True` from the lookup in
     `MeterTokenAuthentication.authenticate`."""

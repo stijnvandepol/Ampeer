@@ -43,7 +43,7 @@ GITHUB_ACTIONS_APP_ID = 15368
 #: The floor may be raised, never lowered. See CLAUDE.md. Tracks the measured
 #: floor in pyproject.toml's fail_under; move it only when a re-measurement
 #: raises fail_under, never to make room for a lower one.
-MINIMUM_COVERAGE_FLOOR = 98.73
+MINIMUM_COVERAGE_FLOOR = 98.82
 
 
 def _workflows() -> dict[str, dict[str, Any]]:

@@ -184,7 +184,10 @@ precision = 2
 # 99.17% on this tree (above 99.15), and no protection has been removed by
 # the drop in the number reported here. The combined run (2764 statements,
 # 23 missed, 402 branches, 17 partial) measured 98.74%, without
-# data/nedu-profiles-2025.csv. May be raised, never lowered: a floor below
+# data/nedu-profiles-2025.csv, and from 98.73 to 98.82 on 2026-09-09 at the
+# end of the meter link branch, from a run without that file that measured
+# 2979 statements, 23 missed, 432 branches, 17 partial, so 3371/3411 =
+# 98.8273%, rounded to 98.83. May be raised, never lowered: a floor below
 # the current level makes a regression invisible.
 #
 # The floor sits one hundredth UNDER the measurement, and that hundredth is
@@ -202,7 +205,7 @@ precision = 2
 # caller of a method, so the tree measured 99.06 on Windows and 99.01 on the
 # runner, and the floor set from the local figure went red in CI on its first
 # run. Set the floor from a run without data/, or from the runner.
-fail_under = 98.73
+fail_under = 98.82
 show_missing = true
 
 [tool.bandit]
