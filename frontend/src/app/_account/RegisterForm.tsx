@@ -180,6 +180,7 @@ export function RegisterForm({
             <ConsentCheckbox
               key={kind}
               kind={kind}
+              label={texts.labels[kind]}
               text={texts.texts[kind]}
               checked={given[kind] === true}
               onChange={(checked) =>

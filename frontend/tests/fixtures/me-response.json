@@ -3,5 +3,6 @@
   "consents": {
     "LEAD_GENERATION": false,
     "METER_LINK": true
-  }
+  },
+  "email_verified_at": null
 }

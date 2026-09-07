@@ -795,6 +795,9 @@ def test_the_fixture_keys_are_the_consent_kinds() -> None:
     assert sorted(payload["texts"]) == sorted(Consent.KINDS)
     for kind, sentence in payload["texts"].items():
         assert sentence.strip(), f"{kind} carries an empty sentence"
+    assert sorted(payload["labels"]) == sorted(Consent.KINDS)
+    for kind, label in payload["labels"].items():
+        assert label.strip(), f"{kind} carries an empty label"
 
 
 def test_no_consent_text_lives_in_the_frontend() -> None:
@@ -840,3 +843,42 @@ def test_the_frontend_knows_exactly_the_two_kinds_the_api_has() -> None:
     assert declared == sorted(Consent.KINDS), (
         f"accounts.ts declares {declared} and Consent.KINDS is {sorted(Consent.KINDS)}"
     )
+
+
+def test_no_consent_label_lives_in_the_frontend() -> None:
+    """Decision 38 closed: the labels travel with the texts, so a copy in the
+    frontend would be the drift `text_version` cannot see."""
+    import sys
+
+    sys.path.insert(0, str(REPO_ROOT / "backend"))
+    from accounts.nl import NL
+
+    labels = {key: NL[key] for key in ("CONSENT_LABEL_METER_LINK", "CONSENT_LABEL_LEAD_GENERATION")}
+    offenders = [
+        f"{path.relative_to(REPO_ROOT).as_posix()} carries {key}"
+        for path in sorted(FRONTEND_SOURCE.rglob("*.ts*"))
+        for key, label in labels.items()
+        if label in path.read_text(encoding="utf-8")
+    ]
+    assert not offenders, (
+        "a consent label lives in the frontend as well as in nl.py:\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_the_fragment_accepts_exactly_the_token_length_the_backend_mints() -> None:
+    """43 in fragment.ts and TOKEN_BYTES in recovery.py are one number written
+    on two sides of a language boundary. Held together here."""
+    import secrets
+    import sys
+
+    sys.path.insert(0, str(REPO_ROOT / "backend"))
+    from accounts.recovery import TOKEN_BYTES
+
+    fragment = (FRONTEND_SOURCE / "app" / "_account" / "fragment.ts").read_text(encoding="utf-8")
+    # `PATTERN` builds itself from `TOKEN_LENGTH` through `new RegExp(` + a
+    # template literal, not a `/.../ ` regex literal with the digits written
+    # out, so the number this test pins is read off the exported constant
+    # rather than off the character class it parameterises.
+    declared = re.search(r"export const TOKEN_LENGTH = (\d+);", fragment)
+    assert declared, "fragment.ts no longer pins a token length"
+    assert int(declared.group(1)) == len(secrets.token_urlsafe(TOKEN_BYTES))

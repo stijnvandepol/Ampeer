@@ -61,6 +61,7 @@ def build_consent_texts_payload() -> dict[str, Any]:
     return {
         "text_version": CONSENT_TEXT_VERSION,
         "texts": {kind: NL[f"CONSENT_{kind}"] for kind in sorted(Consent.KINDS)},
+        "labels": {kind: NL[f"CONSENT_LABEL_{kind}"] for kind in sorted(Consent.KINDS)},
     }
 
 

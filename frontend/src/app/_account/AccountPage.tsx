@@ -2,11 +2,14 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import {
+  confirmEmailVerification,
   deleteAccount,
   exportAccount,
   getConsentTexts,
+  getMe,
   logout,
   postConsent,
+  requestEmailVerification,
   type ConsentAction,
   type ConsentKind,
   type ConsentTexts,
@@ -14,13 +17,16 @@ import {
 } from "@/lib/accounts";
 import { ConsentRow } from "./ConsentRow";
 import { RegisterForm } from "./RegisterForm";
+import { ResetConfirmForm } from "./ResetConfirmForm";
+import { ResetRequestForm } from "./ResetRequestForm";
 import { SignInForm } from "./SignInForm";
 import { downloadJson } from "./download";
+import { readRecoveryFragment } from "./fragment";
 import { describeAuthError, fieldErrors } from "./messages";
 import { LOADING, loadSession, signedOut, type AccountState } from "./session";
 
-/** Which of the two signed-out forms is showing. State, not an address. */
-type SignedOutView = "sign_in" | "register";
+/** Which of the four signed-out forms is showing. State, not an address. */
+type SignedOutView = "sign_in" | "register" | "reset_request" | "reset_confirm";
 
 /**
  * Render order, not `CONSENT_KINDS`'s order.
@@ -48,6 +54,27 @@ const CONSENT_RENDER_ORDER: readonly ConsentKind[] = [
 const DELETION_CONFIRMATION = "Uw account is verwijderd.";
 
 /**
+ * Shown above the sign-in view, and above the account view, for the same
+ * reason `DELETION_CONFIRMATION` above is a module constant: the extractor
+ * behind `e2e/language.spec.ts` reads a variable initialiser and not a call
+ * argument.
+ */
+const PASSWORD_CHANGED =
+  "Uw wachtwoord is gewijzigd. Log in met uw nieuwe wachtwoord.";
+const ADDRESS_CONFIRMED = "Uw e-mailadres is bevestigd.";
+const CONFIRMATION_MAIL_UNDERWAY =
+  "Er is een e-mail onderweg om uw adres te bevestigen.";
+/**
+ * Shown after the resend button's 202, for the same reason the other
+ * notices above are module constants: a plain call argument
+ * (`setMailNotice("...")`) sits in a position `e2e/language.spec.ts`'s
+ * extractor does not walk, so the sentence would be invisible to
+ * `ui-strings.txt` and the language check would pass while showing English
+ * nowhere, having simply never looked at this text at all.
+ */
+const RESEND_CONFIRMATION_MAIL_UNDERWAY = "De bevestigingsmail is onderweg.";
+
+/**
  * What deletion removes and what stays, read before the password field.
  *
  * Ruling 52: spec 6.3 as written asks only for a password field and a confirm
@@ -62,8 +89,8 @@ const DELETION_CONFIRMATION = "Uw account is verwijderd.";
 const DELETION_CONSEQUENCES =
   "Hiermee verdwijnen uw e-mailadres, uw twee toestemmingen, uw opgeslagen adviezen en uw sessies. In ons logboek blijft alleen de regel staan dat een account is verwijderd, met een nummer dat nergens meer heen wijst.";
 
-/** The three actions that share one disabled state, alongside a `ConsentKind`. */
-type AccountActionId = "export" | "logout" | "delete";
+/** The four actions that share one disabled state, alongside a `ConsentKind`. */
+type AccountActionId = "export" | "logout" | "delete" | "verify";
 
 /**
  * One route, three views, and the state comes from `me/`.
@@ -101,6 +128,17 @@ export function AccountPage() {
   // and read at render like any other: a ref written in a handler and read in
   // an effect works today and depends on effect ordering to keep working.
   const [visitorActed, setVisitorActed] = useState(false);
+  // The token off a reset link, held here and rendered nowhere. Read once,
+  // before `me/` is asked, so the fragment is gone from the address bar
+  // whatever `me/` answers.
+  const [resetToken, setResetToken] = useState<string | null>(null);
+  // What a confirmation link led to: nothing yet, the sentence for success,
+  // or the API's sentence for a stale link. Rendered in a `role="status"`
+  // above whichever view `me/` decided on.
+  const [verification, setVerification] = useState<string | null>(null);
+  // Whether the account view was reached by registering just now, which is
+  // the one moment "a mail is on its way" is true and worth saying.
+  const [justRegistered, setJustRegistered] = useState(false);
   // Where focus goes once the signed-out view settles or changes. The signed-in
   // view owns its own heading and manages its own focus, in `AccountView`
   // below, because it mounts fresh every time `me/` answers with a person.
@@ -122,8 +160,63 @@ export function AccountPage() {
     // is no assertion that can tell the two apart, so there is no test here
     // rather than three that read green by construction.
     let alive = true;
-    void loadSession().then((next) => {
-      if (alive) setState(next);
+    // The fragment first, and `me/` after it. Order is the rule of chapter 2:
+    // nothing is posted before the first `me/` has come back, so a
+    // confirmation link waits for it, and a reset token only decides a view.
+    //
+    // `window.location.hash` cannot be read during render: this page is
+    // statically exported, so the first render also runs on the server,
+    // where `window` does not exist. Deciding `view` and `resetToken` here,
+    // in the one place that IS client-only, is therefore synchronising with
+    // an external system (the URL, per `react-hooks/set-state-in-effect`'s
+    // own description of what an effect is for) and not deriving state that
+    // render could have computed itself; the first `setState` call below is
+    // disabled for that rule on that basis, having tried and reverted both
+    // alternatives it suggests (a `useState` lazy initialiser breaks the
+    // static export with "window is not defined"; a ref cannot be read
+    // during render either, per this codebase's `react-hooks/refs` rule).
+    const fragment = readRecoveryFragment();
+    if (fragment?.kind === "reset") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setResetToken(fragment.token);
+      setView("reset_confirm");
+    }
+    void loadSession().then(async (next) => {
+      if (!alive) return;
+      setState(next);
+      if (fragment?.kind !== "verify") return;
+      try {
+        await confirmEmailVerification({ token: fragment.token });
+      } catch (error) {
+        if (!alive) return;
+        const perField = fieldErrors(error);
+        setVerification(
+          perField.token === undefined
+            ? describeAuthError(error)
+            : perField.token.join(" "),
+        );
+        return;
+      }
+      if (!alive) return;
+      // Set before the second question is asked, and never taken back by
+      // that question's own failure: the 204 above already spent the token,
+      // so a dropped connection here must not tell a household its address
+      // is unconfirmed when it is not.
+      setVerification(ADDRESS_CONFIRMED);
+      if (next.status !== "signed_in") return;
+      try {
+        // A second `me/` after a change, so the address line below says
+        // what the server now says. Not a retry: the first answer was
+        // right at the time and the question has changed since.
+        const refreshed = await getMe();
+        if (alive) setState({ status: "signed_in", me: refreshed });
+      } catch (error) {
+        // The same answer this page gives a failed `me/` anywhere else
+        // (`askWhoIsSignedIn` in `session.ts`): the sign-in view, with the
+        // network's own sentence. The confirmation line above is untouched
+        // by this branch and stays on screen regardless of `state.status`.
+        if (alive) setState(signedOut(describeAuthError(error)));
+      }
     });
     return () => {
       alive = false;
@@ -153,6 +246,11 @@ export function AccountPage() {
     setState({ status: "signed_in", me: who });
   }
 
+  function registered(who: Me): void {
+    setJustRegistered(true);
+    signedIn(who);
+  }
+
   // A confirmation belongs to the sign-in view it was raised on; the form the
   // visitor switches to next has nothing to confirm.
   function switchView(next: SignedOutView): void {
@@ -170,21 +268,35 @@ export function AccountPage() {
 
   if (state.status === "signed_in") {
     return (
-      <AccountView
-        me={state.me}
-        focusHeadingOnMount={visitorActed}
-        onSignedOut={(line) => {
-          setVisitorActed(true);
-          setConfirmation(line);
-          setView("sign_in");
-          setState(signedOut(null));
-        }}
-      />
+      <div className="flex flex-col gap-8">
+        {verification !== null && (
+          <p role="status" className="max-w-[60ch]">
+            {verification}
+          </p>
+        )}
+        <AccountView
+          me={state.me}
+          focusHeadingOnMount={visitorActed}
+          justRegistered={justRegistered}
+          onSignedOut={(line) => {
+            setVisitorActed(true);
+            setConfirmation(line);
+            setView("sign_in");
+            setJustRegistered(false);
+            setState(signedOut(null));
+          }}
+        />
+      </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-8">
+      {verification !== null && (
+        <p role="status" className="max-w-[60ch]">
+          {verification}
+        </p>
+      )}
       {confirmation !== null && (
         <p ref={confirmationRef} tabIndex={-1} role="status">
           {confirmation}
@@ -199,23 +311,51 @@ export function AccountPage() {
         ref={signedOutRegion}
         tabIndex={-1}
         role="group"
-        aria-labelledby={view === "sign_in" ? "inloggen" : "registreren"}
+        aria-labelledby={GROUP_HEADING[view]}
       >
-        {view === "sign_in" ? (
+        {view === "sign_in" && (
           <SignInForm
             onSignedIn={signedIn}
             onRegister={() => switchView("register")}
+            onForgot={() => switchView("reset_request")}
           />
-        ) : (
+        )}
+        {view === "register" && (
           <RegisterForm
-            onRegistered={signedIn}
+            onRegistered={registered}
             onSignIn={() => switchView("sign_in")}
+          />
+        )}
+        {view === "reset_request" && (
+          <ResetRequestForm onBack={() => switchView("sign_in")} />
+        )}
+        {view === "reset_confirm" && resetToken !== null && (
+          <ResetConfirmForm
+            token={resetToken}
+            onReset={() => {
+              setResetToken(null);
+              setVisitorActed(true);
+              setConfirmation(PASSWORD_CHANGED);
+              setView("sign_in");
+            }}
+            onRequestNew={() => {
+              setResetToken(null);
+              switchView("reset_request");
+            }}
           />
         )}
       </div>
     </div>
   );
 }
+
+/** The `id` of the heading each signed-out view's `role="group"` is labelled by. */
+const GROUP_HEADING: Readonly<Record<SignedOutView, string>> = {
+  sign_in: "inloggen",
+  register: "registreren",
+  reset_request: "wachtwoord-herstellen",
+  reset_confirm: "nieuw-wachtwoord",
+};
 
 /**
  * The account: an address, two consents, and three things you can do with it.
@@ -228,6 +368,7 @@ export function AccountPage() {
 function AccountView({
   me,
   focusHeadingOnMount,
+  justRegistered,
   onSignedOut,
 }: {
   readonly me: Me;
@@ -241,6 +382,8 @@ function AccountView({
    * this heading skips the skip link, the navigation and the `<h1>` above it.
    */
   readonly focusHeadingOnMount: boolean;
+  /** Whether this view was reached by registering just now. */
+  readonly justRegistered: boolean;
   readonly onSignedOut: (confirmation: string | null) => void;
 }) {
   const passwordId = useId();
@@ -248,6 +391,9 @@ function AccountView({
   const passwordField = useRef<HTMLInputElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const [texts, setTexts] = useState<ConsentTexts | null>(null);
+  const [mailNotice, setMailNotice] = useState<string | null>(
+    justRegistered ? CONFIRMATION_MAIL_UNDERWAY : null,
+  );
   const [consents, setConsents] = useState<Record<ConsentKind, boolean>>({
     ...me.consents,
   });
@@ -344,6 +490,19 @@ function AccountView({
     }
   }
 
+  async function resendConfirmation(): Promise<void> {
+    markBusy("verify");
+    setFailure(null);
+    try {
+      await requestEmailVerification();
+      setMailNotice(RESEND_CONFIRMATION_MAIL_UNDERWAY);
+    } catch (error) {
+      setFailure(describeAuthError(error));
+    } finally {
+      clearBusy("verify");
+    }
+  }
+
   async function signOut(): Promise<void> {
     markBusy("logout");
     setFailure(null);
@@ -394,10 +553,43 @@ function AccountView({
       </h2>
       <p>{me.email}</p>
 
+      <div className="flex flex-col gap-2">
+        <p className="text-sm">
+          {me.email_verified_at === null
+            ? "E-mailadres nog niet bevestigd"
+            : "E-mailadres bevestigd"}
+        </p>
+        {me.email_verified_at === null && (
+          <>
+            <p className="max-w-[60ch] text-sm text-ink-muted">
+              Voor het koppelen van een slimme meter is een bevestigd
+              e-mailadres nodig.
+            </p>
+            <p>
+              <button
+                type="button"
+                className="button-quiet"
+                disabled={busy.size > 0}
+                onClick={() => void resendConfirmation()}
+              >
+                Verstuur de bevestigingsmail opnieuw
+              </button>
+              {busy.has("verify") && (
+                <span role="status" aria-live="polite" className="sr-only">
+                  Bezig.
+                </span>
+              )}
+            </p>
+          </>
+        )}
+        {mailNotice !== null && <p role="status">{mailNotice}</p>}
+      </div>
+
       {CONSENT_RENDER_ORDER.map((kind) => (
         <ConsentRow
           key={kind}
           kind={kind}
+          label={texts === null ? null : texts.labels[kind]}
           text={texts === null ? null : texts.texts[kind]}
           granted={consents[kind] === true}
           busy={busy.has(kind)}

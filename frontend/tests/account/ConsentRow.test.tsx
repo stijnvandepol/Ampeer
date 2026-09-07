@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import consentTexts from "../fixtures/consent-texts.json";
-import { CONSENT_LABELS, ConsentRow } from "@/app/_account/ConsentRow";
+import { ConsentRow } from "@/app/_account/ConsentRow";
 
 describe("the account view's consent row", () => {
   it("offers to give consent when none is granted, and says so", () => {
@@ -10,6 +10,7 @@ describe("the account view's consent row", () => {
     render(
       <ConsentRow
         kind="METER_LINK"
+        label={consentTexts.labels.METER_LINK}
         text={consentTexts.texts.METER_LINK}
         granted={false}
         busy={false}
@@ -27,6 +28,7 @@ describe("the account view's consent row", () => {
     render(
       <ConsentRow
         kind="LEAD_GENERATION"
+        label={consentTexts.labels.LEAD_GENERATION}
         text={null}
         granted={true}
         busy={false}
@@ -45,6 +47,7 @@ describe("the account view's consent row", () => {
     render(
       <ConsentRow
         kind="METER_LINK"
+        label={consentTexts.labels.METER_LINK}
         text={consentTexts.texts.METER_LINK}
         granted={false}
         busy={false}
@@ -63,6 +66,7 @@ describe("the account view's consent row", () => {
     render(
       <ConsentRow
         kind="METER_LINK"
+        label={consentTexts.labels.METER_LINK}
         text={null}
         granted={false}
         busy={false}
@@ -81,6 +85,7 @@ describe("the account view's consent row", () => {
     render(
       <ConsentRow
         kind="METER_LINK"
+        label={consentTexts.labels.METER_LINK}
         text={consentTexts.texts.METER_LINK}
         granted={true}
         busy={true}
@@ -113,6 +118,7 @@ describe("the account view's consent row", () => {
       <>
         <ConsentRow
           kind="METER_LINK"
+          label={consentTexts.labels.METER_LINK}
           text={consentTexts.texts.METER_LINK}
           granted={false}
           busy={false}
@@ -120,6 +126,7 @@ describe("the account view's consent row", () => {
         />
         <ConsentRow
           kind="LEAD_GENERATION"
+          label={consentTexts.labels.LEAD_GENERATION}
           text={consentTexts.texts.LEAD_GENERATION}
           granted={false}
           busy={false}
@@ -127,8 +134,8 @@ describe("the account view's consent row", () => {
         />
       </>,
     );
-    const meterDescription = `${CONSENT_LABELS.METER_LINK} ${consentTexts.texts.METER_LINK}`;
-    const leadDescription = `${CONSENT_LABELS.LEAD_GENERATION} ${consentTexts.texts.LEAD_GENERATION}`;
+    const meterDescription = `${consentTexts.labels.METER_LINK} ${consentTexts.texts.METER_LINK}`;
+    const leadDescription = `${consentTexts.labels.LEAD_GENERATION} ${consentTexts.texts.LEAD_GENERATION}`;
     const meterButton = screen.getByRole("button", {
       name: "Toestemming geven",
       description: meterDescription,
@@ -146,6 +153,7 @@ describe("the account view's consent row", () => {
     render(
       <ConsentRow
         kind="METER_LINK"
+        label={consentTexts.labels.METER_LINK}
         text={null}
         granted={false}
         busy={false}
@@ -155,6 +163,47 @@ describe("the account view's consent row", () => {
     const button = screen.getByRole("button", { name: "Toestemming geven" });
     expect(button).toHaveAccessibleDescription(
       /Intrekken kan wel, aanzetten niet/,
+    );
+  });
+
+  it("carries no label of its own: the heading is a prop from the API", async () => {
+    const source = await import("@/app/_account/ConsentRow");
+    expect("CONSENT_LABELS" in source).toBe(false);
+  });
+
+  it("describes the toggle by the label and the sentence it was handed", () => {
+    render(
+      <ConsentRow
+        kind="METER_LINK"
+        label={consentTexts.labels.METER_LINK}
+        text={consentTexts.texts.METER_LINK}
+        granted={false}
+        busy={false}
+        onToggle={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Toestemming geven" }),
+    ).toHaveAccessibleDescription(
+      `${consentTexts.labels.METER_LINK} ${consentTexts.texts.METER_LINK}`,
+    );
+  });
+
+  it("stands without a label when the texts could not be fetched, and says why granting is blocked", () => {
+    render(
+      <ConsentRow
+        kind="METER_LINK"
+        label={null}
+        text={null}
+        granted={false}
+        busy={false}
+        onToggle={vi.fn()}
+      />,
+    );
+    const button = screen.getByRole("button", { name: "Toestemming geven" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAccessibleDescription(
+      "De toestemmingstekst kon niet worden opgehaald. Intrekken kan wel, aanzetten niet.",
     );
   });
 });

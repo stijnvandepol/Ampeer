@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import me from "../fixtures/me-response.json";
 import { SignInForm } from "@/app/_account/SignInForm";
@@ -24,7 +24,13 @@ function stub(answers: readonly { status: number; body?: unknown }[]) {
 
 describe("the sign-in view", () => {
   it("asks for an address and a password, and says so to a screen reader", () => {
-    render(<SignInForm onSignedIn={vi.fn()} onRegister={vi.fn()} />);
+    render(
+      <SignInForm
+        onSignedIn={vi.fn()}
+        onRegister={vi.fn()}
+        onForgot={vi.fn()}
+      />,
+    );
     const email = screen.getByLabelText("E-mailadres");
     const password = screen.getByLabelText("Wachtwoord");
     expect(email).toHaveAttribute("type", "email");
@@ -33,19 +39,38 @@ describe("the sign-in view", () => {
     expect(password).toHaveAttribute("autocomplete", "current-password");
   });
 
-  it("says out loud that a lost password cannot be recovered", () => {
-    // Chapter 10 of the auth design calls this the weakest place in that
-    // design and names the consequence: somebody who loses their password
-    // also loses the delete endpoint. That belongs on the screen where
-    // somebody needs it and not in a document.
-    render(<SignInForm onSignedIn={vi.fn()} onRegister={vi.fn()} />);
-    expect(screen.getByText(/wij het niet herstellen/i)).toBeInTheDocument();
+  it("offers to reset a forgotten password, in place of the sentence that said it could not", () => {
+    // Chapter 10 of the auth design once called this the weakest place in
+    // that design: somebody who loses their password also loses the delete
+    // endpoint. As of 2026-09-06 there is a way out, where the sentence
+    // saying there was none used to stand.
+    const onForgot = vi.fn();
+    render(
+      <SignInForm
+        onSignedIn={vi.fn()}
+        onRegister={vi.fn()}
+        onForgot={onForgot}
+      />,
+    );
+    expect(
+      screen.queryByText(/kunnen wij het niet herstellen/),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Wachtwoord vergeten?" }),
+    );
+    expect(onForgot).toHaveBeenCalledTimes(1);
   });
 
   it("asks me/ after a 200, because login/ answers with no body", async () => {
     const fetchMock = stub([{ status: 200 }, { status: 200, body: me }]);
     const onSignedIn = vi.fn();
-    render(<SignInForm onSignedIn={onSignedIn} onRegister={vi.fn()} />);
+    render(
+      <SignInForm
+        onSignedIn={onSignedIn}
+        onRegister={vi.fn()}
+        onForgot={vi.fn()}
+      />,
+    );
     await userEvent.type(
       screen.getByLabelText("E-mailadres"),
       "iemand@voorbeeld.nl",
@@ -63,7 +88,13 @@ describe("the sign-in view", () => {
     stub([
       { status: 401, body: { detail: "e-mailadres of wachtwoord klopt niet" } },
     ]);
-    render(<SignInForm onSignedIn={vi.fn()} onRegister={vi.fn()} />);
+    render(
+      <SignInForm
+        onSignedIn={vi.fn()}
+        onRegister={vi.fn()}
+        onForgot={vi.fn()}
+      />,
+    );
     await userEvent.type(
       screen.getByLabelText("E-mailadres"),
       "iemand@voorbeeld.nl",
@@ -80,7 +111,13 @@ describe("the sign-in view", () => {
     // know who is signed in.
     stub([{ status: 200 }, { status: 500, body: {} }]);
     const onSignedIn = vi.fn();
-    render(<SignInForm onSignedIn={onSignedIn} onRegister={vi.fn()} />);
+    render(
+      <SignInForm
+        onSignedIn={onSignedIn}
+        onRegister={vi.fn()}
+        onForgot={vi.fn()}
+      />,
+    );
     await userEvent.type(
       screen.getByLabelText("E-mailadres"),
       "iemand@voorbeeld.nl",
@@ -107,7 +144,13 @@ describe("the sign-in view", () => {
         },
       },
     ]);
-    render(<SignInForm onSignedIn={vi.fn()} onRegister={vi.fn()} />);
+    render(
+      <SignInForm
+        onSignedIn={vi.fn()}
+        onRegister={vi.fn()}
+        onForgot={vi.fn()}
+      />,
+    );
     await userEvent.type(
       screen.getByLabelText("E-mailadres"),
       "iemand@voorbeeld.nl",
@@ -132,7 +175,13 @@ describe("the sign-in view", () => {
       "fetch",
       vi.fn<typeof fetch>(() => Promise.reject(new TypeError("network gone"))),
     );
-    render(<SignInForm onSignedIn={vi.fn()} onRegister={vi.fn()} />);
+    render(
+      <SignInForm
+        onSignedIn={vi.fn()}
+        onRegister={vi.fn()}
+        onForgot={vi.fn()}
+      />,
+    );
     await userEvent.type(
       screen.getByLabelText("E-mailadres"),
       "iemand@voorbeeld.nl",
@@ -149,7 +198,13 @@ describe("the sign-in view", () => {
 
   it("offers the way to the registration view", async () => {
     const onRegister = vi.fn();
-    render(<SignInForm onSignedIn={vi.fn()} onRegister={onRegister} />);
+    render(
+      <SignInForm
+        onSignedIn={vi.fn()}
+        onRegister={onRegister}
+        onForgot={vi.fn()}
+      />,
+    );
     await userEvent.click(
       screen.getByRole("button", {
         name: "Nog geen account? Account aanmaken",

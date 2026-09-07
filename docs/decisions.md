@@ -54,10 +54,18 @@ rather than case by case, and the way to keep a categorical rule true is a
 categorical check. Judged on the import rather than on a call, because a module
 that imports requests can reach outward on any line added later.
 
-**Lives in:** `tests/test_boundaries.py`, in `OUTBOUND_MODULE`.
+**Lives in:** `tests/test_boundaries.py`, in `OUTBOUND_MODULES`.
 
-**To reverse:** add the second module to that constant. Doing so is the point at
+**To reverse:** add another module to that constant. Doing so is the point at
 which somebody has to say why the backend now fetches.
+
+Addendum, 2026-09-07: the constant this entry named, `OUTBOUND_MODULE`, was
+renamed to `OUTBOUND_MODULES` when the second source was added (entry 3
+below) and now holds three rows: `ampeer_sim/production/pvgis.py`,
+`tools/ingest_profiles.py` and, since the recovery cycle,
+`backend/accounts/mailer.py`. The rule this entry decided, that the import
+and not the call is what a categorical check pins, is unchanged; only the
+name and the count moved, and entries 3 and 44 carry the detail.
 
 ### 3. The external allowlist is a module constant, not a settings entry
 
@@ -81,6 +89,14 @@ settings layer that two callers would read.
 
 **To reverse:** move the host into settings and have the test read it from
 there. The check itself does not change shape.
+
+Addendum, 2026-09-07: a third module joined on 2026-09-06.
+`backend/accounts/mailer.py` reaches `api.resend.com` under the same rule,
+entirely from the outbox command described in entry 43, never from a request
+a visitor can reach. `OUTBOUND_MODULES` now names three modules and three
+hosts, and this entry's opening sentence, "the one permitted host lives as
+`PVGIS_URL`", describes the state before the first widening and not the
+shape of the constant today; entry 44 is the decision that added the third.
 
 ### 4. The readiness endpoint is the only route without a rate limit
 
@@ -1376,19 +1392,202 @@ control from the test. Every non-GET check would then 403 on Origin instead
 of on the token, and the CSRF-refusal check would pass for a reason other
 than the one its name claims.
 
+### 42. A password can be reset, and the token is a row rather than a signature
+
+**Decided:** `POST /api/auth/reset/request/` and `POST /api/auth/reset/confirm/`
+exist, and the link they exchange is backed by a row in `OneTimeToken` that
+holds the sha256 of the token, `issued_at`, `expires_at`, `spent_at` and
+`superseded_at`. Decision 31 is reversed. Its "to reverse" clause named
+`django.contrib.auth.tokens.PasswordResetTokenGenerator`; that is not what was
+built, and this entry says why.
+
+**Because:** the generator hashes `last_login` into the token, which for a
+reset is a merit and for a confirmation link a fault: a new account is signed
+in the moment it is made, and the confirmation mail arriving a minute later
+would already be dead. It also has no notion of "spent": a reset link stays
+valid until the password changes, and a confirmation link changes nothing it
+hashes over, so it would stay valid for seven days. One column, `spent_at`,
+answers both, and the shape already existed: `RefreshSession` is a table that
+holds no credential and still says which token was used when. Two
+vocabularies on one pattern read better than two patterns. The row is locked
+with `select_for_update` before it is read, in the same ordering
+`tokens.rotate` argues for, so two confirmations with one link queue on it
+and the second is refused. A reset does not sign the household in: `login/`
+remains the only place a session starts and `LOGIN_SUCCEEDED` is written.
+
+**Lives in:** `OneTimeToken` in `backend/accounts/models.py`,
+`backend/accounts/recovery.py`, `ResetRequestView` and `ResetConfirmView` in
+`backend/accounts/views.py`.
+
+**To reverse:** remove the two routes and the table. The cost is the one
+chapter 10 of the auth design named as the weakest point of that design: a
+household that forgets its password cannot reach `delete/` and has no
+self-service way back in.
+
+### 43. Mail leaves through an outbox and a timer, not through the request and not through Celery
+
+**Decided:** a request that needs a mail writes one `OutboundMail` row
+(user, kind, when) and returns. `send_outbound_mail`, a management command
+under `infra/systemd/ampeer-mail.timer`, sends every minute what is waiting,
+mints the token as it sends, deletes the row on success and writes
+`MAIL_SENT`, and backs off 1, 5, 15 and 60 minutes on a network fault, a
+timeout, a 429 or a 5xx before giving up after 24 hours. A 4xx other than 429
+fails at once.
+
+**Because:** sending inside the request makes a view wait on an external
+service, turns a provider outage into a 500 or a silent fault, and lets the
+answer time differ between a known and an unknown address, which is the one
+thing `reset/request/` may not do. Celery brings Redis, a worker and a third
+container for two mails a day, and every design in this repository has
+refused it for that reason. The outbox is the shape that already exists: the
+two purge commands run under systemd timers, and this is the third. The
+consequence that matters most is that no request a visitor can reach ever
+opens a connection, so CLAUDE.md's rule that the backend never calls out
+except to a fixed list stays categorical on the request path. The mint and
+the send share one savepoint, so a mail that never left leaves no digest of a
+token nobody received.
+
+**Lives in:** `OutboundMail` in `backend/accounts/models.py`,
+`backend/accounts/management/commands/send_outbound_mail.py`,
+`infra/systemd/ampeer-mail.timer` and its paired ampeer-mail.service unit.
+
+**To reverse:** call the transport from the views and drop the command and the
+units. The costs are the three above, and `test_a_reset_request_answers_the_same_for_a_known_and_an_unknown_address`
+would then be measuring only the body and not the time.
+
+### 44. Resend is reached from one module on the allowlist, and Django's mail API is forbidden by the boundary test
+
+**Decided:** `backend/accounts/mailer.py` is the only module under `backend/`
+that imports `requests`, its destination is the literal
+`https://api.resend.com/emails`, and `tests/test_boundaries.py` holds it to
+the same rule as `pvgis.py`: named, never assembled, handed to the call as a
+module constant. `django.core.mail` joins the forbidden network clients by its
+dotted name, and `_imported_module_names` keeps dotted names so that check can
+see it. No Resend SDK, no SMTP.
+
+**Because:** the context reading for this cycle found a hole in the boundary
+test that had been there since the first day: only the first segment of an
+import was kept, so `from django.core.mail import send_mail` counted as
+`django` and the categorical rule against outbound connections did not see
+outbound mail through Django's own API, whose SMTP client lives in `.venv/`
+where the scan never walks. This design does not use that API and closes the
+hole anyway, because a known gap left open is a decision. One endpoint with
+four fields needs no SDK, and an SDK would open connections from a package
+the test never reads.
+
+**Lives in:** `backend/accounts/mailer.py`, `OUTBOUND_MODULES`,
+`NETWORK_CLIENTS` and `STRICT_DESTINATION_MODULES` in `tests/test_boundaries.py`.
+
+**To reverse:** the reverse of decision 2 applies: add or remove a module in
+that constant, on purpose, and say why the backend now reaches one more
+place.
+
+### 45. The recovery link carries its token in the fragment
+
+**Decided:** the link in a mail is `https://ampeer.nl/account/#herstel=<token>`
+or `#verificatie=<token>`. `/account/` reads the fragment once at load,
+removes it from the address bar with `history.replaceState`, keeps the token
+in page state and renders it nowhere.
+
+**Because:** a fragment never leaves the browser. nginx does not see it, so
+neither the access log nor Cloudflare does, and a `Referer` does not carry
+it. Everything `/advies/<token>/` needed, a `location` with `try_files`, a
+`serve.json` rule, a log-redaction `map` and a sentence in the DPIA about
+Cloudflare seeing a second secret path, does not exist for this link because
+there is nothing to redact. The principle from chapter 2 of the frontend
+design, that a view is state and not an address, holds: the fragment names no
+view, it carries a token, and what the page does with it depends on what
+`me/` and the API answer. Exactly 43 url-safe characters, which is
+`secrets.token_urlsafe(32)`, and `tests/test_frontend_contract.py` holds the
+two sides of that number together.
+
+**Lives in:** `frontend/src/app/_account/fragment.ts`, `_FRAGMENT` in
+`backend/accounts/management/commands/send_outbound_mail.py`.
+
+**To reverse:** move the token into a path and bring back the four things
+above for it.
+
+### 46. Verification is a timestamp, set by a confirmation or a completed reset, and read by nothing before phase 2
+
+**Decided:** `User.email_verified_at` is a nullable `DateTimeField`. A
+confirmation link sets it; a completed password reset sets it if it was
+empty. Nothing in phase 1 reads it, `me/` reports it, and phase 2 requires it
+before a meter is linked. Registration is not blocked on it.
+
+**Because:** a timestamp answers the question a privacy document asks, which
+is "when", and a flag cannot. A reset confirms the address because whoever
+opened a link out of that mailbox holds that address, which is exactly what
+confirmation establishes. The owner chose, on 2026-09-06, a stamp that phase
+2 requires and that blocks nothing before it, over a registration that is
+unusable until a mail is clicked: the first experience of every household
+would otherwise be waiting for a mail.
+
+**Lives in:** `email_verified_at` on `User` in `backend/accounts/models.py`,
+`confirm_password_reset` and `confirm_email_verification` in
+`backend/accounts/recovery.py`.
+
+**To reverse:** make `login/` refuse an account whose stamp is empty. That is
+one condition in `LoginView`, and it changes what a household is told on its
+first visit, which is not a change to make in passing.
+
+### 47. The consent labels travel with the texts under one version
+
+**Decided:** `GET /api/auth/consent-texts/` answers `labels` beside `texts`,
+both keyed by kind, both under `text_version`, and the frontend carries no
+label of its own. Decision 38 is closed.
+
+**Because:** decision 38 recorded that a label edit was invisible to
+`text_version` while a text edit was not, and scheduled a versioned field
+for the next backend touch. This is that touch. A separate `label_version`
+was weighed and refused: label and text are read together and recorded
+together, so one version for the pair is the honest form, and the rule from
+decision 38 (a label may narrow only as far as the text still covers, and
+never claim less than the row records) now sits as a comment beside the
+constant it governs. `test_no_consent_label_lives_in_the_frontend` is what
+keeps the frontend from growing a copy.
+
+**Lives in:** `CONSENT_LABEL_METER_LINK` and `CONSENT_LABEL_LEAD_GENERATION`
+in `backend/accounts/nl.py`, `ConsentTextsView` in `backend/accounts/views.py`,
+`labels` on the `ConsentTexts` type in `frontend/src/lib/accounts.ts`.
+
+**To reverse:** put the labels back in `ConsentRow.tsx` and delete the
+contract test. The cost is the drift decision 38 described.
+
+### 48. A reset request answers the same way for every address, and logs nothing for an unknown one
+
+**Decided:** `POST /api/auth/reset/request/` answers 202 with `{}` for every
+well-formed address, known, unknown, active or blocked. For a known active
+address it writes one outbox row and one `PASSWORD_RESET_REQUESTED` line
+carrying `user_id`, once per pending mail. For anything else it writes
+nothing at all.
+
+**Because:** a 202 and a 404 would be an address book readable at ten
+requests an hour. The answer time is the same for the same reason the outbox
+exists: no mail leaves and no token is minted inside the request, so a known
+address costs one INSERT more than an unknown one. An audit line for an
+unknown address would have to carry the address to mean anything, and
+chapter 2 of the DPIA forbids exactly that in a table with no retention.
+
+**Lives in:** `request_password_reset` in `backend/accounts/recovery.py`,
+`ResetRequestView` in `backend/accounts/views.py`.
+
+**To reverse:** answer 404 for an unknown address. `test_a_reset_request_answers_the_same_for_a_known_and_an_unknown_address`
+is the test that would then be measuring an address book.
+
 ## What was not decided here
 
-Four belong to the controller and are written up with their trade-offs in
+Five belong to the controller and are written up with their trade-offs in
 chapter 10 of `docs/dpia.md`: whether the conclusion of chapter 1 is adopted,
-the legal basis, the seven day backup window, and access to the host including
-whether `web2` becomes ephemeral. They are not repeated here, because two
-lists of the same open questions is how one of them gets answered twice and
-the other not at all. A fifth used to stand beside them, whether deletion on
-request arrives before phase 1, and it is answered rather than dropped: decision
-28 and `docs/dpia.md` chapter 7 both describe `POST /api/auth/delete/`, which
-is what answered it.
+the legal basis, the seven day backup window, access to the host including
+whether `web2` becomes ephemeral, and, since the recovery cycle, Resend as
+the second processor. They are not repeated here, because two lists of the
+same open questions is how one of them gets answered twice and the other not
+at all. One more used to stand beside the first four, whether deletion on
+request arrives before phase 1, and it is answered rather than dropped:
+decision 28 and `docs/dpia.md` chapter 7 both describe `POST /api/auth/delete/`,
+which is what answered it.
 
-Six sit outside that document.
+Nine sit outside that document.
 
 - **Whether `feat/**` stays in the push trigger of `.github/workflows/ci.yml`.**
   Removing it roughly halves the minutes a branch costs, and rewrites five
@@ -1437,48 +1636,15 @@ Six sit outside that document.
   now asserts the set, because a household moving into the middle state and a
   household being sold a battery are not the same event and one assertion could
   not tell them apart.
-- **Whether the allowlist in CLAUDE.md should name a fourth source.** It names
-  PVGIS, ENTSO-E and KNMI as the external sources this project may reach. The
-  repository reaches a fourth: `tools/ingest_profiles.py` downloads the NEDU
-  standard profiles from energiedatawijzer.nl, which it has to, since their
-  redistribution terms are unconfirmed.
-
-  That last clause was corrected on 2026-09-02 and it used to read "since their
-  licence forbids committing them". It was checked and there is no such licence.
-  The profiles for toepassingsjaar 2025 are established by the Platform
-  Verbruiksprofielen and published by MFFBAS, and neither the publication page nor
-  the files carry a licence, a copyright line or a reuse condition of any kind.
-  `docs/superpowers/specs/2026-08-20-simulation-core-design.md` said exactly that
-  when the decision was taken, "Gebruik is onproblematisch, herdistributie niet
-  bevestigd", and the docstring of `nedu_profile_path` in
-  `tests/helpers/profiles.py` still says it. Somewhere between the spec and this
-  entry a caution became a finding. Nothing about the behaviour changes: the files
-  stay out of the tree and the ingest step stays. What changes is that this entry
-  no longer cites a prohibition that does not exist, in a document whose whole
-  purpose is that a later reader can tell what was established from what was
-  assumed. The same sentence in `docs/analysis/2026-08-24-tou-tariff-2029.md` and
-  the same phrase in the comment above `IGNORED_ROOTS` in
-  `tests/test_analysis_docs.py` were corrected in the same pass.
-
-  While that was being checked, one further thing came out that belongs here
-  rather than in a spec: PVGIS is settled and in the other direction. The JRC
-  states on its own user manual page that PVGIS "is completely free to use, with
-  no restrictions on what the results can be used for, and with no registration
-  necessary". So of the two open licence questions the spec recorded, one is
-  answered permissively and one is genuinely still open, and they should stop
-  being carried as a pair.
-
-  Not a hole. The rule in that document is written about the backend, which
-  never fetches, and this is a build time command somebody runs by hand. Its URL
-  is one https constant, the only thing substituted into it is the CLI's year,
-  and argparse types that as an int, so nothing from the command line can reach
-  the host or the path as text. All four of those are now asserted in
-  `tests/test_boundaries.py`, and that file's scan reaches `tools/` as of
-  2026-08-23, having walked only the two packages and `backend/` before while
-  its failure message said the rule allows one file and nothing else.
-
-  What is left is a sentence in CLAUDE.md that lists three sources while the
-  repository uses four. Editing that document is not mine.
+- **Whether the allowlist in CLAUDE.md should name a fourth source.** Answered
+  on 2026-09-06 rather than dropped. The owner had the sentence rewritten to
+  name the destinations the repository actually reaches, PVGIS,
+  energiedatawijzer.nl for the hand-run NEDU ingest, and api.resend.com for
+  transactional mail, with ENTSO-E and KNMI marked as foreseen and not yet
+  reached, and it now points at `OUTBOUND_MODULES` in `tests/test_boundaries.py`
+  as the list itself. The licence findings that were recorded here on
+  2026-09-02 stand: the NEDU files carry no reuse condition of any kind and
+  stay out of the tree, and PVGIS is free to use without restriction.
 
 - **Whether the opening paragraph of CLAUDE.md should carry its own sources.** It
   states four facts about the Netherlands and none of them says where it comes
@@ -1559,3 +1725,11 @@ Six sit outside that document.
   repository at once, and it may drop the measured figure below a floor that
   may only rise, so it is a decision with its own measurement, not a flag
   flip.
+- **Whether an account whose address is never confirmed is ever removed.** An
+  account made with somebody else's address, or with a typo, stays: whoever
+  made it can delete it, whoever holds the address can reset the password
+  through the link and then delete it, and nothing does it for them. An
+  automatic removal after some number of days is a retention period on a
+  `User` row, which is a DPIA decision and not one to take inside a plan.
+  It becomes a live question only once there are accounts nobody confirms,
+  and chapter 10 of the DPIA does not list it yet for that reason.

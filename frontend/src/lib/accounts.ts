@@ -37,11 +37,19 @@ export type ConsentAction = "GRANTED" | "WITHDRAWN";
 export interface ConsentTexts {
   readonly text_version: string;
   readonly texts: Readonly<Record<ConsentKind, string>>;
+  /**
+   * The heading each consent is shown under, from the same answer and under
+   * the same version as the sentence it heads. Decision 38: a label edit is
+   * caught the way a text edit is, and no label lives in this tree.
+   */
+  readonly labels: Readonly<Record<ConsentKind, string>>;
 }
 
 export interface Me {
   readonly email: string;
   readonly consents: Readonly<Record<ConsentKind, boolean>>;
+  /** ISO 8601, or null for an address nobody has confirmed yet. */
+  readonly email_verified_at: string | null;
 }
 
 export interface ConsentResult {
@@ -66,6 +74,20 @@ export interface ConsentInput {
   readonly action: ConsentAction;
   /** Sent on GRANTED, absent on WITHDRAWN. Chapter 5.2 of the design. */
   readonly text_version?: string | undefined;
+}
+
+export interface ResetRequestInput {
+  readonly email: string;
+}
+
+export interface ResetConfirmInput {
+  /** Off the fragment of the link in the mail. Never typed, never shown. */
+  readonly token: string;
+  readonly password: string;
+}
+
+export interface VerifyConfirmInput {
+  readonly token: string;
 }
 
 /**
@@ -167,16 +189,23 @@ function isString(value: unknown): value is string {
   return typeof value === "string";
 }
 
-/** Both kinds present and neither empty. A third key is left alone on purpose. */
+/** Both kinds present under `texts` and under `labels`, none empty. A further key is left alone. */
 function isConsentTexts(value: unknown): value is ConsentTexts {
   if (!isObject(value)) return false;
   const version = value["text_version"];
   if (!isString(version) || version.length === 0) return false;
   const texts = value["texts"];
-  if (!isObject(texts)) return false;
+  const labels = value["labels"];
+  if (!isObject(texts) || !isObject(labels)) return false;
   return CONSENT_KINDS.every((kind) => {
     const sentence = texts[kind];
-    return isString(sentence) && sentence.length > 0;
+    const label = labels[kind];
+    return (
+      isString(sentence) &&
+      sentence.length > 0 &&
+      isString(label) &&
+      label.length > 0
+    );
   });
 }
 
@@ -184,6 +213,9 @@ function isMe(value: unknown): value is Me {
   if (!isObject(value) || !isString(value["email"])) return false;
   const consents = value["consents"];
   if (!isObject(consents)) return false;
+  if (!("email_verified_at" in value)) return false;
+  const verified = value["email_verified_at"];
+  if (verified !== null && !isString(verified)) return false;
   return CONSENT_KINDS.every((kind) => typeof consents[kind] === "boolean");
 }
 
@@ -315,4 +347,33 @@ export async function logout(): Promise<void> {
 
 export async function deleteAccount(password: string): Promise<void> {
   await call("/api/auth/delete/", { method: "POST", body: { password } });
+}
+
+/**
+ * The four recovery calls. All four answer with an empty body (202 with `{}`,
+ * or 204), so there is no shape to check and nothing to return: a success is
+ * the absence of an `ApiError`, and a failure carries the API's own Dutch
+ * sentence, under `token` or `password` or as `detail`, like every other call
+ * in this file.
+ */
+export async function requestPasswordReset(
+  input: ResetRequestInput,
+): Promise<void> {
+  await call("/api/auth/reset/request/", { method: "POST", body: input });
+}
+
+export async function confirmPasswordReset(
+  input: ResetConfirmInput,
+): Promise<void> {
+  await call("/api/auth/reset/confirm/", { method: "POST", body: input });
+}
+
+export async function requestEmailVerification(): Promise<void> {
+  await call("/api/auth/verify/request/", { method: "POST" });
+}
+
+export async function confirmEmailVerification(
+  input: VerifyConfirmInput,
+): Promise<void> {
+  await call("/api/auth/verify/confirm/", { method: "POST", body: input });
 }

@@ -12,6 +12,24 @@ from accounts.models import Consent, User
 from accounts.nl import CONSENT_TEXT_VERSION, NL
 
 
+def password_error_messages(error: DjangoValidationError) -> list[str]:
+    """Django's validator messages, with the one that its Dutch catalogue
+    cannot translate corrected by hand.
+
+    Lifted out of `RegisterSerializer.validate_password` so the reset route
+    translates a refusal with the same words as registration: two copies of
+    this mapping would be two places the sentence can drift. The reason the
+    mapping exists at all is in that method's docstring.
+    """
+    messages: list[str] = []
+    for sub_error in error.error_list:
+        if sub_error.code == "password_too_short" and sub_error.params:
+            messages.append(NL["password_too_short"] % sub_error.params)
+        else:
+            messages.extend(sub_error.messages)
+    return messages
+
+
 class LoginSerializer(serializers.Serializer[dict[str, Any]]):
     email = serializers.EmailField(error_messages={"invalid": NL["email_invalid"]})
     password = serializers.CharField(
@@ -70,17 +88,14 @@ class RegisterSerializer(LoginSerializer):
         something `USE_I18N`, `LANGUAGE_CODE` or a middleware can fix, so
         `NL["password_too_short"]` corrects this one code by hand rather than
         passing `error.messages` straight through.
+
+        The mapping itself lives in `password_error_messages` above, because
+        `ResetConfirmView` needs the same words.
         """
         try:
             validate_password(value)
         except DjangoValidationError as error:
-            messages: list[str] = []
-            for sub_error in error.error_list:
-                if sub_error.code == "password_too_short" and sub_error.params:
-                    messages.append(NL["password_too_short"] % sub_error.params)
-                else:
-                    messages.extend(sub_error.messages)
-            raise serializers.ValidationError(messages) from error
+            raise serializers.ValidationError(password_error_messages(error)) from error
         return value
 
     @property
@@ -125,3 +140,33 @@ class ConsentSerializer(serializers.Serializer[dict[str, Any]]):
             # next move is the same: reload the page.
             raise serializers.ValidationError({"text_version": NL["consent_text_stale"]})
         return attrs
+
+
+class ResetRequestSerializer(serializers.Serializer[dict[str, Any]]):
+    """One field, and the view answers the same whatever it is."""
+
+    email = serializers.EmailField(error_messages={"invalid": NL["email_invalid"]})
+
+
+class TokenSerializer(serializers.Serializer[dict[str, Any]]):
+    """The token off a link. A missing or empty one reads as an invalid one:
+    the difference between "you sent nothing" and "you sent something old" is
+    a difference only somebody probing the route would learn from."""
+
+    token = serializers.CharField(
+        trim_whitespace=False,
+        error_messages={
+            "required": NL["token_invalid"],
+            "blank": NL["token_invalid"],
+            "null": NL["token_invalid"],
+        },
+    )
+
+
+class ResetConfirmSerializer(TokenSerializer):
+    #: Not validated here: the validators need the user, and the user is
+    #: only known once the token has been looked up under its lock. See
+    #: recovery.confirm_password_reset.
+    password = serializers.CharField(
+        write_only=True, trim_whitespace=False, error_messages={"required": NL["password_required"]}
+    )

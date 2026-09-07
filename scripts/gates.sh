@@ -179,12 +179,14 @@ fi
 django_deploy_check() {
   DJANGO_SECRET_KEY="$(uv run python -c 'import secrets; print(secrets.token_urlsafe(48))')" \
   POSTGRES_PASSWORD="$(uv run python -c 'import secrets; print(secrets.token_urlsafe(16))')" \
+  RESEND_API_KEY="$(uv run python -c 'import secrets; print("gate-" + secrets.token_urlsafe(24))')" \
   DJANGO_SETTINGS_MODULE=ampeer.settings.prod \
   DJANGO_ALLOWED_HOSTS=ampeer.nl \
   AMPEER_NEDU_PROFILE_PATH=/srv/ampeer/nedu-profiles-2025.csv \
   POSTGRES_DB=ampeer POSTGRES_USER=ampeer POSTGRES_HOST=db \
   DJANGO_NUM_PROXIES=1 \
   DJANGO_CORS_ALLOWED_ORIGINS=https://ampeer.nl \
+  AMPEER_MAIL_TRANSPORT=resend AMPEER_MAIL_FROM=noreply@ampeer.nl AMPEER_SITE_ORIGIN=https://ampeer.nl \
     uv run python backend/manage.py check --deploy --fail-level WARNING
 }
 gate django-deploy-check django_deploy_check

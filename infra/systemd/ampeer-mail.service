@@ -1,0 +1,35 @@
+# THIS FILE IS INSTALLED BY HAND. NOTHING IN THIS REPOSITORY INSTALLS IT.
+#
+# Who:   Stijn, on the Ampeer LXC, as root. No workflow, no deploy job and no
+#        test may copy, enable or start this unit, and none of them does.
+# Where: /etc/systemd/system/ampeer-mail.service, together with
+#        /etc/systemd/system/ampeer-mail.timer.
+# How:   cp infra/systemd/ampeer-mail.* /etc/systemd/system/
+#        systemctl daemon-reload
+#        systemctl enable --now ampeer-mail.timer
+# Check: systemctl list-timers ampeer-mail.timer
+#
+# Spelled out for the same reason ampeer-purge.service spells it out: a file
+# that looks automatic and is not is worse than one that says so. If nobody
+# runs the three commands above, no reset mail and no confirmation mail ever
+# leaves, and the only observable behaviour is a household waiting for a mail
+# that does not come. `send_outbound_mail --check` is the half that notices:
+# the deploy job runs it after migrate and goes red when a mail has waited
+# longer than fifteen minutes.
+
+[Unit]
+Description=Send the mails waiting in Ampeer's outbox
+Requires=docker.service
+After=docker.service
+ConditionPathExists=/srv/ampeer/docker-compose.yml
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/ampeer
+# The same shape as the purge unit, for the same reasons: --env-file because
+# compose gives none of its variables a default, --entrypoint python because
+# the image's entrypoint execs gunicorn, backend/manage.py because the image's
+# working directory is /app.
+ExecStart=/usr/bin/docker compose --env-file /srv/ampeer/.env -f /srv/ampeer/docker-compose.yml run --rm --entrypoint python api backend/manage.py send_outbound_mail
+# The command prints two counts and nothing else. No address and no token
+# reaches the journal, which outlives the rows it describes.

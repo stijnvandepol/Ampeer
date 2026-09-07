@@ -29,8 +29,9 @@ CACHES = {
 
 # Pinned back to False for the same reason DEBUG and CACHES are pinned above:
 # the schema and settings under test have to be the ones that ship. dev.py
-# turns this on so a developer's browser can carry the accounts cookies across
-# localhost:3000 to 127.0.0.1:8000, which is cross-site; inheriting that
+# turns this on so a developer's browser accepts the answers to the accounts
+# calls it makes from 127.0.0.1:3000 to 127.0.0.1:8000, which is a different
+# origin because the port differs; inheriting that
 # convenience here would make tests/test_advice_api.py's assertion that no
 # advice response carries Access-Control-Allow-Credentials untrue, since
 # django-cors-headers applies this setting to every response, not only the
@@ -38,3 +39,12 @@ CACHES = {
 # line still says True, so deleting it here cannot silently break developer
 # login under a fully green suite.
 CORS_ALLOW_CREDENTIALS = False
+
+# Pinned back to memory for the reason DEBUG, CACHES and CORS_ALLOW_CREDENTIALS
+# are pinned above: this file inherits dev.py, and dev.py chooses the file
+# transport so a developer can open a mail from data/mail/. Inherited here
+# that would fill data/mail/ on every run and leave mailer.MEMORY.sent empty,
+# so every command test would read nothing and say so. The suite never
+# reaches the network, and tests/test_accounts_mail.py asserts the value that
+# actually arrives here rather than the one dev.py sets.
+AMPEER_MAIL_TRANSPORT = "memory"

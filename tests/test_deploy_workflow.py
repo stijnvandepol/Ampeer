@@ -52,10 +52,11 @@ BUILT_IMAGES = (
     ("web", "ghcr.io/stijnvandepol/ampeer-web"),
 )
 
-#: The nine names prod.py refuses to start without. Written out here rather
-#: than imported from the preflight or from .env.example, for the reason
-#: tests/test_infra.py gives about the same list: an imported list follows the
-#: change it was supposed to catch, so a drifting script would still be green.
+#: The thirteen names prod.py refuses to start without. Written out here
+#: rather than imported from the preflight or from .env.example, for the
+#: reason tests/test_infra.py gives about the same list: an imported list
+#: follows the change it was supposed to catch, so a drifting script would
+#: still be green.
 REQUIRED_ENV = (
     "DJANGO_SECRET_KEY",
     "DJANGO_ALLOWED_HOSTS",
@@ -66,6 +67,10 @@ REQUIRED_ENV = (
     "POSTGRES_USER",
     "POSTGRES_PASSWORD",
     "POSTGRES_HOST",
+    "AMPEER_MAIL_TRANSPORT",
+    "RESEND_API_KEY",
+    "AMPEER_MAIL_FROM",
+    "AMPEER_SITE_ORIGIN",
 )
 
 
@@ -488,7 +493,7 @@ README_STEP_WORDS = (
     ("Confirm the preflight", "the preflight's digest"),
     ("Confirm the compose file", "the compose file's digest"),
     ("Confirm the backup script", "the backup script's digest"),
-    ("Check the nine variables", "runs the preflight"),
+    ("Check the thirteen variables", "runs the preflight"),
     ("Log in to the registry", "logs in to GHCR"),
     ("Pull what CI built", "`pull`"),
     ("Confirm the images", "confirms the pulled digests"),
@@ -498,6 +503,7 @@ README_STEP_WORDS = (
     ("Start it", "`up -d`"),
     ("Fall back", "falls back"),
     ("Confirm expired advice", "`purge_expired_advice --check`"),
+    ("Confirm the outbox", "`send_outbound_mail --check`"),
     ("Drop the registry credential", "`docker logout`"),
 )
 
@@ -729,11 +735,13 @@ def _complete(profile: Path) -> dict[str, str]:
     readable path, and DJANGO_NUM_PROXIES has to be a whole number, because
     prod.py parses that one rather than reading it. Giving them real values
     here is what keeps each case testing the thing it names instead of failing
-    on the fixture.
+    on the fixture. AMPEER_MAIL_TRANSPORT has to be `resend`, because the
+    preflight refuses every other value on a host.
     """
     values = dict.fromkeys(REQUIRED_ENV, "set")
     values["AMPEER_NEDU_PROFILE_PATH"] = profile.as_posix()
     values["DJANGO_NUM_PROXIES"] = "2"
+    values["AMPEER_MAIL_TRANSPORT"] = "resend"
     return values
 
 
@@ -755,7 +763,7 @@ def _preflight(env_file: Path) -> subprocess.CompletedProcess[str]:
 
 
 class TestThePreflight:
-    def test_it_is_quiet_and_exits_zero_when_all_nine_are_set(self, tmp_path: Path) -> None:
+    def test_it_is_quiet_and_exits_zero_when_all_thirteen_are_set(self, tmp_path: Path) -> None:
         result = _preflight(_write_env(tmp_path, _complete(_profile(tmp_path))))
         assert result.returncode == 0, result.stdout + result.stderr
 
@@ -776,14 +784,26 @@ class TestThePreflight:
             assert name in output, output
 
     @pytest.mark.parametrize("name", REQUIRED_ENV)
-    def test_it_catches_each_of_the_nine_on_its_own(self, tmp_path: Path, name: str) -> None:
+    def test_it_catches_each_of_the_thirteen_on_its_own(self, tmp_path: Path, name: str) -> None:
         """One case per variable, so a name dropped from the script's list
-        names itself instead of hiding in a list that is still nine long."""
+        names itself instead of hiding in a list that is still thirteen long."""
         values = _complete(_profile(tmp_path))
         del values[name]
         result = _preflight(_write_env(tmp_path, values))
         assert result.returncode != 0, f"{name} may be missing without the deploy stopping"
         assert name in result.stdout + result.stderr
+
+    @pytest.mark.parametrize("value", ["file", "memory", "smtp"])
+    def test_the_host_preflight_refuses_any_transport_but_resend(
+        self, tmp_path: Path, value: str
+    ) -> None:
+        """prod.py accepts `file` for the local stack's sake; a host must not
+        be able to say it. Red-proof: drop the case block from the script."""
+        values = _complete(_profile(tmp_path))
+        values["AMPEER_MAIL_TRANSPORT"] = value
+        result = _preflight(_write_env(tmp_path, values))
+        assert result.returncode != 0, f"{value!r} passed the preflight"
+        assert "AMPEER_MAIL_TRANSPORT" in result.stdout + result.stderr
 
     def test_an_empty_value_counts_as_missing(self, tmp_path: Path) -> None:
         """`POSTGRES_PASSWORD=` is what a half-filled copy of .env.example
@@ -1381,9 +1401,9 @@ def test_the_purge_overrides_the_entrypoint_it_would_otherwise_inherit() -> None
     inherited the entrypoint would answer a question nobody asked.
 
     --env-file with all three, from the same paragraph: docker-compose.yml
-    interpolates nine variables and gives none of them a default, so without
-    the file the unit fails while resolving it instead of connecting somewhere
-    unintended, which is the right way round.
+    interpolates thirteen variables and gives none of them a default, so
+    without the file the unit fails while resolving it instead of connecting
+    somewhere unintended, which is the right way round.
 
     The count below is exact on purpose, the same house style as
     `test_dpia.py::test_the_audit_log_records_exactly_what_the_document_says_it_does`:

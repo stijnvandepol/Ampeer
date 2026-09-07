@@ -31,6 +31,10 @@ REQUIRED_ENV = (
     "POSTGRES_USER",
     "POSTGRES_PASSWORD",
     "POSTGRES_HOST",
+    "AMPEER_MAIL_TRANSPORT",
+    "RESEND_API_KEY",
+    "AMPEER_MAIL_FROM",
+    "AMPEER_SITE_ORIGIN",
 )
 
 #: The two images this repository builds itself. They carry a tag that the

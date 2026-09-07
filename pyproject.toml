@@ -169,8 +169,10 @@ precision = 2
 # Measured at two decimals, not read off the rounded TOTAL row. Raised from
 # 97 to 98 on 2026-08-20 after covering the ingest CLI took the tree to
 # 98.03, then from 98 to 99.05 on 2026-09-06 at the end of the accounts
-# frontend branch. May be raised, never lowered: a floor below the current
-# level makes a regression invisible.
+# frontend branch, then from 99.05 to 99.15 on 2026-09-07 at the end of the
+# accounts recovery branch, from a run without data/nedu-profiles-2025.csv
+# that measured 2728/2751 = 99.1639, rounded to 99.16. May be raised, never
+# lowered: a floor below the current level makes a regression invisible.
 #
 # The floor sits one hundredth UNDER the measurement, and that hundredth is
 # the whole point. True coverage is 2411/2434 = 99.0551, and pytest-cov
@@ -187,7 +189,7 @@ precision = 2
 # caller of a method, so the tree measured 99.06 on Windows and 99.01 on the
 # runner, and the floor set from the local figure went red in CI on its first
 # run. Set the floor from a run without data/, or from the runner.
-fail_under = 99.05
+fail_under = 99.15
 show_missing = true
 
 [tool.bandit]

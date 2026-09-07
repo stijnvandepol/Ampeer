@@ -18,6 +18,10 @@ from accounts.views import (
     MeView,
     RefreshView,
     RegisterView,
+    ResetConfirmView,
+    ResetRequestView,
+    VerifyConfirmView,
+    VerifyRequestView,
 )
 
 urlpatterns: list[URLPattern] = [
@@ -30,4 +34,8 @@ urlpatterns: list[URLPattern] = [
     path("consent-texts/", ConsentTextsView.as_view(), name="auth-consent-texts"),
     path("export/", ExportView.as_view(), name="auth-export"),
     path("delete/", DeleteView.as_view(), name="auth-delete"),
+    path("reset/request/", ResetRequestView.as_view(), name="auth-reset-request"),
+    path("reset/confirm/", ResetConfirmView.as_view(), name="auth-reset-confirm"),
+    path("verify/request/", VerifyRequestView.as_view(), name="auth-verify-request"),
+    path("verify/confirm/", VerifyConfirmView.as_view(), name="auth-verify-confirm"),
 ]

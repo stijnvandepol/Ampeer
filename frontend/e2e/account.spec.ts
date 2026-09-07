@@ -644,6 +644,9 @@ test.describe("keyboard access", () => {
     const emailField = page.getByLabel("E-mailadres");
     const passwordField = page.getByLabel("Wachtwoord");
     const signInButton = page.getByRole("button", { name: "Inloggen" });
+    const forgotButton = page.getByRole("button", {
+      name: "Wachtwoord vergeten?",
+    });
     const registerSwitch = page.getByRole("button", {
       name: "Nog geen account? Account aanmaken",
     });
@@ -679,19 +682,225 @@ test.describe("keyboard access", () => {
     await expect(passwordField).toBeFocused();
     const buttonAt = await tabUntilFocused(signInButton, 5);
     await expect(signInButton).toBeFocused();
+    const forgotAt = await tabUntilFocused(forgotButton, 5);
+    await expect(forgotButton).toBeFocused();
     const switchAt = await tabUntilFocused(registerSwitch, 5);
     await expect(registerSwitch).toBeFocused();
     // Each control's cumulative tab count is strictly higher than the one
-    // before it: the four are reached in this order and not some other one.
+    // before it: the five are reached in this order and not some other one.
     expect(passwordAt).toBeGreaterThan(emailAt);
     expect(buttonAt).toBeGreaterThan(passwordAt);
-    expect(switchAt).toBeGreaterThan(buttonAt);
+    expect(forgotAt).toBeGreaterThan(buttonAt);
+    expect(switchAt).toBeGreaterThan(forgotAt);
 
-    // The switch itself moves focus to the new view's heading or group.
+    // Re-focus "Wachtwoord vergeten?", reached above, and open it with Enter
+    // rather than a click: the same mechanism (switchView) that moves focus
+    // for the register switch below moves it here too, so this is the one
+    // place that mechanism is proven from the keyboard on this specific
+    // control and not only on the one three lines down.
+    await forgotButton.focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByRole("group", { name: "Wachtwoord herstellen" }),
+    ).toBeFocused();
+    await expect(
+      page.getByRole("heading", { name: "Wachtwoord herstellen" }),
+    ).toBeVisible();
+
+    // Back to sign-in, then the register switch itself, tested the way it was
+    // before: reachable by Tab (already shown above) and Enter moves focus to
+    // the view it opens.
+    await page.getByRole("button", { name: "Terug naar inloggen" }).focus();
+    await page.keyboard.press("Enter");
+    await registerSwitch.focus();
     await page.keyboard.press("Enter");
     await expect(
       page.getByRole("group", { name: "Account aanmaken" }),
     ).toBeFocused();
+  });
+});
+
+const TOKEN = "e".repeat(43);
+
+test.describe("a link with a token in its fragment", () => {
+  test("a reset link opens the new-password form, clears the fragment, and ends on sign-in with a notice", async ({
+    page,
+  }) => {
+    let confirmBody: unknown = null;
+    const counts = await serveAuth(page, {
+      "/api/auth/me/": UNAUTHENTICATED,
+      "/api/auth/refresh/": { status: 200, body: null },
+    });
+    // Registered after serveAuth, not before: Playwright checks routes in
+    // reverse registration order (the same rule the registration and consent
+    // tests above rely on, with route.fallback()), so this handler has to be
+    // the LAST one registered to be tried FIRST. serveAuth's own plan has no
+    // entry for this path and throws on one it was not told about, so if this
+    // route were registered first, serveAuth's broader "**/api/auth/**"
+    // handler, registered after it, would intercept the request instead and
+    // throw "no answer planned for /api/auth/reset/confirm/". Red-proofed by
+    // moving this registration ahead of serveAuth's, which reproduces exactly
+    // that throw.
+    await page.route("**/api/auth/reset/confirm/", async (route) => {
+      if (route.request().method() === "OPTIONS") {
+        await preflight(route);
+        return;
+      }
+      confirmBody = route.request().postDataJSON();
+      await route.fulfill({ status: 204, headers: CORS });
+    });
+    await page.goto(`/account/#herstel=${TOKEN}`);
+    await expect(
+      page.getByRole("heading", { name: "Nieuw wachtwoord" }),
+    ).toBeVisible();
+    expect(new URL(page.url()).hash).toBe("");
+    await expect(page.locator("body")).not.toContainText(TOKEN);
+    // Not getByLabel: the outer signed-out group and this form's own
+    // <section> both carry aria-labelledby pointing at the "Nieuw wachtwoord"
+    // heading (spec 7.4 uses that exact phrase as both heading and field
+    // label), so getByLabel resolves to three elements (the group, the
+    // section, and the field) and fails Playwright's strict mode. getByRole
+    // with the "textbox" role names only the field.
+    await page
+      .getByRole("textbox", { name: "Nieuw wachtwoord" })
+      .fill("een-ander-wachtwoord");
+    await page.getByRole("button", { name: "Wachtwoord opslaan" }).click();
+    await expect(page.locator("main").getByRole("status")).toContainText(
+      "Uw wachtwoord is gewijzigd. Log in met uw nieuwe wachtwoord.",
+    );
+    await expect(page.getByRole("heading", { name: "Inloggen" })).toBeVisible();
+    expect(confirmBody).toEqual({
+      token: TOKEN,
+      password: "een-ander-wachtwoord",
+    });
+    expect(counts["/api/auth/me/"]).toBe(2);
+    await expect(page.locator("body")).not.toContainText("advice API returned");
+    await expect(page.locator("body")).not.toContainText("auth API returned");
+  });
+
+  test("asking for a link says the same sentence for a known and an unknown address", async ({
+    page,
+  }) => {
+    const bodies: unknown[] = [];
+    await serveAuth(page, {
+      "/api/auth/me/": UNAUTHENTICATED,
+      "/api/auth/refresh/": { status: 200, body: null },
+    });
+    // After serveAuth, for the reason noted on the reset-confirm test above:
+    // registered first, this route would never be reached, and serveAuth's
+    // own throw on an unplanned path is what would be red-proofed by
+    // reverting the order.
+    await page.route("**/api/auth/reset/request/", async (route) => {
+      if (route.request().method() === "OPTIONS") {
+        await preflight(route);
+        return;
+      }
+      bodies.push(route.request().postDataJSON());
+      await route.fulfill({
+        status: 202,
+        contentType: "application/json",
+        headers: CORS,
+        body: "{}",
+      });
+    });
+    await page.goto("/account/");
+    await page.getByRole("button", { name: "Wachtwoord vergeten?" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Wachtwoord herstellen" }),
+    ).toBeVisible();
+    await page.getByLabel("E-mailadres").fill("iemand@voorbeeld.nl");
+    await page.getByRole("button", { name: "Stuur een herstellink" }).click();
+    const sentence =
+      "Als dit adres bij ons bekend is, staat er binnen enkele minuten een e-mail voor u klaar. De link daarin werkt een uur.";
+    await expect(page.locator("main").getByRole("status")).toContainText(
+      sentence,
+    );
+    await expect(page.getByLabel("E-mailadres")).toHaveCount(0);
+    // The mock answers 202 for every address, exactly as the API does. What
+    // this proves is that the page shows one sentence and no second one: a
+    // page that said "bekend" or "onbekend" would have to get it from somewhere,
+    // and there is nowhere.
+    expect(bodies).toEqual([{ email: "iemand@voorbeeld.nl" }]);
+    await page.getByRole("button", { name: "Terug naar inloggen" }).click();
+    await expect(page.getByRole("heading", { name: "Inloggen" })).toBeVisible();
+    await expect(page.locator("body")).not.toContainText("advice API returned");
+    await expect(page.locator("body")).not.toContainText("auth API returned");
+  });
+
+  test("a confirmation link posts after the first me/ and says the address is confirmed", async ({
+    page,
+  }) => {
+    const order: string[] = [];
+    await page.route("**/api/auth/verify/confirm/", async (route) => {
+      if (route.request().method() === "OPTIONS") {
+        await preflight(route);
+        return;
+      }
+      order.push("confirm");
+      await route.fulfill({ status: 204, headers: CORS });
+    });
+    await page.route("**/api/auth/me/", async (route) => {
+      if (route.request().method() === "OPTIONS") {
+        await preflight(route);
+        return;
+      }
+      order.push("me");
+      await route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        headers: {
+          ...CORS,
+          "set-cookie": "csrftoken=een-e2e-token; Path=/; SameSite=Strict",
+        },
+        body: JSON.stringify({ detail: "u bent niet ingelogd" }),
+      });
+    });
+    await page.route("**/api/auth/refresh/", async (route) => {
+      if (route.request().method() === "OPTIONS") {
+        await preflight(route);
+        return;
+      }
+      await route.fulfill({ status: 200, headers: CORS, body: "" });
+    });
+    await page.goto(`/account/#verificatie=${TOKEN}`);
+    await expect(page.locator("main").getByRole("status")).toContainText(
+      "Uw e-mailadres is bevestigd.",
+    );
+    await expect(page.getByRole("heading", { name: "Inloggen" })).toBeVisible();
+    expect(new URL(page.url()).hash).toBe("");
+    expect(order.indexOf("confirm")).toBeGreaterThan(order.indexOf("me"));
+    expect(order.filter((entry) => entry === "confirm")).toHaveLength(1);
+    await expect(page.locator("body")).not.toContainText("advice API returned");
+    await expect(page.locator("body")).not.toContainText("auth API returned");
+  });
+
+  test("a stale confirmation link shows the API's sentence and nothing English", async ({
+    page,
+  }) => {
+    await serveAuth(page, {
+      "/api/auth/me/": UNAUTHENTICATED,
+      "/api/auth/refresh/": { status: 200, body: null },
+    });
+    // After serveAuth, for the reason noted on the reset-confirm test above.
+    await page.route("**/api/auth/verify/confirm/", async (route) => {
+      if (route.request().method() === "OPTIONS") {
+        await preflight(route);
+        return;
+      }
+      await route.fulfill({
+        status: 400,
+        contentType: "application/json",
+        headers: CORS,
+        body: JSON.stringify({
+          token: ["deze link is verlopen of al gebruikt; vraag een nieuwe aan"],
+        }),
+      });
+    });
+    await page.goto(`/account/#verificatie=${TOKEN}`);
+    await expect(page.locator("main").getByRole("status")).toContainText(
+      "deze link is verlopen of al gebruikt; vraag een nieuwe aan",
+    );
+    await expect(page.locator("body")).not.toContainText("API returned");
   });
 });
 
@@ -775,6 +984,60 @@ test.describe("what the page is without JavaScript, and what axe says with it", 
       expect(
         results.violations,
         `register in ${scheme}: ${JSON.stringify(results.violations.map((violation) => violation.id))}`,
+      ).toEqual([]);
+    });
+
+    test(`axe finds nothing on the reset request view in ${scheme}`, async ({
+      page,
+    }) => {
+      await serveAuth(page, {
+        "/api/auth/me/": UNAUTHENTICATED,
+        "/api/auth/refresh/": {
+          status: 401,
+          body: { detail: "uw sessie is verlopen, log opnieuw in" },
+        },
+      });
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.goto("/account/");
+      await page.evaluate(
+        (value) => document.documentElement.setAttribute("data-theme", value),
+        scheme,
+      );
+      await page.getByRole("button", { name: "Wachtwoord vergeten?" }).click();
+      await expect(
+        page.getByRole("heading", { name: "Wachtwoord herstellen" }),
+      ).toBeVisible();
+      const results = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag22aa"])
+        .analyze();
+      expect(
+        results.violations,
+        `reset request in ${scheme}: ${JSON.stringify(results.violations.map((violation) => violation.id))}`,
+      ).toEqual([]);
+    });
+
+    test(`axe finds nothing on the new-password view in ${scheme}`, async ({
+      page,
+    }) => {
+      await serveAuth(page, {
+        "/api/auth/me/": UNAUTHENTICATED,
+        "/api/auth/refresh/": { status: 200, body: null },
+      });
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.goto(`/account/#herstel=${TOKEN}`);
+      await page.evaluate(
+        (value) => document.documentElement.setAttribute("data-theme", value),
+        scheme,
+      );
+      await expect(
+        page.getByRole("heading", { name: "Nieuw wachtwoord" }),
+      ).toBeVisible();
+      const results = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag22aa"])
+        .analyze();
+      expect(
+        results.violations,
+        `new password in ${scheme}: ${JSON.stringify(results.violations.map((violation) => violation.id))}`,
       ).toEqual([]);
     });
 

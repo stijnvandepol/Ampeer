@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api";
 import { getMe } from "@/lib/accounts";
-import { describeAuthError } from "@/app/_account/messages";
+import { describeAuthError, fieldErrors } from "@/app/_account/messages";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -101,5 +101,16 @@ describe("what a visitor reads when the account API said no", () => {
     // the guard in `describeAuthError` exists for.
     const error = new ApiError(401, {}, "advice API returned 401");
     expect(describeAuthError(error)).not.toContain("advice API returned");
+  });
+
+  it("keeps a token error beside the field it belongs to", () => {
+    const error = new ApiError(
+      400,
+      { token: ["deze link is verlopen of al gebruikt; vraag een nieuwe aan"] },
+      "",
+    );
+    expect(fieldErrors(error)).toEqual({
+      token: ["deze link is verlopen of al gebruikt; vraag een nieuwe aan"],
+    });
   });
 });
