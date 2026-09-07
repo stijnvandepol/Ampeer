@@ -53,6 +53,22 @@ CORS_ALLOWED_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000", "http:
 CORS_ALLOW_CREDENTIALS = True
 AMPEER_COOKIE_SECURE = False
 
+# Two more things a cross-port developer setup needs and production does not,
+# found on 2026-09-07 by the first person to register from a real browser at
+# 127.0.0.1:3000 against 127.0.0.1:8000. The e2e specs answer their own
+# preflights and the stack smoke sends a production shaped Origin, so neither
+# had ever exercised this path. First: the account client sends X-CSRFToken on
+# every unsafe request, and a preflight that does not name that header makes
+# the browser drop the request before it leaves. base.py keeps the list to
+# content-type because the advice API needs nothing else; the account API
+# does, and only across ports. Second: Django's CSRF check compares the Origin
+# header with the request's own host, so an Origin on port 3000 against a
+# host on port 8000 is refused as cross-site unless it is trusted here. Both
+# lists are the same three origins on purpose: a fourth place to list them is
+# a fourth place for one of them to be forgotten.
+CORS_ALLOW_HEADERS = [*CORS_ALLOW_HEADERS, "x-csrftoken"]
+CSRF_TRUSTED_ORIGINS = list(CORS_ALLOWED_ORIGINS)
+
 # A developer reads the mail as a file under data/mail/, which .gitignore
 # already keeps out of the tree along with the rest of data/.
 AMPEER_MAIL_TRANSPORT = "file"
