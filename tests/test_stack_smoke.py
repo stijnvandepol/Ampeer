@@ -27,13 +27,14 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 import yaml
-from helpers.accounts import TEST_PASSWORD
+from helpers.accounts import OTHER_PASSWORD, TEST_PASSWORD
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 INFRA = REPO_ROOT / "infra"
@@ -49,6 +50,7 @@ PREFLIGHT = REPO_ROOT / "scripts" / "preflight_env.sh"
 FIXTURES = INFRA / "fixtures"
 PROFILE_FIXTURE = FIXTURES / "nedu-flat-2025.csv"
 ENV_FIXTURE = FIXTURES / "env.smoke"
+MAIL_FIXTURE_DIR = FIXTURES / "mail"
 
 #: The year the profile fixture carries, which is settings.AMPEER_PROFILE_YEAR.
 #: 2025 is not a leap year, so a full series is 365 * 96 quarters.
@@ -379,6 +381,165 @@ def test_live_a_stale_version_is_refused_over_the_real_route() -> None:
     )
     assert status == 400, f"a stale version was accepted, answering {status}: {payload!r}"
     assert b"text_version" in payload
+
+
+def _run_outbox() -> None:
+    """Run send_outbound_mail once, inside the api container of the local stack.
+
+    The timer that does this on a host does not exist on a developer machine,
+    so the check does what the timer would: one run, foreground, exit code
+    read. `--entrypoint python` for the reason the systemd unit gives.
+    """
+    import subprocess
+
+    docker = shutil.which("docker")
+    assert docker, "the live checks need docker on PATH to run the outbox command"
+    subprocess.run(
+        [
+            docker,
+            "compose",
+            "-f",
+            COMPOSE.as_posix(),
+            "-f",
+            OVERRIDE.as_posix(),
+            "--env-file",
+            ENV_FIXTURE.as_posix(),
+            "run",
+            "--rm",
+            "--entrypoint",
+            "python",
+            "api",
+            "backend/manage.py",
+            "send_outbound_mail",
+        ],
+        check=True,
+        timeout=120,
+    )
+
+
+def _link_token_from_newest_mail(fragment: str) -> str:
+    """The token off the newest file the file transport wrote, and the file removed.
+
+    Removed, so a second run of this file reads its own mail and not the
+    previous run's, and so no working link stays on disk after the check.
+    """
+    files = sorted(MAIL_FIXTURE_DIR.glob("outbox-*.txt"), key=lambda path: path.stat().st_mtime)
+    assert files, f"no mail was written to {MAIL_FIXTURE_DIR}; did the transport run at all?"
+    newest = files[-1]
+    text = newest.read_text(encoding="utf-8")
+    newest.unlink()
+    match = re.search(rf"http://127\.0\.0\.1:8080/account/#{fragment}=([A-Za-z0-9_-]{{43}})", text)
+    assert match, f"the mail carries no {fragment} link:\n{text}"
+    return match.group(1)
+
+
+#: The one account the two recovery checks share, set by the verification
+#: check and read by the reset check. One registration instead of two, on
+#: purpose: auth-register allows five an hour per caller and the four
+#: existing live checks already spend three, so a second registration here
+#: would put every rerun inside the hour on a 429. pytest runs the functions
+#: of a module in definition order, which is why the verification check is
+#: written first.
+_RECOVERY_ACCOUNT: dict[str, str] = {}
+
+
+@needs_stack
+def test_live_a_verification_link_sets_the_timestamp() -> None:
+    """The mail registration itself queued, followed on a session that is not
+    signed in, and `me/` afterwards saying when. Leaves the account in place
+    for the reset check below."""
+    from accounts.nl import CONSENT_TEXT_VERSION
+
+    assert STACK is not None
+    session = _Session(STACK)
+    session.request("GET", "/api/auth/me/")
+    email = _fresh_email()
+    session.json(
+        "POST",
+        "/api/auth/register/",
+        {
+            "email": email,
+            "password": TEST_PASSWORD,
+            "consent_meter_link": False,
+            "consent_lead_generation": False,
+            "text_version": CONSENT_TEXT_VERSION,
+        },
+    )
+    assert session.json("GET", "/api/auth/me/")["email_verified_at"] is None
+    _run_outbox()
+    token = _link_token_from_newest_mail("verificatie")
+
+    stranger = _Session(STACK)
+    stranger.request("GET", "/api/auth/me/")
+    status, payload = stranger.request(
+        "POST",
+        "/api/auth/verify/confirm/",
+        {"token": token},
+        {"X-CSRFToken": stranger.cookies["csrftoken"]},
+    )
+    assert status == 204, payload
+
+    assert session.json("GET", "/api/auth/me/")["email_verified_at"] is not None
+    session.json("POST", "/api/auth/logout/")
+    _RECOVERY_ACCOUNT["email"] = email
+
+
+@needs_stack
+def test_live_a_reset_link_closes_the_loop() -> None:
+    """The whole recovery flow over one real connection, with the mail read
+    back out of a file: request, send, follow, set, sign in. No layer above
+    this can prove that the link in the mail is the link the API accepts.
+
+    Runs on the account the verification check registered, so the address is
+    already confirmed here; that a completed reset confirms an address on its
+    own is proved in tests/test_accounts_recovery.py and not repeated over
+    the wire.
+    """
+    assert STACK is not None
+    email = _RECOVERY_ACCOUNT.get("email")
+    assert email, (
+        "no account to reset: the verification check runs first and registers it, "
+        "and the two share one registration on purpose"
+    )
+    session = _Session(STACK)
+    session.request("GET", "/api/auth/me/")
+
+    answer = session.json("POST", "/api/auth/reset/request/", {"email": email})
+    assert answer == {}
+    _run_outbox()
+    token = _link_token_from_newest_mail("herstel")
+
+    status, payload = session.request(
+        "POST",
+        "/api/auth/reset/confirm/",
+        {"token": token, "password": OTHER_PASSWORD},
+        {"X-CSRFToken": session.cookies["csrftoken"]},
+    )
+    assert status == 204, payload
+    assert not any(header.startswith("ampeer_") for header in session.set_cookie), (
+        f"a reset signed somebody in: {session.set_cookie}"
+    )
+
+    status, _ = session.request(
+        "POST",
+        "/api/auth/login/",
+        {"email": email, "password": TEST_PASSWORD},
+        {"X-CSRFToken": session.cookies["csrftoken"]},
+    )
+    assert status == 401, "the old password still works after a reset"
+    session.json("POST", "/api/auth/login/", {"email": email, "password": OTHER_PASSWORD})
+    _assert_session_cookie_attributes(session, "login/ after a reset")
+    assert session.json("GET", "/api/auth/me/")["email_verified_at"] is not None
+
+    status, payload = session.request(
+        "POST",
+        "/api/auth/reset/confirm/",
+        {"token": token, "password": OTHER_PASSWORD},
+        {"X-CSRFToken": session.cookies["csrftoken"]},
+    )
+    assert status == 400 and b"token" in payload, (status, payload)
+    session.json("POST", "/api/auth/delete/", {"password": OTHER_PASSWORD})
+    _RECOVERY_ACCOUNT.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -887,6 +1048,12 @@ def test_the_environment_fixture_carries_the_local_hop_count(name: str) -> None:
 def main() -> int:
     """Write both fixtures where infra/compose.test.yml expects them."""
     write_profile_fixture(PROFILE_FIXTURE)
+    MAIL_FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
+    # The api container runs as uid 10001 and writes here through the bind
+    # mount. On Docker Desktop any uid may; on a Linux host the directory
+    # would belong to the developer, so it is opened up. Best effort: chmod is
+    # a no-op on Windows and this directory holds nothing but test mail.
+    MAIL_FIXTURE_DIR.chmod(0o777)
     # as_posix(), which is a no-op on the host and the whole difference on a
     # Windows developer machine. scripts/preflight_env.sh reads this value with
     # `[ -f ... ]` and refuses a path with no forward slash in it, on the
@@ -899,6 +1066,7 @@ def main() -> int:
     )
     size_mb = PROFILE_FIXTURE.stat().st_size / 1_048_576
     print(f"wrote {PROFILE_FIXTURE} ({size_mb:.2f} MB, {FIXTURE_QUARTERS} quarters)")
+    print(f"prepared {MAIL_FIXTURE_DIR}")
     print(f"wrote {ENV_FIXTURE}")
     return 0
 
