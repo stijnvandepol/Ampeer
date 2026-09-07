@@ -54,15 +54,7 @@ export function ResetConfirmForm({
   }
 
   return (
-    // No `aria-labelledby` on this wrapper, unlike its siblings: the heading
-    // and the one field's label are both, deliberately, "Nieuw wachtwoord"
-    // (spec 7.4). Pointing the section's name at the heading would give it
-    // the same computed accessible name as the field, and
-    // `@testing-library/dom`'s `getByLabelText` matches both a form control
-    // by its label and any element named via `aria-labelledby`, so the two
-    // become indistinguishable to that query. The heading still gives a
-    // screen reader user structure; only the landmark name is dropped.
-    <section className="flex flex-col gap-6">
+    <section aria-labelledby="nieuw-wachtwoord" className="flex flex-col gap-6">
       <h2 id="nieuw-wachtwoord" className="text-2xl">
         Nieuw wachtwoord
       </h2>

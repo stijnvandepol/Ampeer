@@ -31,7 +31,7 @@ describe("choosing a new password with a link", () => {
       />,
     );
     await userEvent.type(
-      screen.getByLabelText("Nieuw wachtwoord"),
+      screen.getByLabelText("Nieuw wachtwoord", { selector: "input" }),
       "een-ander-wachtwoord",
     );
     await userEvent.click(
@@ -60,7 +60,7 @@ describe("choosing a new password with a link", () => {
       />,
     );
     await userEvent.type(
-      screen.getByLabelText("Nieuw wachtwoord"),
+      screen.getByLabelText("Nieuw wachtwoord", { selector: "input" }),
       "een-ander-wachtwoord",
     );
     await userEvent.click(
@@ -70,7 +70,7 @@ describe("choosing a new password with a link", () => {
       "deze link is verlopen of al gebruikt; vraag een nieuwe aan",
     );
     expect(
-      screen.getByLabelText("Nieuw wachtwoord"),
+      screen.getByLabelText("Nieuw wachtwoord", { selector: "input" }),
     ).toHaveAccessibleDescription(
       "deze link is verlopen of al gebruikt; vraag een nieuwe aan",
     );
@@ -89,7 +89,10 @@ describe("choosing a new password with a link", () => {
         onRequestNew={vi.fn()}
       />,
     );
-    await userEvent.type(screen.getByLabelText("Nieuw wachtwoord"), "kort");
+    await userEvent.type(
+      screen.getByLabelText("Nieuw wachtwoord", { selector: "input" }),
+      "kort",
+    );
     await userEvent.click(
       screen.getByRole("button", { name: "Wachtwoord opslaan" }),
     );
@@ -114,7 +117,7 @@ describe("choosing a new password with a link", () => {
       />,
     );
     await userEvent.type(
-      screen.getByLabelText("Nieuw wachtwoord"),
+      screen.getByLabelText("Nieuw wachtwoord", { selector: "input" }),
       "een-ander-wachtwoord",
     );
     await userEvent.click(
@@ -123,10 +126,9 @@ describe("choosing a new password with a link", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "te veel verzoeken achter elkaar; probeer het over 900 seconden opnieuw",
     );
-    expect(screen.getByLabelText("Nieuw wachtwoord")).not.toHaveAttribute(
-      "aria-invalid",
-      "true",
-    );
+    expect(
+      screen.getByLabelText("Nieuw wachtwoord", { selector: "input" }),
+    ).not.toHaveAttribute("aria-invalid", "true");
     expect(document.body.textContent).not.toContain("API returned");
   });
 
