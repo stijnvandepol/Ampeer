@@ -46,6 +46,20 @@ describe("the registration view", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows the label from the API as each consent's heading, not the sentence again", async () => {
+    // Catches `label={texts.texts[kind]}`: that would still satisfy the test
+    // above (the sentence is present either way), but the label text itself
+    // would then be missing from the screen entirely.
+    stub([{ status: 200, body: consentTexts }]);
+    render(<RegisterForm onRegistered={vi.fn()} onSignIn={vi.fn()} />);
+    expect(
+      await screen.findByText(consentTexts.labels.METER_LINK),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(consentTexts.labels.LEAD_GENERATION),
+    ).toBeInTheDocument();
+  });
+
   it("starts with both boxes unticked and neither one required", async () => {
     // Not pre-ticked is a property of this line and of the serializer, which
     // gives the fields no default. Not required is article 7(4): the API

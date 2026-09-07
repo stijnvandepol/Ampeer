@@ -804,28 +804,70 @@ describe("a link with a token in its fragment", () => {
   it("opens the new-password form on a reset fragment when nobody is signed in", async () => {
     window.history.replaceState(null, "", `/account/#herstel=${TOKEN}`);
     const replaceState = vi.spyOn(window.history, "replaceState");
-    stub([
-      { status: 401, body: { detail: "u bent niet ingelogd" } },
-      { status: 200 },
-      { status: 401, body: { detail: "u bent niet ingelogd" } },
-    ]);
-    render(<AccountPage />);
-    expect(
-      await screen.findByRole("heading", { name: "Nieuw wachtwoord" }),
-    ).toBeInTheDocument();
-    expect(window.location.hash).toBe("");
-    // The fragment left the address bar through replaceState and not through
-    // a navigation: the page, not the browser, took the token out of
-    // history. The first argument is `null`, not `expect.anything()` (which
-    // Vitest's matcher explicitly refuses to match against `null`): the
-    // setup above put the browser in a state of `null` before this render,
-    // and fragment.ts's own contract is to carry that state through
-    // unchanged rather than clobber it, which this pins to the concrete
-    // value rather than to "some value or other".
-    expect(replaceState).toHaveBeenCalledWith(null, "", "/account/");
-    expect(document.body.innerHTML).not.toContain(TOKEN);
-    expect(document.activeElement).toBe(document.body);
-    replaceState.mockRestore();
+    try {
+      stub([
+        { status: 401, body: { detail: "u bent niet ingelogd" } },
+        { status: 200 },
+        { status: 401, body: { detail: "u bent niet ingelogd" } },
+      ]);
+      render(<AccountPage />);
+      expect(
+        await screen.findByRole("heading", { name: "Nieuw wachtwoord" }),
+      ).toBeInTheDocument();
+      expect(window.location.hash).toBe("");
+      // The fragment left the address bar through replaceState and not
+      // through a navigation: the page, not the browser, took the token out
+      // of history. The first argument is `null`, not `expect.anything()`
+      // (which Vitest's matcher explicitly refuses to match against `null`):
+      // the setup above put the browser in a state of `null` before this
+      // render, and fragment.ts's own contract is to carry that state
+      // through unchanged rather than clobber it, which this pins to the
+      // concrete value rather than to "some value or other".
+      expect(replaceState).toHaveBeenCalledWith(null, "", "/account/");
+      expect(document.body.innerHTML).not.toContain(TOKEN);
+      expect(document.activeElement).toBe(document.body);
+    } finally {
+      // In a `finally`, not at the end of the `try`: a failed assertion
+      // above must not leave this spy in place for whichever test runs
+      // next.
+      replaceState.mockRestore();
+    }
+  });
+
+  it("clears the fragment from the address bar before the first answer arrives", async () => {
+    // Spec 6.1: the token is read once and cleared "meteen", immediately,
+    // not once `me/` has settled. A deferred `me/` response is what makes
+    // this failable: without the deferral, the exchange could resolve
+    // before this assertion runs and the test would pass whether or not the
+    // clearing actually happened before that answer.
+    window.history.replaceState(null, "", `/account/#herstel=${TOKEN}`);
+    const replaceState = vi.spyOn(window.history, "replaceState");
+    const meRequest = deferred<Response>();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(() => meRequest.promise),
+    );
+    try {
+      render(<AccountPage />);
+      // Still loading: the deferred `me/` has not answered, and the page
+      // has not asked anything else yet either.
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Uw gegevens worden opgehaald.",
+      );
+      expect(window.location.hash).toBe("");
+      expect(replaceState).toHaveBeenCalledWith(null, "", "/account/");
+      const call = replaceState.mock.calls[0];
+      expect(call).toBeDefined();
+      expect(String(call?.[2])).not.toContain("#");
+    } finally {
+      meRequest.resolve(
+        new Response(JSON.stringify({ detail: "u bent niet ingelogd" }), {
+          status: 401,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+      replaceState.mockRestore();
+    }
   });
 
   it("ignores a reset fragment when somebody is signed in", async () => {
@@ -905,11 +947,15 @@ describe("a link with a token in its fragment", () => {
 
   it("confirms an address only after the first me/, and asks me/ again when signed in", async () => {
     window.history.replaceState(null, "", `/account/#verificatie=${TOKEN}`);
-    // Answered by path and not by position: the confirmation is posted from
-    // the session callback, before React has mounted AccountView and started
-    // its consent-texts effect, so the order between those two requests is an
-    // implementation detail this test must not depend on. What it asserts is
-    // the order between me/ and verify/confirm/, which is the rule.
+    // Answered by path and not by position (ruling 74): the confirmation is
+    // posted from the session callback, before React has mounted AccountView
+    // and started its consent-texts effect, so the order between those two
+    // requests, and between either of them and the second me/ (which fires
+    // the instant `confirmEmailVerification` resolves, racing the DOM update
+    // `findByText` below waits for), is an implementation detail this test
+    // must not depend on. What it asserts is the order between the FIRST
+    // me/ and verify/confirm/, which is the rule, and that there are
+    // exactly two me/ calls in total.
     const seen: string[] = [];
     let meCalls = 0;
     vi.stubGlobal(
@@ -940,9 +986,8 @@ describe("a link with a token in its fragment", () => {
       }),
     );
     render(<AccountPage />);
-    expect(
-      await screen.findByText("Uw e-mailadres is bevestigd."),
-    ).toBeInTheDocument();
+    const confirmed = await screen.findByText("Uw e-mailadres is bevestigd.");
+    expect(confirmed).toHaveAttribute("role", "status");
     const paths = seen.map((url) => new URL(url).pathname);
     expect(paths.indexOf("/api/auth/verify/confirm/")).toBeGreaterThan(
       paths.indexOf("/api/auth/me/"),
@@ -960,35 +1005,121 @@ describe("a link with a token in its fragment", () => {
 
   it("confirms an address for a visitor who is not signed in, and shows the sign-in form", async () => {
     window.history.replaceState(null, "", `/account/#verificatie=${TOKEN}`);
-    const { seen } = stub([
-      { status: 401, body: { detail: "u bent niet ingelogd" } },
-      { status: 200 },
-      { status: 401, body: { detail: "u bent niet ingelogd" } },
-      { status: 204 },
-    ]);
+    const seen: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        seen.push(url);
+        const path = new URL(url).pathname;
+        if (path === "/api/auth/me/")
+          return new Response(
+            JSON.stringify({ detail: "u bent niet ingelogd" }),
+            { status: 401, headers: { "content-type": "application/json" } },
+          );
+        if (path === "/api/auth/refresh/")
+          return new Response(null, { status: 200 });
+        if (path === "/api/auth/verify/confirm/")
+          return new Response(null, { status: 204 });
+        throw new Error(`no answer planned for ${path}`);
+      }),
+    );
     render(<AccountPage />);
-    expect(
-      await screen.findByText("Uw e-mailadres is bevestigd."),
-    ).toBeInTheDocument();
+    const confirmed = await screen.findByText("Uw e-mailadres is bevestigd.");
+    expect(confirmed).toHaveAttribute("role", "status");
     expect(
       screen.getByRole("heading", { name: "Inloggen" }),
     ).toBeInTheDocument();
     expect(seen.filter((url) => url.endsWith("/me/"))).toHaveLength(2);
+    // Exactly four requests here, in a fixed order: me/, refresh/, me/ (the
+    // one exchange `loadSession` allows), then verify/confirm/ last, because
+    // nothing is posted before that exchange settles.
+    const paths = seen.map((url) => new URL(url).pathname);
+    expect(paths).toEqual([
+      "/api/auth/me/",
+      "/api/auth/refresh/",
+      "/api/auth/me/",
+      "/api/auth/verify/confirm/",
+    ]);
+  });
+
+  it("keeps the confirmed sentence when the second me/ fails after a successful confirmation", async () => {
+    // Important 1: the second `me/` used to sit inside the `try` guarding
+    // `confirmEmailVerification`, so a dropped connection here ran the
+    // confirmation's own `catch` and replaced "Uw e-mailadres is bevestigd."
+    // with an error sentence, telling a household its address was not
+    // confirmed while the token was already spent.
+    window.history.replaceState(null, "", `/account/#verificatie=${TOKEN}`);
+    let meCalls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async (input: RequestInfo | URL) => {
+        const path = new URL(String(input)).pathname;
+        if (path === "/api/auth/me/") {
+          meCalls += 1;
+          if (meCalls === 1) {
+            return new Response(JSON.stringify(me), {
+              status: 200,
+              headers: { "content-type": "application/json" },
+            });
+          }
+          throw new TypeError("Failed to fetch");
+        }
+        if (path === "/api/auth/consent-texts/")
+          return new Response(JSON.stringify(consentTexts), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        if (path === "/api/auth/verify/confirm/")
+          return new Response(null, { status: 204 });
+        throw new Error(`no answer planned for ${path}`);
+      }),
+    );
+    render(<AccountPage />);
+    const confirmed = await screen.findByText("Uw e-mailadres is bevestigd.");
+    expect(confirmed).toHaveAttribute("role", "status");
+    // The failed second me/ falls back to the same answer this page gives a
+    // failed me/ anywhere else: the sign-in view, with the network sentence.
+    expect(
+      await screen.findByRole("heading", { name: "Inloggen" }),
+    ).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Wij konden de server niet bereiken.",
+    );
+    // And the confirmation sentence is still there, untouched by that.
+    expect(
+      screen.getByText("Uw e-mailadres is bevestigd."),
+    ).toBeInTheDocument();
   });
 
   it("shows the API's sentence when the confirmation link is stale", async () => {
     window.history.replaceState(null, "", `/account/#verificatie=${TOKEN}`);
-    stub([
-      { status: 401, body: { detail: "u bent niet ingelogd" } },
-      { status: 200 },
-      { status: 401, body: { detail: "u bent niet ingelogd" } },
-      {
-        status: 400,
-        body: {
-          token: ["deze link is verlopen of al gebruikt; vraag een nieuwe aan"],
-        },
-      },
-    ]);
+    const seen: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        seen.push(url);
+        const path = new URL(url).pathname;
+        if (path === "/api/auth/me/")
+          return new Response(
+            JSON.stringify({ detail: "u bent niet ingelogd" }),
+            { status: 401, headers: { "content-type": "application/json" } },
+          );
+        if (path === "/api/auth/refresh/")
+          return new Response(null, { status: 200 });
+        if (path === "/api/auth/verify/confirm/")
+          return new Response(
+            JSON.stringify({
+              token: [
+                "deze link is verlopen of al gebruikt; vraag een nieuwe aan",
+              ],
+            }),
+            { status: 400, headers: { "content-type": "application/json" } },
+          );
+        throw new Error(`no answer planned for ${path}`);
+      }),
+    );
     render(<AccountPage />);
     // findByText, not findByRole("status"): the loading sentence is also a
     // role="status" paragraph, present on the very first render, so a plain
@@ -997,6 +1128,35 @@ describe("a link with a token in its fragment", () => {
     expect(
       await screen.findByText(
         "deze link is verlopen of al gebruikt; vraag een nieuwe aan",
+      ),
+    ).toBeInTheDocument();
+    const paths = seen.map((url) => new URL(url).pathname);
+    expect(paths).toEqual([
+      "/api/auth/me/",
+      "/api/auth/refresh/",
+      "/api/auth/me/",
+      "/api/auth/verify/confirm/",
+    ]);
+  });
+
+  it("shows the server's own sentence when confirming fails without a token-specific message", async () => {
+    // The other side of the ternary at the confirmation's catch: a 429
+    // carries only `detail`, no `token` field, so `describeAuthError` is
+    // what has to answer.
+    window.history.replaceState(null, "", `/account/#verificatie=${TOKEN}`);
+    stub([
+      { status: 401, body: { detail: "u bent niet ingelogd" } },
+      { status: 200 },
+      { status: 401, body: { detail: "u bent niet ingelogd" } },
+      {
+        status: 429,
+        body: { detail: "u vraagt dit te vaak, probeer het later opnieuw" },
+      },
+    ]);
+    render(<AccountPage />);
+    expect(
+      await screen.findByText(
+        "u vraagt dit te vaak, probeer het later opnieuw",
       ),
     ).toBeInTheDocument();
   });

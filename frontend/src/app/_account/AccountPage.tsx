@@ -64,6 +64,15 @@ const PASSWORD_CHANGED =
 const ADDRESS_CONFIRMED = "Uw e-mailadres is bevestigd.";
 const CONFIRMATION_MAIL_UNDERWAY =
   "Er is een e-mail onderweg om uw adres te bevestigen.";
+/**
+ * Shown after the resend button's 202, for the same reason the other
+ * notices above are module constants: a plain call argument
+ * (`setMailNotice("...")`) sits in a position `e2e/language.spec.ts`'s
+ * extractor does not walk, so the sentence would be invisible to
+ * `ui-strings.txt` and the language check would pass while showing English
+ * nowhere, having simply never looked at this text at all.
+ */
+const RESEND_CONFIRMATION_MAIL_UNDERWAY = "De bevestigingsmail is onderweg.";
 
 /**
  * What deletion removes and what stays, read before the password field.
@@ -178,15 +187,6 @@ export function AccountPage() {
       if (fragment?.kind !== "verify") return;
       try {
         await confirmEmailVerification({ token: fragment.token });
-        if (!alive) return;
-        setVerification(ADDRESS_CONFIRMED);
-        if (next.status === "signed_in") {
-          // A second `me/` after a change, so the address line below says
-          // what the server now says. Not a retry: the first answer was
-          // right at the time and the question has changed since.
-          const refreshed = await getMe();
-          if (alive) setState({ status: "signed_in", me: refreshed });
-        }
       } catch (error) {
         if (!alive) return;
         const perField = fieldErrors(error);
@@ -195,6 +195,27 @@ export function AccountPage() {
             ? describeAuthError(error)
             : perField.token.join(" "),
         );
+        return;
+      }
+      if (!alive) return;
+      // Set before the second question is asked, and never taken back by
+      // that question's own failure: the 204 above already spent the token,
+      // so a dropped connection here must not tell a household its address
+      // is unconfirmed when it is not.
+      setVerification(ADDRESS_CONFIRMED);
+      if (next.status !== "signed_in") return;
+      try {
+        // A second `me/` after a change, so the address line below says
+        // what the server now says. Not a retry: the first answer was
+        // right at the time and the question has changed since.
+        const refreshed = await getMe();
+        if (alive) setState({ status: "signed_in", me: refreshed });
+      } catch (error) {
+        // The same answer this page gives a failed `me/` anywhere else
+        // (`askWhoIsSignedIn` in `session.ts`): the sign-in view, with the
+        // network's own sentence. The confirmation line above is untouched
+        // by this branch and stays on screen regardless of `state.status`.
+        if (alive) setState(signedOut(describeAuthError(error)));
       }
     });
     return () => {
@@ -474,7 +495,7 @@ function AccountView({
     setFailure(null);
     try {
       await requestEmailVerification();
-      setMailNotice("De bevestigingsmail is onderweg.");
+      setMailNotice(RESEND_CONFIRMATION_MAIL_UNDERWAY);
     } catch (error) {
       setFailure(describeAuthError(error));
     } finally {
