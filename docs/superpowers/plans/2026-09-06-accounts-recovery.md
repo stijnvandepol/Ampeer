@@ -2,7 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** in progress
+**Status:** delivered
+
+> **Status op 2026-09-07: opgeleverd.** Elk bestand dat dit plan noemt staat in
+> de boom, wat `tests/test_plans.py` voor alle negen plannen controleert en wat
+> rood wordt op de dag dat een ervan niet meer klopt. Wat die test niet kan
+> zeggen is of elke stap is uitgevoerd zoals hij hier staat; daar zijn de
+> commitgeschiedenis en de suite voor.
 
 **Goal:** Wie zijn wachtwoord kwijt is vraagt op `/account/` een herstellink aan, ontvangt binnen een minuut een mail van `noreply@ampeer.nl`, kiest via die link een nieuw wachtwoord en logt daarmee in; wie een account aanmaakt ontvangt een bevestigingsmail, en na een klik op die link draagt `me/` het tijdstip van bevestiging dat fase 2 straks eist. Geen enkel verzoek van een bezoeker raakt daarbij het netwerk.
 
