@@ -214,7 +214,8 @@ class OneTimeToken(models.Model):
     password changed. `spent_at` answers that in one column.
     """
 
-    PASSWORD_RESET = "PASSWORD_RESET"
+    #: B105 matches this constant's name, not a credential: the value is a token kind.
+    PASSWORD_RESET = "PASSWORD_RESET"  # nosec B105
     EMAIL_VERIFY = "EMAIL_VERIFY"
     KINDS: ClassVar[frozenset[str]] = frozenset({PASSWORD_RESET, EMAIL_VERIFY})
 

@@ -157,8 +157,9 @@ class AuditEvent(models.Model):
     #: carries the kind and the id the mail provider returned: that id is not
     #: a personal datum and is the only handle by which one delivery can be
     #: found at the processor.
-    PASSWORD_RESET_REQUESTED = "PASSWORD_RESET_REQUESTED"
-    PASSWORD_RESET_COMPLETED = "PASSWORD_RESET_COMPLETED"
+    #: B105 matches these two constant names, not a credential: they are audit kinds.
+    PASSWORD_RESET_REQUESTED = "PASSWORD_RESET_REQUESTED"  # nosec B105
+    PASSWORD_RESET_COMPLETED = "PASSWORD_RESET_COMPLETED"  # nosec B105
     EMAIL_VERIFIED = "EMAIL_VERIFIED"
     MAIL_SENT = "MAIL_SENT"
 
