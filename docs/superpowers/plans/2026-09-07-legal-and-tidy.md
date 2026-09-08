@@ -4,12 +4,12 @@
 
 **Status:** delivered
 
-    > **Status op 2026-09-08: opgeleverd.** Elk bestand dat dit plan noemt staat
-    > in de boom. `tests/test_plans.py` controleert dat voor alle plannen in
-    > `docs/superpowers/plans/`, en het wordt rood op de dag dat een van hen
-    > niet meer klopt. Wat die test niet kan zeggen is of elke stap is
-    > uitgevoerd zoals hij hier staat; daar zijn de commitgeschiedenis en de
-    > suite voor.
+> **Status op 2026-09-08: opgeleverd.** Elk bestand dat dit plan noemt staat
+> in de boom. `tests/test_plans.py` controleert dat voor alle plannen in
+> `docs/superpowers/plans/`, en het wordt rood op de dag dat een van hen
+> niet meer klopt. Wat die test niet kan zeggen is of elke stap is
+> uitgevoerd zoals hij hier staat; daar zijn de commitgeschiedenis en de
+> suite voor.
 
 **Goal:** `/privacy/` zegt weer wat vandaag waar is (toestemming, Resend, dertien logsoorten, een verwijderknop op `/account/`), er komt een pagina `/voorwaarden/` met de gebruiksvoorwaarden en de adviesdisclaimer, `docs/verwerkersregister.md` legt artikel 30 AVG vast en is aan de code gebonden, en vijf stuks opgetekende code-schuld uit de drie accountcycli worden betaald: de 401 die uit `nl.py` antwoordt, een grens op de mail-batch, drie verouderde zinnen in gesloten documenten, en branch-dekking met een eigen vloer.
 
