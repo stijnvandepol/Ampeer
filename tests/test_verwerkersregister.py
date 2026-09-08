@@ -174,6 +174,20 @@ def test_every_section_is_numbered_consecutively() -> None:
     assert numbers == list(range(len(numbers))), numbers
 
 
+def test_the_dpia_no_longer_says_there_is_no_register() -> None:
+    """The register this file binds is the reason docs/dpia.md's chapter 10
+    can stop saying it does not exist.
+
+    This test shipped as a strict xfail while it waited on the task that
+    rewrites the DPIA sentence; a test that waits on another task's schedule
+    is a skip in disguise, so it lands as a plain test here, in the same
+    commit that rewrites the sentence.
+    """
+    dpia = DPIA.read_text(encoding="utf-8")
+    assert "geen verwerkersregister" not in dpia
+    assert "verwerkersregister.md" in dpia
+
+
 def test_the_register_names_the_controller_the_site_names() -> None:
     identity = (REPO_ROOT / "frontend" / "src" / "app" / "privacy" / "identity.ts").read_text(
         encoding="utf-8"

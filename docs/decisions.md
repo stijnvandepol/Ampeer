@@ -1574,6 +1574,130 @@ chapter 2 of the DPIA forbids exactly that in a table with no retention.
 **To reverse:** answer 404 for an unknown address. `test_a_reset_request_answers_the_same_for_a_known_and_an_unknown_address`
 is the test that would then be measuring an address book.
 
+### 49. The legal basis for the account is consent, and the 2026-09-02 choice for a contract is reversed
+
+**Decided:** `identity.ts`'s `legalBasis` is `"toestemming"`; chapter 10 point 2 of
+`docs/dpia.md` answers the same way, dated 2026-09-07.
+
+**Because:** article 7(4) AVG: `RegisterSerializer` accepts registration with or
+without `METER_LINK` consent, so the service does not depend on a consent it does
+not need, which is what a consent basis requires and a contract basis does not.
+The code already runs two separate, unchecked consents with their own timestamp
+and text version, which a consent basis needs and a contract basis has no use
+for. The owner confirmed the choice on 2026-09-07.
+
+**Lives in:** `legalBasis` in `frontend/src/app/privacy/identity.ts`, chapter 10
+point 2 of `docs/dpia.md`.
+
+**To reverse:** set `legalBasis` back to `"overeenkomst"` and rewrite the DPIA
+point and `identity.ts`'s comment. Nothing in `Consent`, `RegisterSerializer` or
+the account flow changes, because none of it depended on which basis this text
+names.
+
+### 50. The site has a terms page, and it carries the disclaimer the advice needs
+
+**Decided:** `/voorwaarden/` exists, is a server component gated by
+`requireCompleteIdentity` like `/privacy/` and `/over-ons/`, and holds the
+disclaimer that the advice is an estimate and not a promise.
+
+**Because:** a disclaimer that sat on a methodology page is one nobody finds at
+the moment it matters. The owner chose a dedicated route over a section, on
+2026-09-07.
+
+**Lives in:** `frontend/src/app/voorwaarden/page.tsx`.
+
+**To reverse:** fold the eight sections back into `/methodologie/` or
+`/over-ons/` and remove the route from `SITEMAP_ROUTES`, the footer and the two
+e2e route lists.
+
+### 51. The article 30 register is a document in this repository, bound by a test
+
+**Decided:** `docs/verwerkersregister.md`, ten chapters, bound by
+`tests/test_verwerkersregister.py` the way `tests/test_dpia.py` binds the
+assessment.
+
+**Because:** everything a register needs was already in this repository, in the
+DPIA's assessment form rather than a register's form. `docs/dpia.md` chapter 10
+said "no register" since phase 1, which stopped being true the day the content
+existed to write one from.
+
+**Lives in:** `docs/verwerkersregister.md`, `tests/test_verwerkersregister.py`.
+
+**To reverse:** delete both and put the sentence back in chapter 10.
+
+### 52. A 401 on `/api/auth/` answers in Dutch from this project's own table, like the 429
+
+**Decided:** `_AuthAPIView.permission_denied` raises `NotAuthenticated(NL["not_signed_in"])`
+rather than letting DRF's own version answer with its untranslated default.
+
+**Because:** decision 40 already did this for a 429; a 401 was the same gap.
+Every frontend stub and e2e mock already answered `NL["not_signed_in"]`, so each
+one disagreed with the real server on every one of the six signed-in routes
+until this override existed.
+
+**Lives in:** `permission_denied` in `backend/accounts/views.py`,
+`NL["forbidden"]` in `backend/accounts/nl.py`.
+
+**To reverse:** delete the override and update every frontend stub and e2e mock
+to expect DRF's English default instead.
+
+### 53. The outbox command sends at most fifty mails per run
+
+**Decided:** `send_outbound_mail --max` defaults to 50; a run stops after
+sending that many rows and says so in its output.
+
+**Because:** `_deliver`'s `while True` loop was theoretical at two mails a day
+and a real liability at a backlog of hundreds, where one run would hold a
+transaction open hundreds of times for ten seconds each. `_report_what_is_stuck`
+still counts what the cap leaves behind after `OVERDUE_AFTER`, which is exactly
+right for a timer that sends fifty a minute and still falls behind.
+
+**Lives in:** `add_arguments`, `_deliver` in
+`backend/accounts/management/commands/send_outbound_mail.py`.
+
+**To reverse:** drop `--max` and go back to draining the whole outbox in one
+run.
+
+### 54. Branch coverage is on, with a floor measured under it
+
+**Decided:** `branch = true` in `[tool.coverage.run]`; `fail_under` set one
+hundredth under a fresh measurement taken without
+`data/nedu-profiles-2025.csv`.
+
+**Because:** statement coverage reads a multi-line ternary as one statement,
+which is how the `wait is None` arm of `_AuthAPIView.throttled` stayed
+invisible until a reviewer found it by hand, recorded as an open question after
+decision 40. Four such gaps were found and closed on 2026-09-07 before the
+floor was measured.
+
+**Lives in:** `[tool.coverage.run]`, `[tool.coverage.report]` in
+`pyproject.toml`.
+
+**To reverse:** set `branch = false` and return `fail_under` to the
+statement-only figure; `MINIMUM_COVERAGE_FLOOR` in
+`tests/test_pipeline_contract.py` stays the floor under either.
+
+### 55. Registration says when an address is taken, and the reset route does not; recorded as a choice
+
+**Decided:** `register/` keeps answering 400 with `NL["email_taken"]` for an
+address that already has an account; `reset/request/` keeps answering the same
+202 for every address.
+
+**Because:** registration logs a household in immediately and shows the account
+view, and an answer for a taken address cannot be made identical to that
+without giving up the immediate sign-in, which would cost every new household
+an extra step and need a third kind of mail. `auth-register` sits at five an
+hour per caller, which makes an address book slow to run; and reset, the route
+an attacker could use one, stays closed.
+
+**Lives in:** `validate_email` in `RegisterSerializer` in
+`backend/accounts/serializers.py`, `request_password_reset` in
+`backend/accounts/recovery.py`.
+
+**To reverse:** if phase 2 drops the immediate sign-in after registration, for
+instance because a meter may only hang off a confirmed address, this is the
+moment to make the two routes agree.
+
 ## What was not decided here
 
 Five belong to the controller and are written up with their trade-offs in
@@ -1585,9 +1709,12 @@ same open questions is how one of them gets answered twice and the other not
 at all. One more used to stand beside the first four, whether deletion on
 request arrives before phase 1, and it is answered rather than dropped:
 decision 28 and `docs/dpia.md` chapter 7 both describe `POST /api/auth/delete/`,
-which is what answered it.
+which is what answered it. A second point that used to stand there the same
+way, the legal basis, is answered without being dropped: chapter 10 point 2 of
+`docs/dpia.md` stays on that numbered list of five and says so, and decision 49
+above is the same answer stated as a decision.
 
-Nine sit outside that document.
+Eight sit outside that document.
 
 - **Whether `feat/**` stays in the push trigger of `.github/workflows/ci.yml`.**
   Removing it roughly halves the minutes a branch costs, and rewrites five
@@ -1716,15 +1843,6 @@ Nine sit outside that document.
 - **The order the two open pull requests are merged in.** #23 carries this
   branch into `dev` and #22 carries `dev` into `main`, so #23 goes first and #22
   is rerun afterwards.
-- **Whether `branch = true` belongs in the coverage configuration
-  (`pyproject.toml`).** Statement coverage reads a multi-line ternary as one
-  statement, so an arm no test takes still counts as covered. Found on task
-  10b's `wait is None` arm in `_AuthAPIView.throttled`, which then got a
-  direct test rather than relying on the ternary's other arm to cover both.
-  Turning branch coverage on would expose every such arm across the
-  repository at once, and it may drop the measured figure below a floor that
-  may only rise, so it is a decision with its own measurement, not a flag
-  flip.
 - **Whether an account whose address is never confirmed is ever removed.** An
   account made with somebody else's address, or with a typo, stays: whoever
   made it can delete it, whoever holds the address can reset the password

@@ -656,6 +656,12 @@ In productie is alles één oorsprong, zie 5.2, dus `CORS_ALLOW_CREDENTIALS` bli
 Op een ontwikkelmachine is `localhost:3000` naar `127.0.0.1:8000` cross-site, en dan stuurt de
 browser de cookies niet mee: inloggen werkt daar zonder uitzondering niet.
 
+Gecorrigeerd op 2026-09-07: sinds commit `2109901` staat `localhost:3000` niet
+meer in `CORS_ALLOWED_ORIGINS` van `backend/ampeer/settings/dev.py`. Een cookie
+hoort bij een site, en `localhost` en `127.0.0.1` zijn twee sites; het aantal
+oorsprongen dat `dev.py` toestaat is sindsdien geen drie meer. Zie beslissing
+104 in `docs/decisions.md` en `tests/test_backend_settings.py`.
+
 `dev.py` zet daarom `CORS_ALLOW_CREDENTIALS = True`, alleen voor de drie oorsprongen die daar al
 in `CORS_ALLOWED_ORIGINS` staan. Er komt een comment bij dat uitlegt waarom `prod.py` hem niet
 zet, en dat verwijst naar de belofte die `base.py` vandaag hardop doet, namelijk dat er geen

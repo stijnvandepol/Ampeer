@@ -291,7 +291,8 @@ verzendregio is de EU-regio (Ierland), zodat de mail zelf niet via een
 Amerikaans datacenter loopt. Wat Resend niet ziet: de reden voor een
 herstelverzoek, een wachtwoord, een toestemming of een advies. Alleen het
 command `send_outbound_mail` bereikt Resend, onder een timer; geen enkel
-verzoek van een bezoeker doet dat.
+verzoek van een bezoeker doet dat. Beide verwerkers staan ook in
+`docs/verwerkersregister.md`, hoofdstuk 8.
 
 Verder wordt niets uitbesteed. Er gaat geen gegeven naar een advertentie- of
 analysepartij.
@@ -601,21 +602,9 @@ plaats van bezit van het token als autorisatie te accepteren.
 
 1. **Of de conclusie in hoofdstuk 1 wordt overgenomen.** De feiten staan er; de
    afweging of artikel 35 van toepassing is, is zijn oordeel.
-2. **De grondslag.** Voorlopig gekozen: **toestemming**, niet uitvoering van
-   een overeenkomst. Dat is geen slag om de arm maar een keuze die de code al
-   uitvoert: de twee toestemmingen in `Consent` bestaan met een eigen
-   tijdstempel en een eigen tekstversie, wat een grondslag van toestemming
-   vraagt en een grondslag van overeenkomst niet nodig heeft. Wat daarbij hoort
-   staat ook al in de code: registratie wordt niet geweigerd als `METER_LINK`
-   wordt onthouden, `RegisterSerializer` accepteert de aanmelding met of zonder
-   die toestemming. Dat is precies wat artikel 7 lid 4 AVG eist zodra de
-   grondslag toestemming is, namelijk dat een dienst niet afhankelijk mag zijn
-   van een toestemming die voor die dienst zelf niet nodig is. Als de
-   verwerkingsverantwoordelijke hier alsnog voor overeenkomst kiest, is dat een
-   wijziging van dit document en van de privacyverklaring en geen migratie: er
-   verandert niets aan `Consent`, aan wat er gevraagd wordt of aan wanneer een
-   account werkt. Wat wel verandert is dat artikel 7 lid 4 niet meer van
-   toepassing is, want er is dan geen toestemming meer om aan te toetsen.
+2. **De grondslag.** Beantwoord op 2026-09-07: toestemming. De privacyverklaring
+   beschrijft het zo, en `identity.ts` draagt het. De keuze van 2026-09-02 voor
+   overeenkomst is daarmee vervallen.
 3. **De back-upruil uit hoofdstuk 4.** Zeven dagen is een keuze die ik heb
    gemaakt en verantwoord; korter maakt de kopie kleiner en het herstel
    krapper, en alleen het auditlogboek dumpen laat de dienst onherstelbaar. Die
@@ -636,15 +625,8 @@ plaats van bezit van het token als autorisatie te accepteren.
    dienst, want zonder bevestigd adres kan de dienst geen wachtwoord herstellen
    en straks geen meter koppelen.
 
-Er is verder geen privacyverklaring, geen verwerkersregister en geen vastgelegde
-verwerkersovereenkomst met Cloudflare en geen beoordeelde met Resend. Alle drie
-zijn ze nodig voordat de dienst publiek gaat, en alle drie vallen ze buiten wat
-uit deze repository te schrijven is. De verwerkersovereenkomst is wel de enige
-van de drie die over een verwerking gaat die vandaag al draait: hoofdstuk 5
-beschrijft wat Cloudflare op elk verzoek te zien krijgt en wat Resend per mail
-te zien krijgt. Voor het register: Resend, Inc., voor het versturen van
-herstel- en bevestigingsmails, ziet e-mailadres en berichtinhoud, bewaart een
-verzendlog in de Verenigde Staten, grondslag voor doorgifte SCC's en DPF,
-overeenkomst de voorgetekende DPA. Voor de privacyverklaring: dat een account
-een adres heeft, dat er mails naar dat adres gaan voor herstel en bevestiging
-en nergens anders voor, en dat een derde partij die mails aflevert.
+Er is een privacyverklaring op `/privacy/`, herschreven op 2026-09-07 voor fase 1.
+Er is een register in `docs/verwerkersregister.md`, gebonden door
+`tests/test_verwerkersregister.py`. Wat er niet is en bij de
+verwerkingsverantwoordelijke blijft: de vastgelegde aanvaarding van Cloudflares
+verwerkersovereenkomst en de beoordeling van Resends DPA (punt 5).
