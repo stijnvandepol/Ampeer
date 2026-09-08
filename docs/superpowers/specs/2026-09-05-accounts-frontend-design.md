@@ -104,7 +104,8 @@ browser de cookies niet mee.
 Gecorrigeerd op 2026-09-07: dezelfde correctie als in
 `2026-09-04-accounts-auth-design.md`. `localhost:3000` staat sinds commit
 `2109901` niet meer in `CORS_ALLOWED_ORIGINS` van `backend/ampeer/settings/dev.py`;
-zie beslissing 104 en `tests/test_backend_settings.py`.
+het commentaar boven die lijst zegt waarom, en
+`tests/test_backend_settings.py` houdt het vast.
 
 Daarvoor bestaat de uitzondering in `dev.py`
 (`CORS_ALLOW_CREDENTIALS = True`, alleen voor de drie oorsprongen die daar al staan), met de

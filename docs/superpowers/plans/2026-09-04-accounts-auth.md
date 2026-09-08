@@ -1146,8 +1146,9 @@ Gecorrigeerd op 2026-09-07: dit codeblok is een verslag van wat destijds is
 voorgeschreven en blijft daarom staan, maar de tekst erboven ("localhost:3000
 naar 127.0.0.1:8000 is cross-site") klopt sinds commit `2109901` niet meer voor
 het aantal oorsprongen: `localhost:3000` is uit `CORS_ALLOWED_ORIGINS` van
-`backend/ampeer/settings/dev.py`. Zie beslissing 104 in `docs/decisions.md` en
-`tests/test_backend_settings.py`.
+`backend/ampeer/settings/dev.py`. De reden staat in het commentaar boven
+`CORS_ALLOWED_ORIGINS` in dat bestand, en `tests/test_backend_settings.py`
+houdt hem vast.
 
 In `backend/ampeer/settings/prod.py`, bij de andere `SECURE_`-regels:
 

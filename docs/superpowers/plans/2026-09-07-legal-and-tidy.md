@@ -2953,7 +2953,8 @@ oorsprongen dat `dev.py` toestaat is sindsdien geen drie meer. Zie beslissing
 Gecorrigeerd op 2026-09-07: dezelfde correctie als in
 `2026-09-04-accounts-auth-design.md`. `localhost:3000` staat sinds commit
 `2109901` niet meer in `CORS_ALLOWED_ORIGINS` van `backend/ampeer/settings/dev.py`;
-zie beslissing 104 en `tests/test_backend_settings.py`.
+het commentaar boven die lijst zegt waarom, en
+`tests/test_backend_settings.py` houdt het vast.
 ```
 
 `docs/superpowers/plans/2026-09-04-accounts-auth.md`, na het codeblok op regel 1132-1143 (het
@@ -2964,8 +2965,9 @@ Gecorrigeerd op 2026-09-07: dit codeblok is een verslag van wat destijds is
 voorgeschreven en blijft daarom staan, maar de tekst erboven ("localhost:3000
 naar 127.0.0.1:8000 is cross-site") klopt sinds commit `2109901` niet meer voor
 het aantal oorsprongen: `localhost:3000` is uit `CORS_ALLOWED_ORIGINS` van
-`backend/ampeer/settings/dev.py`. Zie beslissing 104 in `docs/decisions.md` en
-`tests/test_backend_settings.py`.
+`backend/ampeer/settings/dev.py`. De reden staat in het commentaar boven
+`CORS_ALLOWED_ORIGINS` in dat bestand, en `tests/test_backend_settings.py`
+houdt hem vast.
 ```
 
 - [ ] **Step 9: `tests/test_decisions.py` en `tests/test_dpia.py`, ongewijzigd getoetst**
