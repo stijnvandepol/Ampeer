@@ -77,7 +77,7 @@ export function PrivacyStatement({
         <p className={styles.body}>
           {identity.legalName} is verantwoordelijk voor de gegevens die via
           ampeer.nl worden verwerkt. Heeft u een vraag over uw gegevens, mail
-          dan naar het adres hieronder. Wij antwoorden binnen een maand.
+          dan naar {identity.privacyEmail}. Wij antwoorden binnen een maand.
         </p>
         <dl className={styles.register}>
           <dt className={styles.term}>Naam</dt>
@@ -90,6 +90,12 @@ export function PrivacyStatement({
           <dd className={styles.detail}>
             <a href={`mailto:${identity.contactEmail}`}>
               {identity.contactEmail}
+            </a>
+          </dd>
+          <dt className={styles.term}>E-mail over uw gegevens</dt>
+          <dd className={styles.detail}>
+            <a href={`mailto:${identity.privacyEmail}`}>
+              {identity.privacyEmail}
             </a>
           </dd>
         </dl>
@@ -122,9 +128,10 @@ export function PrivacyStatement({
           of u een warmtepomp heeft. Die vragen zijn vrijwillig.
         </p>
         <p className={styles.body}>
-          Wij vragen geen naam, geen e-mailadres en geen telefoonnummer. Wij
-          vragen ook geen huisnummer. Er is geen account en er is geen
-          wachtwoord.
+          Voor het advies vragen wij nog steeds geen van die dingen, en de
+          rekenmachine werkt zonder account. Wie een account aanmaakt, geeft een
+          e-mailadres en kiest een wachtwoord, en meer niet. Geen naam, geen
+          telefoonnummer, geen huisnummer.
         </p>
       </section>
 
@@ -168,6 +175,38 @@ export function PrivacyStatement({
         <LegalBasisParagraphs identity={identity} />
       </section>
 
+      <section className={styles.section} aria-labelledby="account">
+        <h2 id="account" className={styles.heading}>
+          Uw account
+        </h2>
+        <p className={styles.body}>
+          Maakt u een account, dan bewaren wij meer dan voor een berekening
+          alleen.
+        </p>
+        <p className={styles.body}>
+          Uw wachtwoord maken wij met Argon2id onleesbaar voordat het de
+          database bereikt. Wij kunnen het niet lezen en niet teruggeven.
+        </p>
+        <p className={styles.body}>
+          Wij bewaren het tijdstip van uw laatste keer inloggen. Wij bewaren ook
+          het tijdstip waarop u uw adres bevestigde. Dat veld blijft leeg zolang
+          u dat niet deed.
+        </p>
+        <p className={styles.body}>
+          Een bevestigd adres is straks nodig om een slimme meter te koppelen.
+          Vandaag is het nergens voor nodig.
+        </p>
+        <p className={styles.body}>
+          Op uw accountpagina zet u twee toestemmingen apart aan of uit. Wij
+          zetten er nooit een vooraf aan. Elke keuze bewaren wij met het
+          tijdstip en de tekstversie die u toen las. Intrekken kost u een klik.
+        </p>
+        <p className={styles.body}>
+          Herstel en bevestiging gaan per mail, met een link die eenmalig werkt.
+          Een herstellink werkt een uur, een bevestigingslink zeven dagen.
+        </p>
+      </section>
+
       <section className={styles.section} aria-labelledby="bewaren">
         <h2 id="bewaren" className={styles.heading}>
           Wat wij bewaren, en hoe lang
@@ -184,10 +223,18 @@ export function PrivacyStatement({
           melding als bij een link die nooit heeft bestaan.
         </p>
         <p className={styles.body}>
+          Uw account bewaren wij tot u het verwijdert. Een herstel- of
+          bevestigingslink bewaren wij als onomkeerbare afdruk tot hij verloopt.
+          Een mail die wij nog moeten versturen staat in een wachtrij zonder uw
+          adres erin. Die rij verdwijnt zodra de mail weg is, of zeven dagen
+          nadat het versturen definitief mislukte.
+        </p>
+        <p className={styles.body}>
           Wij maken elke dag een reservekopie van onze database. Die kopieën
-          bewaren wij zeven dagen. Een verwijderd advies kan daardoor nog
-          hoogstens acht dagen in zo&apos;n bestand staan. Die bestanden staan
-          op dezelfde server en zijn alleen voor ons leesbaar.
+          bewaren wij zeven dagen. Een verwijderd advies of een verwijderd
+          account kan daardoor nog hoogstens acht dagen in zo&apos;n bestand
+          staan. Die bestanden staan op dezelfde server en zijn alleen voor ons
+          leesbaar.
         </p>
       </section>
 
@@ -199,6 +246,18 @@ export function PrivacyStatement({
           Bij elk advies schrijven wij één regel in een logboek. Daarin staan
           het tijdstip, uw postcodegebied, hoe zeker het antwoord was, en de
           versienummers van onze rekenmodule.
+        </p>
+        <p className={styles.body}>
+          Sinds er accounts zijn schrijven wij ook een regel bij dertien soorten
+          handelingen: aanmaken, inloggen, mislukt inloggen, uitloggen, een
+          toestemming geven of intrekken, exporteren, verwijderen, een herstel
+          aanvragen of afronden, een adres bevestigen en een mail versturen.
+        </p>
+        <p className={styles.body}>
+          In die regels staat een nummer dat naar uw account wijst, en nooit uw
+          e-mailadres. Na verwijdering wijst dat nummer nergens meer naar. Bij
+          een herstelverzoek voor een adres dat wij niet kennen schrijven wij
+          niets.
         </p>
         <p className={styles.body}>
           Uw link zetten wij er niet in. Wij zetten er een onomkeerbare afdruk
@@ -225,6 +284,12 @@ export function PrivacyStatement({
           Er is geen tabel bij ons met een IP-adres erin. Er is ook geen
           logregel die er een bewaart.
         </p>
+        <p className={styles.body}>
+          Een hulpprogramma tegen inbrekers brengt drie tabellen mee die een
+          IP-adres zouden kunnen bevatten. Die blijven leeg, want wij tellen dat
+          in het geheugen. Gemeten: na zes mislukte inlogpogingen staan alle
+          drie op nul rijen.
+        </p>
       </section>
 
       <section className={styles.section} aria-labelledby="cloudflare">
@@ -245,6 +310,35 @@ export function PrivacyStatement({
           Uit onze eigen logboeken houden wij die link weg. Bij Cloudflare
           kunnen wij dat niet. Er is een oplossing voor, namelijk de link niet
           meer in het webadres zetten. Die is nog niet gebouwd.
+        </p>
+      </section>
+
+      <section className={styles.section} aria-labelledby="resend">
+        <h2 id="resend" className={styles.heading}>
+          Resend verstuurt onze mail
+        </h2>
+        <p className={styles.body}>
+          Wij sturen alleen mail om een wachtwoord te herstellen of een adres te
+          bevestigen. Nergens anders voor. Die mail vertrekt via Resend, Inc.,
+          onze tweede verwerker.
+        </p>
+        <p className={styles.body}>
+          Resend ziet uw adres, dat er een account bij hoort of dat er herstel
+          is gevraagd, en de tekst van de mail met de link erin.
+        </p>
+        <p className={styles.body}>
+          Resend bewaart een eigen verzendlog met adres, onderwerp en tekst. Dat
+          log staat in de Verenigde Staten, ook al versturen wij vanuit de
+          Europese regio.
+        </p>
+        <p className={styles.body}>
+          Die doorgifte rust op de standaardbepalingen van de Europese Commissie
+          in Resends verwerkersovereenkomst, en op Resends certificering onder
+          het Data Privacy Framework.
+        </p>
+        <p className={styles.body}>
+          Wat Resend niet ziet: waarom u herstel vroeg, uw wachtwoord, uw
+          toestemmingen of uw advies.
         </p>
       </section>
 
@@ -280,16 +374,25 @@ export function PrivacyStatement({
 
       <section className={styles.section} aria-labelledby="cookies">
         <h2 id="cookies" className={styles.heading}>
-          Cookies zetten wij niet
+          Drie cookies, en geen enkele om u te volgen
         </h2>
+        <p className={styles.body}>Zonder account zetten wij geen cookie.</p>
         <p className={styles.body}>
-          Wij plaatsen geen cookies. Er is dus ook geen cookiemelding die u moet
-          wegklikken.
+          Logt u in, dan zetten wij twee cookies die uw sessie zijn. Een werkt
+          een kwartier, de andere veertien dagen. Een derde cookie beschermt de
+          pagina tegen verzoeken die niet van u komen.
         </p>
         <p className={styles.body}>
-          Uw antwoorden en uw keuze voor licht of donker staan in de opslag van
-          uw eigen browser. Die blijven op uw apparaat en komen niet bij ons
-          binnen. Sluit u het tabblad, dan zijn uw antwoorden weg.
+          Alle drie zijn nodig om ingelogd te zijn, en voor niets anders. Ze
+          volgen u niet, ze meten niets en ze gaan naar geen ander bedrijf.
+        </p>
+        <p className={styles.body}>
+          Daarom is er geen cookiemelding. De wet vraagt geen toestemming voor
+          cookies die alleen doen wat u zelf vroeg.
+        </p>
+        <p className={styles.body}>
+          Uw antwoorden op de vragen staan in de opslag van uw eigen browser.
+          Die verlaten uw browser niet. Uw keuze voor licht of donker ook niet.
         </p>
       </section>
 
@@ -305,11 +408,19 @@ export function PrivacyStatement({
           antwoorden die u invulde. Die staan niet op het scherm. Wilt u ze
           zien, vraag ze dan op via het adres bovenaan.
         </p>
+        <p className={styles.body}>
+          Heeft u een account, dan staat op uw accountpagina uw adres en de
+          stand van beide toestemmingen. De knop exporteren geeft alles wat wij
+          over uw account hebben, als bestand dat een computer kan lezen.
+        </p>
 
         <h3 className={styles.subheading}>Meenemen</h3>
         <p className={styles.body}>
           Het antwoord achter uw link is een bestand dat een computer kan lezen.
           U kunt het dus meenemen naar iemand anders.
+        </p>
+        <p className={styles.body}>
+          Dat exportbestand van uw account is de overdracht voor uw account.
         </p>
 
         <h3 className={styles.subheading}>Corrigeren</h3>
@@ -318,18 +429,30 @@ export function PrivacyStatement({
           opnieuw en u krijgt een nieuw advies met een nieuwe link. Het oude
           blijft staan tot het na 90 dagen verdwijnt.
         </p>
+        <p className={styles.body}>
+          Een toestemming kunt u altijd omzetten. Wij bewaren de oude keuze
+          naast de nieuwe.
+        </p>
 
         <h3 className={styles.subheading}>Laten verwijderen</h3>
         <p className={styles.body}>
-          Er is nog geen knop waarmee u uw advies zelf weggooit. Uw advies
-          verdwijnt sowieso na 90 dagen. Wilt u het eerder weg hebben, stuur ons
-          dan een bericht met uw link erbij.
+          Op uw accountpagina staat een knop die uw account verwijdert. Hij
+          vraagt uw wachtwoord opnieuw.
+        </p>
+        <p className={styles.body}>
+          Weg zijn dan uw adres, uw wachtwoord, beide toestemmingen en alle
+          adviezen die aan uw account hingen. Wat blijft is een logregel met een
+          nummer dat nergens meer naar wijst.
+        </p>
+        <p className={styles.body}>
+          Bent u uw wachtwoord kwijt, dan herstelt u het eerst via de mail.
+          Daarna verwijdert u uw account.
         </p>
 
         <h3 className={styles.subheading}>Bezwaar maken</h3>
         <p className={styles.body}>
           Bent u het niet eens met wat wij doen, laat het ons weten. U kunt uw
-          bezwaar sturen naar het adres bovenaan deze pagina.
+          bezwaar sturen naar {identity.privacyEmail}.
         </p>
       </section>
 
@@ -353,16 +476,19 @@ export function PrivacyStatement({
           Over deze verklaring
         </h2>
         <p className={styles.body}>
-          Deze verklaring hoort bij de dienst zoals die vandaag draait. Krijgt
-          Ampeer accounts of een koppeling met uw meter, dan verandert er veel
-          en schrijven wij deze pagina opnieuw.
+          Deze verklaring hoort bij de dienst met accounts, herstel en
+          bevestiging, zoals die vandaag draait. Komt er een koppeling met uw
+          meter, dan verandert er veel en schrijven wij deze pagina opnieuw
+          voordat dat gebeurt.
         </p>
         <p className={styles.body}>
           Wie wij zijn en waarvan Ampeer betaald wordt, staat op{" "}
           <Link href="/over-ons/">de pagina over ons</Link>. Hoe wij rekenen,
-          staat in <Link href="/methodologie/">onze methodologie</Link>.
+          staat in <Link href="/methodologie/">onze methodologie</Link>. De
+          regels voor het gebruik staan in{" "}
+          <Link href="/voorwaarden/">onze gebruiksvoorwaarden</Link>.
         </p>
-        <p className={styles.note}>Laatst gewijzigd op 2 september 2026.</p>
+        <p className={styles.note}>Laatst gewijzigd op 7 september 2026.</p>
       </section>
     </div>
   );
@@ -392,6 +518,15 @@ function LegalBasisParagraphs({
           U mag uw toestemming intrekken wanneer u wilt. Stuur ons dan een
           bericht met uw link erbij. Wat wij tot dat moment deden blijft
           rechtmatig.
+        </p>
+        <p className={styles.body}>
+          Wij verwerken ook uw account met uw toestemming. Die geeft u door het
+          account aan te maken.
+        </p>
+        <p className={styles.body}>
+          U trekt die toestemming in door uw account te verwijderen. Dat kan
+          altijd, zonder ons iets te vragen. Voor doorgeven aan een installateur
+          en voor het koppelen van uw meter vragen wij apart toestemming.
         </p>
       </>
     );

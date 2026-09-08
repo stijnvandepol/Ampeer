@@ -263,6 +263,31 @@ describe("the privacy statement", () => {
     }
   });
 
+  it("says what changed since fase 1 shipped accounts", () => {
+    const text = privacyText();
+    for (const claim of ["Resend", "Argon2id", "dertien", "7 september 2026"]) {
+      expect(text, `the statement never says "${claim}"`).toContain(claim);
+    }
+    // The two session cookies, named by function rather than by name: the
+    // page never spells out ampeer_access or ampeer_refresh, it says what
+    // they are for.
+    expect(text).toContain("kwartier");
+    expect(text).toContain("veertien dagen");
+    expect(text).toContain("geen cookiemelding");
+    // The privacy address from FILLED, and not only the general one.
+    expect(text).toContain("privacy@example.invalid");
+    // The old claims are gone.
+    expect(text).not.toContain("Er is geen account");
+    expect(text).not.toContain("Wij plaatsen geen cookies");
+    expect(text).not.toContain(
+      "Er is nog geen knop waarmee u uw advies zelf weggooit",
+    );
+  });
+
+  it("says a household can delete its own account, not only wait for a link to expire", () => {
+    expect(privacyText()).toContain("verwijdert");
+  });
+
   it("points at the regulator that can actually take the complaint", () => {
     render(<PrivacyStatement identity={FILLED} />);
     const link = screen.getByRole("link", {
@@ -280,6 +305,17 @@ describe("the privacy statement", () => {
     expect(contract).not.toContain("uw toestemming intrekken");
     expect(consent).toContain("uw toestemming intrekken");
     expect(consent).not.toContain("uitvoering van de overeenkomst");
+  });
+
+  it("adds two paragraphs about the account to the consent branch only", () => {
+    const consent = privacyText(FILLED_CONSENT);
+    const contract = privacyText(FILLED);
+    expect(consent).toContain(
+      "Wij verwerken ook uw account met uw toestemming",
+    );
+    expect(contract).not.toContain(
+      "Wij verwerken ook uw account met uw toestemming",
+    );
   });
 
   it("names the retention the backend actually implements", () => {
