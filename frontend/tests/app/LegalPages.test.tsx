@@ -291,7 +291,11 @@ describe("the privacy statement", () => {
   });
 
   it("says a household can delete its own account, not only wait for a link to expire", () => {
-    expect(privacyText()).toContain("verwijdert");
+    const text = privacyText();
+    expect(text).toContain(
+      "Op uw accountpagina staat een knop die uw account verwijdert.",
+    );
+    expect(text).toContain("Hij vraagt uw wachtwoord opnieuw.");
   });
 
   it("points at the regulator that can actually take the complaint", () => {
