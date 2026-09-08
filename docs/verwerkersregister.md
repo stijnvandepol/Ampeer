@@ -28,8 +28,10 @@ naar dat advies wijst.
 **Ontvangers.** Cloudflare Inc., als verwerker voor al het verkeer naar
 ampeer.nl.
 
-**Doorgifte buiten de EER.** Geen, door Ampeer zelf. Cloudflare beeindigt de
-verbinding aan zijn eigen rand.
+**Doorgifte buiten de EER.** Cloudflare Inc. is in de Verenigde Staten
+gevestigd. Aanvaarding van zijn standaardovereenkomst is niet vastgelegd;
+die beoordeling ligt bij de verwerkingsverantwoordelijke (DPIA hoofdstuk 10,
+slotalinea).
 
 **Bewaartermijn.** negentig dagen, dagelijks opgeruimd. Een reservekopie
 bewaart een verwijderd advies nog hoogstens zeven dagen langer.
@@ -56,7 +58,9 @@ punt 2).
 
 **Ontvangers.** Geen buiten Cloudflare (hoofdstuk 1) voor het verkeer zelf.
 
-**Doorgifte buiten de EER.** Geen.
+**Doorgifte buiten de EER.** Zoals bij hoofdstuk 1: Cloudflare Inc. is in de
+Verenigde Staten gevestigd en de aanvaarding van zijn standaardovereenkomst
+is niet vastgelegd (DPIA hoofdstuk 10, slotalinea).
 
 **Bewaartermijn.** Tot verwijdering van het account. Een reservekopie
 bewaart een verwijderd account nog hoogstens zeven dagen langer.
