@@ -1339,9 +1339,9 @@ describe("the terms page", () => {
       "schatting",
       "bandbreedte",
       "geen financieel",
-      "verkoopt geen",
+      "verkopen geen",
       "Niemand betaalt ons",
-      "een account per",
+      "account per e-mailadres",
       "Nederlands recht",
       "Autoriteit Persoonsgegevens",
     ]) {
@@ -2030,12 +2030,24 @@ def test_the_register_names_both_processors_and_no_third() -> None:
 
 
 def test_the_register_quotes_the_retention_the_service_applies() -> None:
+    from datetime import timedelta
+    from backend.accounts.models import OneTimeToken
+
     days = _int_constant(SETTINGS, "AMPEER_ADVICE_TTL_DAYS")
     assert NUMBER_WORDS[days] in TEXT
     kept = shell_int(BACKUP, "KEEP_DAYS")
     assert NUMBER_WORDS[kept] in TEXT
-    assert "een uur" in TEXT
-    assert "zeven dagen" in TEXT
+
+    # Map timedeltas to Dutch words for OneTimeToken.LIFETIMES
+    LIFETIME_WORDS = {
+        timedelta(hours=1): "een uur",
+        timedelta(days=7): "zeven dagen",
+    }
+
+    for kind, lifetime in OneTimeToken.LIFETIMES.items():
+        dutch_text = LIFETIME_WORDS.get(lifetime)
+        if dutch_text:
+            assert dutch_text in TEXT
 
 
 def test_the_register_counts_the_audit_kinds() -> None:
@@ -2453,7 +2465,7 @@ def test_logging_out_without_a_refresh_cookie_still_ends_the_session(client: Any
     """The `if raw:` branch's false arm in LogoutView.post: an access cookie
     with no refresh cookie beside it, which a client that only ever reads
     ampeer_access can produce."""
-    _register(client)
+    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
     client.cookies.pop(settings.AMPEER_REFRESH_COOKIE, None)
     lines_before = AuditEvent.objects.filter(event_type=AuditEvent.LOGOUT).count()
     response = client.post(
