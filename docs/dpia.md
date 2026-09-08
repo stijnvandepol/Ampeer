@@ -273,8 +273,7 @@ Dat maakt Cloudflare een verwerker in de zin van artikel 4 lid 8 AVG, en artikel
 publiceert een standaardovereenkomst die bij het account hoort. Of die is
 aanvaard en of hij deze verwerking dekt, is niet nagegaan en nergens vastgelegd,
 en dat is wat hier ontbreekt. Hoofdstuk 10 zet het bij de
-verwerkingsverantwoordelijke, naast de privacyverklaring en het
-verwerkersregister.
+verwerkingsverantwoordelijke, naast de beoordeling van Resends DPA.
 
 **Resend, Inc. is sinds het derde deel van fase 1 de tweede verwerker.** Hij
 verstuurt de mails voor wachtwoordherstel en adresbevestiging, en ziet per
