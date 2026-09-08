@@ -257,8 +257,8 @@ hoeft te doen; dat is het bestaande mechanisme en dit stap voegt er geen nieuw a
 `privacyEmail` horen) en houdt alleen wat nog waar is:
 
 ```text
-  // Het algemene adres, voor al het andere dan een verzoek over
-  // persoonsgegevens.
+  // The general address, for everything other than a request about
+  // personal data; those go to privacyEmail below.
   contactEmail: "info@ampeer.nl",
   privacyEmail: "privacy@ampeer.nl",
 ```
@@ -267,15 +267,15 @@ hoeft te doen; dat is het bestaande mechanisme en dit stap voegt er geen nieuw a
 redeneringen naast elkaar draagt zegt niets"):
 
 ```text
-  // Gekozen op 2026-09-07, en de keuze van 2026-09-02 voor overeenkomst is
-  // daarmee vervallen. De DPIA kiest in hoofdstuk 10 punt 2 toestemming, met
-  // het argument van artikel 7 lid 4 AVG: RegisterSerializer accepteert een
-  // aanmelding met of zonder METER_LINK, dus de dienst hangt niet af van een
-  // toestemming die hij zelf niet nodig heeft. De code voert dat al uit, met
-  // twee losse, niet voorgevinkte toestemmingen met eigen tijdstip en eigen
-  // tekstversie. Wat het kost: toestemming moet even makkelijk in te trekken
-  // zijn als te geven, en voor het account is intrekken gelijk aan
-  // verwijderen, wat de knop op /account/ doet.
+  // Chosen on 2026-09-07, which retires the 2026-09-02 choice for a
+  // contract. The DPIA picks consent in chapter 10, item 2, on the article
+  // 7(4) GDPR argument: RegisterSerializer accepts a registration with or
+  // without METER_LINK, so the service does not depend on a consent it does
+  // not itself need. The code already executes that, with two separate,
+  // unticked consents that carry their own timestamp and text version. What
+  // it costs: consent must be as easy to withdraw as to give, and for the
+  // account itself withdrawing equals deleting, which the button on
+  // /account/ does.
   legalBasis: "toestemming",
 ```
 
