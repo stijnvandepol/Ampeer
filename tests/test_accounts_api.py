@@ -254,16 +254,44 @@ def test_logging_out_with_a_malformed_refresh_cookie_still_ends_the_session(clie
 
 
 @pytest.mark.django_db
-def test_logging_out_without_a_refresh_cookie_still_ends_the_session(client: Any) -> None:
-    """The `if raw:` branch's false arm in LogoutView.post: an access cookie
-    with no refresh cookie beside it, which a client that only ever reads
-    ampeer_access can produce."""
-    client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+def test_logging_out_only_calls_revoke_when_a_refresh_cookie_is_present(
+    client: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The `if raw:` branch's false arm in LogoutView.post, proven by its
+    effect and not only by the branch arc it closes: `RefreshToken(None)`
+    mints a fresh token rather than raising, so a test that only checked the
+    response stayed green even with the guard deleted, because revoking
+    nothing looked exactly like revoking. This patches `tokens.revoke`
+    itself: never called for a client that only ever reads ampeer_access (no
+    refresh cookie beside it), called once with the raw value when there is
+    one."""
+    calls: list[str] = []
+    monkeypatch.setattr("accounts.views.tokens.revoke", lambda raw: calls.append(raw))
+    User.objects.create_user(email="iemand@voorbeeld.nl", password=PASSWORD)
+
+    client.post(
+        "/api/auth/login/",
+        {"email": "iemand@voorbeeld.nl", "password": PASSWORD},
+        content_type="application/json",
+        **_csrf(client),
+    )
     client.cookies.pop(settings.AMPEER_REFRESH_COOKIE, None)
     lines_before = AuditEvent.objects.filter(event_type=AuditEvent.LOGOUT).count()
     response = client.post("/api/auth/logout/", content_type="application/json", **_csrf(client))
     assert response.status_code == 204
+    assert calls == []
     assert AuditEvent.objects.filter(event_type=AuditEvent.LOGOUT).count() == lines_before + 1
+
+    client.post(
+        "/api/auth/login/",
+        {"email": "iemand@voorbeeld.nl", "password": PASSWORD},
+        content_type="application/json",
+        **_csrf(client),
+    )
+    raw = client.cookies[settings.AMPEER_REFRESH_COOKIE].value
+    response = client.post("/api/auth/logout/", content_type="application/json", **_csrf(client))
+    assert response.status_code == 204
+    assert calls == [raw]
 
 
 @pytest.mark.django_db

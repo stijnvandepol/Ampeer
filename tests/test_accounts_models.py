@@ -10,6 +10,7 @@ from django.db.utils import IntegrityError
 from django.utils import timezone
 from helpers.accounts import OTHER_PASSWORD, TEST_PASSWORD
 
+from accounts import models as accounts_models
 from accounts.models import OneTimeToken, OutboundMail, User
 from advice.models import AuditEvent, token_digest
 
@@ -90,14 +91,36 @@ def test_creating_a_user_without_an_email_address_is_refused() -> None:
 
 
 @pytest.mark.django_db
-def test_saving_a_user_with_no_email_does_not_touch_it() -> None:
-    """The `if self.email:` branch's false arm. Normalising an empty string is
-    create_user's job (it already refuses one with its own test); this is
-    only about what save() itself does when there is nothing to normalise."""
-    user = User(email="")
-    user.set_unusable_password()
-    user.save()
-    assert user.email == ""
+def test_saving_a_user_only_normalizes_an_email_that_is_actually_there(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The `if self.email:` branch's false arm, proven by its effect and not
+    only by the branch arc it closes: `BaseUserManager.normalize_email` is
+    idempotent on an empty string, so a test that only checked
+    `user.email == ""` stayed green even with the guard deleted, because
+    normalising nothing looked exactly like normalising. This patches
+    `_normalize_email` itself: never called when there is nothing to
+    normalise, called once with the address when there is one."""
+    calls: list[str] = []
+    original = accounts_models._normalize_email
+
+    def _spy(email: str) -> str:
+        calls.append(email)
+        return original(email)
+
+    monkeypatch.setattr(accounts_models, "_normalize_email", _spy)
+
+    empty = User(email="")
+    empty.set_unusable_password()
+    empty.save()
+    assert calls == []
+    assert empty.email == ""
+
+    filled = User(email="Iemand@Voorbeeld.NL")
+    filled.set_unusable_password()
+    filled.save()
+    assert calls == ["Iemand@Voorbeeld.NL"]
+    assert filled.email == "iemand@voorbeeld.nl"
 
 
 def test_an_account_carries_no_name_and_no_username() -> None:
