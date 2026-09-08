@@ -249,10 +249,20 @@ export function PrivacyStatement({
         </p>
         <p className={styles.body}>
           Sinds er accounts zijn schrijven wij ook een regel bij dertien soorten
-          handelingen: aanmaken, inloggen, mislukt inloggen, uitloggen, een
-          toestemming geven of intrekken, exporteren, verwijderen, een herstel
-          aanvragen of afronden, een adres bevestigen en een mail versturen.
+          handelingen:
         </p>
+        <ul className={styles.points}>
+          <li className={styles.point}>
+            Aanmaken, inloggen of mislukt inloggen.
+          </li>
+          <li className={styles.point}>Uitloggen.</li>
+          <li className={styles.point}>Een toestemming geven of intrekken.</li>
+          <li className={styles.point}>Exporteren of verwijderen.</li>
+          <li className={styles.point}>Een herstel aanvragen of afronden.</li>
+          <li className={styles.point}>
+            Een adres bevestigen, of een mail versturen.
+          </li>
+        </ul>
         <p className={styles.body}>
           In die regels staat een nummer dat naar uw account wijst, en nooit uw
           e-mailadres. Na verwijdering wijst dat nummer nergens meer naar. Bij
@@ -318,9 +328,12 @@ export function PrivacyStatement({
           Resend verstuurt onze mail
         </h2>
         <p className={styles.body}>
-          Wij sturen alleen mail om een wachtwoord te herstellen of een adres te
-          bevestigen. Nergens anders voor. Die mail vertrekt via Resend, Inc.,
-          onze tweede verwerker.
+          Wij sturen mail voor twee dingen: een wachtwoord herstellen, of een
+          adres bevestigen.
+        </p>
+        <p className={styles.body}>
+          Nergens anders voor. Die mail vertrekt via Resend, Inc. Resend is onze
+          tweede verwerker.
         </p>
         <p className={styles.body}>
           Resend ziet uw adres, dat er een account bij hoort of dat er herstel
@@ -332,9 +345,15 @@ export function PrivacyStatement({
           Europese regio.
         </p>
         <p className={styles.body}>
-          Die doorgifte rust op de standaardbepalingen van de Europese Commissie
-          in Resends verwerkersovereenkomst, en op Resends certificering onder
-          het Data Privacy Framework.
+          Die doorgifte rust op de standaardbepalingen van de Europese
+          Commissie, in Resends verwerkersovereenkomst.
+        </p>
+        <p className={styles.body}>
+          Ze rust ook op Resends certificering onder het Data Privacy Framework.
+        </p>
+        <p className={styles.body}>
+          Die overeenkomst is voorgetekend bij elk account. Wij kunnen hem
+          downloaden uit het dashboard.
         </p>
         <p className={styles.body}>
           Wat Resend niet ziet: waarom u herstel vroeg, uw wachtwoord, uw

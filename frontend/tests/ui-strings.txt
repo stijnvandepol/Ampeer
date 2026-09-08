@@ -102,6 +102,7 @@
 50%
 :
 ARRIVAL
+Aanmaken, inloggen of mislukt inloggen.
 Account
 Account aanmaken
 Account verwijderen
@@ -182,7 +183,8 @@ Deze link hoort niet bij een berekening. Controleer of hij compleet is overgenom
 Deze link opent dit advies opnieuw, zonder account. Bewaar hem als u er later bij wilt.
 Deze pagina hoort bij een berekening en er staat er geen in de link.
 Deze verklaring hoort bij de dienst met accounts, herstel en bevestiging, zoals die vandaag draait. Komt er een koppeling met uw meter, dan verandert er veel en schrijven wij deze pagina opnieuw voordat dat gebeurt.
-Die doorgifte rust op de standaardbepalingen van de Europese Commissie in Resends verwerkersovereenkomst, en op Resends certificering onder het Data Privacy Framework.
+Die doorgifte rust op de standaardbepalingen van de Europese Commissie, in Resends verwerkersovereenkomst.
+Die overeenkomst is voorgetekend bij elk account. Wij kunnen hem downloaden uit het dashboard.
 Dit advies konden wij niet laten zien
 Dit is geen belofte maar een test. Bij elke wijziging leest een test alle verzoeken mee die een pagina doet. Gaat er één naar een ander bedrijf, dan gaat die test rood en komt de wijziging er niet in.
 Dit logboek ruimen wij niet op. Zodra uw advies weg is, wijst die afdruk nergens meer naar. Wat overblijft is een postcodegebied, een tijdstip en twee versienummers.
@@ -196,14 +198,17 @@ E-mailadres
 E-mailadres bevestigd
 E-mailadres nog niet bevestigd
 EAST
+Een adres bevestigen, of een mail versturen.
 Een bedrag met een bandbreedte, niet één getal
 Een bedrag per jaar met de bandbreedte eromheen, hoe zeker dat antwoord is, en drie routes in vaste volgorde: uw eigen ritme verschuiven, slimmer sturen met wat u al heeft, en stroom opslaan in een thuisbatterij. De routes die niets kosten staan altijd bovenaan, ook als er bij u aan een ervan niets te halen valt.
 Een bedrag van laag tot hoog, geen los getal
 Een bevestigd adres is straks nodig om een slimme meter te koppelen. Vandaag is het nergens voor nodig.
+Een herstel aanvragen of afronden.
 Een hulpprogramma tegen inbrekers brengt drie tabellen mee die een IP-adres zouden kunnen bevatten. Die blijven leeg, want wij tellen dat in het geheugen. Gemeten: na zes mislukte inlogpogingen staan alle drie op nul rijen.
 Een jaar in kwartieren. Van links naar rechts de dagen van het jaar, van boven naar beneden het etmaal van middernacht tot middernacht. Geel staat voor een kwartier waarin u vooral uw eigen opwek gebruikte, lichtgrijsblauw voor een kwartier waarin u vooral stroom van het net haalde, en donkerblauw voor een kwartier waarin u vooral stroom teruggaf aan het net.
 Een kwartierprofiel van een heel jaar, uit de verbruiksprofielen die netbeheerders publiceren en de instraling voor uw postcodegebied.
 Een moment, wij halen de doorrekening op die bij deze link hoort.
+Een toestemming geven of intrekken.
 Een toestemming kunt u altijd omzetten. Wij bewaren de oude keuze naast de nieuwe.
 Een voorbeelddag van 96 kwartieren, van middernacht links tot middernacht rechts. Hoe hoger een staaf, hoe meer stroom er in dat kwartier omging. Geel is een kwartier waarin het huishouden vooral zijn eigen opwek gebruikte, lichtgrijsblauw een kwartier waarin het stroom van het net haalde, en donkerblauw een kwartier waarin het stroom teruggaf aan het net.
 Een voorbeelddag, geen berekening.
@@ -218,6 +223,7 @@ Er is geen tabel bij ons met een IP-adres erin. Er is ook geen logregel die er e
 Er is geen vraag die wij alleen voor de statistiek stellen. Er is ook geen tweede doel: geen advertenties, geen profiel en geen doorverkoop.
 Er staat geen knop op deze site die naar een verkopende partij leidt. Zoekt u er een, dan is die er niet.
 Er zijn kort achter elkaar veel berekeningen gedaan vanaf dit adres. Probeer het over een uur opnieuw.
+Exporteren of verwijderen.
 GOOD
 GRANTED
 Geen account, geen e-mailadres. U krijgt een link waarmee u er later bij kunt.
@@ -305,6 +311,7 @@ Naam
 Naar de inhoud
 Nee
 Nee. Panelen leveren stroom die u anders had moeten kopen, en dat blijft na 2027 zo. Wat verandert is wat de stroom opbrengt die u niet zelf gebruikt.
+Nergens anders voor. Die mail vertrekt via Resend, Inc. Resend is onze tweede verwerker.
 Netbeheerders hebben een tijdsafhankelijk nettarief voorgesteld: het transporttarief hangt dan af van het moment van de dag en het seizoen, met een klein aantal prijsniveaus over een klein aantal tijdsblokken. Dat maakt het moment waarop u stroom gebruikt nog belangrijker dan het vanaf 2027 al wordt.
 Neutrale energie-adviseur voor Nederlandse huishoudens met zonnepanelen. Verkoopt geen panelen, geen batterijen en geen energiecontract, en plaatst geen advertenties.
 Niemand weet wat de terugleververgoeding in 2027 werkelijk wordt. Wij rekenen met een band en niet met een getal.
@@ -352,7 +359,7 @@ SOUTHEAST
 SOUTHWEST
 STORAGE
 Salderen kijkt alleen naar wat door de meter ging en telt dat over een heel jaar op. De volgorde in de tijd valt daarbij weg, en de
-Sinds er accounts zijn schrijven wij ook een regel bij dertien soorten handelingen: aanmaken, inloggen, mislukt inloggen, uitloggen, een toestemming geven of intrekken, exporteren, verwijderen, een herstel aanvragen of afronden, een adres bevestigen en een mail versturen.
+Sinds er accounts zijn schrijven wij ook een regel bij dertien soorten handelingen:
 Slaan jullie mijn gegevens op?
 Snavelbiesstraat 8, 5445 NV Landhorst
 Soms, en soms niet. Op een dynamisch contract zitten geen aparte terugleverkosten, maar beweegt uw prijs per uur mee. Of het bij u gunstig uitpakt hangt af van uw patroon, en dat rekenen wij door.
@@ -381,6 +388,7 @@ U ziet meteen hoe zeker het is
 U ziet uw bereik en drie routes
 Uit onze eigen logboeken houden wij die link weg. Bij Cloudflare kunnen wij dat niet. Er is een oplossing voor, namelijk de link niet meer in het webadres zetten. Die is nog niet gebouwd.
 Uitloggen
+Uitloggen.
 Uw IP-adres bewaren wij niet
 Uw account
 Uw account bewaren wij tot u het verwijdert. Een herstel- of bevestigingslink bewaren wij als onomkeerbare afdruk tot hij verloopt. Een mail die wij nog moeten versturen staat in een wachtrij zonder uw adres erin. Die rij verdwijnt zodra de mail weg is, of zeven dagen nadat het versturen definitief mislukte.
@@ -513,7 +521,7 @@ Wij mogen zeggen dat u niets hoeft te kopen
 Wij plaatsen geen advertenties en verkopen geen advertentieruimte.
 Wij rekenen daarom niet één keer maar 243 keer door, met die onzekerheden op verschillende standen, en tonen de bandbreedte die daaruit komt. Het middelpunt is een markering in die band en niet het antwoord. Een enkel getal uit die 243 groot afdrukken zou de band weggooien, en de band is wat het antwoord eerlijk maakt.
 Wij schrijven ook op wat wij niet weten. Over uw schaduw, uw apparaten en de leeftijd van uw panelen weten wij niets.
-Wij sturen alleen mail om een wachtwoord te herstellen of een adres te bevestigen. Nergens anders voor. Die mail vertrekt via Resend, Inc., onze tweede verwerker.
+Wij sturen mail voor twee dingen: een wachtwoord herstellen, of een adres bevestigen.
 Wij sturen uw apparaten niet aan. Wij geven advies en grijpen niet in.
 Wij tellen hoeveel verzoeken er per bezoeker binnenkomen. Dat is nodig om misbruik te stoppen. Uw IP-adres wordt daarvoor eerst onomkeerbaar versleuteld.
 Wij tonen altijd alle drie de routes, in deze volgorde, ook als er bij u aan een ervan niets te halen valt. Een lege route is zelf een antwoord.
@@ -532,6 +540,7 @@ Wij weten niet hoeveel schaduw er op uw dak valt en vragen er niet naar.
 Wij weten niet welke apparaten u heeft of wanneer u ze aanzet.
 Wij zeggen niet dat Ampeer nooit geld gaat verdienen. Wat wij wel vastleggen is dat uw antwoord er niet van afhangt: code die het advies laat meebewegen met een commerciele afspraak geldt in dit project als een fout, en dat staat zo in de projectafspraken. Verandert er iets aan hoe Ampeer betaald wordt, dan staat het op deze pagina en op "over ons" voordat het gebeurt.
 Wilt u een scherper antwoord, dan volgen er vijf vragen bij. Of u overdag thuis bent bijvoorbeeld, of u een elektrische auto heeft, en of u een warmtepomp heeft. Die vragen zijn vrijwillig.
+Ze rust ook op Resends certificering onder het Data Privacy Framework.
 Zijn zonnepanelen na 2027 nog rendabel?
 Zo vaak rekenen wij uw jaar opnieuw door, met de onzekere aannames op verschillende standen. Wat u ziet is de bandbreedte die daaruit komt.
 Zoals het nu is

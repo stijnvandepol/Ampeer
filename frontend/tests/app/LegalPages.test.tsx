@@ -274,6 +274,8 @@ describe("the privacy statement", () => {
     expect(text).toContain("kwartier");
     expect(text).toContain("veertien dagen");
     expect(text).toContain("geen cookiemelding");
+    // The third cookie, CSRF, named by function: what it protects against.
+    expect(text).toContain("verzoeken die niet van u komen");
     // The privacy address from FILLED, and not only the general one.
     expect(text).toContain("privacy@example.invalid");
     // The old claims are gone.
