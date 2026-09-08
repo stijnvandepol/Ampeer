@@ -3109,16 +3109,17 @@ Regel 5 van dit document, en alleen die regel:
 ```
 
 Voeg direct erna, zoals `2026-09-06-accounts-recovery.md` dat doet, een gedateerde
-bevestigingsalinea toe (vier spaties ingesprongen, zodat de tripwire in `tests/test_plans.py`
-hem niet als een tweede marker leest):
+bevestigingsalinea toe, op kolom 0 en niet ingesprongen (de `> `-markering houdt hem
+al buiten het bereik van de tripwire in `tests/test_plans.py`; vier spaties inspringen
+zou hem juist als codeblok laten renderen in plaats van als citaat):
 
 ```text
-    > **Status op 2026-09-07: opgeleverd.** Elk bestand dat dit plan noemt staat
-    > in de boom. `tests/test_plans.py` controleert dat voor alle plannen in
-    > `docs/superpowers/plans/`, en het wordt rood op de dag dat een van hen
-    > niet meer klopt. Wat die test niet kan zeggen is of elke stap is
-    > uitgevoerd zoals hij hier staat; daar zijn de commitgeschiedenis en de
-    > suite voor.
+> **Status op 2026-09-07: opgeleverd.** Elk bestand dat dit plan noemt staat
+> in de boom. `tests/test_plans.py` controleert dat voor alle plannen in
+> `docs/superpowers/plans/`, en het wordt rood op de dag dat een van hen
+> niet meer klopt. Wat die test niet kan zeggen is of elke stap is
+> uitgevoerd zoals hij hier staat; daar zijn de commitgeschiedenis en de
+> suite voor.
 ```
 
 - [ ] **Step 5: Bevestig dat de strenge lezing nu van toepassing is, en groen is**
