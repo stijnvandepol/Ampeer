@@ -69,6 +69,7 @@
 .
 . Dat document is er om nagerekend te worden.
 . De regels voor het gebruik staan in
+. Een vraag of klacht over uw gegevens gaat naar
 . Hoe wij rekenen, staat in
 . Wij antwoorden binnen een maand.
 /
@@ -113,6 +114,8 @@ Alleen als het bij u uitkomt. Voor een deel van de huishoudens is het antwoord n
 Alles daarover staat in
 Als dit adres bij ons bekend is, staat er binnen enkele minuten een e-mail voor u klaar. De link daarin werkt een uur.
 Ampeer
+Ampeer geeft geen financieel advies, geen installatieadvies en geen advies over een energiecontract.
+Ampeer is een rekenmachine. Met uw antwoorden en met standaardprofielen rekent hij uit wat het einde van de salderingsregeling u kost.
 Ampeer rekent uit wat het einde van de saldering u kost. Wij verkopen niets en wij bemiddelen niets. Hieronder staat waarvan Ampeer betaald wordt, en wie erachter zit.
 Ampeer stelt u een paar vragen en rekent daar een antwoord mee uit. Deze pagina zegt wat wij daarvan bewaren, hoe lang, en wie het verder kan zien. Wij hebben het zo kort mogelijk opgeschreven.
 Ampeer verkoopt geen panelen, geen batterijen en geen energiecontract, en plaatst geen advertenties. Niemand betaalt ons voor de uitkomst die u krijgt.
@@ -152,6 +155,7 @@ Dat staat allemaal uitgeschreven, met de aannames en de bandbreedtes erbij, in
 Dat verschil is belangrijk. Afkappen zou betekenen dat uw volledige postcode ons wel had bereikt. Nu bereikt hij ons nooit.
 De batterij, doorgerekend
 De bevestigingsmail is onderweg.
+De dienst kan er even niet zijn. Wij beloven geen beschikbaarheid.
 De drie routes, en de gratis routes eerst
 De eerste ronde stelt vier vragen:
 De eerste vier cijfers van uw postcode, hoeveel wattpiek er ligt, hoe het dak ligt en uw jaarverbruik. Meer niet. Wij bouwen daar een kwartierprofiel van een heel jaar mee op, 35.040 kwartieren, en rekenen dat door op de tarieven van nu en die van 2027.
@@ -173,6 +177,7 @@ De server had een storing. Probeer het straks opnieuw.
 De toestemmingstekst kon niet worden opgehaald. Intrekken kan wel, aanzetten niet.
 De toestemmingsteksten konden niet worden opgehaald. Herlaad de pagina om een account aan te maken.
 De toestemmingsteksten worden opgehaald.
+De uitkomst is een schatting en geen belofte. Wij zijn niet aansprakelijk voor een beslissing die u op die schatting neemt, voor zover de wet ons toestaat dat uit te sluiten.
 De vergoeding is wat u krijgt per teruggeleverde kilowattuur. De terugleverkosten zijn wat uw leverancier daarvoor in rekening brengt. De veelgenoemde 3 tot 8 cent is de vergoeding met de kosten er nog voor.
 De vier vragen
 De vijf vragen hierna maken een antwoord scherper dat er al is, en in dit browservenster staat dat antwoord er nog niet. Dat gebeurt als u uw bewaarde link in een nieuw venster opent of op een ander apparaat.
@@ -182,10 +187,12 @@ De wasmachine, de vaatwasser en de droger draaien op het moment dat uw panelen l
 Deze link hoort niet bij een berekening. Controleer of hij compleet is overgenomen.
 Deze link opent dit advies opnieuw, zonder account. Bewaar hem als u er later bij wilt.
 Deze pagina hoort bij een berekening en er staat er geen in de link.
+Deze pagina zegt wat Ampeer is en niet is, waarvan het betaald wordt, en waar u zelf voor instaat.
 Deze verklaring hoort bij de dienst met accounts, herstel en bevestiging, zoals die vandaag draait. Komt er een koppeling met uw meter, dan verandert er veel en schrijven wij deze pagina opnieuw voordat dat gebeurt.
 Die doorgifte rust op de standaardbepalingen van de Europese Commissie, in Resends verwerkersovereenkomst.
 Die overeenkomst is voorgetekend bij elk account. Wij kunnen hem downloaden uit het dashboard.
 Dit advies konden wij niet laten zien
+Dit is de samenvatting. De volledige methode staat in
 Dit is geen belofte maar een test. Bij elke wijziging leest een test alle verzoeken mee die een pagina doet. Gaat er één naar een ander bedrijf, dan gaat die test rood en komt de wijziging er niet in.
 Dit logboek ruimen wij niet op. Zodra uw advies weg is, wijst die afdruk nergens meer naar. Wat overblijft is een postcodegebied, een tijdstip en twee versienummers.
 Dit staat op de offerte of de factuur van uw installateur, en meestal ook in de app van uw omvormer. Weet u het niet: tel uw panelen en reken ongeveer 400 wattpiek per paneel. Twaalf panelen is dan ongeveer 4.800.
@@ -198,6 +205,7 @@ E-mailadres
 E-mailadres bevestigd
 E-mailadres nog niet bevestigd
 EAST
+Een account per e-mailadres. U kiest en bewaart uw wachtwoord; wij kunnen het niet lezen en geven het niet terug. Bent u het kwijt, dan herstelt u het via de mail.
 Een adres bevestigen, of een mail versturen.
 Een bedrag met een bandbreedte, niet één getal
 Een bedrag per jaar met de bandbreedte eromheen, hoe zeker dat antwoord is, en drie routes in vaste volgorde: uw eigen ritme verschuiven, slimmer sturen met wat u al heeft, en stroom opslaan in een thuisbatterij. De routes die niets kosten staan altijd bovenaan, ook als er bij u aan een ervan niets te halen valt.
@@ -206,12 +214,14 @@ Een bevestigd adres is straks nodig om een slimme meter te koppelen. Vandaag is 
 Een herstel aanvragen of afronden.
 Een hulpprogramma tegen inbrekers brengt drie tabellen mee die een IP-adres zouden kunnen bevatten. Die blijven leeg, want wij tellen dat in het geheugen. Gemeten: na zes mislukte inlogpogingen staan alle drie op nul rijen.
 Een jaar in kwartieren. Van links naar rechts de dagen van het jaar, van boven naar beneden het etmaal van middernacht tot middernacht. Geel staat voor een kwartier waarin u vooral uw eigen opwek gebruikte, lichtgrijsblauw voor een kwartier waarin u vooral stroom van het net haalde, en donkerblauw voor een kwartier waarin u vooral stroom teruggaf aan het net.
+Een klacht over de dienst gaat naar
 Een kwartierprofiel van een heel jaar, uit de verbruiksprofielen die netbeheerders publiceren en de instraling voor uw postcodegebied.
 Een moment, wij halen de doorrekening op die bij deze link hoort.
 Een toestemming geven of intrekken.
 Een toestemming kunt u altijd omzetten. Wij bewaren de oude keuze naast de nieuwe.
 Een voorbeelddag van 96 kwartieren, van middernacht links tot middernacht rechts. Hoe hoger een staaf, hoe meer stroom er in dat kwartier omging. Geel is een kwartier waarin het huishouden vooral zijn eigen opwek gebruikte, lichtgrijsblauw een kwartier waarin het stroom van het net haalde, en donkerblauw een kwartier waarin het stroom teruggaf aan het net.
 Een voorbeelddag, geen berekening.
+Een wijziging komt op deze pagina te staan, met een nieuwe datum. Een wijziging die u iets kost komt hier te staan voordat hij ingaat.
 Eerst wat u niets kost
 Einde saldering
 Einde salderingsregeling: wat het bij u doet
@@ -226,6 +236,9 @@ Er zijn kort achter elkaar veel berekeningen gedaan vanaf dit adres. Probeer het
 Exporteren of verwijderen.
 GOOD
 GRANTED
+Gaat Ampeer ooit doorverwijzen, dan vragen wij daar apart toestemming voor. Uw advies verandert er niet door.
+Gebruik de dienst voor uw eigen huishouden, of voor iemand die u daarom vroeg. Probeer niet in te breken, te overbelasten of om de tempolimieten heen te werken. Maak geen account op een adres dat niet van u is.
+Gebruiksvoorwaarden
 Geen account, geen e-mailadres. U krijgt een link waarmee u er later bij kunt.
 Geen panelen, geen batterijen en geen energiecontract. En niemand die ons betaalt voor de uitkomst die u krijgt.
 Geen toestemming gegeven
@@ -246,9 +259,11 @@ Het invoerveld accepteert alleen vier cijfers. Typt u er zes, dan wordt de invoe
 Het openen van een pagina van Ampeer doet geen enkel verzoek aan een ander bedrijf.
 Het verkeer naar deze site loopt via Cloudflare Inc. Dat bedrijf is onze verwerker. Cloudflare beveiligt de verbinding en beëindigt die aan de rand van hun netwerk.
 Het vermogen van uw zonnepanelen, in wattpiek.
+Het woord bij uw advies (indicatief, goed of precies) zegt hoeveel u ons verteld heeft. Precies kunt u vandaag niet krijgen.
 Hier is niets meer te halen.
 Hier logt u in of maakt u een account aan. In uw account ziet u welke toestemmingen u heeft gegeven, kunt u ze omzetten, uw gegevens downloaden en uw account verwijderen. Voor de rekenmachine is geen account nodig.
 Hiermee verdwijnen uw e-mailadres, uw twee toestemmingen, uw opgeslagen adviezen en uw sessies. In ons logboek blijft alleen de regel staan dat een account is verwijderd, met een nummer dat nergens meer heen wijst.
+Hij zegt ook welke van drie routes voor u het beste past. Elk bedrag komt met een bandbreedte, want wij rekenen de hele berekening 243 keer door, met aannames die wij niet zeker weten.
 Hoe Ampeer rekent
 Hoe groot is de batterij?
 Hoe het dak ligt: welke kant het op ligt en hoe schuin het staat.
@@ -292,6 +307,7 @@ Meenemen
 Meer hoeft u niet in te vullen. Geen account, geen e-mailadres, en niets aan uw meterkast.
 Meer niet. Er is geen account, wij vragen geen e-mailadres en er hoeft niets aan uw meterkast te gebeuren. Weet u een getal niet precies, dan is een schatting genoeg.
 Meer over
+Meer regels zijn er niet.
 Meestal 's nachts
 Meestal bij thuiskomst, aan het begin van de avond
 Met een link waarmee u er later bij kunt, zonder account. Wilt u het scherper, dan komen er vijf vragen bij.
@@ -309,6 +325,7 @@ Na 90 dagen verwijderen wij uw advies. Dat gebeurt automatisch, elke dag opnieuw
 Na uw eerste antwoord kunt u verfijnen: of er op een doordeweekse dag overdag meestal iemand thuis is, wanneer een elektrische auto laadt, of er een warmtepomp is, of uw contract dynamisch is, en of er al een thuisbatterij staat. Vier vragen geeft een indicatief antwoord, negen vragen een goed antwoord.
 Naam
 Naar de inhoud
+Nederlands recht is van toepassing.
 Nee
 Nee. Panelen leveren stroom die u anders had moeten kopen, en dat blijft na 2027 zo. Wat verandert is wat de stroom opbrengt die u niet zelf gebruikt.
 Nergens anders voor. Die mail vertrekt via Resend, Inc. Resend is onze tweede verwerker.
@@ -324,6 +341,7 @@ Noordoost
 Noordwest
 Omdat een deel van de invoer nog niet vaststaat, zoals de terugleververgoeding in 2027 en de stroomprijs. Wij rekenen uw jaar daarom op veel verschillende standen door en laten zien wat daaruit komt. Een getal daaruit oppakken zou zekerder klinken dan het is.
 Omdat het verschil tussen die twee banden alleen telt voor de kilowatturen die u daadwerkelijk teruglevert. Twee huizen met precies dezelfde panelen en precies hetzelfde jaarverbruik krijgen een ander antwoord, alleen doordat de een overdag thuis is en de ander niet.
+Onze getallen zijn een schatting op een verzonnen jaar met standaardprofielen. Uw dak, uw apparaten en het tarief van 2027 kennen wij niet.
 Onze lettertypen staan op onze eigen server. Er is geen extern lettertype en geen extern script.
 Onze methode staat volledig uitgeschreven, met de aannames, de bronnen en de bandbreedtes erbij.
 Onze rekenmodule mag als uitkomst geven: "nu geen batterij". Bij een deel van de huishoudens is dat het eerlijke antwoord, en dan krijgt u het ook.
@@ -340,13 +358,16 @@ Op welke grondslag wij dit doen
 Organization
 Over Ampeer
 Over deze verklaring
+Over deze voorwaarden
 Over ons
+Over uw gegevens kunt u ook terecht bij de
 Overdag, op ons eigen overschot
 PRECISE
 Postadres
 Prijs per kWh waarbij hij precies uit kan
 Privacy
 Privacyverklaring
+Recht en klachten
 Reken uit wat het einde van de salderingsregeling uw huishouden kost, met de marge erbij.
 Resend bewaart een eigen verzendlog met adres, onderwerp en tekst. Dat log staat in de Verenigde Staten, ook al versturen wij vanuit de Europese regio.
 Resend verstuurt onze mail
@@ -378,6 +399,7 @@ Toestemming intrekken
 Tussen
 Twee dingen erbij, want zonder die twee is dit een belofte. Het is een voorstel dat bij de ACM ligt en nog geen regel. En ons model rekent het nog niet door: wat u vandaag bij ons krijgt gaat over 2027 en niet over 2029.
 U beantwoordt vier vragen
+U beslist zelf. Een beslissing over een batterij of panelen neemt u met een offerte in de hand, niet met dit scherm.
 U krijgt een bedrag per jaar als een bereik. Het middelpunt is een markering in dat bereik en niet het antwoord, want dat middelpunt weten wij minder zeker dan het eruitziet.
 U krijgt een bedrag per jaar met de marge eromheen, en de band is het object op het scherm. Daaronder ziet u uw eigen jaar in kwartieren: per kwartier of u vooral uw eigen opwek gebruikte, stroom van het net haalde, of teruglevede.
 U krijgt een terugleververgoeding voor wat u teruglevert. Daar staat tegenover dat u de volle prijs betaalt voor wat u afneemt. U leest vaak dat die vergoeding 3 tot 8 cent wordt. Dat is de brutovergoeding: daar gaan de terugleverkosten nog vanaf, en die rekenen leveranciers per teruggeleverde kilowattuur.
@@ -416,6 +438,7 @@ Van uw postcode bewaren wij vier cijfers
 Vanaf 2027
 Vanaf 2027 houdt u van een teruggeleverde kilowattuur op een vast contract
 Vandaag verdienen wij niets aan uw advies. Er komt geen commissie binnen, geen advertentiegeld en geen vergoeding per doorverwijzing.
+Vandaag verdienen wij niets aan uw advies. Verandert dat, dan staat het hier en op
 Varieerde
 Veelgestelde vragen
 Verandert dat, dan komt het hier te staan voordat het gebeurt. Gaat Ampeer ooit doorverwijzen, dan vragen wij daar apart toestemming voor. Die toestemming staat nooit voorgevinkt aan, en uw advies verandert er niet door.
@@ -426,6 +449,7 @@ Verder gaat er niets naar buiten
 Verfijn uw antwoord
 Verstuur de bevestigingsmail opnieuw
 Verwijderen bevestigen
+Verwijderen is definitief en doet u zelf, met uw wachtwoord erbij. Vandaag bewaart een account uw toestemmingen en kunt u exporteren. Straks koppelt het, met een bevestigd adres, een slimme meter.
 Vier vragen over uw dak en uw verbruik, en u ziet wat er vanaf 1 januari 2027 bij u verandert, met de marge eromheen.
 Vier vragen over uw dak en uw verbruik, en u ziet wat het einde van de salderingsregeling bij uw huis doet, met de bandbreedte erbij. Gratis, geen account.
 Vier vragen over uw dak en uw verbruik, en u ziet wat het einde van de salderingsregeling u per jaar gaat kosten. Met de bandbreedte erbij, want een enkel getal zou meer zekerheid suggereren dan er is.
@@ -442,6 +466,7 @@ Voor het advies vragen wij nog steeds geen van die dingen, en de rekenmachine we
 Voor het koppelen van een slimme meter is een bevestigd e-mailadres nodig.
 Voor huishoudens met zonnepanelen
 Voortgang
+Voorwaarden
 Vraag
 Vul een getal in, zonder letters of spaties.
 Vul een heel getal in, zonder cijfers achter de komma.
@@ -460,15 +485,19 @@ Waarom krijg ik een bereik en niet een bedrag?
 Waarom wij dit vragen
 Waarover varieert dit bedrag?
 Waarvan Ampeer betaald wordt
+Waarvoor wij niet instaan
 Wachtwoord
 Wachtwoord herstellen
 Wachtwoord opslaan
 Wachtwoord vergeten?
 Wanneer laadt uw elektrische auto?
+Wat Ampeer is
+Wat Ampeer niet is
 Wat Ampeer van u vraagt, waarom, hoe lang wij het bewaren en wat u eraan kunt doen. In gewone taal, zonder verwijzing naar een document dat u niet krijgt te zien.
 Wat Ampeer voor u uitrekent
 Wat Resend niet ziet: waarom u herstel vroeg, uw wachtwoord, uw toestemmingen of uw advies.
 Wat andere maten zouden opleveren
+Wat de rekenmachine van Ampeer is en niet is, waarvan Ampeer betaald wordt, en waar u zelf voor instaat als u de dienst gebruikt.
 Wat die maat per jaar oplevert
 Wat die uitkomst mogelijk maakt is niet dat wij niets verdienen, maar dat niemand ons betaalt voor welke uitkomst u krijgt. Er is geen installateur, geen leverancier en geen fabrikant die er beter van wordt als hier "wel een batterij" uitkomt. Een adviseur die batterijen verkoopt kan die zin niet schrijven.
 Wat een kilowattuur waard is, in centen. De bovenste band is een kilowattuur die u zelf gebruikt en die verandert nauwelijks. De onderste band is een kilowattuur die u teruglevert: nu even veel waard als de bovenste, en vanaf 2027 bijna niets, aan de ongunstige kant zelfs minder dan nul.
@@ -527,6 +556,7 @@ Wij tellen hoeveel verzoeken er per bezoeker binnenkomen. Dat is nodig om misbru
 Wij tonen altijd alle drie de routes, in deze volgorde, ook als er bij u aan een ervan niets te halen valt. Een lege route is zelf een antwoord.
 Wij tonen ook altijd eerst de routes die u niets kosten. Uw ritme verschuiven, en slimmer omgaan met apparaten die u al heeft. Een investering komt als laatste in beeld.
 Wij verkopen geen energiecontract en wij bemiddelen er ook geen.
+Wij verkopen geen panelen, geen batterijen en geen energiecontract, en plaatsen geen advertenties. Niemand betaalt ons voor de uitkomst die u krijgt.
 Wij verkopen geen zonnepanelen en geen thuisbatterijen.
 Wij verkopen geen zonnepanelen, geen thuisbatterijen en geen energiecontract. Wij plaatsen geen advertenties. Er is geen knop op deze site die naar een verkopende partij leidt.
 Wij verkopen vandaag geen leads en sturen u niet door naar een installateur of een leverancier.
@@ -541,6 +571,7 @@ Wij weten niet welke apparaten u heeft of wanneer u ze aanzet.
 Wij zeggen niet dat Ampeer nooit geld gaat verdienen. Wat wij wel vastleggen is dat uw antwoord er niet van afhangt: code die het advies laat meebewegen met een commerciele afspraak geldt in dit project als een fout, en dat staat zo in de projectafspraken. Verandert er iets aan hoe Ampeer betaald wordt, dan staat het op deze pagina en op "over ons" voordat het gebeurt.
 Wilt u een scherper antwoord, dan volgen er vijf vragen bij. Of u overdag thuis bent bijvoorbeeld, of u een elektrische auto heeft, en of u een warmtepomp heeft. Die vragen zijn vrijwillig.
 Ze rust ook op Resends certificering onder het Data Privacy Framework.
+Zie ook
 Zijn zonnepanelen na 2027 nog rendabel?
 Zo vaak rekenen wij uw jaar opnieuw door, met de onzekere aannames op verschillende standen. Wat u ziet is de bandbreedte die daaruit komt.
 Zoals het nu is
@@ -675,6 +706,7 @@ van de 96 kwartieren gebruikte dit huishouden zijn eigen opwek,
 van het net gehaald
 var(
 verify
+voordat het gebeurt.
 vraag-titel
 vraag-toelichting
 vragen

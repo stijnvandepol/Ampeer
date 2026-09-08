@@ -11,6 +11,10 @@ import OverOnsPage, {
   AboutAmpeer,
   metadata as overOnsMetadata,
 } from "@/app/over-ons/page";
+import VoorwaardenPage, {
+  TermsPage,
+  metadata as voorwaardenMetadata,
+} from "@/app/voorwaarden/page";
 import {
   IDENTITY,
   IDENTITY_FIELDS,
@@ -147,7 +151,7 @@ describe("the identity Ampeer cannot invent", () => {
     // CompleteIdentity closes the other half: `legalBasis` is a union of the
     // two accepted values there and includes the sentinel in `Identity`, so
     // the shipped IDENTITY does not typecheck where a page body wants one.
-    for (const route of ["privacy", "over-ons"]) {
+    for (const route of ["privacy", "over-ons", "voorwaarden"]) {
       const source = readFileSync(
         resolve(process.cwd(), "src/app", route, "page.tsx"),
         "utf-8",
@@ -431,6 +435,70 @@ describe("the page about Ampeer", () => {
   });
 });
 
+/** Rendered terms page text, on the identity the caller names. */
+function termsText(identity: CompleteIdentity = FILLED): string {
+  const { container } = render(<TermsPage identity={identity} />);
+  return container.textContent ?? "";
+}
+
+describe("the terms page", () => {
+  it("has one first-level heading and a title and description of its own", () => {
+    const { container } = render(<TermsPage identity={FILLED} />);
+    expect(container.querySelectorAll("h1")).toHaveLength(1);
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Gebruiksvoorwaarden" }),
+    ).toBeInTheDocument();
+    expect(voorwaardenMetadata.title).toBe("Gebruiksvoorwaarden");
+    expect(String(voorwaardenMetadata.description).length).toBeGreaterThan(50);
+    expect(voorwaardenMetadata.alternates?.canonical).toBe("/voorwaarden/");
+    expect(voorwaardenMetadata.openGraph).toBeUndefined();
+  });
+
+  it("says what a reader needs before trusting the advice", () => {
+    const text = termsText();
+    for (const claim of [
+      "schatting",
+      "bandbreedte",
+      "geen financieel",
+      "verkopen geen",
+      "Niemand betaalt ons",
+      "account per e-mailadres",
+      "Nederlands recht",
+      "Autoriteit Persoonsgegevens",
+    ]) {
+      expect(text, `the terms page never says "${claim}"`).toContain(claim);
+    }
+  });
+
+  it("carries exactly one external link, the regulator", () => {
+    const { container } = render(<TermsPage identity={FILLED} />);
+    const hrefs = [...container.querySelectorAll("a[href]")].map((element) =>
+      element.getAttribute("href"),
+    );
+    expect(hrefs.filter((href) => /^https?:/.test(href ?? ""))).toEqual([
+      "https://www.autoriteitpersoonsgegevens.nl/",
+    ]);
+  });
+
+  it("carries no em-dash and no euro amount", () => {
+    expect(termsText()).not.toContain("—");
+    expect(termsText()).not.toMatch(/€|\d+\s*euro/);
+  });
+
+  it("says 7 september 2026", () => {
+    expect(termsText()).toContain("7 september 2026");
+  });
+
+  it("refuses to render while a fact is missing", () => {
+    const missing = missingIdentityFields(IDENTITY);
+    if (missing.length > 0) {
+      expect(() => VoorwaardenPage()).toThrow(NOG_IN_TE_VULLEN);
+    } else {
+      expect(VoorwaardenPage()).toBeTruthy();
+    }
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Where the two routes are announced
 // ---------------------------------------------------------------------------
@@ -440,6 +508,7 @@ describe("the crawler files, once the legal pages exist", () => {
     const urls = sitemap().map((entry) => entry.url);
     expect(urls).toContain(`${SITE_ORIGIN}/privacy/`);
     expect(urls).toContain(`${SITE_ORIGIN}/over-ons/`);
+    expect(urls).toContain(`${SITE_ORIGIN}/voorwaarden/`);
     expect(sitemap()).toHaveLength(SITEMAP_ROUTES.length);
     // And leaves out the one route that is not an answer to a search. The
     // account page's own file says it is deliberately absent; a comment is
@@ -472,7 +541,7 @@ describe("the footer, which is where a visitor looks for these", () => {
     expect(screen.getByText(/verkoopt geen panelen/)).toBeInTheDocument();
   });
 
-  it("reaches all four pages that explain the product rather than sell it", () => {
+  it("reaches all five pages that explain the product rather than sell it", () => {
     const { container } = render(<SiteFooter />);
     const hrefs = [...container.querySelectorAll("a[href]")].map((element) =>
       element.getAttribute("href"),
@@ -481,17 +550,18 @@ describe("the footer, which is where a visitor looks for these", () => {
       /^\/methodologie\/?$/,
       /^\/over-ons\/?$/,
       /^\/privacy\/?$/,
+      /^\/voorwaarden\/?$/,
       // The one entrance to the account, and the only one: the site header
       // does not change and nothing goes on the advice page.
       /^\/account\/?$/,
     ]) {
       expect(hrefs.some((href) => path.test(href ?? ""))).toBe(true);
     }
-    // Four, and a fifth is a finding rather than a detail. "Reaches all four"
-    // is only half a claim while a sixth link could sit beside them
-    // unnoticed, and the footer is the one place on this site where a link
-    // out to a party with something to sell would be least conspicuous.
-    expect(hrefs).toHaveLength(4);
+    // Five, and a sixth is a finding rather than a detail: the fifth is the
+    // page that says what Ampeer does not stand behind, and it stands next
+    // to the page that says what Ampeer keeps, because a reader looking for
+    // one wants the other too.
+    expect(hrefs).toHaveLength(5);
     expect(hrefs.filter((href) => /^https?:/.test(href ?? ""))).toEqual([]);
   });
 });
@@ -508,7 +578,7 @@ describe("the two default exports", () => {
     // which is what the two branches here allow for. Either way, one of the
     // two must hold: a page that neither throws nor renders is a page that
     // slipped past the guard.
-    for (const page of [PrivacyPage, OverOnsPage]) {
+    for (const page of [PrivacyPage, OverOnsPage, VoorwaardenPage]) {
       const missing = missingIdentityFields(IDENTITY);
       if (missing.length > 0) {
         expect(() => page()).toThrow(NOG_IN_TE_VULLEN);
