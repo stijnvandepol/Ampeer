@@ -72,10 +72,10 @@ function aboutText(identity: CompleteIdentity = FILLED): string {
 
 describe("the identity Ampeer cannot invent", () => {
   it("ships with both addresses filled and consent as the legal basis", () => {
-    // Sinds 2026-09-03 stond deze lijst leeg en liep de oude versie van deze
-    // test nul keer door zijn eigen lus, wat de rode-proefregel verbiedt: een
-    // controle die groen leest omdat hij niets leest. Omgedraaid naar wat
-    // vandaag waar is.
+    // Since 2026-09-03 this list stood empty and the old version of this
+    // test ran its own loop zero times, which the red-proof rule forbids: a
+    // check that reads green because it reads nothing. Turned around to what
+    // is true today.
     expect(missingIdentityFields(IDENTITY)).toEqual([]);
     expect(IDENTITY.contactEmail).toBe("info@ampeer.nl");
     expect(IDENTITY.privacyEmail).toBe("privacy@ampeer.nl");
