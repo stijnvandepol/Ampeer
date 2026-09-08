@@ -588,3 +588,61 @@ describe("the two default exports", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// The two hand-written route lists, laid against the route tree
+// ---------------------------------------------------------------------------
+
+/** Every array literal string this file's own regex can find, in order. */
+function stringArrayNamed(source: string, name: string): string[] {
+  const match = new RegExp(`const ${name}[^=]*=\\s*\\[([\\s\\S]*?)\\]`).exec(
+    source,
+  );
+  if (!match) throw new Error(`${name} was not found`);
+  return [...match[1]!.matchAll(/"([^"]+)"/g)].map((found) => found[1]!);
+}
+
+describe("the two hand-written e2e route lists stay complete", () => {
+  it("names every route under src/app/, or the token template that stands for it", () => {
+    const appDir = resolve(process.cwd(), "src/app");
+    const routes = readdirSync(appDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("_"))
+      .filter((entry) => existsSync(join(appDir, entry.name, "page.tsx")))
+      .map((entry) => `/${entry.name}/`)
+      .sort();
+
+    // The route tree, minus the one entry the e2e lists write differently:
+    // /advies/ is a bearer-token page and both lists name the templated
+    // ADVICE_PATH instead of the bare directory.
+    const expected = routes.filter((route) => route !== "/advies/");
+
+    // Deliberate exceptions to the sitemap, named so a reader does not have
+    // to guess why these two routes are in the e2e lists but not in
+    // SITEMAP_ROUTES: /advies/ has one URL per visitor and nothing a search
+    // engine could usefully index, /account/ carries a noindex tag of its own.
+    const NOT_IN_SITEMAP = ["/advies/", "/account/"];
+    for (const route of routes) {
+      if (NOT_IN_SITEMAP.includes(route)) continue;
+      expect(
+        SITEMAP_ROUTES.map((entry) => entry.path),
+        `${route} is a real route, is not one of the two named exceptions, and is missing from SITEMAP_ROUTES`,
+      ).toContain(route);
+    }
+
+    for (const [file, name] of [
+      ["frontend/e2e/privacy.spec.ts", "PAGES"],
+      ["frontend/e2e/rules.spec.ts", "ALL_PATHS"],
+    ] as const) {
+      const source = readFileSync(resolve(process.cwd(), "..", file), "utf-8");
+      const listed = stringArrayNamed(source, name);
+      for (const route of expected) {
+        expect(
+          listed.some(
+            (entry) => entry === route || entry.startsWith("/advies/"),
+          ),
+          `${file}'s ${name} does not name ${route}`,
+        ).toBe(true);
+      }
+    }
+  });
+});

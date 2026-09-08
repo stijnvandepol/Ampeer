@@ -27,7 +27,15 @@ const ALL_PATHS = [
   "/berekenen/",
   ADVICE_PATH,
   "/methodologie/",
+  "/over-ons/",
+  "/privacy/",
+  "/voorwaarden/",
+  "/account/",
 ] as const;
+
+test("checks exactly the nine routes this list names, not more and not fewer", () => {
+  expect(ALL_PATHS).toHaveLength(9);
+});
 
 /** The advice has arrived once its headline band is on the screen. */
 async function openAdvice(page: Page): Promise<void> {

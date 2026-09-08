@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import fixture from "../tests/fixtures/advice-response.json";
 
 /**
  * Nothing this site loads may reach a host outside the machine serving it.
@@ -26,12 +27,25 @@ import { expect, test } from "@playwright/test";
 /** Hosts that are this machine. Anything else is somebody else. */
 const OWN_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
-/** Every page a visitor can reach without an advice in hand, plus one with. */
+const TOKEN = fixture.token;
+const ADVICE_PATH = `/advies/${TOKEN}/`;
+
+/**
+ * Every page a visitor can reach, plus the one behind a bearer token, plus
+ * /voorwaarden/. Nine, and the sweep this file runs is the proof that no
+ * page a visitor actually loads asks anything of a third party; a list that
+ * left out /privacy/ or /over-ons/ was a sweep that promised that and did
+ * not load the two pages that make the promise.
+ */
 const PAGES = [
   "/",
   "/einde-saldering/",
   "/berekenen/",
+  ADVICE_PATH,
   "/methodologie/",
+  "/over-ons/",
+  "/privacy/",
+  "/voorwaarden/",
   "/account/",
 ];
 
@@ -54,6 +68,17 @@ function foreignRequests(page: import("@playwright/test").Page): string[] {
   return foreign;
 }
 
+test.beforeEach(async ({ page }) => {
+  await page.route("**/api/advice/**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: { "access-control-allow-origin": "*" },
+      body: JSON.stringify(fixture),
+    }),
+  );
+});
+
 for (const path of PAGES) {
   test(`${path} asks nothing of anybody but this machine`, async ({ page }) => {
     const foreign = foreignRequests(page);
@@ -66,8 +91,8 @@ for (const path of PAGES) {
   });
 }
 
-test("checks exactly the five pages this list names, not more and not fewer", () => {
-  expect(PAGES).toHaveLength(5);
+test("checks exactly the nine pages this list names, not more and not fewer", () => {
+  expect(PAGES).toHaveLength(9);
 });
 
 test("the fonts are served from this origin rather than fetched from one", async ({
