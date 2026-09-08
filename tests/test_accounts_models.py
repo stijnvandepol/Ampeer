@@ -89,6 +89,17 @@ def test_creating_a_user_without_an_email_address_is_refused() -> None:
         User.objects.create_user(email="", password=TEST_PASSWORD)
 
 
+@pytest.mark.django_db
+def test_saving_a_user_with_no_email_does_not_touch_it() -> None:
+    """The `if self.email:` branch's false arm. Normalising an empty string is
+    create_user's job (it already refuses one with its own test); this is
+    only about what save() itself does when there is nothing to normalise."""
+    user = User(email="")
+    user.set_unusable_password()
+    user.save()
+    assert user.email == ""
+
+
 def test_an_account_carries_no_name_and_no_username() -> None:
     """Django's default User forces three columns this product never fills, and
     two of them are called a name in a document that says there is no name.

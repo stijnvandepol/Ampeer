@@ -125,11 +125,18 @@ class Command(BaseCommand):
                 "minutes or a mail was given up on in the last day."
             ),
         )
+        parser.add_argument(
+            "--max",
+            type=int,
+            default=50,
+            help="Stop after sending this many rows in one run. Default 50.",
+        )
 
     def handle(self, *args: Any, **options: Any) -> None:
         if not options["check"]:
-            sent, deferred, faulted = self._deliver()
-            self.stdout.write(f"sent {sent} messages, deferred {deferred}")
+            sent, deferred, faulted, capped = self._deliver(options["max"])
+            suffix = f", stopped at the cap of {options['max']}" if capped else ""
+            self.stdout.write(f"sent {sent} messages, deferred {deferred}{suffix}")
             if faulted:
                 raise CommandError(
                     f"{faulted} row(s) raised something other than a transport failure; "
@@ -152,10 +159,10 @@ class Command(BaseCommand):
                 "the timer has stopped, or the transport refuses everything"
             )
 
-    def _deliver(self) -> tuple[int, int, int]:
+    def _deliver(self, max_rows: int) -> tuple[int, int, int, bool]:
         sender = mailer.transport()
         sent = deferred = faulted = 0
-        while True:
+        while sent < max_rows:
             with transaction.atomic():
                 row = (
                     OutboundMail.objects.select_for_update(skip_locked=True)
@@ -164,7 +171,7 @@ class Command(BaseCommand):
                     .first()
                 )
                 if row is None:
-                    return sent, deferred, faulted
+                    return sent, deferred, faulted, False
                 try:
                     with transaction.atomic():
                         raw = recovery.mint(row.user, row.kind)
@@ -195,6 +202,7 @@ class Command(BaseCommand):
                 )
                 row.delete()
                 sent += 1
+        return sent, deferred, faulted, True
 
     def _defer(self, row: OutboundMail, status: int) -> None:
         now = timezone.now()

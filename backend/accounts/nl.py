@@ -25,9 +25,10 @@ phrase.
 
 A second category is not about a field at all: it tells the reader something
 about their own session or sign-in state, and there is no field to name
-instead of them, so it necessarily addresses them. `not_signed_in` and
-`session_expired` are this category, and "u bent niet ingelogd" is correct
-Dutch for what it says rather than an exception to the rule above.
+instead of them, so it necessarily addresses them. `not_signed_in`,
+`session_expired` and `forbidden` are this category, and "u bent niet
+ingelogd" is correct Dutch for what it says rather than an exception to the
+rule above.
 
 The consent texts are a third category, and deliberately so: those are
 sentences to a household, so they do use "u". They also carry a version,
@@ -80,6 +81,7 @@ NL: Final[dict[str, str]] = {
     "password_too_short": "wachtwoord moet minimaal %(min_length)d tekens bevatten",  # nosec B105
     "not_signed_in": "u bent niet ingelogd",
     "session_expired": "uw sessie is verlopen, log opnieuw in",
+    "forbidden": "u mag dit niet doen",
     "csrf_failed": "deze pagina stond te lang open, herlaad hem en probeer het opnieuw",
     "throttled": "te veel verzoeken achter elkaar; probeer het over %(seconds)d seconden opnieuw",
     "throttled_unknown_wait": "te veel verzoeken achter elkaar; probeer het straks opnieuw",

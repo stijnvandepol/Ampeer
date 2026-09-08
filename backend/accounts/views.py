@@ -107,6 +107,38 @@ class _AuthAPIView(_NoStoreAPIView):
         exc.wait = seconds  # type: ignore[attr-defined]
         raise exc
 
+    def permission_denied(
+        self, request: Request, message: str | None = None, code: str | None = None
+    ) -> NoReturn:
+        """Answer in this project's own Dutch, not DRF's default catalogue.
+
+        DRF's own version:
+
+            def permission_denied(self, request, message=None, code=None):
+                if request.authenticators and not request.successful_authenticator:
+                    raise exceptions.NotAuthenticated()
+                raise exceptions.PermissionDenied(detail=message, code=code)
+
+        `NotAuthenticated()` with no detail reads DRF's Dutch catalogue, which
+        carries no translation, so under nl-nl the sentence a stranger reads on
+        every one of the six signed-in routes is English: "Authentication
+        credentials were not provided." Every stub in the frontend and every
+        e2e mock already answers with NL["not_signed_in"]'s own sentence
+        (`describeAuthError` shows a 401 literally), so each of them disagreed
+        with the real server until this override existed.
+
+        The PermissionDenied branch below is not reached by any route today:
+        DeleteView raises its own PermissionDenied(NL["credentials_invalid"])
+        rather than calling this method, and no other view withholds a
+        permission once a caller is authenticated. It stays here anyway,
+        because a permission that starts checking something in a later cycle
+        should not silently reach DRF's English "You do not have permission to
+        perform this action." on the way in.
+        """
+        if request.authenticators and not request.successful_authenticator:
+            raise NotAuthenticated(NL["not_signed_in"])
+        raise PermissionDenied(NL["forbidden"] if message is None else message, code=code)
+
     def get_authenticate_header(self, request: Request) -> str:
         """The `WWW-Authenticate` header DRF asks for before answering a
         401, independent of `authentication_classes`.
