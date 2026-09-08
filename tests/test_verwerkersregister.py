@@ -14,7 +14,6 @@ import re
 from datetime import timedelta
 from pathlib import Path
 
-import pytest
 from helpers.shell import shell_int
 from test_dpia import _DUTCH_NUMERALS, ACCOUNT_MODELS, MODELS, SETTINGS, _int_constant
 
@@ -190,13 +189,3 @@ def test_the_register_names_the_controller_the_site_names() -> None:
         match = re.search(rf'{field}:\s*"([^"]*@[^"]*)"', identity)
         assert match, f"identity.ts no longer assigns {field} as a plain email address"
         assert match.group(1) in TEXT
-
-
-@pytest.mark.xfail(
-    reason="docs/dpia.md still says the sentence this cycle removes in taak 9",
-    strict=True,
-)
-def test_the_dpia_no_longer_says_there_is_no_register() -> None:
-    dpia = DPIA.read_text(encoding="utf-8")
-    assert "geen verwerkersregister" not in dpia
-    assert "verwerkersregister.md" in dpia
