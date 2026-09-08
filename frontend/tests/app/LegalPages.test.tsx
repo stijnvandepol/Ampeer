@@ -40,6 +40,7 @@ const FILLED: CompleteIdentity = {
   vatNumber: "TESTBTW",
   postalAddress: "TESTADRES",
   contactEmail: "test@example.invalid",
+  privacyEmail: "privacy@example.invalid",
   legalBasis: "overeenkomst",
 };
 
@@ -66,14 +67,15 @@ function aboutText(identity: CompleteIdentity = FILLED): string {
 // ---------------------------------------------------------------------------
 
 describe("the identity Ampeer cannot invent", () => {
-  it("ships with every fact still unfilled, and says which", () => {
-    // Not an assertion that the list is empty, because it is not, and it is
-    // not supposed to be until somebody supplies six strings. What is asserted
-    // is that the sentinel is the only thing standing in those fields, so the
-    // build failure names a gap and never a typo.
-    for (const field of missingIdentityFields(IDENTITY)) {
-      expect(IDENTITY[field]).toBe(NOG_IN_TE_VULLEN);
-    }
+  it("ships with both addresses filled and consent as the legal basis", () => {
+    // Sinds 2026-09-03 stond deze lijst leeg en liep de oude versie van deze
+    // test nul keer door zijn eigen lus, wat de rode-proefregel verbiedt: een
+    // controle die groen leest omdat hij niets leest. Omgedraaid naar wat
+    // vandaag waar is.
+    expect(missingIdentityFields(IDENTITY)).toEqual([]);
+    expect(IDENTITY.contactEmail).toBe("info@ampeer.nl");
+    expect(IDENTITY.privacyEmail).toBe("privacy@ampeer.nl");
+    expect(IDENTITY.legalBasis).toBe("toestemming");
   });
 
   it("finds nothing missing in an identity that is complete", () => {
