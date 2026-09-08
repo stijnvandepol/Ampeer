@@ -128,10 +128,10 @@ export function PrivacyStatement({
           of u een warmtepomp heeft. Die vragen zijn vrijwillig.
         </p>
         <p className={styles.body}>
-          Voor het advies vragen wij nog steeds geen van die dingen, en de
-          rekenmachine werkt zonder account. Wie een account aanmaakt, geeft een
-          e-mailadres en kiest een wachtwoord, en meer niet. Geen naam, geen
-          telefoonnummer, geen huisnummer.
+          Voor het advies vragen wij nog steeds geen naam, geen telefoonnummer
+          en geen huisnummer, en de rekenmachine werkt zonder account. Wie een
+          account aanmaakt, geeft een e-mailadres en kiest een wachtwoord, en
+          meer niet.
         </p>
       </section>
 
@@ -248,8 +248,8 @@ export function PrivacyStatement({
           versienummers van onze rekenmodule.
         </p>
         <p className={styles.body}>
-          Sinds er accounts zijn schrijven wij ook een regel bij dertien soorten
-          handelingen:
+          Ons logboek kent dertien soorten regels. Naast die ene bij elk advies
+          schrijven wij er sinds er accounts zijn een bij twaalf handelingen:
         </p>
         <ul className={styles.points}>
           <li className={styles.point}>
@@ -395,15 +395,18 @@ export function PrivacyStatement({
         <h2 id="cookies" className={styles.heading}>
           Drie cookies, en geen enkele om u te volgen
         </h2>
-        <p className={styles.body}>Zonder account zetten wij geen cookie.</p>
         <p className={styles.body}>
-          Logt u in, dan zetten wij twee cookies die uw sessie zijn. Een werkt
-          een kwartier, de andere veertien dagen. Een derde cookie beschermt de
-          pagina tegen verzoeken die niet van u komen.
+          Opent u de accountpagina, dan zetten wij één cookie dat de pagina
+          beschermt tegen verzoeken die niet van u komen. Logt u in, dan komen
+          daar twee cookies bij die uw sessie zijn.
         </p>
         <p className={styles.body}>
-          Alle drie zijn nodig om ingelogd te zijn, en voor niets anders. Ze
-          volgen u niet, ze meten niets en ze gaan naar geen ander bedrijf.
+          Een werkt een kwartier, de andere veertien dagen.
+        </p>
+        <p className={styles.body}>
+          Alle drie zijn nodig om de accountpagina veilig te gebruiken, en voor
+          niets anders. Ze volgen u niet, ze meten niets en ze gaan naar geen
+          ander bedrijf.
         </p>
         <p className={styles.body}>
           Daarom is er geen cookiemelding. De wet vraagt geen toestemming voor
