@@ -27,6 +27,7 @@ const DEFAULT_METER_STATUS = {
   linked: false,
   created_at: null,
   last_seen_at: null,
+  last_seen_label: null,
 };
 
 interface StubAnswer {
@@ -818,6 +819,7 @@ describe("the meter section on the account page", () => {
     linked: false,
     created_at: null,
     last_seen_at: null,
+    last_seen_label: null,
   };
 
   const LINKED = {
@@ -825,6 +827,7 @@ describe("the meter section on the account page", () => {
     linked: true,
     created_at: "2026-09-09T09:00:00Z",
     last_seen_at: "2026-09-09T10:15:00Z",
+    last_seen_label: "9 september 2026 12:15",
   };
 
   const ISSUED_KEY = {
@@ -872,7 +875,9 @@ describe("the meter section on the account page", () => {
       },
     );
     render(<AccountPage />);
-    await userEvent.click(await screen.findByRole("button", { name: "Ontkoppel" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Ontkoppel" }),
+    );
     await userEvent.click(
       screen.getByRole("button", { name: "Ontkoppelen bevestigen" }),
     );
@@ -937,9 +942,7 @@ describe("the meter section on the account page", () => {
     // the account deletion form's disclosure one section down) and it
     // still reads "Ontkoppel", not the possible-to-link state a successful
     // unlink would have moved to.
-    expect(
-      screen.getByRole("button", { name: "Ontkoppel" }),
-    ).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Ontkoppel" })).toBeEnabled();
   });
 
   /**

@@ -98,12 +98,7 @@ const DELETION_CONSEQUENCES =
 
 /** The six actions that share one disabled state, alongside a `ConsentKind`. */
 type AccountActionId =
-  | "export"
-  | "logout"
-  | "delete"
-  | "verify"
-  | "meter_link"
-  | "meter_unlink";
+  "export" | "logout" | "delete" | "verify" | "meter_link" | "meter_unlink";
 
 /**
  * One route, three views, and the state comes from `me/`.

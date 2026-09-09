@@ -19,14 +19,8 @@ const KEY_SHOWN_ONCE =
 
 const NOTHING_RECEIVED_YET = "Er is nog niets binnengekomen.";
 
-const UNLINK_CONSEQUENCE = "Na het ontkoppelen zijn de metingen van deze meter weg.";
-
-/** `Europe/Amsterdam`, per the timestamp convention in `CLAUDE.md`. */
-function formatLastSeen(iso: string): string {
-  return new Date(iso).toLocaleString("nl-NL", {
-    timeZone: "Europe/Amsterdam",
-  });
-}
+const UNLINK_CONSEQUENCE =
+  "Na het ontkoppelen zijn de metingen van deze meter weg.";
 
 export interface MeterSectionProps {
   readonly status: MeterStatus | null;
@@ -80,7 +74,9 @@ export function MeterSection({
           <p className="max-w-[60ch] text-sm">
             <code>{issuedKey.token}</code>
           </p>
-          <p className="max-w-[60ch] text-sm">{apiBase + issuedKey.push_path}</p>
+          <p className="max-w-[60ch] text-sm">
+            {apiBase + issuedKey.push_path}
+          </p>
           <p className="max-w-[60ch] text-sm text-ink-muted">
             {KEY_SHOWN_ONCE}
           </p>
@@ -90,9 +86,17 @@ export function MeterSection({
       {issuedKey === null && status !== null && status.linked && (
         <div className="flex flex-col gap-3">
           <p className="text-sm">
-            {status.last_seen_at === null
+            {/*
+              `last_seen_label` and not `last_seen_at`: the API converted the
+              stored UTC moment to Europe/Amsterdam and wrote it in Dutch,
+              because `.semgrep/frontend.yml` forbids this page from
+              constructing a `Date` at all. It also means two households
+              read the same moment the same way, whatever their browser's
+              locale is set to.
+            */}
+            {status.last_seen_label === null
               ? NOTHING_RECEIVED_YET
-              : `Laatst binnengekomen: ${formatLastSeen(status.last_seen_at)}`}
+              : `Laatst binnengekomen: ${status.last_seen_label}`}
           </p>
           <p>
             <button
@@ -130,29 +134,35 @@ export function MeterSection({
         </div>
       )}
 
-      {issuedKey === null && status !== null && !status.linked && status.may_link && (
-        <p>
-          <button
-            type="button"
-            className="button-quiet"
-            disabled={busy}
-            onClick={onLink}
-          >
-            Koppel uw meter
-          </button>
-          {busy && (
-            <span role="status" aria-live="polite" className="sr-only">
-              Bezig.
-            </span>
-          )}
-        </p>
-      )}
+      {issuedKey === null &&
+        status !== null &&
+        !status.linked &&
+        status.may_link && (
+          <p>
+            <button
+              type="button"
+              className="button-quiet"
+              disabled={busy}
+              onClick={onLink}
+            >
+              Koppel uw meter
+            </button>
+            {busy && (
+              <span role="status" aria-live="polite" className="sr-only">
+                Bezig.
+              </span>
+            )}
+          </p>
+        )}
 
-      {issuedKey === null && status !== null && !status.linked && !status.may_link && (
-        <p className="max-w-[60ch] text-sm text-ink-muted">
-          {REQUIREMENT_SENTENCE}
-        </p>
-      )}
+      {issuedKey === null &&
+        status !== null &&
+        !status.linked &&
+        !status.may_link && (
+          <p className="max-w-[60ch] text-sm text-ink-muted">
+            {REQUIREMENT_SENTENCE}
+          </p>
+        )}
     </section>
   );
 }

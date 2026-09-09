@@ -79,7 +79,13 @@ async function preflight(route: Route): Promise<void> {
  */
 const DEFAULT_METER_STATUS: Answer = {
   status: 200,
-  body: { may_link: false, linked: false, created_at: null, last_seen_at: null },
+  body: {
+    may_link: false,
+    linked: false,
+    created_at: null,
+    last_seen_at: null,
+    last_seen_label: null,
+  },
 };
 
 async function serveAuth(
@@ -628,6 +634,7 @@ test.describe("the round the definition of done describes", () => {
             linked: false,
             created_at: null,
             last_seen_at: null,
+            last_seen_label: null,
           },
         },
         {
@@ -637,6 +644,7 @@ test.describe("the round the definition of done describes", () => {
             linked: true,
             created_at: key.created_at,
             last_seen_at: null,
+            last_seen_label: null,
           },
         },
         {
@@ -646,6 +654,7 @@ test.describe("the round the definition of done describes", () => {
             linked: true,
             created_at: key.created_at,
             last_seen_at: null,
+            last_seen_label: null,
           },
         },
         {
@@ -655,6 +664,7 @@ test.describe("the round the definition of done describes", () => {
             linked: false,
             created_at: null,
             last_seen_at: null,
+            last_seen_label: null,
           },
         },
       ],
@@ -676,9 +686,7 @@ test.describe("the round the definition of done describes", () => {
     const unlink = page.getByRole("button", { name: "Ontkoppel" });
     await expect(unlink).toBeVisible();
     await unlink.click();
-    await page
-      .getByRole("button", { name: "Ontkoppelen bevestigen" })
-      .click();
+    await page.getByRole("button", { name: "Ontkoppelen bevestigen" }).click();
     await expect(
       page.getByRole("button", { name: "Koppel uw meter" }),
     ).toBeVisible();
@@ -1177,6 +1185,7 @@ test.describe("what the page is without JavaScript, and what axe says with it", 
             linked: true,
             created_at: "2026-09-09T09:00:00Z",
             last_seen_at: "2026-09-09T10:15:00Z",
+            last_seen_label: "9 september 2026 12:15",
           },
         },
       });

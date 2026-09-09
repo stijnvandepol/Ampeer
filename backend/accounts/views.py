@@ -10,13 +10,16 @@ account needs a body, which is the other half of the reason.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 from math import ceil
 from typing import Any, NoReturn, cast
+from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.db import transaction
 from django.middleware.csrf import get_token
+from django.utils.formats import date_format
 from rest_framework import status
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import (
@@ -48,6 +51,10 @@ from accounts.serializers import (
 )
 from advice.models import AuditEvent
 from advice.views import _NoStoreAPIView
+
+#: Where a household reads a moment, against the UTC every moment is stored
+#: in. CLAUDE.md states both halves of that split; this is the second one.
+AMSTERDAM = ZoneInfo("Europe/Amsterdam")
 
 
 class _AuthAPIView(_NoStoreAPIView):
@@ -529,6 +536,19 @@ class VerifyConfirmView(_AuthAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+def _amsterdam_label(moment: datetime) -> str:
+    """One stored UTC moment, as the words a household in this country reads.
+
+    CLAUDE.md: store in UTC, show in Europe/Amsterdam. `TIME_ZONE` is `UTC`
+    because that is what storage needs, so the conversion is explicit here
+    rather than inherited. `date_format` with `DATETIME_FORMAT` takes its
+    month names from Django's own `nl` locale data under `LANGUAGE_CODE`,
+    which keeps the Dutch out of this module: nothing here is a sentence
+    this project wrote, so nothing here belongs in `nl.py`.
+    """
+    return date_format(moment.astimezone(AMSTERDAM), "DATETIME_FORMAT")
+
+
 class MeterStatusView(_AuthAPIView):
     """Whether a household may link a meter, and what its link looks like today.
 
@@ -536,22 +556,32 @@ class MeterStatusView(_AuthAPIView):
     change the shape `frontend/src/lib/accounts.ts` already validates for
     that call, and this project would rather add a call than reshape one
     that already works.
+
+    `last_seen_label` travels beside `last_seen_at` because the page may not
+    build it. `.semgrep/frontend.yml`'s ampeer-no-reading-the-clock forbids
+    `new Date(...)` in the frontend, and its own message says why and what to
+    do instead: a date the visitor should see comes from the API, which
+    computed it, and not from the machine the page happens to be rendered
+    on. The rule reads as being about scarcity, a countdown subtracted from
+    the clock, and this is only a formatted timestamp, but the remedy it
+    names is the right one anyway: the browser's locale data decides nothing
+    here, so two households do not read the same moment differently, and the
+    ISO stays in the answer for anything that needs the value rather than
+    the words.
     """
 
     throttle_scope = "auth-read"
 
     def get(self, request: Request) -> Response:
         link = MeterLink.active_for(self.user)
+        seen = None if link is None else link.last_seen_at
         return Response(
             {
                 "may_link": service.may_link_meter(self.user),
                 "linked": link is not None,
                 "created_at": None if link is None else link.created_at.isoformat(),
-                "last_seen_at": (
-                    None
-                    if link is None or link.last_seen_at is None
-                    else link.last_seen_at.isoformat()
-                ),
+                "last_seen_at": None if seen is None else seen.isoformat(),
+                "last_seen_label": None if seen is None else _amsterdam_label(seen),
             }
         )
 

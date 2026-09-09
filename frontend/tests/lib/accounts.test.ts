@@ -27,6 +27,7 @@ const METER_STATUS = {
   linked: false,
   created_at: null,
   last_seen_at: null,
+  last_seen_label: null,
 };
 
 const METER_KEY = {
@@ -655,12 +656,24 @@ describe("the three meter calls", () => {
     await expect(getMeterStatus()).rejects.toBeInstanceOf(ApiError);
   });
 
+  it("refuses a meter status where last_seen_label is missing rather than null", async () => {
+    const { last_seen_label: _dropped, ...withoutLabel } = METER_STATUS;
+    stub(200, withoutLabel);
+    await expect(getMeterStatus()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses a meter status whose last_seen_label is neither null nor a string", async () => {
+    stub(200, { ...METER_STATUS, last_seen_label: 1725580800 });
+    await expect(getMeterStatus()).rejects.toBeInstanceOf(ApiError);
+  });
+
   it("accepts a meter status that is linked and has a last-seen moment", async () => {
     stub(200, {
       may_link: true,
       linked: true,
       created_at: "2026-09-09T09:00:00Z",
       last_seen_at: "2026-09-09T10:15:00Z",
+      last_seen_label: "9 september 2026 12:15",
     });
     const status = await getMeterStatus();
     expect(status.linked).toBe(true);

@@ -11,6 +11,7 @@ const NOT_ALLOWED: MeterStatus = {
   linked: false,
   created_at: null,
   last_seen_at: null,
+  last_seen_label: null,
 };
 
 const MAY_LINK: MeterStatus = {
@@ -18,6 +19,7 @@ const MAY_LINK: MeterStatus = {
   linked: false,
   created_at: null,
   last_seen_at: null,
+  last_seen_label: null,
 };
 
 const LINKED_NOTHING_YET: MeterStatus = {
@@ -25,6 +27,7 @@ const LINKED_NOTHING_YET: MeterStatus = {
   linked: true,
   created_at: "2026-09-09T09:00:00Z",
   last_seen_at: null,
+  last_seen_label: null,
 };
 
 const LINKED_WITH_READING: MeterStatus = {
@@ -32,6 +35,7 @@ const LINKED_WITH_READING: MeterStatus = {
   linked: true,
   created_at: "2026-09-09T09:00:00Z",
   last_seen_at: "2026-09-09T10:15:00Z",
+  last_seen_label: "9 september 2026 12:15",
 };
 
 const ISSUED_KEY: MeterKey = {
@@ -129,7 +133,9 @@ describe("the meter section: linked", () => {
         onUnlink={noop}
       />,
     );
-    expect(screen.getByText("Er is nog niets binnengekomen.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Er is nog niets binnengekomen."),
+    ).toBeInTheDocument();
   });
 
   it("shows the last-seen moment in Europe/Amsterdam", () => {
@@ -143,10 +149,18 @@ describe("the meter section: linked", () => {
         onUnlink={noop}
       />,
     );
-    const expected = new Date(
-      LINKED_WITH_READING.last_seen_at as string,
-    ).toLocaleString("nl-NL", { timeZone: "Europe/Amsterdam" });
-    expect(screen.getByText(new RegExp(expected))).toBeInTheDocument();
+    // The sentence the API built, shown word for word. This used to compute
+    // its own expectation with the same `new Date(...).toLocaleString(...)`
+    // the component called, so the two agreed by construction and the
+    // assertion could not tell a right conversion from a wrong one. The
+    // conversion is now the API's, tested there against both sides of the
+    // clock change, and what is left here is that the page shows what it
+    // was handed.
+    expect(
+      screen.getByText(
+        new RegExp(LINKED_WITH_READING.last_seen_label as string),
+      ),
+    ).toBeInTheDocument();
     // Not the raw UTC string: that is the wrong timezone shown to a household.
     expect(document.body.textContent).not.toContain(
       LINKED_WITH_READING.last_seen_at,

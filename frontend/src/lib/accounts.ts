@@ -77,6 +77,15 @@ export interface MeterStatus {
   readonly created_at: string | null;
   /** ISO 8601, or null when a link exists but nothing has arrived yet. */
   readonly last_seen_at: string | null;
+  /**
+   * The same moment as words, in Europe/Amsterdam, built by the API.
+   *
+   * The page may not build this itself: `.semgrep/frontend.yml`'s
+   * ampeer-no-reading-the-clock forbids `new Date(...)` here, and says a date
+   * the visitor should see comes from the API, which computed it. Keeping
+   * both means anything that needs the value still has the ISO.
+   */
+  readonly last_seen_label: string | null;
 }
 
 /**
@@ -253,7 +262,8 @@ function isMe(value: unknown): value is Me {
 }
 
 /**
- * Four keys of the right type, `created_at` and `last_seen_at` as a string or
+ * Five keys of the right type, `created_at`, `last_seen_at` and
+ * `last_seen_label` as a string or
  * `null`, both checked with `"key" in value` first for the same reason `isMe`
  * checks `email_verified_at` that way: a missing key is not the same claim as
  * a `null` one, and a body that dropped the key silently is not a body this
@@ -269,6 +279,9 @@ function isMeterStatus(value: unknown): value is MeterStatus {
   if (!("last_seen_at" in value)) return false;
   const lastSeenAt = value["last_seen_at"];
   if (lastSeenAt !== null && !isString(lastSeenAt)) return false;
+  if (!("last_seen_label" in value)) return false;
+  const lastSeenLabel = value["last_seen_label"];
+  if (lastSeenLabel !== null && !isString(lastSeenLabel)) return false;
   return true;
 }
 

@@ -132,6 +132,46 @@ def test_linking_hands_back_a_forty_three_character_key_stored_nowhere(client: A
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("stored", "expected"),
+    [
+        ("2026-09-08T09:15:00+00:00", "8 september 2026 11:15"),
+        ("2026-01-08T23:45:00+00:00", "9 januari 2026 00:45"),
+    ],
+    ids=["summer-time", "winter-time-across-midnight"],
+)
+def test_the_status_says_when_something_last_arrived_in_dutch_amsterdam_time(
+    client: Any, stored: str, expected: str
+) -> None:
+    """CLAUDE.md: stored in UTC, shown in Europe/Amsterdam.
+
+    Both directions of the clock change are here on purpose. A conversion
+    written as a fixed offset passes the summer case and fails the winter
+    one, and the winter case is also the one that moves the date: 23:45 UTC
+    on the eighth is a quarter to one in the morning of the ninth here.
+
+    The label is built by the API and not by the page, because
+    `.semgrep/frontend.yml`'s ampeer-no-reading-the-clock forbids the
+    frontend from constructing a `Date` at all.
+
+    Red proof: return `date_format(moment, "DATETIME_FORMAT")` from
+    `_amsterdam_label` without the `astimezone`, and both cases fail with the
+    UTC wall clock.
+    """
+    from datetime import datetime
+
+    user, _ = _linked(client)
+    link = MeterLink.active_for(user)
+    assert link is not None
+    link.last_seen_at = datetime.fromisoformat(stored)
+    link.save(update_fields=["last_seen_at"])
+
+    body = client.get("/api/auth/meter/", **_csrf(client)).json()
+    assert body["last_seen_at"] == stored
+    assert body["last_seen_label"] == expected
+
+
+@pytest.mark.django_db
 def test_linking_twice_leaves_only_the_newest_key_working(client: Any) -> None:
     """Red proof: drop the `.update(revoked_at=...)` call from `link_meter`."""
     _, first_raw = _linked(client)
