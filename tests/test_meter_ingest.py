@@ -76,6 +76,24 @@ def test_a_revoked_links_key_no_longer_works(client: Any) -> None:
 
 
 @pytest.mark.django_db
+def test_a_deactivated_accounts_key_no_longer_works(client: Any) -> None:
+    """`is_active` is the one switch this project has for suspending an
+    account without deleting it, and `AbstractBaseUser.is_authenticated` never
+    consults it, so this route has to.
+
+    Red proof: drop `user__is_active=True` from the lookup in
+    `MeterTokenAuthentication.authenticate`.
+    """
+    link = _link(_user())
+    link.user.is_active = False
+    link.user.save(update_fields=["is_active"])
+
+    response = _push(client, BODY)
+
+    assert response.status_code == 401
+
+
+@pytest.mark.django_db
 def test_a_valid_key_stores_its_readings_and_marks_the_link_seen(client: Any) -> None:
     """Red proof: make `store_readings` a no-op that always returns `(0, 0)`."""
     link = _link(_user())

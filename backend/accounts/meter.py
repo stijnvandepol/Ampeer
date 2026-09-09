@@ -36,6 +36,15 @@ class MeterTokenAuthentication(BaseAuthentication):
     call wrong. Once the keyword matches, anything that fails to resolve to an
     active link (unknown, revoked, or too short to be one) is this route's
     business, and it is answered in the sentence a device's own log will show.
+
+    `user__is_active=True` is checked here rather than left to
+    `IsAuthenticated`, because it would not be caught there either:
+    `AbstractBaseUser.is_authenticated` is a property that is always `True`
+    and never consults `is_active`. `accounts/recovery.py` already honours
+    `is_active` for a password reset, and Django's own `ModelBackend` honours
+    it at login; without this clause the push route would be the one door
+    a suspended account's device could still walk through, feeding a system
+    that is supposed to have stopped processing for it.
     """
 
     keyword = "Meter"
@@ -48,7 +57,11 @@ class MeterTokenAuthentication(BaseAuthentication):
         if len(parts) != 2:
             raise AuthenticationFailed(NL["meter_token_invalid"])
         link = (
-            MeterLink.objects.filter(token_sha256=token_digest(parts[1]), revoked_at__isnull=True)
+            MeterLink.objects.filter(
+                token_sha256=token_digest(parts[1]),
+                revoked_at__isnull=True,
+                user__is_active=True,
+            )
             .select_related("user")
             .first()
         )
