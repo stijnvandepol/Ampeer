@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 from django.contrib.auth.password_validation import validate_password
@@ -10,6 +11,12 @@ from rest_framework import serializers
 
 from accounts.models import Consent, User
 from accounts.nl import CONSENT_TEXT_VERSION, NL
+
+#: A device pushing more than this in one call is sending a buffer nobody
+#: would build by hand. One hundred is a day and a half of quarters, generous
+#: for a retry after an outage and far under what would make one request a
+#: cost worth worrying about.
+MAX_READINGS_PER_REQUEST = 100
 
 
 def password_error_messages(error: DjangoValidationError) -> list[str]:
@@ -170,3 +177,46 @@ class ResetConfirmSerializer(TokenSerializer):
     password = serializers.CharField(
         write_only=True, trim_whitespace=False, error_messages={"required": NL["password_required"]}
     )
+
+
+class ReadingSerializer(serializers.Serializer[dict[str, Any]]):
+    """One quarter hour, as a device would report it.
+
+    Both amounts are kilowatt-hours over the quarter, never a meter reading,
+    and never negative: a household cannot consume or feed in less than
+    nothing. `measured_at` has to land on a quarter boundary in UTC, because
+    that is the grid this project's whole simulation runs on, and a moment
+    off that grid is not a different quarter, it is not a quarter at all.
+    """
+
+    measured_at = serializers.DateTimeField()
+    consumption_kwh = serializers.FloatField(
+        min_value=0, error_messages={"min_value": NL["meter_reading_invalid"]}
+    )
+    feed_in_kwh = serializers.FloatField(
+        min_value=0, error_messages={"min_value": NL["meter_reading_invalid"]}
+    )
+
+    def validate_measured_at(self, value: datetime) -> datetime:
+        moment = value.astimezone(UTC)
+        if moment.minute not in {0, 15, 30, 45} or moment.second or moment.microsecond:
+            raise serializers.ValidationError(NL["meter_reading_invalid"])
+        return moment
+
+
+class ReadingBatchSerializer(serializers.Serializer[dict[str, Any]]):
+    """One push, which is one or more quarters and never zero of them.
+
+    A caller that reports nothing has not reported a reading; it has made a
+    mistake, and answering it with a quiet 202 would hide that mistake from
+    the one place it could be noticed, which is the device's own log.
+    """
+
+    readings = ReadingSerializer(many=True)
+
+    def validate_readings(self, value: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if not value:
+            raise serializers.ValidationError(NL["meter_reading_invalid"])
+        if len(value) > MAX_READINGS_PER_REQUEST:
+            raise serializers.ValidationError(NL["meter_batch_too_large"])
+        return value

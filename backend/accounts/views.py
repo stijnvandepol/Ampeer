@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from math import ceil
-from typing import Any, NoReturn
+from typing import Any, NoReturn, cast
 
 from django.conf import settings
 from django.contrib.auth import authenticate
@@ -32,11 +32,13 @@ from rest_framework_simplejwt.exceptions import TokenError
 
 from accounts import cookies, recovery, service, tokens
 from accounts.authentication import CookieJWTAuthentication, enforce_csrf
-from accounts.models import Consent, User
+from accounts.meter import MeterTokenAuthentication, store_readings
+from accounts.models import Consent, MeterLink, User
 from accounts.nl import CONSENT_TEXT_VERSION, NL
 from accounts.serializers import (
     ConsentSerializer,
     LoginSerializer,
+    ReadingBatchSerializer,
     RegisterSerializer,
     ResetConfirmSerializer,
     ResetRequestSerializer,
@@ -517,3 +519,33 @@ class VerifyConfirmView(_AuthAPIView):
         except recovery.TokenInvalid as error:
             raise ValidationError({"token": [NL["token_invalid"]]}) from error
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class MeterReadingsView(_NoStoreAPIView):
+    """Where a household's own device pushes what its meter measured.
+
+    `_NoStoreAPIView` and not `_AuthAPIView`: the cookie machinery that base
+    class carries, the CSRF cookie set in `finalize_response`, is for a
+    browser, and the caller here has none. `Cache-Control: private, no-store`
+    is the one property of the base class this route still needs, since one
+    answer here still describes one household.
+
+    A missing or unresolvable key never reaches `post`: `IsAuthenticated` is
+    what turns that into a 401, on `request.auth` as
+    `MeterTokenAuthentication.authenticate` left it, so this handler is only
+    ever entered with a real `MeterLink` to write into.
+    """
+
+    authentication_classes: Sequence[type[BaseAuthentication]] = (MeterTokenAuthentication,)
+    permission_classes: Sequence[type[BasePermission]] = (IsAuthenticated,)
+    throttle_scope = "meter-ingest"
+
+    def post(self, request: Request) -> Response:
+        # IsAuthenticated has already refused any request whose
+        # authenticator did not return a link, so this cast states what is
+        # already true rather than skipping a check that runs elsewhere.
+        link = cast(MeterLink, request.auth)
+        serializer = ReadingBatchSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        stored, skipped = store_readings(link, serializer.validated_data["readings"])
+        return Response({"stored": stored, "skipped": skipped}, status=status.HTTP_202_ACCEPTED)

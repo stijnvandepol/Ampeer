@@ -226,6 +226,11 @@ REST_FRAMEWORK: dict[str, Any] = {
         # clears with a 73-fold margin; tests/test_nginx_config.py re-runs
         # that arithmetic.
         "auth-reset": "10/hour",
+        # A device pushing every quarter makes four requests an hour. This
+        # allows a buffered day plus repeats after an outage. Decision 33's
+        # sum moves from 490 to 610 an hour, which 10 r/s clears 59 times
+        # over; tests/test_nginx_config.py re-runs that arithmetic.
+        "meter-ingest": "120/hour",
     },
     "UNAUTHENTICATED_USER": None,
 }
