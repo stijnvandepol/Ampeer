@@ -14,7 +14,7 @@ backend = [
     # runs out around April 2027, the quarter net metering ends and this product
     # is at its busiest, which would schedule a forced major upgrade for the
     # worst possible month.
-    "django>=5.2.17,<6.0",
+    "django>=5.2.17,<7.0",
     "django-axes>=8.0",
     "django-cors-headers>=4.9",
     "djangorestframework>=3.18.0",
