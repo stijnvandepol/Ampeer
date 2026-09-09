@@ -634,9 +634,61 @@ describe("the three meter calls", () => {
     await expect(getMeterStatus()).rejects.toBeInstanceOf(ApiError);
   });
 
+  it("refuses a meter status whose linked is not a boolean", async () => {
+    stub(200, { ...METER_STATUS, linked: "false" });
+    await expect(getMeterStatus()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses a meter status whose created_at is neither null nor a string", async () => {
+    stub(200, { ...METER_STATUS, created_at: 1725580800 });
+    await expect(getMeterStatus()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses a meter status where last_seen_at is missing rather than null", async () => {
+    const { last_seen_at: _dropped, ...withoutLastSeenAt } = METER_STATUS;
+    stub(200, withoutLastSeenAt);
+    await expect(getMeterStatus()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses a meter status whose last_seen_at is neither null nor a string", async () => {
+    stub(200, { ...METER_STATUS, last_seen_at: 1725580800 });
+    await expect(getMeterStatus()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("accepts a meter status that is linked and has a last-seen moment", async () => {
+    stub(200, {
+      may_link: true,
+      linked: true,
+      created_at: "2026-09-09T09:00:00Z",
+      last_seen_at: "2026-09-09T10:15:00Z",
+    });
+    const status = await getMeterStatus();
+    expect(status.linked).toBe(true);
+  });
+
   it("refuses a meter key missing its push_path", async () => {
     const { push_path: _dropped, ...withoutPushPath } = METER_KEY;
     stub(201, withoutPushPath);
+    await expect(linkMeter()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses a meter status whose 200 body is not JSON at all", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(
+        async () => new Response("<html>oeps</html>", { status: 200 }),
+      ),
+    );
+    await expect(getMeterStatus()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses a meter key whose 201 body is not JSON at all", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(
+        async () => new Response("<html>oeps</html>", { status: 201 }),
+      ),
+    );
     await expect(linkMeter()).rejects.toBeInstanceOf(ApiError);
   });
 
