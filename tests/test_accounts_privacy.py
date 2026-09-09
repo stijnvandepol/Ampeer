@@ -151,3 +151,44 @@ def test_the_axes_tables_stay_empty_under_the_cache_handler(client: Any) -> None
     assert AccessAttempt.objects.count() == 0
     assert AccessLog.objects.count() == 0
     assert AccessFailureLog.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_deleting_an_account_removes_its_meter_link_and_every_reading() -> None:
+    """CASCADE takes the whole chain: the link, its hours and its quarters.
+
+    Counted rather than assumed, the same way this file already counts every
+    other table a deletion has to empty. No route involved: `delete_account`
+    needs nothing meter-specific, because `on_delete=CASCADE` on
+    `MeterLink.user` already does the work.
+    """
+    from django.utils import timezone
+
+    from accounts import service
+    from accounts.models import HourAggregate, MeterLink, QuarterReading
+
+    user = User.objects.create_user(email="iemand@voorbeeld.nl", password=TEST_PASSWORD)
+    link, _ = service.link_meter(user)
+    QuarterReading.objects.create(
+        link=link,
+        measured_at=timezone.now().replace(minute=0, second=0, microsecond=0),
+        consumption_kwh=0.2,
+        feed_in_kwh=0.0,
+    )
+    HourAggregate.objects.create(
+        link=link,
+        hour_start=timezone.now().replace(minute=0, second=0, microsecond=0),
+        consumption_kwh=0.2,
+        feed_in_kwh=0.0,
+        quarters=1,
+    )
+
+    assert MeterLink.objects.count() == 1
+    assert QuarterReading.objects.count() == 1
+    assert HourAggregate.objects.count() == 1
+
+    service.delete_account(user)
+
+    assert MeterLink.objects.count() == 0
+    assert QuarterReading.objects.count() == 0
+    assert HourAggregate.objects.count() == 0

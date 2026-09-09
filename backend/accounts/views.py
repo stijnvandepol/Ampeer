@@ -15,6 +15,7 @@ from typing import Any, NoReturn, cast
 
 from django.conf import settings
 from django.contrib.auth import authenticate
+from django.db import transaction
 from django.middleware.csrf import get_token
 from rest_framework import status
 from rest_framework.authentication import BaseAuthentication
@@ -362,14 +363,21 @@ class ConsentView(_AuthAPIView):
         serializer.is_valid(raise_exception=True)
         kind = serializer.validated_data["kind"]
         action = serializer.validated_data["action"]
-        Consent.record(self.user, kind, action)
-        AuditEvent.record(
-            AuditEvent.CONSENT_GRANTED
-            if action == Consent.GRANTED
-            else AuditEvent.CONSENT_WITHDRAWN,
-            user_id=self.user.pk,
-            kind=kind,
-        )
+        with transaction.atomic():
+            Consent.record(self.user, kind, action)
+            AuditEvent.record(
+                AuditEvent.CONSENT_GRANTED
+                if action == Consent.GRANTED
+                else AuditEvent.CONSENT_WITHDRAWN,
+                user_id=self.user.pk,
+                kind=kind,
+            )
+            # Withdrawing METER_LINK has to be exactly as thorough as
+            # pressing "ontkoppel": a consent taken back with the readings
+            # left in place would make withdrawal a weaker promise than
+            # revoking the link directly.
+            if kind == Consent.METER_LINK and action == Consent.WITHDRAWN:
+                service.unlink_meter(self.user)
         return Response({"kind": kind, "granted": Consent.current(self.user, kind)})
 
 
@@ -518,6 +526,75 @@ class VerifyConfirmView(_AuthAPIView):
             recovery.confirm_email_verification(serializer.validated_data["token"])
         except recovery.TokenInvalid as error:
             raise ValidationError({"token": [NL["token_invalid"]]}) from error
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class MeterStatusView(_AuthAPIView):
+    """Whether a household may link a meter, and what its link looks like today.
+
+    A route of its own rather than a field on `me/`: adding one there would
+    change the shape `frontend/src/lib/accounts.ts` already validates for
+    that call, and this project would rather add a call than reshape one
+    that already works.
+    """
+
+    throttle_scope = "auth-read"
+
+    def get(self, request: Request) -> Response:
+        link = MeterLink.active_for(self.user)
+        return Response(
+            {
+                "may_link": service.may_link_meter(self.user),
+                "linked": link is not None,
+                "created_at": None if link is None else link.created_at.isoformat(),
+                "last_seen_at": (
+                    None
+                    if link is None or link.last_seen_at is None
+                    else link.last_seen_at.isoformat()
+                ),
+            }
+        )
+
+
+class MeterLinkView(_AuthAPIView):
+    """Mint a fresh key and hand it back exactly once.
+
+    Nothing here composes the address the device pushes to: `push_path` is a
+    fixed string and not a URL. This backend does not know the public origin
+    it is deployed behind, and guessing would risk putting a wrong address in
+    a device nobody revisits; the frontend already knows its own API base and
+    builds the full address from that.
+    """
+
+    throttle_scope = "auth-write"
+
+    def post(self, request: Request) -> Response:
+        if not service.may_link_meter(self.user):
+            raise PermissionDenied(NL["meter_not_allowed"])
+        link, raw = service.link_meter(self.user)
+        return Response(
+            {
+                "token": raw,
+                "push_path": "/api/meter/readings/",
+                "created_at": link.created_at.isoformat(),
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class MeterUnlinkView(_AuthAPIView):
+    """Revoke the key and erase what it collected. 204 either way.
+
+    Whether there was a link to revoke changes nothing about the answer: the
+    result a caller sees, no meter linked, is the same either way, and a
+    different status code here would only tell a caller something they did
+    not ask.
+    """
+
+    throttle_scope = "auth-write"
+
+    def post(self, request: Request) -> Response:
+        service.unlink_meter(self.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
