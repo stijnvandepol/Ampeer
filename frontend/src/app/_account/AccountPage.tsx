@@ -2,20 +2,27 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import {
+  BASE,
   confirmEmailVerification,
   deleteAccount,
   exportAccount,
   getConsentTexts,
   getMe,
+  getMeterStatus,
+  linkMeter,
   logout,
   postConsent,
   requestEmailVerification,
+  unlinkMeter,
   type ConsentAction,
   type ConsentKind,
   type ConsentTexts,
   type Me,
+  type MeterKey,
+  type MeterStatus,
 } from "@/lib/accounts";
 import { ConsentRow } from "./ConsentRow";
+import { MeterSection } from "./MeterSection";
 import { RegisterForm } from "./RegisterForm";
 import { ResetConfirmForm } from "./ResetConfirmForm";
 import { ResetRequestForm } from "./ResetRequestForm";
@@ -89,8 +96,14 @@ const RESEND_CONFIRMATION_MAIL_UNDERWAY = "De bevestigingsmail is onderweg.";
 const DELETION_CONSEQUENCES =
   "Hiermee verdwijnen uw e-mailadres, uw twee toestemmingen, uw opgeslagen adviezen en uw sessies. In ons logboek blijft alleen de regel staan dat een account is verwijderd, met een nummer dat nergens meer heen wijst.";
 
-/** The four actions that share one disabled state, alongside a `ConsentKind`. */
-type AccountActionId = "export" | "logout" | "delete" | "verify";
+/** The six actions that share one disabled state, alongside a `ConsentKind`. */
+type AccountActionId =
+  | "export"
+  | "logout"
+  | "delete"
+  | "verify"
+  | "meter_link"
+  | "meter_unlink";
 
 /**
  * One route, three views, and the state comes from `me/`.
@@ -391,6 +404,12 @@ function AccountView({
   const passwordField = useRef<HTMLInputElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const [texts, setTexts] = useState<ConsentTexts | null>(null);
+  const [meterStatus, setMeterStatus] = useState<MeterStatus | null>(null);
+  // Set once, right after linking, and never fetched back: design chapter 3,
+  // the key exists only in the memory of the request that made it and in this
+  // one answer. Cleared on unlinking so a stale key never survives past the
+  // link it belonged to.
+  const [issuedKey, setIssuedKey] = useState<MeterKey | null>(null);
   const [mailNotice, setMailNotice] = useState<string | null>(
     justRegistered ? CONFIRMATION_MAIL_UNDERWAY : null,
   );
@@ -424,6 +443,26 @@ function AccountView({
         // Deliberately silent. The rows below say what this costs, in the one
         // place where it changes what a visitor can do: granting.
         if (alive) setTexts(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    // Untested for the same reason as the guard above: nothing observable
+    // differs between this guard and no guard.
+    let alive = true;
+    getMeterStatus()
+      .then((answer) => {
+        if (alive) setMeterStatus(answer);
+      })
+      .catch(() => {
+        // Deliberately silent, the same choice `getConsentTexts` above makes:
+        // `MeterSection` renders nothing beyond its own heading while
+        // `status` is null, rather than a second failure sentence beside
+        // `failure` below.
+        if (alive) setMeterStatus(null);
       });
     return () => {
       alive = false;
@@ -475,6 +514,36 @@ function AccountView({
       setFailure(describeAuthError(error));
     } finally {
       clearBusy(kind);
+    }
+  }
+
+  async function linkAction(): Promise<void> {
+    markBusy("meter_link");
+    setFailure(null);
+    try {
+      const key = await linkMeter();
+      setIssuedKey(key);
+      // The new state of the koppeling. Not a second `me/`: nothing about
+      // the account changed, only the koppeling did.
+      setMeterStatus(await getMeterStatus());
+    } catch (error) {
+      setFailure(describeAuthError(error));
+    } finally {
+      clearBusy("meter_link");
+    }
+  }
+
+  async function unlinkAction(): Promise<void> {
+    markBusy("meter_unlink");
+    setFailure(null);
+    try {
+      await unlinkMeter();
+      setIssuedKey(null);
+      setMeterStatus(await getMeterStatus());
+    } catch (error) {
+      setFailure(describeAuthError(error));
+    } finally {
+      clearBusy("meter_unlink");
     }
   }
 
@@ -596,6 +665,15 @@ function AccountView({
           onToggle={(action) => void toggle(kind, action)}
         />
       ))}
+
+      <MeterSection
+        status={meterStatus}
+        issuedKey={issuedKey}
+        apiBase={BASE}
+        busy={busy.has("meter_link") || busy.has("meter_unlink")}
+        onLink={() => void linkAction()}
+        onUnlink={() => void unlinkAction()}
+      />
 
       {failure !== null && (
         <p role="alert" className="text-danger">

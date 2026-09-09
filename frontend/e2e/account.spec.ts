@@ -67,11 +67,30 @@ async function preflight(route: Route): Promise<void> {
  * the single `page.route` handler below, answering `OPTIONS` on the spot,
  * is enough.
  */
+/**
+ * What every plan below answers `GET /api/auth/meter/` with unless it lists
+ * that path itself.
+ *
+ * `AccountView` fetches this on every mount of the signed-in view, alongside
+ * `consent-texts/`. Defaulting it here, rather than adding it to every one
+ * of the plans above and below, is the same choice `tests/account/
+ * AccountPage.test.tsx`'s own `stub()` makes and for the same reason: this
+ * route is not what any of those tests are about.
+ */
+const DEFAULT_METER_STATUS: Answer = {
+  status: 200,
+  body: { may_link: false, linked: false, created_at: null, last_seen_at: null },
+};
+
 async function serveAuth(
   page: Page,
   plan: Plan,
 ): Promise<Readonly<Record<string, number>>> {
   const counts: Record<string, number> = {};
+  const effectivePlan: Plan = {
+    "/api/auth/meter/": DEFAULT_METER_STATUS,
+    ...plan,
+  };
   await page.route("**/api/auth/**", async (route: Route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -84,7 +103,7 @@ async function serveAuth(
     }
     const seen = (counts[path] ?? 0) + 1;
     counts[path] = seen;
-    const planned = plan[path];
+    const planned = effectivePlan[path];
     if (planned === undefined) {
       throw new Error(`no answer planned for ${path}`);
     }
@@ -587,6 +606,84 @@ test.describe("the round the definition of done describes", () => {
       "Uw account is verwijderd.",
     );
   });
+
+  test("links a meter, shows the key once, and unlinks", async ({ page }) => {
+    const key = {
+      token: "a".repeat(43),
+      push_path: "/api/meter/readings/",
+      created_at: "2026-09-09T09:00:00Z",
+    };
+    await serveAuth(page, {
+      "/api/auth/me/": { status: 200, body: me, setsCsrf: true },
+      "/api/auth/consent-texts/": { status: 200, body: consentTexts },
+      // Four calls to this route happen in this test, in this order: the
+      // first mount (not linked), the reload after linkMeter's own status
+      // reload (linked), the reload's own fresh mount (still linked, nothing
+      // changed), and unlinkMeter's own status reload (not linked again).
+      "/api/auth/meter/": [
+        {
+          status: 200,
+          body: {
+            may_link: true,
+            linked: false,
+            created_at: null,
+            last_seen_at: null,
+          },
+        },
+        {
+          status: 200,
+          body: {
+            may_link: true,
+            linked: true,
+            created_at: key.created_at,
+            last_seen_at: null,
+          },
+        },
+        {
+          status: 200,
+          body: {
+            may_link: true,
+            linked: true,
+            created_at: key.created_at,
+            last_seen_at: null,
+          },
+        },
+        {
+          status: 200,
+          body: {
+            may_link: true,
+            linked: false,
+            created_at: null,
+            last_seen_at: null,
+          },
+        },
+      ],
+      "/api/auth/meter/link/": { status: 201, body: key },
+      "/api/auth/meter/unlink/": { status: 204 },
+    });
+    await page.goto("/account/");
+    await page.getByRole("button", { name: "Koppel uw meter" }).click();
+    await expect(page.getByText(key.token)).toBeVisible();
+    await expect(
+      page.getByText(new RegExp(key.push_path.replace(/\//g, "\\/"))),
+    ).toBeVisible();
+    // The key is shown once, per design chapter 3: a household that comes
+    // back to this page later (here, a reload) sees the koppeling itself
+    // rather than the key again, which is `/api/auth/meter/`'s second
+    // stubbed answer (linked: true).
+    await page.reload();
+    await expect(page.getByText(key.token)).not.toBeVisible();
+    const unlink = page.getByRole("button", { name: "Ontkoppel" });
+    await expect(unlink).toBeVisible();
+    await unlink.click();
+    await page
+      .getByRole("button", { name: "Ontkoppelen bevestigen" })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Koppel uw meter" }),
+    ).toBeVisible();
+    await expect(page.locator("body")).not.toContainText("API returned");
+  });
 });
 
 test.describe("errors are Dutch", () => {
@@ -1064,6 +1161,42 @@ test.describe("what the page is without JavaScript, and what axe says with it", 
       expect(
         results.violations,
         `signed in in ${scheme}: ${JSON.stringify(results.violations.map((violation) => violation.id))}`,
+      ).toEqual([]);
+    });
+
+    test(`axe finds nothing on the linked meter view in ${scheme}`, async ({
+      page,
+    }) => {
+      await serveAuth(page, {
+        "/api/auth/me/": { status: 200, body: me, setsCsrf: true },
+        "/api/auth/consent-texts/": { status: 200, body: consentTexts },
+        "/api/auth/meter/": {
+          status: 200,
+          body: {
+            may_link: true,
+            linked: true,
+            created_at: "2026-09-09T09:00:00Z",
+            last_seen_at: "2026-09-09T10:15:00Z",
+          },
+        },
+      });
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.goto("/account/");
+      await page.evaluate(
+        (value) => document.documentElement.setAttribute("data-theme", value),
+        scheme,
+      );
+      await expect(page.getByText(me.email)).toBeVisible();
+      // Expanded as well as collapsed, the same reasoning as the deletion
+      // block above: the unlink confirmation is not in the tree until
+      // somebody presses "Ontkoppel".
+      await page.getByRole("button", { name: "Ontkoppel" }).click();
+      const results = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag22aa"])
+        .analyze();
+      expect(
+        results.violations,
+        `linked meter in ${scheme}: ${JSON.stringify(results.violations.map((violation) => violation.id))}`,
       ).toEqual([]);
     });
   }

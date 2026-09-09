@@ -8,26 +8,74 @@ import AccountRoute, { metadata } from "@/app/account/page";
 
 afterEach(() => vi.unstubAllGlobals());
 
-/** One answer per request, in order, plus the addresses that were asked for. */
+/**
+ * What `stub()` below answers `GET /api/auth/meter/` with, unless a test
+ * overrides it.
+ *
+ * Task B3 adds this call to every mount of the signed-in view (a second
+ * effect beside the one that fetches `consentTexts`), which would otherwise
+ * have forced an update to every one of the two dozen `stub([...])` arrays
+ * already in this file: each would need a third entry inserted at the exact
+ * position this new fetch fires, and every action-specific answer after it
+ * would need to shift down by one. Answering the meter route out of band,
+ * by path rather than by position, keeps every existing array meaning
+ * exactly what it said before this task, and is what the tests below that
+ * DO care about the meter section override for.
+ */
+const DEFAULT_METER_STATUS = {
+  may_link: false,
+  linked: false,
+  created_at: null,
+  last_seen_at: null,
+};
+
+interface StubAnswer {
+  status: number;
+  body?: unknown;
+  /**
+   * The literal response text, when a test needs to control the exact bytes
+   * on the wire rather than whatever `JSON.stringify(body)` would produce.
+   * Without this, `body` is re-serialised fresh for every answer, which
+   * means it can never differ from a caller's own `JSON.stringify` of the
+   * same value, and a test built that way could never catch a reparse.
+   */
+  text?: string;
+  throws?: boolean;
+}
+
+/**
+ * One answer per request, in order, plus the addresses that were asked for.
+ *
+ * `meterStatus`, when given, answers `GET /api/auth/meter/` instead of the
+ * default above; it never consumes a slot from `answers`, for the reason the
+ * comment on `DEFAULT_METER_STATUS` gives. A single answer repeats for every
+ * call; an array is consumed one per call and its last entry repeats once
+ * exhausted, the same convention `e2e/account.spec.ts`'s own `Plan` type uses
+ * for a path called more than once (a link, then the refreshed status after
+ * it, answer differently).
+ */
 function stub(
-  answers: readonly {
-    status: number;
-    body?: unknown;
-    /**
-     * The literal response text, when a test needs to control the exact bytes
-     * on the wire rather than whatever `JSON.stringify(body)` would produce.
-     * Without this, `body` is re-serialised fresh for every answer, which
-     * means it can never differ from a caller's own `JSON.stringify` of the
-     * same value, and a test built that way could never catch a reparse.
-     */
-    text?: string;
-    throws?: boolean;
-  }[],
+  answers: readonly StubAnswer[],
+  options?: { readonly meterStatus?: StubAnswer | readonly StubAnswer[] },
 ) {
   const seen: string[] = [];
   let index = 0;
+  let meterCalls = 0;
   const fetchMock = vi.fn<typeof fetch>(async (input: RequestInfo | URL) => {
     seen.push(String(input));
+    if (new URL(String(input)).pathname === "/api/auth/meter/") {
+      const planned = options?.meterStatus ?? {
+        status: 200,
+        body: DEFAULT_METER_STATUS,
+      };
+      const sequence = Array.isArray(planned) ? planned : [planned];
+      const answer = sequence[Math.min(meterCalls, sequence.length - 1)];
+      meterCalls += 1;
+      return new Response(JSON.stringify(answer?.body ?? null), {
+        status: answer?.status ?? 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
     const answer = answers[index];
     index += 1;
     if (answer === undefined)
@@ -287,9 +335,16 @@ describe("the account view", () => {
     expect(seen.filter((url) => url.includes("/api/auth/me/"))).toHaveLength(1);
     // Chapter 5.2: a grant carries the version whose sentence was on the
     // screen, so the recorded consent can never drift from what was shown.
-    const body = JSON.parse(
-      String((fetchMock.mock.calls[2]?.[1] as RequestInit).body),
+    //
+    // Found by path rather than by a fixed index: the meter status effect
+    // added in task B3 fires its own request on the same mount, and `stub()`
+    // still records it in `fetchMock.mock.calls` even though it answers that
+    // request out of band, so a plain positional index is no longer stable.
+    const consentCall = fetchMock.mock.calls.find(
+      (call) => new URL(String(call[0])).pathname === "/api/auth/consent/",
     );
+    expect(consentCall).toBeDefined();
+    const body = JSON.parse(String((consentCall?.[1] as RequestInit).body));
     expect(body).toEqual({
       kind: "LEAD_GENERATION",
       action: "GRANTED",
@@ -308,9 +363,11 @@ describe("the account view", () => {
     await userEvent.click(
       await screen.findByRole("button", { name: "Toestemming intrekken" }),
     );
-    const body = JSON.parse(
-      String((fetchMock.mock.calls[2]?.[1] as RequestInit).body),
+    const consentCall = fetchMock.mock.calls.find(
+      (call) => new URL(String(call[0])).pathname === "/api/auth/consent/",
     );
+    expect(consentCall).toBeDefined();
+    const body = JSON.parse(String((consentCall?.[1] as RequestInit).body));
     expect(body).toEqual({ kind: "METER_LINK", action: "WITHDRAWN" });
   });
 
@@ -752,6 +809,168 @@ describe("the account view", () => {
       "e-mailadres of wachtwoord klopt niet",
     );
     expect(screen.getByText(me.email)).toBeInTheDocument();
+  });
+});
+
+describe("the meter section on the account page", () => {
+  const MAY_LINK = {
+    may_link: true,
+    linked: false,
+    created_at: null,
+    last_seen_at: null,
+  };
+
+  const LINKED = {
+    may_link: true,
+    linked: true,
+    created_at: "2026-09-09T09:00:00Z",
+    last_seen_at: "2026-09-09T10:15:00Z",
+  };
+
+  const ISSUED_KEY = {
+    token: "a".repeat(43),
+    push_path: "/api/meter/readings/",
+    created_at: "2026-09-09T09:00:00Z",
+  };
+
+  it("shows the issued key once linking succeeds", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    stub(
+      [
+        { status: 200, body: me },
+        { status: 200, body: consentTexts },
+        { status: 201, body: ISSUED_KEY },
+      ],
+      { meterStatus: { status: 200, body: MAY_LINK } },
+    );
+    render(<AccountPage />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Koppel uw meter" }),
+    );
+    expect(await screen.findByText(ISSUED_KEY.token)).toBeInTheDocument();
+    expect(
+      screen.getByText(new RegExp(ISSUED_KEY.push_path.replace("/", "\\/"))),
+    ).toBeInTheDocument();
+  });
+
+  it("removes the linked indicators once unlinking succeeds", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    stub(
+      [
+        { status: 200, body: me },
+        { status: 200, body: consentTexts },
+        { status: 204 },
+      ],
+      {
+        // The status before the unlink, then the refreshed status after it,
+        // the same two-call sequence `linkAction`/`unlinkAction` in
+        // `AccountPage.tsx` make: call, then reload the status.
+        meterStatus: [
+          { status: 200, body: LINKED },
+          { status: 200, body: MAY_LINK },
+        ],
+      },
+    );
+    render(<AccountPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Ontkoppel" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Ontkoppelen bevestigen" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Ontkoppel" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("button", { name: "Koppel uw meter" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the API's Dutch sentence when linking is refused with a 403 detail", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    stub(
+      [
+        { status: 200, body: me },
+        { status: 200, body: consentTexts },
+        {
+          status: 403,
+          body: { detail: "geen toestemming of geen bevestigd e-mailadres" },
+        },
+      ],
+      { meterStatus: { status: 200, body: MAY_LINK } },
+    );
+    render(<AccountPage />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Koppel uw meter" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "geen toestemming of geen bevestigd e-mailadres",
+    );
+  });
+
+  it("shows the API's sentence and keeps the link when unlinking fails", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    stub(
+      [
+        { status: 200, body: me },
+        { status: 200, body: consentTexts },
+        {
+          status: 429,
+          body: { detail: "u vraagt dit te vaak, probeer het later opnieuw" },
+        },
+      ],
+      { meterStatus: { status: 200, body: LINKED } },
+    );
+    render(<AccountPage />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Ontkoppel" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Ontkoppelen bevestigen" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "u vraagt dit te vaak, probeer het later opnieuw",
+    );
+    // The koppeling this page showed before the click is still what it
+    // shows after a failed unlink: the opener is back (the confirmation
+    // step closes on any click, success or failure, the same as it does for
+    // the account deletion form's disclosure one section down) and it
+    // still reads "Ontkoppel", not the possible-to-link state a successful
+    // unlink would have moved to.
+    expect(
+      screen.getByRole("button", { name: "Ontkoppel" }),
+    ).toBeEnabled();
+  });
+
+  /**
+   * The genuine red-proof for the check above: a 403 whose body carries no
+   * `detail` at all leaves `ApiError.message` empty, per `accounts.ts`'s own
+   * contract (`detail ?? ""`). `describeAuthError` turns that into the
+   * standing "could not be read" sentence rather than an empty alert.
+   * Showing `error.message` on this path instead of routing through
+   * `describeAuthError` (as every other handler in this file already does)
+   * would show nothing at all here, which is what this test is red-proofed
+   * against: change `linkAction`'s catch to
+   * `setFailure(error instanceof ApiError ? error.message : "")` and this
+   * assertion fails on an empty alert.
+   */
+  it("falls back to the generic sentence, not an empty alert, when linking fails without one", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    stub(
+      [
+        { status: 200, body: me },
+        { status: 200, body: consentTexts },
+        { status: 403, body: {} },
+      ],
+      { meterStatus: { status: 200, body: MAY_LINK } },
+    );
+    render(<AccountPage />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Koppel uw meter" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "De server gaf een antwoord dat wij niet konden lezen.",
+    );
   });
 });
 

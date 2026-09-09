@@ -188,6 +188,7 @@ Deze link hoort niet bij een berekening. Controleer of hij compleet is overgenom
 Deze link opent dit advies opnieuw, zonder account. Bewaar hem als u er later bij wilt.
 Deze pagina hoort bij een berekening en er staat er geen in de link.
 Deze pagina zegt wat Ampeer is en niet is, waarvan het betaald wordt, en waar u zelf voor instaat.
+Deze sleutel wordt hierna niet meer getoond. Bewaar hem in het apparaat dat de metingen gaat versturen.
 Deze verklaring hoort bij de dienst met accounts, herstel en bevestiging, zoals die vandaag draait. Komt er een koppeling met uw meter, dan verandert er veel en schrijven wij deze pagina opnieuw voordat dat gebeurt.
 Die doorgifte rust op de standaardbepalingen van de Europese Commissie, in Resends verwerkersovereenkomst.
 Die overeenkomst is voorgetekend bij elk account. Wij kunnen hem downloaden uit het dashboard.
@@ -232,6 +233,7 @@ Elke kolom is een dag, van 1 januari links tot 31 december rechts. Elke rij is e
 Er is een e-mail onderweg om uw adres te bevestigen.
 Er is geen tabel bij ons met een IP-adres erin. Er is ook geen logregel die er een bewaart.
 Er is geen vraag die wij alleen voor de statistiek stellen. Er is ook geen tweede doel: geen advertenties, geen profiel en geen doorverkoop.
+Er is nog niets binnengekomen.
 Er staat geen knop op deze site die naar een verkopende partij leidt. Zoekt u er een, dan is die er niet.
 Er zijn kort achter elkaar veel berekeningen gedaan vanaf dit adres. Probeer het over een uur opnieuw.
 Exporteren of verwijderen.
@@ -293,10 +295,12 @@ Klagen kan bij de toezichthouder
 Komt u er met ons niet uit, dan kunt u een klacht indienen bij de Nederlandse toezichthouder. Dat kan altijd en het kost u niets.
 Kopieer deze link
 Kopieren lukte niet. Neem de link hierboven over.
+Koppel uw meter
 Krijg ik straks te horen dat ik een batterij moet kopen?
 KvK-nummer
 LEAD_GENERATION
 LIMITED_BY_LARGEST_SIMULATED_CAPACITY
+Laatst binnengekomen:
 Laatst gewijzigd op 7 september 2026.
 Laten verwijderen
 Licht
@@ -322,6 +326,7 @@ NORTH
 NORTHEAST
 NORTHWEST
 Na 90 dagen verwijderen wij uw advies. Dat gebeurt automatisch, elke dag opnieuw. Daarna werkt de link niet meer. U krijgt dan dezelfde melding als bij een link die nooit heeft bestaan.
+Na het ontkoppelen zijn de metingen van deze meter weg.
 Na uw eerste antwoord kunt u verfijnen: of er op een doordeweekse dag overdag meestal iemand thuis is, wanneer een elektrische auto laadt, of er een warmtepomp is, of uw contract dynamisch is, en of er al een thuisbatterij staat. Vier vragen geeft een indicatief antwoord, negen vragen een goed antwoord.
 Naam
 Naar de inhoud
@@ -339,9 +344,12 @@ Nog geen account? Account aanmaken
 Noord
 Noordoost
 Noordwest
+Om een slimme meter te koppelen zijn een bevestigd e-mailadres en toestemming voor het verwerken van kwartiergegevens nodig.
 Omdat een deel van de invoer nog niet vaststaat, zoals de terugleververgoeding in 2027 en de stroomprijs. Wij rekenen uw jaar daarom op veel verschillende standen door en laten zien wat daaruit komt. Een getal daaruit oppakken zou zekerder klinken dan het is.
 Omdat het verschil tussen die twee banden alleen telt voor de kilowatturen die u daadwerkelijk teruglevert. Twee huizen met precies dezelfde panelen en precies hetzelfde jaarverbruik krijgen een ander antwoord, alleen doordat de een overdag thuis is en de ander niet.
 Ons logboek kent dertien soorten regels. Naast die ene bij elk advies schrijven wij er sinds er accounts zijn een bij twaalf handelingen:
+Ontkoppel
+Ontkoppelen bevestigen
 Onze getallen zijn een schatting op een verzonnen jaar met standaardprofielen. Uw dak, uw apparaten en het tarief van 2027 kennen wij niet.
 Onze lettertypen staan op onze eigen server. Er is geen extern lettertype en geen extern script.
 Onze methode staat volledig uitgeschreven, met de aannames, de bronnen en de bandbreedtes erbij.
@@ -432,6 +440,7 @@ Uw link zetten wij er niet in. Wij zetten er een onomkeerbare afdruk van in. Uit
 Uw meter houdt twee standen bij: wat u afnam en wat u teruggaf. Bij salderen wordt het kleinste van de twee van het grootste afgetrokken en betaalt u alleen het verschil. Een kilowattuur die in juni het net op ging, streept er zo een weg die in december binnenkwam. Het moment waarop iets gebeurde doet niet mee.
 Uw ritme verschuiven, en slimmer sturen met apparaten die u al heeft. Opslag komt daarna, en bij een deel van de huishoudens komt daar uit: nu geen batterij.
 Uw situatie doorrekenen
+Uw slimme meter
 Uw wachtwoord
 Uw wachtwoord is gewijzigd. Log in met uw nieuwe wachtwoord.
 Uw wachtwoord maken wij met Argon2id onleesbaar voordat het de database bereikt. Wij kunnen het niet lezen en niet teruggeven.
