@@ -283,3 +283,105 @@ class OutboundMail(models.Model):
 
     class Meta:
         ordering: ClassVar[list[str]] = ["id"]
+
+
+class MeterLink(models.Model):
+    """One household's authorisation for its own meter to push readings in.
+
+    The same shape as `RefreshSession` and `OneTimeToken` above, and for the
+    same reason: `token_sha256` is what this table can hand anybody, the raw
+    key exists only in the request that mints it and in the answer to that
+    request, and is never written down again.
+
+    No EAN, no meter number and no address. Ampeer does not need one to attach
+    a series of numbers to an account, and an identifying detail that serves
+    no purpose is a detail that should not be collected in the first place;
+    docs/dpia.md chapter 3 makes the same call about the postcode.
+
+    One row per account is active at a time. A second `link_meter` call
+    revokes whatever came before it in the same transaction, which is also
+    what a household expects "koppel opnieuw" to do; see `service.link_meter`.
+    """
+
+    user = models.ForeignKey("accounts.User", on_delete=models.CASCADE, related_name="meter_links")
+    token_sha256 = models.CharField(max_length=64, unique=True, db_index=True)
+    created_at = models.DateTimeField(default=timezone.now, editable=False)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    #: The one thing a household sees on its account page about this link.
+    #: Set on every accepted push and nowhere else, so it answers exactly the
+    #: question "did anything arrive" and nothing more.
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering: ClassVar[list[str]] = ["-created_at", "-id"]
+
+    @property
+    def is_active(self) -> bool:
+        return self.revoked_at is None
+
+    @classmethod
+    def active_for(cls, user: User) -> MeterLink | None:
+        """The one active link this account has, or `None`.
+
+        Filtered on `user` and on `revoked_at`, never on a bare primary key: a
+        link is only ever reached through the account it belongs to. `Meta.ordering`
+        already puts the newest row first, and "one active link per account" is
+        the rule that makes it the only one this filter could return.
+        """
+        return cls.objects.filter(user=user, revoked_at__isnull=True).first()
+
+
+class QuarterReading(models.Model):
+    """One quarter hour of consumption and feed-in, pushed by a household's own device.
+
+    Two floats and not two `Decimal`: this is energy, not money, and it carries
+    the same percent-level uncertainty every meter reading in this project
+    does. The euro conversion happens at the edge of the simulation kernel and
+    nowhere near this table.
+
+    `(link, measured_at)` is unique so a device replaying its buffer after an
+    outage never writes the same quarter twice; `accounts.meter.store_readings`
+    relies on that constraint to make the push idempotent.
+    """
+
+    link = models.ForeignKey(
+        "accounts.MeterLink", on_delete=models.CASCADE, related_name="quarter_readings"
+    )
+    measured_at = models.DateTimeField(db_index=True)
+    consumption_kwh = models.FloatField()
+    feed_in_kwh = models.FloatField()
+
+    class Meta:
+        constraints: ClassVar[list[models.BaseConstraint]] = [
+            models.UniqueConstraint(
+                fields=["link", "measured_at"],
+                name="accounts_quarterreading_link_moment_unique",
+            )
+        ]
+        ordering: ClassVar[list[str]] = ["measured_at"]
+
+
+class HourAggregate(models.Model):
+    """What a quarter hour becomes once it is older than the retention window.
+
+    `quarters` records how many of the four quarters that made up this hour
+    actually arrived. An hour with fewer than four is kept as what it is
+    rather than discarded: a partial truth is still a truth, and
+    `purge_meter_readings` never invents the missing quarters to make it four.
+    """
+
+    link = models.ForeignKey(
+        "accounts.MeterLink", on_delete=models.CASCADE, related_name="hour_aggregates"
+    )
+    hour_start = models.DateTimeField(db_index=True)
+    consumption_kwh = models.FloatField()
+    feed_in_kwh = models.FloatField()
+    quarters = models.PositiveSmallIntegerField()
+
+    class Meta:
+        constraints: ClassVar[list[models.BaseConstraint]] = [
+            models.UniqueConstraint(
+                fields=["link", "hour_start"], name="accounts_houraggregate_link_hour_unique"
+            )
+        ]
+        ordering: ClassVar[list[str]] = ["hour_start"]
