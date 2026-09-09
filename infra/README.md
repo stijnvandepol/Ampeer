@@ -203,6 +203,10 @@ notice a timer that was never enabled until the first mail is fifteen minutes
 late, which for a household is already too late; only `list-timers` answers
 that question, and it is written down here rather than papered over.
 
+Every run of `send_outbound_mail` sends at most fifty rows (`--max`, tunable), so a large
+backlog drains over several ticks of the timer rather than holding one transaction open for
+the whole queue at once.
+
 ### What notices when the purge stops, and what does not
 
 `purge_expired_advice --check` exits non-zero as soon as a row is more than one

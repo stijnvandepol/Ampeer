@@ -927,6 +927,17 @@ def test_the_document_names_the_party_that_reads_the_token_in_the_clear() -> Non
         )
 
 
+def test_the_document_points_at_the_register_and_the_statement() -> None:
+    """Chapter 10's closing paragraph and chapter 5's Resend paragraph both
+    point at the register this cycle added; red-proof: remove either sentence
+    by hand and rerun."""
+    assert "verwerkersregister.md" in TEXT
+    chapter_10 = TEXT.split("## 10. Wat bij Stijn ligt", 1)[1]
+    assert "verwerkersregister.md" in chapter_10
+    chapter_5 = TEXT.split("## 5. Wie erbij kan", 1)[1].split("## 6.", 1)[0]
+    assert "verwerkersregister.md" in chapter_5
+
+
 def test_the_risk_table_carries_the_token_in_the_url_and_the_fix_not_taken() -> None:
     """The row, and the paragraph that keeps "nothing yet" from reading as "nothing to do".
 

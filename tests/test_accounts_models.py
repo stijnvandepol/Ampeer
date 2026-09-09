@@ -10,6 +10,7 @@ from django.db.utils import IntegrityError
 from django.utils import timezone
 from helpers.accounts import OTHER_PASSWORD, TEST_PASSWORD
 
+from accounts import models as accounts_models
 from accounts.models import OneTimeToken, OutboundMail, User
 from advice.models import AuditEvent, token_digest
 
@@ -87,6 +88,39 @@ def test_creating_a_user_without_an_email_address_is_refused() -> None:
     """
     with pytest.raises(ValueError, match="email"):
         User.objects.create_user(email="", password=TEST_PASSWORD)
+
+
+@pytest.mark.django_db
+def test_saving_a_user_only_normalizes_an_email_that_is_actually_there(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The `if self.email:` branch's false arm, proven by its effect and not
+    only by the branch arc it closes: `BaseUserManager.normalize_email` is
+    idempotent on an empty string, so a test that only checked
+    `user.email == ""` stayed green even with the guard deleted, because
+    normalising nothing looked exactly like normalising. This patches
+    `_normalize_email` itself: never called when there is nothing to
+    normalise, called once with the address when there is one."""
+    calls: list[str] = []
+    original = accounts_models._normalize_email
+
+    def _spy(email: str) -> str:
+        calls.append(email)
+        return original(email)
+
+    monkeypatch.setattr(accounts_models, "_normalize_email", _spy)
+
+    empty = User(email="")
+    empty.set_unusable_password()
+    empty.save()
+    assert calls == []
+    assert empty.email == ""
+
+    filled = User(email="Iemand@Voorbeeld.NL")
+    filled.set_unusable_password()
+    filled.save()
+    assert calls == ["Iemand@Voorbeeld.NL"]
+    assert filled.email == "iemand@voorbeeld.nl"
 
 
 def test_an_account_carries_no_name_and_no_username() -> None:

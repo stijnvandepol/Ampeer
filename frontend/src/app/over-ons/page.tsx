@@ -237,7 +237,9 @@ export function AboutAmpeer({
         </p>
         <p className={styles.body}>
           Alles daarover staat in{" "}
-          <Link href="/privacy/">onze privacyverklaring</Link>.
+          <Link href="/privacy/">onze privacyverklaring</Link>. De regels voor
+          het gebruik staan in{" "}
+          <Link href="/voorwaarden/">onze gebruiksvoorwaarden</Link>.
         </p>
       </section>
     </div>

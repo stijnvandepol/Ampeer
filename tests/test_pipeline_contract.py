@@ -40,8 +40,10 @@ INFRA_IMAGES_BUILT_HERE = ("api", "web")
 #: be satisfied by a workflow run, not by any commit status with the right name.
 GITHUB_ACTIONS_APP_ID = 15368
 
-#: The floor may be raised, never lowered. See CLAUDE.md.
-MINIMUM_COVERAGE_FLOOR = 98
+#: The floor may be raised, never lowered. See CLAUDE.md. Tracks the measured
+#: floor in pyproject.toml's fail_under; move it only when a re-measurement
+#: raises fail_under, never to make room for a lower one.
+MINIMUM_COVERAGE_FLOOR = 98.73
 
 
 def _workflows() -> dict[str, dict[str, Any]]:

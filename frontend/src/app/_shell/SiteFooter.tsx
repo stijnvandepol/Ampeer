@@ -15,7 +15,7 @@ import Link from "next/link";
  * and a consumption figure and offers neither is a site whose claim about
  * neutrality is made by nobody.
  *
- * There are now four, and the fourth is the only entrance to the account: the
+ * There are now five, and the fifth is the only entrance to the account: the
  * site header does not change, and nothing goes on the advice page, because a
  * footer is where a visitor looks for an account and an account in phase 1 is
  * a facility rather than an offer.
@@ -46,6 +46,9 @@ export function SiteFooter() {
           </Link>
           <Link href="/privacy/" className="underline underline-offset-4">
             Privacy
+          </Link>
+          <Link href="/voorwaarden/" className="underline underline-offset-4">
+            Voorwaarden
           </Link>
           <Link href="/account/" className="underline underline-offset-4">
             Account

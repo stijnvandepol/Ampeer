@@ -16,6 +16,7 @@ lockout fires.
 
 from __future__ import annotations
 
+from django.http import HttpRequest
 from django.test import RequestFactory
 
 from accounts.lockout import DIGEST_CHARS, client_ip, username
@@ -88,3 +89,11 @@ def test_username_with_no_credentials_still_returns_a_usable_digest() -> None:
 
     assert len(username(request, None)) == DIGEST_CHARS
     assert len(username(request, {})) == DIGEST_CHARS
+
+
+def test_a_non_string_username_hashes_the_empty_string() -> None:
+    """The `isinstance(value, str)` branch's false arm: axes can hand this
+    callable whatever a request's credentials dict happens to carry."""
+    request = HttpRequest()
+    digest = username(request, {"username": 123})
+    assert digest == username(request, {"username": ""})

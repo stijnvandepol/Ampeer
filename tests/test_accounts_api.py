@@ -15,7 +15,7 @@ from typing import Any, TypedDict
 import pytest
 from django.conf import settings
 from helpers.accounts import TEST_PASSWORD as PASSWORD
-from rest_framework.exceptions import NotAuthenticated, Throttled
+from rest_framework.exceptions import NotAuthenticated, PermissionDenied, Throttled
 from rest_framework.request import Request
 from rest_framework.test import APIClient, APIRequestFactory
 
@@ -251,6 +251,47 @@ def test_logging_out_with_a_malformed_refresh_cookie_still_ends_the_session(clie
     assert logout.status_code == 204, logout.content
     assert logout.cookies[settings.AMPEER_ACCESS_COOKIE].value == ""
     assert logout.cookies[settings.AMPEER_REFRESH_COOKIE].value == ""
+
+
+@pytest.mark.django_db
+def test_logging_out_only_calls_revoke_when_a_refresh_cookie_is_present(
+    client: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The `if raw:` branch's false arm in LogoutView.post, proven by its
+    effect and not only by the branch arc it closes: `RefreshToken(None)`
+    mints a fresh token rather than raising, so a test that only checked the
+    response stayed green even with the guard deleted, because revoking
+    nothing looked exactly like revoking. This patches `tokens.revoke`
+    itself: never called for a client that only ever reads ampeer_access (no
+    refresh cookie beside it), called once with the raw value when there is
+    one."""
+    calls: list[str] = []
+    monkeypatch.setattr("accounts.views.tokens.revoke", lambda raw: calls.append(raw))
+    User.objects.create_user(email="iemand@voorbeeld.nl", password=PASSWORD)
+
+    client.post(
+        "/api/auth/login/",
+        {"email": "iemand@voorbeeld.nl", "password": PASSWORD},
+        content_type="application/json",
+        **_csrf(client),
+    )
+    client.cookies.pop(settings.AMPEER_REFRESH_COOKIE, None)
+    lines_before = AuditEvent.objects.filter(event_type=AuditEvent.LOGOUT).count()
+    response = client.post("/api/auth/logout/", content_type="application/json", **_csrf(client))
+    assert response.status_code == 204
+    assert calls == []
+    assert AuditEvent.objects.filter(event_type=AuditEvent.LOGOUT).count() == lines_before + 1
+
+    client.post(
+        "/api/auth/login/",
+        {"email": "iemand@voorbeeld.nl", "password": PASSWORD},
+        content_type="application/json",
+        **_csrf(client),
+    )
+    raw = client.cookies[settings.AMPEER_REFRESH_COOKIE].value
+    response = client.post("/api/auth/logout/", content_type="application/json", **_csrf(client))
+    assert response.status_code == 204
+    assert calls == [raw]
 
 
 @pytest.mark.django_db
@@ -687,6 +728,34 @@ def test_me_answers_401_to_a_stranger_and_still_hands_out_a_csrf_token(client: A
     response = client.get("/api/auth/me/")
     assert response.status_code == 401
     assert "csrftoken" in response.cookies
+
+
+@pytest.mark.django_db
+def test_a_stranger_reads_the_projects_own_sentence(client: Any) -> None:
+    """The sentence a stranger actually reads on any of the six signed-in
+    routes, not only me/. Red-proof: remove the permission_denied override;
+    this test then reads DRF's English default."""
+    response = client.get("/api/auth/me/")
+    assert response.status_code == 401
+    assert response.json() == {"detail": NL["not_signed_in"]}
+    assert "csrftoken" in response.cookies
+
+
+def test_permission_denied_without_a_message_reads_the_projects_own_sentence() -> None:
+    """The PermissionDenied branch no route reaches today, built the way
+    test_the_user_property_raises_rather_than_returning_none_under_dash_o
+    builds a view directly rather than waiting for a route to exercise it."""
+    view = _AuthAPIView()
+    view.request = Request(APIRequestFactory().get("/"))
+    # `successful_authenticator` is a read-only property backed by
+    # `_authenticator` (rest_framework/request.py): it lazily authenticates
+    # and caches the result the first time it is read, and has no setter.
+    # Setting the private attribute directly is what makes the cached read
+    # return a truthy value without a real authenticator running.
+    view.request._authenticator = object()  # type: ignore[attr-defined]
+    with pytest.raises(PermissionDenied) as excinfo:
+        view.permission_denied(view.request)
+    assert str(excinfo.value.detail) == NL["forbidden"]
 
 
 @pytest.mark.django_db

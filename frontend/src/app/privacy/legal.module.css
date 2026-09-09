@@ -49,6 +49,14 @@
   line-height: 1.1;
   text-wrap: balance;
   max-width: 20ch;
+  /* One Dutch word can be longer than a 360 px viewport at this size:
+     "Gebruiksvoorwaarden" is nineteen characters and has no break point.
+     Found 2026-09-07 by the reflow check in e2e/rules.spec.ts the moment
+     /voorwaarden/ joined the route list. Let the browser hyphenate first
+     (the document is lang="nl"), and break inside the word only when even
+     that does not fit, so the page never scrolls sideways. */
+  hyphens: auto;
+  overflow-wrap: anywhere;
 }
 
 .lead {

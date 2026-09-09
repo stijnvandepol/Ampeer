@@ -99,7 +99,15 @@ hetzelfde serverblok, en `.github/workflows/deploy.yml` bouwt met een lege
 kost niets en levert de sterkste CSRF-verdediging die er is.
 
 Op een ontwikkelmachine is `localhost:3000` naar `127.0.0.1:8000` cross-site en stuurt de
-browser de cookies niet mee. Daarvoor bestaat de uitzondering in `dev.py`
+browser de cookies niet mee.
+
+Gecorrigeerd op 2026-09-07: dezelfde correctie als in
+`2026-09-04-accounts-auth-design.md`. `localhost:3000` staat sinds commit
+`2109901` niet meer in `CORS_ALLOWED_ORIGINS` van `backend/ampeer/settings/dev.py`;
+het commentaar boven die lijst zegt waarom, en
+`tests/test_backend_settings.py` houdt het vast.
+
+Daarvoor bestaat de uitzondering in `dev.py`
 (`CORS_ALLOW_CREDENTIALS = True`, alleen voor de drie oorsprongen die daar al staan), met de
 test die `prod.CORS_ALLOW_CREDENTIALS is False` afdwingt. Dit deelproject verandert daar niets
 aan en leunt erop; wie lokaal inlogt en het niet ziet werken, moet die instelling nagaan

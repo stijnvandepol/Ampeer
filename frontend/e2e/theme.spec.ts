@@ -22,6 +22,7 @@ const ALL_PATHS = [
   ADVICE_PATH,
   "/methodologie/",
   "/account/",
+  "/voorwaarden/",
 ] as const;
 
 async function serveFixture(page: Page): Promise<void> {
@@ -160,7 +161,7 @@ test("every route passes axe in the dark palette too", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
   // Without this line "the loop walked five paths" is an assumption: nothing
   // checks how many paths sit in ALL_PATHS.
-  expect(ALL_PATHS).toHaveLength(5);
+  expect(ALL_PATHS).toHaveLength(6);
   for (const path of ALL_PATHS) {
     await page.goto(path);
     await page.evaluate(() =>

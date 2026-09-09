@@ -11,6 +11,10 @@ import OverOnsPage, {
   AboutAmpeer,
   metadata as overOnsMetadata,
 } from "@/app/over-ons/page";
+import VoorwaardenPage, {
+  TermsPage,
+  metadata as voorwaardenMetadata,
+} from "@/app/voorwaarden/page";
 import {
   IDENTITY,
   IDENTITY_FIELDS,
@@ -40,6 +44,7 @@ const FILLED: CompleteIdentity = {
   vatNumber: "TESTBTW",
   postalAddress: "TESTADRES",
   contactEmail: "test@example.invalid",
+  privacyEmail: "privacy@example.invalid",
   legalBasis: "overeenkomst",
 };
 
@@ -66,14 +71,15 @@ function aboutText(identity: CompleteIdentity = FILLED): string {
 // ---------------------------------------------------------------------------
 
 describe("the identity Ampeer cannot invent", () => {
-  it("ships with every fact still unfilled, and says which", () => {
-    // Not an assertion that the list is empty, because it is not, and it is
-    // not supposed to be until somebody supplies six strings. What is asserted
-    // is that the sentinel is the only thing standing in those fields, so the
-    // build failure names a gap and never a typo.
-    for (const field of missingIdentityFields(IDENTITY)) {
-      expect(IDENTITY[field]).toBe(NOG_IN_TE_VULLEN);
-    }
+  it("ships with both addresses filled and consent as the legal basis", () => {
+    // Since 2026-09-03 this list stood empty and the old version of this
+    // test ran its own loop zero times, which the red-proof rule forbids: a
+    // check that reads green because it reads nothing. Turned around to what
+    // is true today.
+    expect(missingIdentityFields(IDENTITY)).toEqual([]);
+    expect(IDENTITY.contactEmail).toBe("info@ampeer.nl");
+    expect(IDENTITY.privacyEmail).toBe("privacy@ampeer.nl");
+    expect(IDENTITY.legalBasis).toBe("toestemming");
   });
 
   it("finds nothing missing in an identity that is complete", () => {
@@ -145,7 +151,7 @@ describe("the identity Ampeer cannot invent", () => {
     // CompleteIdentity closes the other half: `legalBasis` is a union of the
     // two accepted values there and includes the sentinel in `Identity`, so
     // the shipped IDENTITY does not typecheck where a page body wants one.
-    for (const route of ["privacy", "over-ons"]) {
+    for (const route of ["privacy", "over-ons", "voorwaarden"]) {
       const source = readFileSync(
         resolve(process.cwd(), "src/app", route, "page.tsx"),
         "utf-8",
@@ -261,6 +267,37 @@ describe("the privacy statement", () => {
     }
   });
 
+  it("says what changed since fase 1 shipped accounts", () => {
+    const text = privacyText();
+    for (const claim of ["Resend", "Argon2id", "dertien", "7 september 2026"]) {
+      expect(text, `the statement never says "${claim}"`).toContain(claim);
+    }
+    // The two session cookies, named by function rather than by name: the
+    // page never spells out ampeer_access or ampeer_refresh, it says what
+    // they are for.
+    expect(text).toContain("kwartier");
+    expect(text).toContain("veertien dagen");
+    expect(text).toContain("geen cookiemelding");
+    // The third cookie, CSRF, named by function: what it protects against.
+    expect(text).toContain("verzoeken die niet van u komen");
+    // The privacy address from FILLED, and not only the general one.
+    expect(text).toContain("privacy@example.invalid");
+    // The old claims are gone.
+    expect(text).not.toContain("Er is geen account");
+    expect(text).not.toContain("Wij plaatsen geen cookies");
+    expect(text).not.toContain(
+      "Er is nog geen knop waarmee u uw advies zelf weggooit",
+    );
+  });
+
+  it("says a household can delete its own account, not only wait for a link to expire", () => {
+    const text = privacyText();
+    expect(text).toContain(
+      "Op uw accountpagina staat een knop die uw account verwijdert.",
+    );
+    expect(text).toContain("Hij vraagt uw wachtwoord opnieuw.");
+  });
+
   it("points at the regulator that can actually take the complaint", () => {
     render(<PrivacyStatement identity={FILLED} />);
     const link = screen.getByRole("link", {
@@ -278,6 +315,17 @@ describe("the privacy statement", () => {
     expect(contract).not.toContain("uw toestemming intrekken");
     expect(consent).toContain("uw toestemming intrekken");
     expect(consent).not.toContain("uitvoering van de overeenkomst");
+  });
+
+  it("adds two paragraphs about the account to the consent branch only", () => {
+    const consent = privacyText(FILLED_CONSENT);
+    const contract = privacyText(FILLED);
+    expect(consent).toContain(
+      "Wij verwerken ook uw account met uw toestemming",
+    );
+    expect(contract).not.toContain(
+      "Wij verwerken ook uw account met uw toestemming",
+    );
   });
 
   it("names the retention the backend actually implements", () => {
@@ -391,6 +439,70 @@ describe("the page about Ampeer", () => {
   });
 });
 
+/** Rendered terms page text, on the identity the caller names. */
+function termsText(identity: CompleteIdentity = FILLED): string {
+  const { container } = render(<TermsPage identity={identity} />);
+  return container.textContent ?? "";
+}
+
+describe("the terms page", () => {
+  it("has one first-level heading and a title and description of its own", () => {
+    const { container } = render(<TermsPage identity={FILLED} />);
+    expect(container.querySelectorAll("h1")).toHaveLength(1);
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Gebruiksvoorwaarden" }),
+    ).toBeInTheDocument();
+    expect(voorwaardenMetadata.title).toBe("Gebruiksvoorwaarden");
+    expect(String(voorwaardenMetadata.description).length).toBeGreaterThan(50);
+    expect(voorwaardenMetadata.alternates?.canonical).toBe("/voorwaarden/");
+    expect(voorwaardenMetadata.openGraph).toBeUndefined();
+  });
+
+  it("says what a reader needs before trusting the advice", () => {
+    const text = termsText();
+    for (const claim of [
+      "schatting",
+      "bandbreedte",
+      "geen financieel",
+      "verkopen geen",
+      "Niemand betaalt ons",
+      "account per e-mailadres",
+      "Nederlands recht",
+      "Autoriteit Persoonsgegevens",
+    ]) {
+      expect(text, `the terms page never says "${claim}"`).toContain(claim);
+    }
+  });
+
+  it("carries exactly one external link, the regulator", () => {
+    const { container } = render(<TermsPage identity={FILLED} />);
+    const hrefs = [...container.querySelectorAll("a[href]")].map((element) =>
+      element.getAttribute("href"),
+    );
+    expect(hrefs.filter((href) => /^https?:/.test(href ?? ""))).toEqual([
+      "https://www.autoriteitpersoonsgegevens.nl/",
+    ]);
+  });
+
+  it("carries no em-dash and no euro amount", () => {
+    expect(termsText()).not.toContain("—");
+    expect(termsText()).not.toMatch(/€|\d+\s*euro/);
+  });
+
+  it("says 7 september 2026", () => {
+    expect(termsText()).toContain("7 september 2026");
+  });
+
+  it("refuses to render while a fact is missing", () => {
+    const missing = missingIdentityFields(IDENTITY);
+    if (missing.length > 0) {
+      expect(() => VoorwaardenPage()).toThrow(NOG_IN_TE_VULLEN);
+    } else {
+      expect(VoorwaardenPage()).toBeTruthy();
+    }
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Where the two routes are announced
 // ---------------------------------------------------------------------------
@@ -400,6 +512,7 @@ describe("the crawler files, once the legal pages exist", () => {
     const urls = sitemap().map((entry) => entry.url);
     expect(urls).toContain(`${SITE_ORIGIN}/privacy/`);
     expect(urls).toContain(`${SITE_ORIGIN}/over-ons/`);
+    expect(urls).toContain(`${SITE_ORIGIN}/voorwaarden/`);
     expect(sitemap()).toHaveLength(SITEMAP_ROUTES.length);
     // And leaves out the one route that is not an answer to a search. The
     // account page's own file says it is deliberately absent; a comment is
@@ -432,7 +545,7 @@ describe("the footer, which is where a visitor looks for these", () => {
     expect(screen.getByText(/verkoopt geen panelen/)).toBeInTheDocument();
   });
 
-  it("reaches all four pages that explain the product rather than sell it", () => {
+  it("reaches all five pages that explain the product rather than sell it", () => {
     const { container } = render(<SiteFooter />);
     const hrefs = [...container.querySelectorAll("a[href]")].map((element) =>
       element.getAttribute("href"),
@@ -441,17 +554,18 @@ describe("the footer, which is where a visitor looks for these", () => {
       /^\/methodologie\/?$/,
       /^\/over-ons\/?$/,
       /^\/privacy\/?$/,
+      /^\/voorwaarden\/?$/,
       // The one entrance to the account, and the only one: the site header
       // does not change and nothing goes on the advice page.
       /^\/account\/?$/,
     ]) {
       expect(hrefs.some((href) => path.test(href ?? ""))).toBe(true);
     }
-    // Four, and a fifth is a finding rather than a detail. "Reaches all four"
-    // is only half a claim while a sixth link could sit beside them
-    // unnoticed, and the footer is the one place on this site where a link
-    // out to a party with something to sell would be least conspicuous.
-    expect(hrefs).toHaveLength(4);
+    // Five, and a sixth is a finding rather than a detail: the fifth is the
+    // page that says what Ampeer does not stand behind, and it stands next
+    // to the page that says what Ampeer keeps, because a reader looking for
+    // one wants the other too.
+    expect(hrefs).toHaveLength(5);
     expect(hrefs.filter((href) => /^https?:/.test(href ?? ""))).toEqual([]);
   });
 });
@@ -468,12 +582,70 @@ describe("the two default exports", () => {
     // which is what the two branches here allow for. Either way, one of the
     // two must hold: a page that neither throws nor renders is a page that
     // slipped past the guard.
-    for (const page of [PrivacyPage, OverOnsPage]) {
+    for (const page of [PrivacyPage, OverOnsPage, VoorwaardenPage]) {
       const missing = missingIdentityFields(IDENTITY);
       if (missing.length > 0) {
         expect(() => page()).toThrow(NOG_IN_TE_VULLEN);
       } else {
         expect(page()).toBeTruthy();
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The two hand-written route lists, laid against the route tree
+// ---------------------------------------------------------------------------
+
+/** Every array literal string this file's own regex can find, in order. */
+function stringArrayNamed(source: string, name: string): string[] {
+  const match = new RegExp(`const ${name}[^=]*=\\s*\\[([\\s\\S]*?)\\]`).exec(
+    source,
+  );
+  if (!match) throw new Error(`${name} was not found`);
+  return [...match[1]!.matchAll(/"([^"]+)"/g)].map((found) => found[1]!);
+}
+
+describe("the two hand-written e2e route lists stay complete", () => {
+  it("names every route under src/app/, or the token template that stands for it", () => {
+    const appDir = resolve(process.cwd(), "src/app");
+    const routes = readdirSync(appDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("_"))
+      .filter((entry) => existsSync(join(appDir, entry.name, "page.tsx")))
+      .map((entry) => `/${entry.name}/`)
+      .sort();
+
+    // The route tree, minus the one entry the e2e lists write differently:
+    // /advies/ is a bearer-token page and both lists name the templated
+    // ADVICE_PATH instead of the bare directory.
+    const expected = routes.filter((route) => route !== "/advies/");
+
+    // Deliberate exceptions to the sitemap, named so a reader does not have
+    // to guess why these two routes are in the e2e lists but not in
+    // SITEMAP_ROUTES: /advies/ has one URL per visitor and nothing a search
+    // engine could usefully index, /account/ carries a noindex tag of its own.
+    const NOT_IN_SITEMAP = ["/advies/", "/account/"];
+    for (const route of routes) {
+      if (NOT_IN_SITEMAP.includes(route)) continue;
+      expect(
+        SITEMAP_ROUTES.map((entry) => entry.path),
+        `${route} is a real route, is not one of the two named exceptions, and is missing from SITEMAP_ROUTES`,
+      ).toContain(route);
+    }
+
+    for (const [file, name] of [
+      ["frontend/e2e/privacy.spec.ts", "PAGES"],
+      ["frontend/e2e/rules.spec.ts", "ALL_PATHS"],
+    ] as const) {
+      const source = readFileSync(resolve(process.cwd(), "..", file), "utf-8");
+      const listed = stringArrayNamed(source, name);
+      for (const route of expected) {
+        expect(
+          listed.some(
+            (entry) => entry === route || entry.startsWith("/advies/"),
+          ),
+          `${file}'s ${name} does not name ${route}`,
+        ).toBe(true);
       }
     }
   });

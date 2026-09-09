@@ -447,6 +447,21 @@ def test_a_poison_row_is_deferred_and_the_others_still_send(
 
 
 @pytest.mark.django_db
+def test_the_cap_stops_the_run_and_leaves_the_rest_for_the_next_tick(_account: User) -> None:
+    """Three rows, --max 2: two sent, one left with attempts == 0, and the
+    output names the cap."""
+    other = User.objects.create_user(email="tweede@voorbeeld.nl", password=TEST_PASSWORD)
+    third = User.objects.create_user(email="derde@voorbeeld.nl", password=TEST_PASSWORD)
+    for user in (_account, other, third):
+        recovery.enqueue(user, OneTimeToken.PASSWORD_RESET)
+    out = io.StringIO()
+    call_command("send_outbound_mail", "--max", "2", stdout=out)
+    assert OutboundMail.objects.count() == 1
+    assert OutboundMail.objects.get().attempts == 0
+    assert "stopped at the cap of 2" in out.getvalue()
+
+
+@pytest.mark.django_db
 def test_the_command_exits_nonzero_when_something_is_overdue(
     _account: User, monkeypatch: pytest.MonkeyPatch
 ) -> None:
