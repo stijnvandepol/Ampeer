@@ -2,7 +2,23 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** in progress
+**Status:** delivered
+
+> **Status op 2026-09-09: opgeleverd.** Elk bestand dat dit plan noemt staat
+> in de boom. `tests/test_plans.py` controleert dat voor alle plannen in
+> `docs/superpowers/plans/`, en het wordt rood op de dag dat een van hen niet
+> meer klopt. Wat die test niet kan zeggen is of elke stap is uitgevoerd zoals
+> hij hier staat; daar zijn de commitgeschiedenis en de suite voor.
+>
+> Vier dingen liepen anders dan hier staat, en ze staan hier omdat een plan
+> dat zijn eigen afwijkingen verzwijgt de volgende lezer misleidt. Het veld
+> heet `push_path` en niet `push_url`. De testbestanden van de frontend staan
+> in `frontend/tests/account/` en niet in `frontend/tests/app/`. Drie van de
+> rode proeven die hier voorgeschreven staan bleken groen te blijven en zijn
+> door de uitvoerders vervangen door mutaties die wel bijten; dat staat per
+> geval in het commentaar van de test zelf. En de duwroute geeft de datum als
+> woorden terug in plaats van de pagina hem te laten opmaken, omdat
+> `.semgrep/frontend.yml` het frontend verbiedt de klok te lezen.
 
 **Goal:** Een huishouden met een bevestigd e-mailadres en toestemming `METER_LINK` koppelt zijn slimme meter, krijgt eenmalig een sleutel, duwt daarmee kwartierstanden naar `POST /api/meter/readings/`, ziet op `/account/` wanneer er voor het laatst iets binnenkwam, en ontkoppelt met een druk op de knop waarna de metingen weg zijn. Kwartieren ouder dan negentig dagen worden uurtotalen. Het advies blijft synthetisch: de motorkoppeling is Fase 3 en zit hier niet in.
 
@@ -433,7 +449,7 @@ Draai: `pnpm vitest run tests/lib/accounts.test.ts`.
 
 **Files:**
 - Create: `frontend/src/app/_account/MeterSection.tsx`
-- Test: `frontend/tests/app/MeterSection.test.tsx`
+- Test: `frontend/tests/account/MeterSection.test.tsx`
 
 **Wat:**
 
@@ -460,7 +476,7 @@ Een bezige knop is `disabled` en heeft een `role="status"`-melding ernaast, net 
 
 **Verify:**
 
-`frontend/tests/app/MeterSection.test.tsx`, met Testing Library, en let op de valkuil die deze repository al twee keer heeft geraakt: een kop en een veld met dezelfde naam laten `getByLabelText` op meer dan één element vallen. Gebruik `getByRole("button", { name })` en `getByRole("heading", { name })`.
+`frontend/tests/account/MeterSection.test.tsx`, met Testing Library, en let op de valkuil die deze repository al twee keer heeft geraakt: een kop en een veld met dezelfde naam laten `getByLabelText` op meer dan één element vallen. Gebruik `getByRole("button", { name })` en `getByRole("heading", { name })`.
 
 1. `may_link` vals: de knop staat er niet, en de zin over wat er ontbreekt staat er wel. Rood-proef: toon de knop onvoorwaardelijk.
 2. `may_link` waar en niet gekoppeld: de knop staat er, en `onLink` wordt precies één keer aangeroepen bij een klik. Rood-proef: roep hem twee keer aan.
@@ -480,7 +496,7 @@ Draai: `pnpm vitest run tests/app/MeterSection.test.tsx`.
 
 **Files:**
 - Modify: `frontend/src/app/_account/AccountPage.tsx`, `frontend/tests/ui-strings.txt`, `frontend/e2e/account.spec.ts`
-- Test: `frontend/tests/app/AccountPage.test.tsx`
+- Test: `frontend/tests/account/AccountPage.test.tsx`
 
 **Wat:**
 
