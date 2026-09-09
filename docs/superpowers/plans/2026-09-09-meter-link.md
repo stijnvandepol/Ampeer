@@ -545,7 +545,7 @@ Draai: `pnpm vitest run tests/app/AccountPage.test.tsx tests/app/MeterSection.te
 
 **Verify:**
 
-`uv run pytest tests/test_dpia.py tests/test_verwerkersregister.py tests/test_docs.py -q` (zoek uit hoe die laatste heet; er is een test die `docs/decisions.md` en de plannen leest). Deze taak schrijft zelf geen nieuwe test en heeft dus geen rode proef, met één uitzondering: bindt hij een bewering aan een constante, dan wel.
+`uv run pytest tests/test_dpia.py tests/test_verwerkersregister.py tests/test_decisions.py tests/test_plans.py -q`. Deze taak schrijft zelf geen nieuwe test en heeft dus geen rode proef, met één uitzondering: bindt hij een bewering aan een constante, dan wel.
 
 **Commit:** `docs: describe the meter link, its retention and what it logs`
 
