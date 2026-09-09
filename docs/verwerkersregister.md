@@ -54,7 +54,7 @@ gegevens laten exporteren of verwijderen.
 tijdstip van de laatste keer inloggen, tijdstip van adresbevestiging.
 
 **Grondslag.** Toestemming, gegeven door registratie (DPIA hoofdstuk 10,
-punt 2).
+openingsalinea).
 
 **Ontvangers.** Geen buiten Cloudflare (hoofdstuk 1) voor het verkeer zelf.
 
@@ -106,9 +106,9 @@ tekst onder dezelfde versie toestaat.
 **Categorieën gegevens.** Het e-mailadres, de soort mail (herstel of
 bevestiging), de sha256-afdruk van een link.
 
-**Grondslag.** Noodzaak voor de dienst (DPIA hoofdstuk 10, bij punt 5):
-zonder bevestigd adres kan de dienst geen wachtwoord herstellen en straks
-geen meter koppelen.
+**Grondslag.** Noodzaak voor de dienst (DPIA hoofdstuk 10, bij punt 4):
+zonder bevestigd adres kan de dienst geen wachtwoord herstellen en geen
+meter koppelen.
 
 **Ontvangers.** Resend, Inc., als verwerker voor het versturen van de mail.
 
@@ -151,7 +151,7 @@ controleerbaar systeem, en artikel 5 lid 2 AVG (verantwoordingsplicht).
 **Bewaartermijn.** Geen opruiming. Na verwijdering van een account of een
 advies wijst het nummer in een regel nergens meer naar.
 
-**Maatregelen.** Alleen toevoegen; nooit wijzigen of verwijderen. Dertien
+**Maatregelen.** Alleen toevoegen; nooit wijzigen of verwijderen. Vijftien
 soorten handelingen worden vastgelegd, en niet meer dan dat.
 
 **Tabellen.** `AuditEvent`, in `backend/advice/models.py`.
@@ -198,17 +198,56 @@ hoogstens acht dagen in een kopie staan.
 dagelijks. De deploy weigert een kopie gezond te noemen die breder leesbaar
 is dan dat.
 
-## 8. De verwerkers
+## 8. De meterkoppeling
+
+**Doel.** Kwartierstanden van een eigen slimme meter opslaan, zodat een
+huishouden ze later kan laten meewegen in zijn advies.
+
+**Betrokkenen.** Wie een meter koppelt.
+
+**Categorieën gegevens.** Een sleutelafdruk die het gekoppelde apparaat
+identificeert, en per kwartier het verbruik en de teruglevering in
+kilowattuur. Geen EAN-code, geen meternummer, geen adres.
+
+**Grondslag.** Toestemming (`METER_LINK`), naast een bevestigd e-mailadres.
+
+**Ontvangers.** Geen. Metingen komen alleen binnen; de dienst haalt niets op
+bij een apparaat en stuurt niets door.
+
+**Doorgifte buiten de EER.** Geen.
+
+**Bewaartermijn.** negentig dagen in kwartierresolutie, daarna alleen als
+uurtotaal, tot de koppeling of het account wordt verwijderd. Ontkoppelen, of
+het intrekken van de toestemming, verwijdert beide meteen.
+
+**Maatregelen.** De sleutel wordt eenmalig getoond en daarna alleen als
+sha256-afdruk bewaard. Ten hoogste een actieve koppeling per account; een
+nieuwe koppeling trekt de vorige in. Geen ophaalrichting: de dienst duwt
+niets naar een apparaat en haalt niets op.
+
+**Tabellen.** `MeterLink`, `QuarterReading`, `HourAggregate`, in
+`backend/accounts/models.py`.
+
+## 9. De verwerkers
 
 | Verwerker | Verwerking | Ziet | Verwerkersovereenkomst |
 |---|---|---|---|
 | Cloudflare Inc. | Al het verkeer naar ampeer.nl | IP-adres, pad | De standaardovereenkomst bij het account; aanvaarding niet vastgelegd; bij de verantwoordelijke (DPIA hoofdstuk 10, slotalinea). |
-| Resend, Inc. | Herstel- en bevestigingsmail | E-mailadres, inhoud | De voorgetekende DPA uit het dashboard; beoordeling bij de verantwoordelijke (DPIA hoofdstuk 10, punt 5). |
+| Resend, Inc. | Herstel- en bevestigingsmail | E-mailadres, inhoud | De voorgetekende DPA uit het dashboard; beoordeling bij de verantwoordelijke (DPIA hoofdstuk 10, punt 4). |
 
-Geen derde verwerker.
+Geen derde verwerker. Wie een meter koppelt duwt rechtstreeks naar de dienst
+zelf; hoofdstuk 8 kent daarom geen verwerker erbij.
 
-## 9. Wat er verandert bij fase 2
+## 10. Wat er is veranderd bij fase 2, en wat fase 3 nog brengt
 
-Zodra kwartierdata van een slimme meter binnenkomt, ontstaat een achtste
-verwerking, met een eigen bewaartermijn: negentig dagen ruw, daarna alleen
-uuraggregaten. Dit register wordt dan herschreven, samen met de DPIA.
+Fase 2 heeft de meterkoppeling gebracht. Hoofdstuk 8 hierboven beschrijft de
+achtste verwerking die daarmee ontstond, met een eigen bewaartermijn:
+negentig dagen ruw, daarna alleen uurtotalen. De rekenmachine zelf gebruikt
+die metingen nog niet: het advies blijft draaien op het synthetische profiel
+uit NEDU-standaardprofielen en een PVGIS-opwekreeks, zoals `CLAUDE.md` voor
+fase 3 vastlegt.
+
+Zodra de simulatiemotor een gemeten reeks als invoer accepteert, verandert de
+verwerking uit hoofdstuk 8 van een tabel die alleen wordt opgeslagen in een
+tabel die het advies mede bepaalt, en moet dit register opnieuw beoordeeld
+worden, samen met de DPIA.
