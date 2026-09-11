@@ -4,7 +4,7 @@ Dit document beschrijft precies hoe wij aan ons antwoord komen, inclusief alles 
 naast kunnen zitten. Wij vragen u iets te geloven over uw eigen huis, dus u mag weten
 waarop dat berust. Reken het na en laat het ons weten als u een fout vindt.
 
-Motorversie waarop dit document slaat: 0.4.0.
+Motorversie waarop dit document slaat: 0.5.0.
 
 ## Kort samengevat
 

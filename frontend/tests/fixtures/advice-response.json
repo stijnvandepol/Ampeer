@@ -313,7 +313,7 @@
       ]
     ]
   },
-  "engine_version": "0.4.0",
+  "engine_version": "0.5.0",
   "advice_version": "0.1.0",
   "production_source": "FALLBACK",
   "production_source_text": "PVGIS was niet bereikbaar, dus wij hebben gerekend met onze eigen tabel: het gemiddelde van negen weerjaren voor Nederland. Dat is nauwkeurig genoeg om u een antwoord te geven en minder nauwkeurig dan een berekening voor uw eigen postcodegebied. Vraag het advies later nog eens op voor een scherper getal.",
