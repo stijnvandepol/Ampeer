@@ -12,7 +12,7 @@
 #   docker buildx imagetools inspect nginx:1.29-alpine
 # which returned the digest below. Re-resolve when bumping and write down what
 # you got; a tag is a name somebody else can repoint.
-FROM nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
+FROM nginx:1.31-alpine@sha256:72ba65eb42c10344912a84ff42408db7d34f2feb642204570ab8fc5ffd29f1d3
 
 # Replaces the image's own file rather than adding to conf.d. Three of the
 # decisions in it live in the http context, and a partial file would leave the
