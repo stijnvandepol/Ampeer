@@ -23,20 +23,6 @@ const KEY_SHOWN_ONCE =
 
 const NOTHING_RECEIVED_YET = "Er is nog niets binnengekomen.";
 
-/**
- * What the band was measured over, so the household can weigh it.
- *
- * `runs` is the number of refits the band came out of, each with a whole week
- * of their own readings withheld. That is the thing the number is actually
- * about: whether the answer depended on which weeks happened to arrive.
- */
-function measuredOver(quarters: number, runs: number): string {
-  return `Gemeten over ${quarters} kwartieren van uw eigen meter, in ${runs} herberekeningen met telkens een week weggelaten.`;
-}
-
-const KEEP_OWN_FIGURE =
-  "Doet u niets, dan blijft uw advies op uw eigen getal rekenen.";
-
 const UNLINK_CONSEQUENCE =
   "Na het ontkoppelen zijn de metingen van deze meter weg.";
 
@@ -137,7 +123,7 @@ export function MeterSection({
               */}
               <p className="max-w-[60ch] text-sm">{check.check.message}</p>
               <p className="max-w-[60ch] text-sm text-ink-muted">
-                {measuredOver(check.check.quarters_used, check.check.runs)}
+                {check.check.measured_over}
               </p>
               {check.check.installation_note !== null && (
                 <p className="max-w-[60ch] text-sm">
@@ -151,11 +137,11 @@ export function MeterSection({
                   disabled={busy}
                   onClick={onAccept}
                 >
-                  {`Reken met ${Math.round(check.check.p50_kwh)} kWh`}
+                  {check.check.accept_label}
                 </button>
               </p>
               <p className="max-w-[60ch] text-sm text-ink-muted">
-                {KEEP_OWN_FIGURE}
+                {check.check.keep_own}
               </p>
             </div>
           )}

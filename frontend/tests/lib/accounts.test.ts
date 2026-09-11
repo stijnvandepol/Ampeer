@@ -797,6 +797,10 @@ describe("what the meter says about the typed figure", () => {
       runs: 8,
       quarters_used: 5376,
       message: "een zin uit de API",
+      measured_over:
+        "Gemeten over 5376 kwartieren van uw eigen meter, in 8 herberekeningen met telkens een week weggelaten.",
+      accept_label: "Reken met 4000 kWh",
+      keep_own: "Doet u niets, dan blijft uw advies op uw eigen getal rekenen.",
       installation_note: null,
     },
   };

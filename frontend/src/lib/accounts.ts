@@ -104,8 +104,19 @@ export interface ConsumptionCheck {
   /** How many refits the band was measured over, each with a week withheld. */
   readonly runs: number;
   readonly quarters_used: number;
-  /** The Dutch sentence, from the API. No wording is built here. */
+  /**
+   * The four sentences, all from the API. None is built here.
+   *
+   * `frontend/e2e/language.spec.ts` is the reason and it is not a style
+   * preference: a line of interface text may name the shape of a figure, and
+   * it may never be a sentence about the household's electricity. All four of
+   * these are the second kind, so all four are written in
+   * `backend/accounts/nl.py` and arrive already worded.
+   */
   readonly message: string;
+  readonly measured_over: string;
+  readonly accept_label: string;
+  readonly keep_own: string;
   /**
    * Set when the modelled feed-in does not match the meter's either.
    *
@@ -315,7 +326,9 @@ function isConsumptionCheck(value: unknown): value is ConsumptionCheck {
   ]) {
     if (typeof value[key] !== "number") return false;
   }
-  if (!isString(value["message"])) return false;
+  for (const key of ["message", "measured_over", "accept_label", "keep_own"]) {
+    if (!isString(value[key])) return false;
+  }
   if (!("installation_note" in value)) return false;
   const note = value["installation_note"];
   if (note !== null && !isString(note)) return false;

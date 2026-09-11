@@ -87,6 +87,16 @@ def as_payload(fit: ConsumptionFit, typed_kwh: float) -> dict[str, Any]:
         "p90_kwh": round(fit.p90_kwh, 1),
         "runs": fit.runs,
         "quarters_used": fit.quarters_used,
+        # Every sentence the household reads is built here and not in the
+        # browser. `frontend/e2e/language.spec.ts` enforces that boundary: a
+        # line of interface text may name the shape of a figure, and it may
+        # never be a sentence about the household's electricity. All three of
+        # these are the second kind.
+        "measured_over": NL["consumption_correction_measured_over"].format(
+            quarters=fit.quarters_used, runs=fit.runs
+        ),
+        "accept_label": NL["consumption_correction_accept"].format(kwh=round(fit.p50_kwh)),
+        "keep_own": NL["consumption_correction_keep"],
         "message": NL["consumption_correction"].format(
             typed=round(typed_kwh), low=round(fit.p10_kwh), high=round(fit.p90_kwh)
         ),

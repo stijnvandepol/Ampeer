@@ -113,6 +113,14 @@ NL: Final[dict[str, str]] = {
         "berekenen. Dat wijst eerder op de beschrijving van uw panelen, zoals het "
         "vermogen of de richting, dan op uw verbruik. Controleer die eerst."
     ),
+    "consumption_correction_measured_over": (
+        "Gemeten over {quarters} kwartieren van uw eigen meter, in {runs} "
+        "herberekeningen met telkens een week weggelaten."
+    ),
+    "consumption_correction_accept": "Reken met {kwh} kWh",
+    "consumption_correction_keep": (
+        "Doet u niets, dan blijft uw advies op uw eigen getal rekenen."
+    ),
     "consumption_correction_gone": (
         "Uw meter spreekt het opgegeven verbruik niet langer tegen, dus er valt nu "
         "niets te corrigeren."
