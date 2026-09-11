@@ -1845,6 +1845,57 @@ delete, and it is smaller for the same reason it is wrong: the household
 that withdrew consent would have no way to tell the difference from the
 account page, while the data it thought it removed keeps existing.
 
+### 63. The meter calibrates a parameter, and does not replace the profile
+
+**Decided:** a linked meter is used to fit one scalar, the household's annual
+base consumption, by running the model over the window the meter covers and
+moving that scalar until modelled grid import reproduces measured offtake. The
+quarter-hour series stays the national NEDU profile, `provenance` stays
+`SYNTHETIC`, and `refuse_unless_shareable` stays unused. The result is a band,
+it is only put to the household when their typed figure falls outside it, and
+the advice keeps running on the typed figure until they accept the correction.
+`Confidence.PRECISE` remains unreachable; an accepted measured figure reaches
+`GOOD`.
+
+**Because:** three things rule out the obvious reading, which is to feed the
+measured series in as the profile. Raw quarters are folded to hours after
+ninety days, so a measured quarter-hour year cannot exist however long a
+household stays linked. A measured series says when somebody is home, and an
+advice is retrievable for ninety days through a bearer token, which is the
+pairing decision 56 and `docs/dpia.md` chapter 6 exist to prevent. And the
+meter measures net offtake, so recovering gross consumption from it needs the
+production model added back in, which is the double counting chapter 2 of
+`docs/methodologie.md` warns about; it also measures the car and the heat pump,
+which repair 1 of `docs/analysis/2026-08-24-double-counting.md` deliberately
+took out of the typed figure.
+
+Fitting avoids all three. Meter quantities are compared against meter
+quantities, nothing is inverted, and the assets sit inside the model on both
+sides of the comparison.
+
+The word stops at GOOD because `docs/methodologie.md` chapter 17 already draws
+the distinction for itself: the nine questions each replace a parameter, and
+quarter-hour data replaces the profile. A fitted annual consumption is a
+parameter. Awarding PRECISE for it would claim the larger of the two.
+
+There is no threshold constant. The band decides: a typed figure inside it is
+not contradicted, so nothing is said. Little or erratic data widens the band,
+a wide band swallows the typed figure, and the route falls silent without a
+day count or a coverage percentage having been chosen. The band itself is
+floored at the spread `economics.sensitivity` already applies to this input,
+a tenth either way, so a correction the euro band treats as noise is never
+announced as a finding.
+
+**Lives in:** `ampeer_sim/fit.py`, `backend/accounts/window.py`,
+`backend/accounts/calibration.py`, and `AccountAdviceView` and
+`AccountAdviceAcceptView` in `backend/accounts/views.py`.
+
+**To reverse:** feed the measured series in as the profile. That is a
+different product and it needs the shareable token to go first: an advice
+carrying a `MEASURED` series may not be openable by whoever holds a link, so
+either the token stops being a bearer credential or such an advice stops being
+retrievable by one. Neither is a change to this module.
+
 ## What was not decided here
 
 Four belong to the controller and are written up with their trade-offs in

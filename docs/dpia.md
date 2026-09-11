@@ -624,14 +624,25 @@ vooruitblik meer. Op een vijfde punt is het dat nog wel.
 - **Een export- en verwijderroute**, die nu werken. Hoofdstuk 7 beschrijft wat
   ze doen en voor wie.
 
-**Wat fase 2 nog moet brengen.**
+**Wat fase 2 heeft gebracht, en wat fase 3 ermee doet.**
 
 - **Kwartierdata uit de P1-poort.** Dat is de verwerking die hoofdstuk 1 als
-  afwezig aanmerkt en die de afweging daar omdraait. Daaruit is af te leiden
-  wanneer iemand thuis is. Het veld waarin die reeks het antwoord zou verlaten
-  bestaat al, met de weigering erin die hoofdstuk 6 beschrijft, zodat er geen
-  periode is waarin de eerste gemeten reeks bestaat en de regel erover nog
-  niet.
+  afwezig aanmerkte en die de afweging daar omdraait. Daaruit is af te leiden
+  wanneer iemand thuis is. Sinds de meterkoppeling bestaat zij: hoofdstuk 2
+  beschrijft de twee tabellen en hoofdstuk 4 hoe lang elk van beide blijft
+  staan.
+- **Wat er sinds fase 3 mee gebeurt.** De gemeten reeks wordt niet het profiel
+  waarmee gerekend wordt. Zij wordt gebruikt om een getal bij te stellen dat
+  het huishouden zelf heeft ingevuld, zijn jaarverbruik, en dat getal is een
+  enkel getal per jaar en geen reeks. Het veld waarin een gemeten reeks het
+  antwoord zou verlaten bestaat wel, met de weigering erin die hoofdstuk 6
+  beschrijft, en er komt vandaag niets doorheen: een advies blijft een
+  landelijk profiel dragen en blijft daarom deelbaar met een link. Dat is
+  beslissing 63.
+- **Waarom dat hier staat en niet alleen in de code.** Het doel waarvoor de
+  toestemming is gevraagd, het advies nauwkeuriger maken, wordt hiermee voor
+  het eerst gediend. Tot fase 3 werd die data verzameld voor een doel dat nog
+  niet bestond.
 
 Zodra die laatste verwerking bestaat, moet dit document opnieuw geschreven
 worden, en dan is een beoordeling niet langer waarschijnlijk verplicht maar

@@ -796,23 +796,40 @@ Dit krijgt u wanneer:
 | Woord | Wanneer |
 |---|---|
 | Indicatief | U hebt de vier vragen van ronde 1 beantwoord |
-| Goed | U hebt ook de vijf vragen van ronde 2 beantwoord, dus negen in totaal |
+| Goed | U hebt ook de vijf vragen van ronde 2 beantwoord, dus negen in totaal. Of u hebt een jaarverbruik overgenomen dat wij van uw eigen meter hebben afgeleid |
 | Precies | Alleen met uw eigen kwartierdata uit de meter |
 
 Het is geen glijdende schaal. In deze versie tellen wij vier of negen, want dat
 zijn de twee formulieren die bestaan, en de grens ligt bij vijf.
 
-**"Precies" kunt u vandaag niet krijgen, en dat hoort u te weten.** Die stand is
-er voor het moment dat u uw meter koppelt, en deze versie neemt geen meterdata
-aan. Zolang dat zo is, komt er nooit "precies" boven een antwoord te staan. Wij
-laten het woord in de schaal staan omdat het beschrijft waar deze schaal heen
-gaat, en niet omdat het bereikbaar is.
+**Wat een gekoppelde meter vandaag wel doet.** Wij vervangen uw profiel er niet
+mee. Wij gebruiken hem om een getal te controleren dat u zelf hebt ingevuld:
+uw jaarverbruik. Daarvoor laten wij ons model over de periode lopen die uw meter
+heeft doorgegeven en stellen wij uw jaarverbruik bij tot wat het model aan afname
+en teruglevering berekent, overeenkomt met wat uw meter werkelijk heeft gezien.
+Dat vergelijkt metergetallen met metergetallen, dus uw auto en uw warmtepomp
+zitten aan beide kanten en kunnen niet dubbel meetellen.
+
+Wat daaruit komt is een bandbreedte en geen getal, en wij leggen hem alleen aan u
+voor als uw ingevulde jaarverbruik er buiten valt. Ligt uw getal erbinnen, dan
+spreekt uw meter u niet tegen en zwijgen wij. Wij veranderen ook niets zonder dat
+u het overneemt: het advies blijft op uw eigen getal rekenen tot u op de knop
+drukt.
+
+**"Precies" kunt u vandaag niet krijgen, en dat hoort u te weten.** Ook niet met
+een gekoppelde meter. Zolang dat zo is, komt er nooit "precies" boven een antwoord
+te staan. Wij laten het woord in de schaal staan omdat het beschrijft waar deze
+schaal heen gaat, en niet omdat het bereikbaar is.
 
 Waarom meterdata een eigen woord verdient en niet gewoon een tiende antwoord is:
 de vragen vervangen elk een parameter van ons standaardprofiel, en kwartierdata
 vervangt dat profiel zelf. Dat is het onderdeel dat het antwoord het meest
 bepaalt, dus een huishouden met meterdata en verder niets ingevuld weet meer over
 zijn antwoord dan een huishouden dat negen vragen beantwoordde.
+
+En dat is precies waarom het bijstellen hierboven "goed" oplevert en niet
+"precies". Een jaarverbruik van uw meter vervangt een parameter, net als de negen
+vragen doen. Het profiel zelf is nog steeds het landelijke.
 
 ## 19. Wat wij niet weten
 
