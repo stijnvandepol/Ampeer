@@ -37,7 +37,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 
 from accounts import cookies, recovery, service, tokens
 from accounts.authentication import CookieJWTAuthentication, enforce_csrf
-from accounts.calibration import as_payload, propose_correction
+from accounts.calibration import as_payload, latest_check, propose_correction
 from accounts.meter import MeterTokenAuthentication, store_readings
 from accounts.models import Consent, MeterLink, User
 from accounts.nl import CONSENT_TEXT_VERSION, NL
@@ -672,7 +672,11 @@ class AccountAdviceView(_AuthAPIView):
 
     The body is the refine form's, unchanged. A household with an account
     answers the same nine questions as anybody else; what the account adds is
-    who the answer belongs to and whether a meter has anything to say about it.
+    who the answer belongs to.
+
+    It does not ask the meter. A fit costs several runs of the engine over the
+    measured window, and an advice nobody follows up on would pay for an answer
+    nobody reads. `advice/check/` asks, when something asks it.
     """
 
     throttle_scope = "auth-write"
@@ -683,15 +687,6 @@ class AccountAdviceView(_AuthAPIView):
         data = dict(serializer.validated_data)
 
         payload = compute_and_store(data, RefineInputSerializer.QUESTION_COUNT, owner=self.user)
-
-        # Asked after the advice, and not stored with it. The advice runs on
-        # the figure the household typed; the proposal describes what their
-        # meter says about that figure right now, which is a different
-        # statement with a different lifetime.
-        fit = propose_correction(self.user, data)
-        payload["consumption_check"] = (
-            None if fit is None else as_payload(fit, float(data["annual_consumption_kwh"]))
-        )
         return Response(payload, status=status.HTTP_201_CREATED)
 
 
@@ -730,3 +725,34 @@ class AccountAdviceAcceptView(_AuthAPIView):
             consumption_measured=True,
         )
         return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class AccountAdviceCheckView(_AuthAPIView):
+    """What this household's meter says about its most recent advice.
+
+    A POST rather than a GET, and that is about cost and not about semantics.
+    Answering runs the engine several times over the measured window, so it
+    belongs behind `auth-write`'s twenty an hour rather than `auth-read`'s
+    hundred and twenty, and a route that expensive should not look cacheable
+    to anything between here and the browser.
+
+    Recomputed on every call and stored nowhere. Keeping it out of the advice
+    payload is deliberate: that payload is retrievable for ninety days by
+    whoever holds the link, and a household's real annual consumption is not
+    something a shared link should carry. This answer only ever goes to the
+    session that asked for it.
+    """
+
+    throttle_scope = "auth-write"
+
+    def post(self, request: Request) -> Response:
+        found = latest_check(self.user)
+        if found is None:
+            return Response({"advice_token": None, "check": None})
+        stored, fit = found
+        return Response(
+            {
+                "advice_token": stored.token,
+                "check": as_payload(fit, float(stored.inputs["annual_consumption_kwh"])),
+            }
+        )

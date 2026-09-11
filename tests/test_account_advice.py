@@ -9,7 +9,7 @@ and it is thirty percent away from the figure the account typed.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -162,29 +162,55 @@ def test_an_advice_asked_for_through_a_session_belongs_to_that_account(client: A
     assert stored.owner == user
 
 
-def test_without_a_meter_there_is_nothing_to_check(client: Any) -> None:
-    """Silence, and an advice that is otherwise the ordinary one."""
-    _register(client)
-
+def _advice(client: Any, body: dict[str, Any] | None = None) -> dict[str, Any]:
     response = client.post(
-        "/api/auth/advice/", BODY, content_type="application/json", **_csrf(client)
+        "/api/auth/advice/",
+        BODY if body is None else body,
+        content_type="application/json",
+        **_csrf(client),
     )
+    assert response.status_code == 201, response.content
+    return cast(dict[str, Any], response.json())
 
-    body = response.json()
-    assert body["consumption_check"] is None
-    assert body["consumption_source"] == "TYPED"
+
+def _check(client: Any) -> dict[str, Any]:
+    response = client.post(
+        "/api/auth/advice/check/", content_type="application/json", **_csrf(client)
+    )
+    assert response.status_code == 200, response.content
+    return cast(dict[str, Any], response.json())
+
+
+def test_an_advice_does_not_pay_for_a_fit_nobody_asked_for(client: Any) -> None:
+    """The advice route computes an advice and stops there."""
+    _register(client)
+    assert "consumption_check" not in _advice(client)
+
+
+def test_without_a_meter_there_is_nothing_to_check(client: Any) -> None:
+    _register(client)
+    _advice(client)
+
+    assert _check(client) == {"advice_token": None, "check": None}
+
+
+def test_without_an_advice_there_is_nothing_to_check(client: Any) -> None:
+    """A fit needs a described household, and only an advice describes one."""
+    user = _register(client)
+    _give_the_account_a_meter(user)
+
+    assert _check(client)["check"] is None
 
 
 def test_a_meter_that_disagrees_is_reported_with_its_band(client: Any) -> None:
     user = _register(client)
     _give_the_account_a_meter(user)
+    advice = _advice(client)
 
-    response = client.post(
-        "/api/auth/advice/", BODY, content_type="application/json", **_csrf(client)
-    )
+    answer = _check(client)
 
-    check = response.json()["consumption_check"]
-    assert check is not None
+    assert answer["advice_token"] == advice["token"]
+    check = answer["check"]
     assert check["typed_kwh"] == pytest.approx(TRUE_ANNUAL_KWH * 0.7)
     assert check["p50_kwh"] == pytest.approx(TRUE_ANNUAL_KWH, rel=0.02)
     assert check["p10_kwh"] < check["p50_kwh"] < check["p90_kwh"]
@@ -195,15 +221,28 @@ def test_a_meter_that_agrees_says_nothing(client: Any) -> None:
     """The band swallows a figure it does not contradict, and no constant said so."""
     user = _register(client)
     _give_the_account_a_meter(user)
+    _advice(client, BODY | {"annual_consumption_kwh": TRUE_ANNUAL_KWH})
 
-    response = client.post(
-        "/api/auth/advice/",
-        BODY | {"annual_consumption_kwh": TRUE_ANNUAL_KWH},
-        content_type="application/json",
-        **_csrf(client),
-    )
+    assert _check(client)["check"] is None
 
-    assert response.json()["consumption_check"] is None
+
+def test_the_check_is_never_written_into_a_shareable_advice(client: Any) -> None:
+    """The line decision 63 draws, as an assertion.
+
+    An advice is retrievable for ninety days by whoever holds its link. This
+    household's real annual consumption is not something that link should
+    carry, so the correction lives on a route that only answers the session
+    that asked.
+    """
+    user = _register(client)
+    _give_the_account_a_meter(user)
+    advice = _advice(client)
+    assert _check(client)["check"] is not None
+
+    shared = client.get(f"/api/advice/{advice['token']}/").json()
+
+    assert "consumption_check" not in shared
+    assert "consumption_check" not in StoredAdvice.objects.get(token=advice["token"]).advice
 
 
 def test_accepting_recomputes_on_the_measured_figure(client: Any) -> None:
@@ -216,9 +255,7 @@ def test_accepting_recomputes_on_the_measured_figure(client: Any) -> None:
     """
     user = _register(client)
     _give_the_account_a_meter(user)
-    first = client.post(
-        "/api/auth/advice/", BODY, content_type="application/json", **_csrf(client)
-    ).json()
+    first = _advice(client)
 
     response = client.post(
         f"/api/auth/advice/{first['token']}/accept/",
@@ -244,9 +281,7 @@ def test_accepting_an_advice_that_is_not_yours_is_not_found(client: Any) -> None
     """Filtered on the owner, which is why the shareable token does not help."""
     owner = _register(client, "eigenaar@voorbeeld.nl")
     _give_the_account_a_meter(owner)
-    theirs = client.post(
-        "/api/auth/advice/", BODY, content_type="application/json", **_csrf(client)
-    ).json()
+    theirs = _advice(client)
     client.post("/api/auth/logout/", content_type="application/json", **_csrf(client))
 
     _register(client, "vreemde@voorbeeld.nl")
@@ -263,9 +298,7 @@ def test_accepting_when_the_meter_no_longer_disagrees_is_refused(client: Any) ->
     """A proposal is about the meter now, so it can stop being true."""
     user = _register(client)
     _give_the_account_a_meter(user)
-    first = client.post(
-        "/api/auth/advice/", BODY, content_type="application/json", **_csrf(client)
-    ).json()
+    first = _advice(client)
     QuarterReading.objects.filter(link=MeterLink.active_for(user)).delete()
 
     response = client.post(
@@ -313,9 +346,8 @@ def test_a_measurement_outside_the_window_is_ignored_by_the_fit(client: Any) -> 
         feed_in_kwh=0.0,
     )
 
-    check = client.post(
-        "/api/auth/advice/", BODY, content_type="application/json", **_csrf(client)
-    ).json()["consumption_check"]
+    _advice(client)
+    check = _check(client)["check"]
 
     assert check is not None
     assert check["p50_kwh"] == pytest.approx(TRUE_ANNUAL_KWH, rel=0.02)

@@ -553,7 +553,7 @@ def test_the_eleventh_reset_request_in_an_hour_is_refused_in_dutch(client: Any) 
 
 
 @pytest.mark.django_db
-def test_the_eighteen_routes_each_carry_a_scope_with_a_rate() -> None:
+def test_the_nineteen_routes_each_carry_a_scope_with_a_rate() -> None:
     """Spec 3.5, beside tests/test_backend_settings.py's resolver walk: every
     view under /api/auth/ names a scope that has a rate, and nginx's ceiling
     still clears the summed per-visitor rate by fifty times.
@@ -568,7 +568,8 @@ def test_the_eighteen_routes_each_carry_a_scope_with_a_rate() -> None:
     this sum is over every rate DRF hands one visitor and nginx's ceiling
     does not care which prefix they were spent on.
 
-    Eighteen since phase 3, which added `advice/` and `advice/<token>/accept/`.
+    Nineteen since phase 3, which added `advice/`, `advice/check/` and
+    `advice/<token>/accept/`.
     Both reuse `auth-write` for the same reason the meter routes reuse it, and
     the sum below is unchanged because no scope was added.
 
@@ -582,7 +583,7 @@ def test_the_eighteen_routes_each_carry_a_scope_with_a_rate() -> None:
 
     from accounts import urls, views
 
-    assert len(urls.urlpatterns) == 18
+    assert len(urls.urlpatterns) == 19
     rates = settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]
     assert rates["auth-reset"] == "10/hour"
     assert rates["meter-ingest"] == "120/hour"
@@ -596,6 +597,7 @@ def test_the_eighteen_routes_each_carry_a_scope_with_a_rate() -> None:
     assert views.MeterReadingsView.throttle_scope == "meter-ingest"
     assert views.AccountAdviceView.throttle_scope == "auth-write"
     assert views.AccountAdviceAcceptView.throttle_scope == "auth-write"
+    assert views.AccountAdviceCheckView.throttle_scope == "auth-write"
     assert rates["auth-write"] == rates["advice-compute"]
     per_hour = sum(int(rate.split("/")[0]) for rate in rates.values())
     assert per_hour == 610

@@ -19,11 +19,13 @@ from __future__ import annotations
 from typing import Any
 
 from django.conf import settings
+from django.utils import timezone
 
 from accounts.models import MeterLink, User
 from accounts.nl import NL
 from accounts.window import build_window
 from advice.assembly import build_household, build_pv_system
+from advice.models import StoredAdvice
 from advice.production import production_provider
 from advice.profiles import profile_provider
 from ampeer_sim.fit import ConsumptionFit, fit_annual_consumption
@@ -99,3 +101,27 @@ def as_payload(fit: ConsumptionFit, typed_kwh: float) -> dict[str, Any]:
             else NL["consumption_correction_export_off"]
         ),
     }
+
+
+def latest_check(user: User) -> tuple[StoredAdvice, ConsumptionFit] | None:
+    """The correction worth showing beside this household's meter, if any.
+
+    Read off their most recent advice rather than off a figure of its own,
+    because a fit needs a described household: a roof, an orientation and
+    whichever assets were declared. That description only exists as the inputs
+    of an advice they already asked for.
+
+    Filtered on the owner, and only among advices that have not expired. An
+    advice whose ninety days ran out cannot be recomputed under its token
+    either, so proposing a correction to it would offer a button that could
+    not work.
+    """
+    stored = (
+        StoredAdvice.objects.filter(owner=user, expires_at__gt=timezone.now())
+        .order_by("-created_at")
+        .first()
+    )
+    if stored is None:
+        return None
+    fit = propose_correction(user, dict(stored.inputs))
+    return None if fit is None else (stored, fit)
