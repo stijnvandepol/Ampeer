@@ -221,7 +221,7 @@ jobs:
       # drift from the repository. Changing that file therefore means changing
       # this line in the same commit, which is the point: it can then only
       # disagree with the host.
-      COMPOSE_SHA256: 87bbd8d3d9a2cbc98581aa728dfe597c65f29e39d15aa40420f15842c731185c
+      COMPOSE_SHA256: 94f950c9f181bb65716731cc673cc86da9cbd2aaf20b570d284293db1f774587
       # The sha256 of scripts/backup_db.sh in this repository at this tag, for
       # the same reason as the two above. This one guards a retention window:
       # an older copy on the host keeps a different number of dumps and allows
