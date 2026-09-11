@@ -9,11 +9,13 @@ dependencies = ["numpy>=2.0", "requests>=2.32"]
 # The web layer, kept in its own group so the pure packages can still be
 # installed and tested without Django anywhere near them.
 backend = [
+    "argon2-cffi>=25.1",
     # 5.2 is LTS with security support to April 2028. The current non-LTS line
     # runs out around April 2027, the quarter net metering ends and this product
     # is at its busiest, which would schedule a forced major upgrade for the
     # worst possible month.
     "django>=5.2.17,<6.0",
+    "django-axes>=8.0",
     "django-cors-headers>=4.9",
     "djangorestframework>=3.18.0",
     # The WSGI server the production image runs. It sits in the backend group
@@ -21,6 +23,7 @@ backend = [
     # must stay installable without a web server anywhere near it, and it is
     # here rather than only in the Dockerfile so `uv sync --locked` in the
     # image resolves the same lockfile the pipeline tested.
+    "djangorestframework-simplejwt>=5.5",
     "gunicorn>=26.1",
     "psycopg[binary]>=3.3.4",
 ]
@@ -74,6 +77,15 @@ strict = true
 plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
 mypy_path = "backend"
 
+[[tool.mypy.overrides]]
+# django-axes ships no py.typed marker and no stub package exists on PyPI, so
+# mypy_django_plugin's INSTALLED_APPS walk fails to analyse axes.models the
+# moment "axes" is added to INSTALLED_APPS. Every accounts.lockout callable
+# axes calls stays fully typed; this silences only the one third-party module
+# mypy cannot see into.
+module = "axes.*"
+ignore_missing_imports = true
+
 [tool.django-stubs]
 django_settings_module = "ampeer.settings.test"
 
@@ -94,7 +106,7 @@ ignore = ["FURB157"]
 # infer that `advice` and `ampeer` are ours: it sees no distribution of that
 # name and files them as third party, which puts them in the wrong import block
 # in every test that touches the API. They genuinely are first party, so say so.
-known-first-party = ["advice", "ampeer", "ampeer_sim", "ampeer_advice", "tools"]
+known-first-party = ["accounts", "advice", "ampeer", "ampeer_sim", "ampeer_advice", "tools"]
 
 [tool.ruff.lint.per-file-ignores]
 # django.db.migrations.Migration declares `dependencies` and `operations` as
@@ -135,11 +147,16 @@ addopts = ["--strict-markers"]
 
 [tool.coverage.run]
 source = ["ampeer_sim", "ampeer_advice", "tools", "backend"]
-# Statement coverage, not branch coverage. The 97 percent floor below is the
-# statement figure measured on 2026-08-20 over these two packages. Turning
-# branch coverage on measures a different, stricter thing (95.81 percent on the
-# same tree), so it may only be enabled together with a floor re-measured under
-# it, and never by lowering the floor.
+# Branch coverage, on since 2026-09-07, measured under the condition the
+# runner measures under (without data/nedu-profiles-2025.csv). Statement
+# coverage reads a multi-line ternary as one statement, which is how the
+# wait is None arm of _AuthAPIView.throttled stayed invisible until a
+# reviewer found it with a scratch reproduction (decision 40's follow-up,
+# "Whether branch = true belongs in the coverage configuration" in
+# docs/decisions.md). Turning it on may only happen together with a floor
+# re-measured under it, never by lowering the floor; see fail_under below
+# for that measurement.
+branch = true
 # Two entry points and nothing else. Django generates both, neither holds a
 # decision, and neither is imported by a test. Every other line under backend/
 # is measured. This list is asserted to stay exactly this short by
@@ -156,9 +173,39 @@ omit = ["backend/manage.py", "backend/ampeer/wsgi.py"]
 precision = 2
 # Measured at two decimals, not read off the rounded TOTAL row. Raised from
 # 97 to 98 on 2026-08-20 after covering the ingest CLI took the tree to
-# 98.03. May be raised, never lowered: a floor below the current level makes
-# a regression invisible.
-fail_under = 98
+# 98.03, then from 98 to 99.05 on 2026-09-06 at the end of the accounts
+# frontend branch, then from 99.05 to 99.15 on 2026-09-07 at the end of the
+# accounts recovery branch, from a run without data/nedu-profiles-2025.csv
+# that measured 2728/2751 = 99.1639, rounded to 99.16, and from 99.15 to
+# 98.73 on 2026-09-07 at the end of the legal and tidy branch, the first
+# measurement with branch = true on. This is a new measure, statement plus
+# branch together, and it therefore sits below what the statement-only
+# figure on the same tree reports: statement-only stays at 2741/2764 =
+# 99.17% on this tree (above 99.15), and no protection has been removed by
+# the drop in the number reported here. The combined run (2764 statements,
+# 23 missed, 402 branches, 17 partial) measured 98.74%, without
+# data/nedu-profiles-2025.csv, and from 98.73 to 98.82 on 2026-09-09 at the
+# end of the meter link branch, from a run without that file that measured
+# 2979 statements, 23 missed, 432 branches, 17 partial, so 3371/3411 =
+# 98.8273%, rounded to 98.83. May be raised, never lowered: a floor below
+# the current level makes a regression invisible.
+#
+# The floor sits one hundredth UNDER the measurement, and that hundredth is
+# the whole point. True coverage is 2411/2434 = 99.0551, and pytest-cov
+# compares round(total, precision) with fail_under: at 99.06 the comparison
+# is 99.06 < 99.06, false, so the run exits 0 while `_failed_cov_total`
+# prints "FAIL Required test coverage of 99.06% not reached" in the same
+# output. A required check that prints FAIL and exits green is worse than a
+# missing one. At 99.05 the same run prints PASS and still fails on a single
+# lost line: 2410/2434 rounds to 99.01, which is below 99.05.
+#
+# The measurement that counts is the CI runner's, not a developer machine's.
+# A machine that has run tools/ingest_profiles.py carries the NEDU file that
+# two tests skip without, and on 2026-09-06 one of those tests was the only
+# caller of a method, so the tree measured 99.06 on Windows and 99.01 on the
+# runner, and the floor set from the local figure went red in CI on its first
+# run. Set the floor from a run without data/, or from the runner.
+fail_under = 98.82
 show_missing = true
 
 [tool.bandit]

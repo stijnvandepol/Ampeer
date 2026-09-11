@@ -25,13 +25,16 @@ the override needs:
 from __future__ import annotations
 
 import hashlib
+import os
 import re
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 import yaml
+from helpers.accounts import OTHER_PASSWORD, TEST_PASSWORD
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 INFRA = REPO_ROOT / "infra"
@@ -47,6 +50,7 @@ PREFLIGHT = REPO_ROOT / "scripts" / "preflight_env.sh"
 FIXTURES = INFRA / "fixtures"
 PROFILE_FIXTURE = FIXTURES / "nedu-flat-2025.csv"
 ENV_FIXTURE = FIXTURES / "env.smoke"
+MAIL_FIXTURE_DIR = FIXTURES / "mail"
 
 #: The year the profile fixture carries, which is settings.AMPEER_PROFILE_YEAR.
 #: 2025 is not a leap year, so a full series is 365 * 96 quarters.
@@ -58,10 +62,484 @@ FIXTURE_QUARTERS = 365 * 96
 #: ampeer_sim.profiles.nedu asks for `<name>E1A_AZI_A` in the year row.
 FIXTURE_SERIES = "SMOKE_E1A_AZI_A"
 
+#: The address of a running stack, or nothing. Opt in, because there is no
+#: Docker in CI and a check that cannot run must not read as one that passed.
+SMOKE_BASE_URL_ENV = "AMPEER_SMOKE_BASE_URL"
+
+STACK = os.environ.get(SMOKE_BASE_URL_ENV)
+
+#: Every live check carries this, and the test below is what keeps that true.
+needs_stack = pytest.mark.skipif(
+    STACK is None,
+    reason=(
+        f"{SMOKE_BASE_URL_ENV} is not set. Start the stack per infra/README.md "
+        "section 7 and set it to, for example, http://127.0.0.1:8080"
+    ),
+)
+
+
+def test_every_live_check_is_gated_on_the_same_variable() -> None:
+    """A skipped check is not proof, and an ungated one is worse.
+
+    Every function whose name begins with `test_live_` talks to a machine that
+    is not there in CI. One that lost its marker would not skip, it would fail
+    on a refused connection, and the honest reading of that failure is
+    "somebody forgot a decorator" rather than "the stack is broken". Read off
+    this module rather than listed, so a live check added later is covered
+    without anybody remembering this test exists.
+    """
+    live = [
+        (name, value)
+        for name, value in sorted(globals().items())
+        if name.startswith("test_live_") and callable(value)
+    ]
+    assert live, "no live checks found at all; this test is reading nothing"
+    for name, function in live:
+        marks = getattr(function, "pytestmark", [])
+        reasons = [
+            str(mark.kwargs.get("reason", ""))
+            for mark in marks
+            if getattr(mark, "name", "") == "skipif"
+        ]
+        assert any(SMOKE_BASE_URL_ENV in reason for reason in reasons), (
+            f"{name} is not gated on {SMOKE_BASE_URL_ENV}, so it fails on a refused "
+            "connection in CI instead of saying it did not run"
+        )
+
 
 def _compose_document(path: Path) -> dict[str, Any]:
     document: dict[str, Any] = yaml.safe_load(path.read_text(encoding="utf-8"))
     return document
+
+
+class _Session:
+    """One caller against the running stack, with the raw Set-Cookie kept.
+
+    urllib rather than a new dependency, and deliberately not a client that
+    manages cookies for you: the attributes on those headers are half of what
+    this file is here to read, and a jar that parsed them away would leave the
+    test asserting that a 200 came back.
+    """
+
+    def __init__(self, base: str) -> None:
+        self.base = base.rstrip("/")
+        self.cookies: dict[str, str] = {}
+        self.set_cookie: list[str] = []
+        # infra/nginx/nginx.conf:302 sets `proxy_set_header Host $host;`, and
+        # $host is the Host header with any port stripped (unlike $http_host,
+        # which would keep it). So Django never sees the :8080 this session
+        # connects to, and the Origin a real browser would send here carries
+        # the same bare host.
+        from urllib.parse import urlsplit
+
+        self._origin_host = urlsplit(self.base).hostname
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        body: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> tuple[int, bytes]:
+        import json as jsonlib
+        import urllib.error
+        import urllib.request
+
+        data = None if body is None else jsonlib.dumps(body).encode("utf-8")
+        sending = dict(headers or {})
+        if data is not None:
+            sending["Content-Type"] = "application/json"
+        if self.cookies:
+            sending["Cookie"] = "; ".join(f"{k}={v}" for k, v in self.cookies.items())
+        if method != "GET":
+            # infra/nginx/nginx.conf:316 SETS X-Forwarded-Proto to "https" on
+            # every proxied request (not $scheme, which is http on this plain
+            # socket), and backend/ampeer/settings/prod.py:132 trusts that
+            # header via SECURE_PROXY_SSL_HEADER. So Django treats this
+            # http:// connection as secure, and its CSRF middleware then
+            # demands an Origin (or Referer) header on every unsafe request
+            # before it looks at the token at all. A browser on
+            # https://ampeer.nl/account/ would send exactly this Origin:
+            # https, because that is genuinely the scheme it used.
+            sending["Origin"] = f"https://{self._origin_host}"
+        request = urllib.request.Request(
+            f"{self.base}{path}", data=data, headers=sending, method=method
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=10) as response:
+                status, payload, raw = response.status, response.read(), response.headers
+        except urllib.error.HTTPError as error:
+            status, payload, raw = error.code, error.read(), error.headers
+        self.set_cookie = list(raw.get_all("Set-Cookie") or [])
+        for header in self.set_cookie:
+            name, _, rest = header.partition("=")
+            self.cookies[name.strip()] = rest.split(";", 1)[0]
+        return status, payload
+
+    def json(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
+        import json as jsonlib
+
+        headers = {}
+        token = self.cookies.get("csrftoken")
+        if method != "GET" and token is not None:
+            headers["X-CSRFToken"] = token
+        status, payload = self.request(method, path, body, headers)
+        assert 200 <= status < 300, f"{method} {path} answered {status}: {payload!r}"
+        return jsonlib.loads(payload) if payload else None
+
+    def attributes(self, cookie: str) -> dict[str, str]:
+        """The attributes on one Set-Cookie header, lowercased by name."""
+        for header in self.set_cookie:
+            if not header.startswith(f"{cookie}="):
+                continue
+            found: dict[str, str] = {}
+            for part in header.split(";")[1:]:
+                key, _, value = part.strip().partition("=")
+                found[key.lower()] = value
+            return found
+        raise AssertionError(f"{cookie} was not set at all; headers were {self.set_cookie}")
+
+
+def _fresh_email() -> str:
+    """A new address per run, so a stack that is reused does not collide."""
+    import secrets
+
+    return f"smoke-{secrets.token_hex(6)}@voorbeeld.invalid"
+
+
+def _assert_session_cookie_attributes(session: _Session, issued_by: str) -> None:
+    """The four attributes a browser enforces, off one pair of Set-Cookie lines."""
+    access = session.attributes("ampeer_access")
+    refresh = session.attributes("ampeer_refresh")
+    assert "httponly" in access, (
+        f"the access cookie {issued_by} set is readable from JavaScript: {access}"
+    )
+    assert "httponly" in refresh, (
+        f"the refresh cookie {issued_by} set is readable from JavaScript: {refresh}"
+    )
+    assert access.get("samesite") == "Strict", (issued_by, access)
+    assert refresh.get("samesite") == "Strict", (issued_by, refresh)
+    # Two different paths on purpose: the access token reaches every API route
+    # and the refresh token only the two that need it, so it does not travel
+    # on every request the access token makes.
+    assert access.get("path") == "/api/", (issued_by, access)
+    assert refresh.get("path") == "/api/auth/", (issued_by, refresh)
+
+
+@needs_stack
+def test_live_the_session_cookies_carry_the_attributes_a_browser_enforces() -> None:
+    """The header on the wire, and not the morsel Django built.
+
+    tests/test_accounts_api.py already reads httponly, SameSite and the two
+    paths off `response.cookies`, which is Django's own object in Django's own
+    process. This reads the text that travelled through nginx under
+    ampeer.settings.prod, which is what a browser actually interprets, and it
+    is the only place the deployed settings are the ones being described.
+
+    Both routes that hand out a session are read, and that is the second thing
+    this proves. Every other live check here signs in by registering, so until
+    now nothing in this file had ever completed a `login/` at all: the one
+    route a returning visitor uses was covered only by the Django test client,
+    which never sees these headers. And the cookies are set from two call
+    sites, so "register/ gets them right" is not a statement about login/.
+
+    Registering once and reusing that account is deliberate: `auth-register`
+    is five an hour and this file is meant to be runnable more than once in a
+    sitting.
+    """
+    from accounts.nl import CONSENT_TEXT_VERSION
+
+    assert STACK is not None
+    session = _Session(STACK)
+    status, _ = session.request("GET", "/api/auth/me/")
+    assert status == 401, "a stranger is signed in, which is a different problem"
+    assert "csrftoken" in session.cookies, (
+        "the 401 did not hand out a CSRF token, so nobody can ever sign in"
+    )
+
+    email = _fresh_email()
+    session.json(
+        "POST",
+        "/api/auth/register/",
+        {
+            "email": email,
+            "password": TEST_PASSWORD,
+            "consent_meter_link": False,
+            "consent_lead_generation": False,
+            "text_version": CONSENT_TEXT_VERSION,
+        },
+    )
+    _assert_session_cookie_attributes(session, "register/")
+
+    # Out and back in on the same account. `logout/` revokes the refresh token
+    # and clears both cookies, so what login/ answers with is a new pair and
+    # not the old one echoed back.
+    session.json("POST", "/api/auth/logout/")
+    session.json("POST", "/api/auth/login/", {"email": email, "password": TEST_PASSWORD})
+    _assert_session_cookie_attributes(session, "login/")
+
+    session.json("POST", "/api/auth/delete/", {"password": TEST_PASSWORD})
+
+
+@needs_stack
+def test_live_a_post_without_the_csrf_header_is_refused() -> None:
+    """The half no mock can reach.
+
+    Django's test client sets `_dont_enforce_csrf_checks`, so the check does
+    not run there at all unless a test asks for a strict client; page.route in
+    Playwright answers whatever it is asked and never checks a header. Over the
+    real stack there is nothing to switch on, and this is the request an
+    attacker's page would make.
+
+    The request below carries the same production-shaped Origin header every
+    other write in this file sends (see _Session.request), so the 403 it
+    provokes is about the missing X-CSRFToken and not about Origin or Referer
+    checking failing first. The second request is the positive control that
+    proves that: same session, same body, only the header restored, and
+    Django moves past the CSRF check to answer something that is not 403 (a
+    plain 400 for the bogus credentials below is expected, not a login).
+    """
+    assert STACK is not None
+    session = _Session(STACK)
+    session.request("GET", "/api/auth/me/")
+    assert "csrftoken" in session.cookies, "no token to leave out"
+    body = {"email": "iemand@voorbeeld.invalid", "password": "maakt-niet-uit"}
+    status, payload = session.request("POST", "/api/auth/login/", body)
+    assert status == 403, (
+        f"a state changing request went through without X-CSRFToken and answered {status}: "
+        f"{payload!r}. SameSite would then be the only thing standing between this API "
+        "and a cross site POST."
+    )
+
+    status, payload = session.request(
+        "POST", "/api/auth/login/", body, {"X-CSRFToken": session.cookies["csrftoken"]}
+    )
+    assert status != 403, (
+        f"even with X-CSRFToken present the request still answered 403: {payload!r}, which "
+        "means the first 403 above was never about the missing token"
+    )
+
+
+@needs_stack
+def test_live_the_consent_text_shown_is_the_text_recorded() -> None:
+    """The loop chapter 5 exists to close, over one real HTTP route.
+
+    Shown, sent and recorded are three places. Layer 2 proves that shown equals
+    delivered and layer 4 that delivered equals nl.py; only this puts the whole
+    loop end to end, and only this does it through the database the service
+    actually writes to.
+    """
+    from accounts.nl import NL
+
+    assert STACK is not None
+    session = _Session(STACK)
+    session.request("GET", "/api/auth/me/")
+    texts = session.json("GET", "/api/auth/consent-texts/")
+    version = texts["text_version"]
+    assert texts["texts"]["METER_LINK"] == NL["CONSENT_METER_LINK"]
+
+    password = TEST_PASSWORD
+    session.json(
+        "POST",
+        "/api/auth/register/",
+        {
+            "email": _fresh_email(),
+            "password": password,
+            "consent_meter_link": True,
+            "consent_lead_generation": False,
+            "text_version": version,
+        },
+    )
+    exported = session.json("POST", "/api/auth/export/")
+    rows = [row for row in exported["consents"] if row["kind"] == "METER_LINK"]
+    assert rows, f"the export carries no METER_LINK row: {exported['consents']}"
+    assert rows[0]["text_version"] == version, (
+        f"the row records {rows[0]['text_version']} and the screen showed {version}, "
+        "which is the exact drift the text_version field exists to prevent"
+    )
+    session.json("POST", "/api/auth/delete/", {"password": password})
+
+
+@needs_stack
+def test_live_a_stale_version_is_refused_over_the_real_route() -> None:
+    """The lock, through nginx and the deployed serializer rather than through
+    a serializer imported in the same process as the test."""
+    assert STACK is not None
+    session = _Session(STACK)
+    session.request("GET", "/api/auth/me/")
+    status, payload = session.request(
+        "POST",
+        "/api/auth/register/",
+        {
+            "email": _fresh_email(),
+            "password": TEST_PASSWORD,
+            "consent_meter_link": True,
+            "consent_lead_generation": False,
+            "text_version": "1999-01-01",
+        },
+        {"X-CSRFToken": session.cookies["csrftoken"]},
+    )
+    assert status == 400, f"a stale version was accepted, answering {status}: {payload!r}"
+    assert b"text_version" in payload
+
+
+def _run_outbox() -> None:
+    """Run send_outbound_mail once, inside the api container of the local stack.
+
+    The timer that does this on a host does not exist on a developer machine,
+    so the check does what the timer would: one run, foreground, exit code
+    read. `--entrypoint python` for the reason the systemd unit gives.
+    """
+    import subprocess
+
+    docker = shutil.which("docker")
+    assert docker, "the live checks need docker on PATH to run the outbox command"
+    subprocess.run(
+        [
+            docker,
+            "compose",
+            "-f",
+            COMPOSE.as_posix(),
+            "-f",
+            OVERRIDE.as_posix(),
+            "--env-file",
+            ENV_FIXTURE.as_posix(),
+            "run",
+            "--rm",
+            "--entrypoint",
+            "python",
+            "api",
+            "backend/manage.py",
+            "send_outbound_mail",
+        ],
+        check=True,
+        timeout=120,
+    )
+
+
+def _link_token_from_newest_mail(fragment: str) -> str:
+    """The token off the newest file the file transport wrote, and the file removed.
+
+    Removed, so a second run of this file reads its own mail and not the
+    previous run's, and so no working link stays on disk after the check.
+    """
+    files = sorted(MAIL_FIXTURE_DIR.glob("outbox-*.txt"), key=lambda path: path.stat().st_mtime)
+    assert files, f"no mail was written to {MAIL_FIXTURE_DIR}; did the transport run at all?"
+    newest = files[-1]
+    text = newest.read_text(encoding="utf-8")
+    newest.unlink()
+    match = re.search(rf"http://127\.0\.0\.1:8080/account/#{fragment}=([A-Za-z0-9_-]{{43}})", text)
+    assert match, f"the mail carries no {fragment} link:\n{text}"
+    return match.group(1)
+
+
+#: The one account the two recovery checks share, set by the verification
+#: check and read by the reset check. One registration instead of two, on
+#: purpose: auth-register allows five an hour per caller and the four
+#: existing live checks already spend three, so a second registration here
+#: would put every rerun inside the hour on a 429. pytest runs the functions
+#: of a module in definition order, which is why the verification check is
+#: written first.
+_RECOVERY_ACCOUNT: dict[str, str] = {}
+
+
+@needs_stack
+def test_live_a_verification_link_sets_the_timestamp() -> None:
+    """The mail registration itself queued, followed on a session that is not
+    signed in, and `me/` afterwards saying when. Leaves the account in place
+    for the reset check below."""
+    from accounts.nl import CONSENT_TEXT_VERSION
+
+    assert STACK is not None
+    session = _Session(STACK)
+    session.request("GET", "/api/auth/me/")
+    email = _fresh_email()
+    session.json(
+        "POST",
+        "/api/auth/register/",
+        {
+            "email": email,
+            "password": TEST_PASSWORD,
+            "consent_meter_link": False,
+            "consent_lead_generation": False,
+            "text_version": CONSENT_TEXT_VERSION,
+        },
+    )
+    assert session.json("GET", "/api/auth/me/")["email_verified_at"] is None
+    _run_outbox()
+    token = _link_token_from_newest_mail("verificatie")
+
+    stranger = _Session(STACK)
+    stranger.request("GET", "/api/auth/me/")
+    status, payload = stranger.request(
+        "POST",
+        "/api/auth/verify/confirm/",
+        {"token": token},
+        {"X-CSRFToken": stranger.cookies["csrftoken"]},
+    )
+    assert status == 204, payload
+
+    assert session.json("GET", "/api/auth/me/")["email_verified_at"] is not None
+    session.json("POST", "/api/auth/logout/")
+    _RECOVERY_ACCOUNT["email"] = email
+
+
+@needs_stack
+def test_live_a_reset_link_closes_the_loop() -> None:
+    """The whole recovery flow over one real connection, with the mail read
+    back out of a file: request, send, follow, set, sign in. No layer above
+    this can prove that the link in the mail is the link the API accepts.
+
+    Runs on the account the verification check registered, so the address is
+    already confirmed here; that a completed reset confirms an address on its
+    own is proved in tests/test_accounts_recovery.py and not repeated over
+    the wire.
+    """
+    assert STACK is not None
+    email = _RECOVERY_ACCOUNT.get("email")
+    assert email, (
+        "no account to reset: the verification check runs first and registers it, "
+        "and the two share one registration on purpose"
+    )
+    session = _Session(STACK)
+    session.request("GET", "/api/auth/me/")
+
+    answer = session.json("POST", "/api/auth/reset/request/", {"email": email})
+    assert answer == {}
+    _run_outbox()
+    token = _link_token_from_newest_mail("herstel")
+
+    status, payload = session.request(
+        "POST",
+        "/api/auth/reset/confirm/",
+        {"token": token, "password": OTHER_PASSWORD},
+        {"X-CSRFToken": session.cookies["csrftoken"]},
+    )
+    assert status == 204, payload
+    assert not any(header.startswith("ampeer_") for header in session.set_cookie), (
+        f"a reset signed somebody in: {session.set_cookie}"
+    )
+
+    status, _ = session.request(
+        "POST",
+        "/api/auth/login/",
+        {"email": email, "password": TEST_PASSWORD},
+        {"X-CSRFToken": session.cookies["csrftoken"]},
+    )
+    assert status == 401, "the old password still works after a reset"
+    session.json("POST", "/api/auth/login/", {"email": email, "password": OTHER_PASSWORD})
+    _assert_session_cookie_attributes(session, "login/ after a reset")
+    assert session.json("GET", "/api/auth/me/")["email_verified_at"] is not None
+
+    status, payload = session.request(
+        "POST",
+        "/api/auth/reset/confirm/",
+        {"token": token, "password": OTHER_PASSWORD},
+        {"X-CSRFToken": session.cookies["csrftoken"]},
+    )
+    assert status == 400 and b"token" in payload, (status, payload)
+    session.json("POST", "/api/auth/delete/", {"password": OTHER_PASSWORD})
+    _RECOVERY_ACCOUNT.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -316,6 +794,26 @@ def test_the_deploy_checks_that_retention_is_still_running() -> None:
     )
 
 
+def test_the_deploy_checks_that_the_outbox_is_being_emptied() -> None:
+    """The same shape as the retention check, for the mails a household is
+    waiting on. Neither notices a timer that was never enabled."""
+    workflow = DEPLOY_WORKFLOW.read_text(encoding="utf-8")
+    assert "send_outbound_mail --check" in workflow
+
+
+def test_the_mail_unit_runs_the_command_every_minute() -> None:
+    service = (INFRA / "systemd" / "ampeer-mail.service").read_text(encoding="utf-8")
+    timer = (INFRA / "systemd" / "ampeer-mail.timer").read_text(encoding="utf-8")
+    assert "backend/manage.py send_outbound_mail" in service
+    assert "--entrypoint python" in service
+    assert "OnCalendar=*-*-* *:*:00" in timer
+    # Line-anchored rather than a substring check: the file may still mention
+    # the flag in a comment explaining why it is absent, as ampeer-mail.timer
+    # does; only an actual `[Timer]` directive line has to be missing.
+    assert not any(line.startswith("Persistent=") for line in timer.splitlines())
+    assert "INSTALLED BY HAND" in service[:400]
+
+
 def test_the_purge_unit_fails_when_the_purge_achieved_nothing() -> None:
     """The other of the two places, on the host.
 
@@ -450,6 +948,20 @@ def env_fixture_lines(profile_path: str) -> list[str]:
         "POSTGRES_USER=ampeer",
         "POSTGRES_PASSWORD=smoke-check-placeholder-not-a-secret",
         "POSTGRES_HOST=db",
+        # The file transport: the two recovery checks of task 12 read the
+        # mail back out of infra/fixtures/mail/, which the override mounts on
+        # /srv/mail. The only file in the repository that ever says `file`;
+        # the preflight refuses it on a host.
+        "AMPEER_MAIL_TRANSPORT=file",
+        # Unused under the file transport and interpolated by compose all the
+        # same. Not beginning with `re_`, the prefix of a real Resend key, so
+        # this line can never be mistaken for one.
+        "RESEND_API_KEY=smoke-check-placeholder-not-a-secret",
+        # The reserved suffix again: nothing can ever be delivered to it.
+        "AMPEER_MAIL_FROM=noreply@ampeer.smoke.invalid",
+        # Where the links in a mail point, which for this stack is the
+        # published port. The check reads the token off that link's fragment.
+        "AMPEER_SITE_ORIGIN=http://127.0.0.1:8080",
         # Not a release. The local run builds both images from this tree and
         # tags them with this string, so nothing here can be confused with
         # something CI published.
@@ -488,8 +1000,10 @@ def test_the_environment_fixture_holds_no_value_that_could_be_mistaken_for_real(
     from /srv/ampeer/.env, and a placeholder that looks like a key is a key
     somebody ships."""
     for line in env_fixture_lines("/tmp/profile.csv"):
-        if line.startswith(("DJANGO_SECRET_KEY=", "POSTGRES_PASSWORD=")):
+        if line.startswith(("DJANGO_SECRET_KEY=", "POSTGRES_PASSWORD=", "RESEND_API_KEY=")):
             assert "placeholder-not-a-secret" in line, line
+        if line.startswith("RESEND_API_KEY="):
+            assert not line.split("=", 1)[1].startswith("re_"), line
 
 
 def test_the_environment_fixture_cannot_satisfy_the_readiness_check_by_accident() -> None:
@@ -534,6 +1048,12 @@ def test_the_environment_fixture_carries_the_local_hop_count(name: str) -> None:
 def main() -> int:
     """Write both fixtures where infra/compose.test.yml expects them."""
     write_profile_fixture(PROFILE_FIXTURE)
+    MAIL_FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
+    # The api container runs as uid 10001 and writes here through the bind
+    # mount. On Docker Desktop any uid may; on a Linux host the directory
+    # would belong to the developer, so it is opened up. Best effort: chmod is
+    # a no-op on Windows and this directory holds nothing but test mail.
+    MAIL_FIXTURE_DIR.chmod(0o777)
     # as_posix(), which is a no-op on the host and the whole difference on a
     # Windows developer machine. scripts/preflight_env.sh reads this value with
     # `[ -f ... ]` and refuses a path with no forward slash in it, on the
@@ -546,6 +1066,7 @@ def main() -> int:
     )
     size_mb = PROFILE_FIXTURE.stat().st_size / 1_048_576
     print(f"wrote {PROFILE_FIXTURE} ({size_mb:.2f} MB, {FIXTURE_QUARTERS} quarters)")
+    print(f"prepared {MAIL_FIXTURE_DIR}")
     print(f"wrote {ENV_FIXTURE}")
     return 0
 

@@ -1,0 +1,116 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api";
+import { getMe } from "@/lib/accounts";
+import { describeAuthError, fieldErrors } from "@/app/_account/messages";
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe("what a visitor reads when the account API said no", () => {
+  it("shows a 400's field messages, which are Dutch and come from the API", () => {
+    const error = new ApiError(
+      400,
+      { email: ["er bestaat al een account met dit e-mailadres"] },
+      "",
+    );
+    expect(describeAuthError(error)).toBe(
+      "er bestaat al een account met dit e-mailadres",
+    );
+  });
+
+  it("joins two field messages rather than showing one of them", () => {
+    const error = new ApiError(400, { password: ["te kort", "te simpel"] }, "");
+    expect(describeAuthError(error)).toBe("te kort te simpel");
+  });
+
+  it("shows a 401 as the API wrote it, which is one answer for two causes", () => {
+    // A wrong password and an unknown address answer identically on purpose.
+    const error = new ApiError(401, {}, "e-mailadres of wachtwoord klopt niet");
+    expect(describeAuthError(error)).toBe(
+      "e-mailadres of wachtwoord klopt niet",
+    );
+  });
+
+  it("shows a 403 as the API wrote it, which is the sentence saying to reload", () => {
+    const error = new ApiError(
+      403,
+      {},
+      "deze pagina stond te lang open, herlaad hem en probeer het opnieuw",
+    );
+    expect(describeAuthError(error)).toBe(
+      "deze pagina stond te lang open, herlaad hem en probeer het opnieuw",
+    );
+  });
+
+  it("shows a 429 as the API wrote it, because the API knows how long", () => {
+    const error = new ApiError(429, {}, "Probeer het over een uur opnieuw.");
+    expect(describeAuthError(error)).toBe("Probeer het over een uur opnieuw.");
+  });
+
+  it("writes its own sentence for a fault with no body", () => {
+    expect(describeAuthError(new ApiError(500, {}, ""))).toBe(
+      "De server had een storing. Probeer het straks opnieuw.",
+    );
+  });
+
+  it("writes its own sentence for a success this frontend could not read", () => {
+    expect(describeAuthError(new ApiError(200, {}, ""))).toBe(
+      "De server gaf een antwoord dat wij niet konden lezen.",
+    );
+  });
+
+  it("writes its own sentence when nothing came back at all", () => {
+    expect(describeAuthError(new TypeError("Failed to fetch"))).toBe(
+      "Wij konden de server niet bereiken. Controleer uw verbinding en probeer het opnieuw.",
+    );
+  });
+
+  it("says the same about a shape guard's own error, raised by a real call", async () => {
+    // The case above builds the error by hand, which proves what this file
+    // does with an empty message but nothing about whether `accounts.ts`
+    // ever sends one. This drives the client itself: `me/` answers 200 with
+    // a body that is not an account, `isMe` refuses it, and the error that
+    // reaches the screen goes through the same function the page uses. The
+    // guard's own words are English and are for a developer; a household
+    // reads the sentence below or the language boundary has been crossed
+    // from the wrong side.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(
+        async () =>
+          new Response("{}", {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+      ),
+    );
+    const raised: unknown = await getMe().then(
+      () => null,
+      (reason: unknown) => reason,
+    );
+    expect(raised).toBeInstanceOf(ApiError);
+    const shown = describeAuthError(raised);
+    expect(shown).toBe("De server gaf een antwoord dat wij niet konden lezen.");
+    expect(shown).not.toContain("auth API returned");
+  });
+
+  it("never prints ApiError's own English default, even sent by hand", () => {
+    // Not `new ApiError(401)`: that exercises the constructor's own default
+    // parameters and not this file's code. Constructed the way
+    // `accounts.ts`'s `call()` does, three arguments given by hand, with a
+    // detail that happens to equal that default word for word: the one input
+    // the guard in `describeAuthError` exists for.
+    const error = new ApiError(401, {}, "advice API returned 401");
+    expect(describeAuthError(error)).not.toContain("advice API returned");
+  });
+
+  it("keeps a token error beside the field it belongs to", () => {
+    const error = new ApiError(
+      400,
+      { token: ["deze link is verlopen of al gebruikt; vraag een nieuwe aan"] },
+      "",
+    );
+    expect(fieldErrors(error)).toEqual({
+      token: ["deze link is verlopen of al gebruikt; vraag een nieuwe aan"],
+    });
+  });
+});

@@ -24,6 +24,7 @@ from django.conf import settings
 from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
+from helpers.accounts import TEST_PASSWORD
 from rest_framework.settings import api_settings
 from rest_framework.test import APIClient
 
@@ -288,6 +289,31 @@ def test_an_expired_token_is_a_404_and_not_stale_content() -> None:
     )
     response = APIClient().get(reverse("advice-detail", args=[created["token"]]))
     assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_ownership_adds_and_takes_nothing_away(client: Any) -> None:
+    """The property phase 2 will be under pressure to break.
+
+    An advice that belongs to somebody stays readable on its token, and an
+    advice that belongs to nobody keeps working exactly as it did. Ownership is
+    an addition; it is not a filter on the route that already exists, and
+    `StoredAdvice.get_live` is deliberately unchanged.
+    """
+    from accounts.models import User
+    from advice.models import StoredAdvice
+
+    anonymous = StoredAdvice.create(inputs={"postcode4": "5401"}, advice={"token": "x"})
+    owned = StoredAdvice.create(inputs={"postcode4": "5401"}, advice={"token": "y"})
+    owned.owner = User.objects.create_user(email="iemand@voorbeeld.nl", password=TEST_PASSWORD)
+    owned.save(update_fields=["owner"])
+
+    assert anonymous.owner is None
+    for stored in (anonymous, owned):
+        response = client.get(f"/api/advice/{stored.token}/")
+        assert response.status_code == 200, (
+            f"an advice with owner={stored.owner_id} answers {response.status_code} on its token"
+        )
 
 
 def test_an_invalid_estimate_is_refused_with_the_field_named() -> None:
@@ -615,7 +641,13 @@ class TestTheBrowserIsAllowedToReadTheAnswer:
     reads an hour, computes an answer, and the browser drops it.
     """
 
-    ALLOWED = "http://localhost:3000"
+    #: One of the two origins dev.py names, which the test settings inherit.
+    #: It was `http://localhost:3000` until 2026-09-07, when that origin left
+    #: dev.py: a cookie belongs to a site, and localhost is not the site
+    #: 127.0.0.1 is, so no account page served from there could ever hold a
+    #: session. The advice API carries no cookie and did not care, which is
+    #: precisely why the constant had to be read off the settings that ship.
+    ALLOWED = "http://127.0.0.1:3000"
 
     def test_a_preflight_from_the_frontend_is_answered(self) -> None:
         """The POSTs send content-type: application/json, which is outside the

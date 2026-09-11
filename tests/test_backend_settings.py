@@ -34,6 +34,12 @@ REQUIRED_ENV = {
     # because a permissive fallback here is an API any page on the internet can
     # read a household's figures out of, and it fails silently from this side.
     "DJANGO_CORS_ALLOWED_ORIGINS": "https://ampeer.nl,https://www.ampeer.nl",
+    # How the mail leaves. `resend` here so the key below is exercised too;
+    # a deployment on the local stack's `file` never reaches this dict.
+    "AMPEER_MAIL_TRANSPORT": "resend",
+    "RESEND_API_KEY": "test-key-not-a-real-resend-key",
+    "AMPEER_MAIL_FROM": "noreply@ampeer.test.invalid",
+    "AMPEER_SITE_ORIGIN": "https://ampeer.test.invalid",
 }
 
 
@@ -131,30 +137,22 @@ def test_production_allows_only_the_hosts_it_was_given(
 
 
 def test_nothing_authenticates_because_there_is_nothing_to_log_in_to() -> None:
-    """Absent on purpose, which is worth saying because two named requirements
-    are absent with them.
+    """Sessions and admin stay absent, and so does an authentication class on
+    the public endpoints, even though accounts now exist.
 
-    CLAUDE.md lists Argon2id hashing and django-axes under security that holds
-    in every phase, and neither is configured. That follows from this test
-    rather than contradicting it: base.py leaves out auth, sessions and admin
-    because an installed app is attack surface whether or not a URL points at
-    it, and a brute force defence with no login to defend is the same thing.
-
-    What makes the absence safe today also makes it dangerous later. Django
-    supplies AUTHENTICATION_BACKENDS and PASSWORD_HASHERS whether or not
-    anything uses them, and its defaults are ModelBackend alone and
-    PBKDF2PasswordHasher first, measured on 2026-08-22. So the day accounts
-    arrive, passwords are hashed with PBKDF2 unless somebody changes it, and
-    nothing raises. Argon2 does not replace a blank, it replaces a working
-    default, which is the harder kind of thing to remember.
-
-    test_authentication_never_arrives_without_its_defences, lower in this file,
-    is what fails on that day.
+    `django.contrib.auth` itself is no longer absent: task 3 of
+    docs/superpowers/plans/2026-09-04-accounts-auth.md adds it, because
+    AUTH_USER_MODEL needs it to start. What CLAUDE.md and this test actually
+    guard is narrower and still holds: no session middleware, no admin site,
+    and REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"] stays empty so the
+    advice endpoints remain anonymous. A brute force defence with no login to
+    defend was the old reading; from this commit there is a login, and axes
+    defends it, which is test_authentication_never_arrives_without_its_defences,
+    lower in this file.
     """
     from django.conf import settings
 
     assert settings.REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"] == []
-    assert "django.contrib.auth" not in settings.INSTALLED_APPS
     assert "django.contrib.sessions" not in settings.INSTALLED_APPS
     assert "django.contrib.admin" not in settings.INSTALLED_APPS
 
@@ -794,4 +792,101 @@ def test_the_deployment_computes_the_weather_year_the_model_was_validated_on() -
     assert base.AMPEER_WEATHER_YEAR == DEFAULT_WEATHER_YEAR, (
         f"the deployment computes {base.AMPEER_WEATHER_YEAR} and the model relies on "
         f"{DEFAULT_WEATHER_YEAR}"
+    )
+
+
+def test_the_argon2_hasher_is_the_id_variant() -> None:
+    """CLAUDE.md asks for Argon2id, and that is the `type` field of the
+    hasher's own encoding parameters, rather than its class name. Assuming the
+    variant is right because the class is called Argon2 is a check that cannot
+    go red.
+
+    Deviation from the plan text: it reads `getattr(hasher, "type", None)`,
+    which is `None` on the installed Django 5.2.17. That version moved the
+    Argon2 type out of an instance attribute and into `Argon2PasswordHasher.
+    params()`, which always returns `argon2.Parameters(type=Type.ID, ...)`.
+    Read as written, the assertion compares None to Type.ID and is red no
+    matter how PASSWORD_HASHERS is ordered, which is not a check that can go
+    green on a correct configuration. Reading `hasher.params().type` instead
+    is what the docstring above already asks for.
+    """
+    import argon2
+    from django.contrib.auth.hashers import Argon2PasswordHasher, get_hasher
+
+    hasher = get_hasher("argon2")
+    assert getattr(hasher, "algorithm", "") == "argon2"
+    # Narrows the type for mypy, and is itself part of what this test is
+    # checking: `params()` is specific to this hasher class, not to every
+    # `BasePasswordHasher`.
+    assert isinstance(hasher, Argon2PasswordHasher), type(hasher)
+    configured_type = hasher.params().type
+    assert configured_type is argon2.low_level.Type.ID, (
+        f"the configured Argon2 hasher uses {configured_type}, not Argon2id"
+    )
+
+
+def test_production_never_lets_a_cookie_cross_an_origin(monkeypatch: pytest.MonkeyPatch) -> None:
+    """dev.py turns CORS_ALLOW_CREDENTIALS on so a developer can log in at all.
+    That line copied one file up is an API whose cookies any allowed origin can
+    ride, and the allowed origins in production come from the environment.
+
+    Routed through `_load_prod(monkeypatch)`, like every other prod.py
+    assertion in this file. A bare `import ampeer.settings.prod` reads
+    whatever is already in `sys.modules`: it only imports fresh, and raises
+    `RuntimeError: DJANGO_SECRET_KEY is not set`, the first time anything
+    imports this module in the process. In the full file that first import
+    happens inside an earlier `_load_prod` call and this test then reads that
+    cached module object, so it passes here but dies under `-k`, under a
+    single-test rerun, or under any reordering of this file.
+    """
+    prod = _load_prod(monkeypatch)
+
+    assert prod.CORS_ALLOW_CREDENTIALS is False
+    assert prod.AMPEER_COOKIE_SECURE is True
+
+
+def test_development_still_allows_the_cookie_a_developer_needs() -> None:
+    """The other half of the pin in ampeer/settings/test.py.
+
+    That file pins CORS_ALLOW_CREDENTIALS back to False so the test
+    environment mirrors production, per Ruling 21, and nothing else in this
+    file reads dev.py directly. Without this, a later edit that quietly
+    deleted dev.py's own `CORS_ALLOW_CREDENTIALS = True` would leave the
+    whole suite green while a developer's browser refused every authenticated
+    answer: 127.0.0.1:3000 to 127.0.0.1:8000 is cross-origin, and a response
+    to a request sent with credentials is dropped without this header.
+    """
+    from ampeer.settings import dev
+
+    assert dev.CORS_ALLOW_CREDENTIALS is True
+
+
+def test_development_names_only_origins_a_browser_can_hold_a_session_on() -> None:
+    """The rest of what a developer's browser needs, none of which any other
+    test walks.
+
+    Ruling 104 found the first two by hand on 2026-09-07, the first time
+    anybody registered from a real browser against the dev API. The e2e specs
+    answer their own preflights and the stack smoke sends a production shaped
+    Origin, so the whole path had gone unexercised for two cycles. The account
+    client sends X-CSRFToken on every unsafe request, and a preflight that does
+    not name that header makes the browser drop the request before it leaves;
+    Django's CSRF check then compares the Origin with the request's own host
+    and refuses port 3000 against port 8000 unless the origin is trusted.
+
+    The third assertion is the one that makes the other two usable. A cookie
+    belongs to a site, not to an origin, and localhost and 127.0.0.1 are two
+    different sites, so an allowed origin on localhost can never carry the
+    session cookie or the host-only csrftoken cookie no matter what CORS says.
+    Listing one only offers a developer a door that does not open.
+    """
+    from urllib.parse import urlparse
+
+    from ampeer.settings import dev
+
+    assert "x-csrftoken" in dev.CORS_ALLOW_HEADERS
+    assert set(dev.CSRF_TRUSTED_ORIGINS) == set(dev.CORS_ALLOWED_ORIGINS)
+    hosts = [urlparse(origin).hostname for origin in dev.CORS_ALLOWED_ORIGINS]
+    assert "localhost" not in hosts, (
+        f"{hosts} contains localhost, which cannot hold a cookie set for 127.0.0.1"
     )

@@ -1,0 +1,33 @@
+{
+  "email": "iemand@voorbeeld.nl",
+  "date_joined": "2026-09-09T09:42:34.676820+00:00",
+  "email_verified_at": "2026-09-09T09:42:35.041178+00:00",
+  "consents": [
+    {
+      "kind": "METER_LINK",
+      "action": "GRANTED",
+      "occurred_at": "2026-09-09T09:42:34.853295+00:00",
+      "text_version": "2026-09-04"
+    }
+  ],
+  "advices": [],
+  "meter": {
+    "created_at": "2026-09-09T09:42:35.049645+00:00",
+    "last_seen_at": null,
+    "hours": [
+      {
+        "hour_start": "2026-05-11T09:00:00+00:00",
+        "consumption_kwh": 0.9,
+        "feed_in_kwh": 0.1,
+        "quarters": 4
+      }
+    ],
+    "quarters": [
+      {
+        "measured_at": "2026-09-08T09:00:00+00:00",
+        "consumption_kwh": 0.243,
+        "feed_in_kwh": 0.0
+      }
+    ]
+  }
+}

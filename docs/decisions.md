@@ -54,10 +54,18 @@ rather than case by case, and the way to keep a categorical rule true is a
 categorical check. Judged on the import rather than on a call, because a module
 that imports requests can reach outward on any line added later.
 
-**Lives in:** `tests/test_boundaries.py`, in `OUTBOUND_MODULE`.
+**Lives in:** `tests/test_boundaries.py`, in `OUTBOUND_MODULES`.
 
-**To reverse:** add the second module to that constant. Doing so is the point at
+**To reverse:** add another module to that constant. Doing so is the point at
 which somebody has to say why the backend now fetches.
+
+Addendum, 2026-09-07: the constant this entry named, `OUTBOUND_MODULE`, was
+renamed to `OUTBOUND_MODULES` when the second source was added (entry 3
+below) and now holds three rows: `ampeer_sim/production/pvgis.py`,
+`tools/ingest_profiles.py` and, since the recovery cycle,
+`backend/accounts/mailer.py`. The rule this entry decided, that the import
+and not the call is what a categorical check pins, is unchanged; only the
+name and the count moved, and entries 3 and 44 carry the detail.
 
 ### 3. The external allowlist is a module constant, not a settings entry
 
@@ -81,6 +89,14 @@ settings layer that two callers would read.
 
 **To reverse:** move the host into settings and have the test read it from
 there. The check itself does not change shape.
+
+Addendum, 2026-09-07: a third module joined on 2026-09-06.
+`backend/accounts/mailer.py` reaches `api.resend.com` under the same rule,
+entirely from the outbox command described in entry 43, never from a request
+a visitor can reach. `OUTBOUND_MODULES` now names three modules and three
+hosts, and this entry's opening sentence, "the one permitted host lives as
+`PVGIS_URL`", describes the state before the first widening and not the
+shape of the constant today; entry 44 is the decision that added the third.
 
 ### 4. The readiness endpoint is the only route without a rate limit
 
@@ -924,16 +940,927 @@ assets out inside the model instead. That needs the floor the analysis derives,
 2550 kWh of residual base, and a rule for what happens below it, and it moves
 every asset-owning household's figure up by 36 to 145 percent in one commit.
 
+### 27. The account model was decided in the same task that created the app
+
+**Decided:** `AUTH_USER_MODEL = "accounts.User"` is set in the first commit
+that adds the `accounts` app, before `accounts/migrations/0001_initial.py`
+exists, rather than left on Django's default with a swap planned for later.
+
+**Because:** every foreign key any later task points at the user model bakes
+the target into its own migration's state at the moment that migration is
+written, not at the moment it runs. `Consent.user`, `RefreshSession.user` and
+`StoredAdvice.owner` all arrived in tasks after this one, and each of their
+migrations records `accounts.User` as the model it points at. Setting
+`AUTH_USER_MODEL` after any of those three migrations existed would have meant
+starting them against Django's own `auth.User` and then swapping, which
+Django's own documentation calls out by name as something to avoid once
+migrations exist: doing it means regenerating every migration that references
+the user model and recreating the database behind it, in production the same
+outage decision 8's version bump is designed to make visible rather than
+silent. There was never a point after task 3 where deferring this stayed free.
+
+**Lives in:** `AUTH_USER_MODEL` in `backend/ampeer/settings/base.py`,
+`backend/accounts/migrations/0001_initial.py`.
+
+**To reverse:** there is no cheap reverse. Moving to a different user model now
+means writing the same migrations Django's documentation warns about, against
+a database that already holds `Consent`, `RefreshSession` and `StoredAdvice`
+rows pointing at this one.
+
+### 28. An account's advice rows are deleted with it, not orphaned
+
+**Decided:** `StoredAdvice.owner` is `on_delete=models.CASCADE`, not
+`SET_NULL`.
+
+**Because:** the advice a household made is the only thing this product keeps
+about that household, so deleting the account and leaving the advice behind
+under a cleared `owner` would still answer the token for the rest of the
+ninety days. `SET_NULL` turns a deletion request into a rename: the row
+survives, readable exactly as before, only the link back to the account is
+gone. `CASCADE` is what makes "delete my account" and "delete what you hold
+about me" the same request rather than two, which is the sentence
+`docs/dpia.md` chapter 7 now makes about `POST /api/auth/delete/`. Nothing
+writes this column in phase 1, so today's choice affects nobody yet; it is
+recorded now because adding the column later, the way `year_field`'s
+`shareable_token` argument was, is a migration over every stored advice and
+this decision has to be settled before that migration runs, not after.
+
+**Lives in:** `owner` in `backend/advice/models.py`,
+`backend/accounts/service.py`.
+
+**To reverse:** change the field to `SET_NULL` and add a second, explicit
+delete of the household's own advice rows to `delete_account`, since leaving
+them ownerless is exactly the behaviour this decision rules out.
+
+### 29. Refresh tokens are tracked by a digest of their own app, not simplejwt's blacklist
+
+**Decided:** `backend/accounts/models.py` defines `RefreshSession`, storing
+only `jti_sha256`, rather than enabling simplejwt's `token_blacklist` app.
+
+**Because:** `token_blacklist`'s `OutstandingToken.token` column stores the
+whole refresh JWT in plaintext, which is a working credential sitting in a
+database column. CLAUDE.md forbids exactly that, in the same words
+`docs/dpia.md` chapter 2 already used for the advice token: the thing stored
+must not be a usable key to the thing it protects. `RefreshSession` carries the
+sha256 of the token's `jti` instead, which lets rotation and reuse detection
+work (`rotated_at` records an exchange, and a second exchange of the same
+token revokes every session the account has) without a column anyone could
+present as a bearer token if the database ever leaked.
+
+**Lives in:** `RefreshSession` in `backend/accounts/models.py`.
+
+**To reverse:** add `rest_framework_simplejwt.token_blacklist` to
+`INSTALLED_APPS` and drop `RefreshSession`. The plaintext column comes back
+with it, so this reverse is also the one decision 27's user model constraint
+would not have blocked but this project's own security rule does.
+
+### 30. The axes cache handler was measured before it was trusted, twice
+
+**Decided:** `AXES_HANDLER = "axes.handlers.cache.AxesCacheHandler"` stays,
+with `AXES_CLIENT_IP_CALLABLE` and `AXES_USERNAME_CALLABLE` pointed at
+`accounts.lockout`, rather than the default database handler. `axes` in
+`INSTALLED_APPS` runs its migrations either way, so `AccessAttempt`,
+`AccessLog` and `AccessFailureLog` exist on this database regardless, each
+with an `ip_address` column; what the cache handler buys is that none of the
+three ever receives a row (measured: zero rows in all three after six failed
+HTTP logins).
+
+**Because:** two separate properties had to hold for a shared cache counter to
+be trustworthy for a lockout, and both were measured rather than assumed.
+
+Measurement 1, `tests/test_accounts_lockout_store.py`, asks whether
+`DatabaseCache.incr`, which Django implements as an unlocked get-then-set,
+loses so many concurrent increments that a lockout threshold is never reached.
+Measured on 2026-09-04 against Postgres, 8 threads each writing 25 increments
+to one key: about 25 to 27 of the 200 writes survived across four independent
+runs (25, 25, 26 and, on a fourth run, 27). The spread is tight because
+`200 / 8 = 25` is close to a fixed point of this race for equal, non-
+overlapping worker batches; the fourth run reading 27 rather than 25 or 26 is
+what shows this is a real race with run-to-run variance and not an arithmetic
+identity that happens to equal 25 every time. `DatabaseCache.incr`'s loss
+scales with the concurrency of the writer, which is the wrong direction for a
+defence built to survive an attacker sending more requests, not fewer. What
+bounds the damage is that axes keys on `(username, visitor digest)` rather
+than on a global counter, so attackers arriving from different addresses never
+collide on the same key, and the one case that does collide, a single identity
+hammering a single account, is capped upstream at 10 attempts an hour by the
+`auth-login` throttle scope, far below the 25 to 27 the cache still carries
+correctly under 8-way contention. So the design is layered rather than resting
+on the cache alone: nginx limits the whole service to 10 requests a second,
+DRF's `auth-login` scope limits one visitor to 10 an hour, and axes sits behind
+both as defence in depth rather than as the only thing standing between an
+attacker and the account. `test_the_login_route_throttles_before_axes_contention_could_matter`,
+added in task 9, is the mechanical form of this argument: it asserts the
+throttle refuses an attacker long before contention on the cache key could.
+Anyone who raises `AXES_FAILURE_LIMIT` past 5, or loosens `auth-login` well
+above 10 an hour, changes the numbers this paragraph relies on and should
+re-run this measurement rather than assume it still holds; the two settings
+are coupled through this argument and not through any code that enforces it.
+
+Measurement 2, `tests/test_accounts_lockout.py`, asks a different question:
+whether axes counts anything at all in a stack with no
+`AuthenticationMiddleware` and no session, which this project has neither of.
+Measured on 2026-09-04 with `RequestFactory` requests carrying no middleware
+at all: `AXES_FAILURE_LIMIT` failed calls to `django.contrib.auth.authenticate`
+left the next attempt refused by `AxesProxyHandler.is_allowed`, and the correct
+password was refused with it, confirming the lockout fires exactly at the
+configured limit independent of session middleware.
+
+Together the two measurements are why the cache handler stands: it loses
+writes under heavy contention and still crosses the threshold that matters,
+and it fires correctly in the session-less stack this project actually runs.
+
+**Lives in:** `AXES_HANDLER` in `backend/ampeer/settings/base.py`,
+`backend/accounts/lockout.py`, `tests/test_accounts_lockout_store.py`,
+`tests/test_accounts_lockout.py`.
+
+**To reverse:** switch to the database handler and accept the `ip_address`
+column decision 27's sibling settings were written to avoid, or re-measure
+after any change to `AXES_FAILURE_LIMIT` or `auth-login` before trusting this
+argument again.
+
+### 31. There is no password reset route, and the delete endpoint inherits the consequence
+
+**Decided:** phase 1 ships registration, login, refresh, logout, consent,
+export and delete, and no route to reset a forgotten password.
+
+**Because:** every one of the seven routes that exists has a place to hand a
+visitor who forgot their password: none, because none of them is the recovery
+flow. `DeleteView` asks for the current password before it acts, which is
+exactly right when the caller still knows it and leaves no route at all for a
+caller who does not. That is accepted here rather than treated as a bug: a
+password reset needs an outbound channel this project has never built, and
+`django.contrib.auth.tokens.PasswordResetTokenGenerator` already ships with
+`django.contrib.auth`, which decision 27 already added to `INSTALLED_APPS`.
+What is missing is not the token generator, it is an `EMAIL_BACKEND` and
+somewhere to send the mail, and adding those without adding the flow around
+them would be building half a feature. A household that forgets its password
+today cannot delete its own account through this API and has no self-service
+way to regain access either; both wait on the same missing channel.
+
+**Lives in:** `DeleteView` in `backend/accounts/views.py`, and
+`django.contrib.auth` in `backend/ampeer/settings/base.py`, which is present
+while no email backend is configured beside it.
+
+**To reverse:** configure an `EMAIL_BACKEND`, add a request-reset and
+confirm-reset route built on `PasswordResetTokenGenerator`, and update
+`docs/dpia.md` chapter 7 to describe the new route the same way it describes
+the other eight.
+
+### 32. The login trap fired exactly as designed, and its neighbour lost one assertion
+
+**Decided:** `test_authentication_never_arrives_without_its_defences` in
+`tests/test_backend_settings.py`, laid before this branch existed as a trap
+aimed at the day accounts arrived, fired when task 3 added
+`django.contrib.auth` to `INSTALLED_APPS`, and named exactly what was missing
+until axes, Argon2 and the backend ordering landed with it in the same commit.
+Its neighbour, `test_nothing_authenticates_because_there_is_nothing_to_log_in_to`,
+had its assertion that `"django.contrib.auth" not in settings.INSTALLED_APPS`
+removed rather than reworded, and its docstring narrowed to the three claims
+that are still true: no session middleware, no admin site, and
+`REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"]` stays empty.
+
+**Because:** `AUTH_USER_MODEL` needs `django.contrib.auth` in
+`INSTALLED_APPS` to exist at all, so the neighbour's fourth assertion was
+never going to survive accounts landing; keeping it and reworking it to test
+something else would have hidden that this specific claim, not a nearby one,
+became false. Removing it rather than flipping its polarity is what makes the
+trap test's own green result mean something: the trap is what now stands guard
+over the requirement the removed assertion used to state on its own, so the
+coverage is not thinner, it moved to the test built to catch exactly this.
+
+**Lives in:** `test_authentication_never_arrives_without_its_defences` and
+`test_nothing_authenticates_because_there_is_nothing_to_log_in_to` in
+`tests/test_backend_settings.py`.
+
+**To reverse:** put the removed assertion back and accept that it is
+permanently red for as long as accounts exist, which is the state this entry
+exists to explain rather than let a reader rediscover from a red CI run.
+
+### 33. The global rate ceiling moved from 5 to 10 requests a second when accounts arrived
+
+**Decided:** `limit_req_zone` in `infra/nginx/nginx.conf` raises its rate from
+5r/s to 10r/s.
+
+**Because:** `test_something_ahead_of_django_limits_the_rate` in
+`tests/test_nginx_config.py` sums every `DEFAULT_THROTTLE_RATES` scope into a
+per-visitor rate and requires the nginx ceiling to clear it by at least 50
+times. Before this branch, three advice scopes summed to 0.0722 requests a
+second, and 5r/s cleared that by 69 times. The six new `auth-*` scopes this
+branch adds bring the total to 0.13333 requests a second, and 5r/s against
+that new sum is only 37.5 times, under the 50x the test demands. Raising the
+ceiling to 10r/s restores a 75x margin.
+
+Three cheaper alternatives were measured and rejected before raising the
+ceiling. Halving `auth-read` to 60 an hour still leaves the sum high enough
+that 5r/s only clears it 42.9 times, still under the line. Deleting
+`auth-read` entirely brings the sum to exactly 0.1 requests a second, which
+5r/s clears at exactly 50 times: technically passing and not a margin anybody
+should ship, since it depends on no other scope ever moving by a single
+request an hour. Lowering `auth-login` was not measured because it was refused
+outright: decision 30's whole argument that a lockout counter's measured loss
+is safe rests on `auth-login` capping one identity at 10 attempts an hour, so
+this is the one scope this task will not touch to make a different test pass.
+The next scope this service adds will run the same arithmetic again, and
+`infra/nginx/nginx.conf`'s own comment beside `limit_req_zone` names both
+figures so whoever changes one finds the other.
+
+**Lives in:** `limit_req_zone` in `infra/nginx/nginx.conf`,
+`DEFAULT_THROTTLE_RATES` in `backend/ampeer/settings/base.py`,
+`test_something_ahead_of_django_limits_the_rate` in
+`tests/test_nginx_config.py`.
+
+**To reverse:** lower the rate back to 5r/s and expect
+`test_something_ahead_of_django_limits_the_rate` to fail at 37.5x against the
+50x floor it asks for, exactly as it did before this decision.
+
+### 34. The version of the consent text travels in the request
+
+**Decided:** `RegisterSerializer` and `ConsentSerializer` carry a `text_version`
+field, and a value that is not `CONSENT_TEXT_VERSION` is a 400 under that field
+name. On a withdrawal the field is ignored entirely.
+
+**Because:** the column exists to answer article 7(1), which is to demonstrate
+what was agreed to. Without this lock the window is small and real: a tab left
+open for an hour while the text is rewritten and rolled out, after which
+`Consent.record` stamps the new version on a row whose owner read the old
+sentence. Nothing anywhere could then see the difference. The withdrawal
+exception is article 7(3): taking consent back may never be harder than giving
+it, and refusing a withdrawal because the wording changed is exactly that.
+
+**Lives in:** `backend/accounts/serializers.py`, with the message in
+`backend/accounts/nl.py` under `consent_text_stale`.
+
+**To reverse:** drop the two validators. The cost is that the guarantee in
+chapter 5 of the frontend design becomes a claim nothing checks, and
+`test_live_the_consent_text_shown_is_the_text_recorded` is the test that would
+then be measuring an agreement rather than a mechanism.
+
+### 35. One token exchange at page load, and it is not a retry
+
+**Decided:** a 401 on `me/` while `/account/` is loading is followed by exactly
+one `POST refresh/` and one more `GET me/`. A second 401 ends it. A 401 later in
+the session exchanges nothing. `api.ts`'s rule that nothing is ever retried on
+any status stays as it is, and this exchange lives in one function.
+
+**Because:** the access token lives fifteen minutes and the refresh token
+fourteen days, so without the exchange a fourteen day token is worthless from
+minute sixteen. It is not a repetition of the same request: a different
+credential sits under the second one. A second 401 after a successful rotation
+means the cookie the server has just set is not being accepted, which no further
+attempt repairs, and continuing would rotate once per page load, empty the
+auth-refresh bucket of 60 an hour and, once an already exchanged token is
+offered again, revoke every session that account has. A client that keeps trying
+signs the visitor out everywhere.
+
+**Lives in:** `frontend/src/app/_account/session.ts`.
+
+**To reverse:** the sentence to change is the one in `accounts.ts`'s header
+saying the exchange is not in that module. Moving it there is what would make
+this a retry.
+
+### 36. Field errors are rendered one field at a time, not folded into one alert
+
+**Decided:** `_account/messages.ts` exports `fieldErrors`, a per-field accessor
+built on `error.fields` the same way `fieldMessages` in `_flow/messages.ts`
+reads it, and imports that function rather than redefining it. `SignInForm`
+and `RegisterForm` render each field's own messages linked to that field by
+`aria-describedby`, and the form-level `role="alert"` paragraph carries only
+the messages that name no field: a 401's `detail`, a 429, the network
+sentence.
+
+**Because:** chapter 8 of the frontend design binds a field error to its field
+by `aria-describedby`, which one joined sentence in a form-level alert cannot
+do. `describeAuthError` returns a single string, so the two forms as first
+drafted folded a genuine `email` or `password` 400 from `register/` into that
+one alert, on the first screen a household reaching this route sees.
+
+**Lives in:** `frontend/src/app/_account/messages.ts`,
+`frontend/src/app/_account/SignInForm.tsx`,
+`frontend/src/app/_account/RegisterForm.tsx`.
+
+**To reverse:** delete `fieldErrors` and go back to `describeAuthError` alone
+for every message. The two forms then read correctly again only as long as no
+field ever carries two different validation failures at once, which is the
+case `aria-describedby` exists for.
+
+### 37. The consent rendered first is the one that improves the advice, not the one alphabetically first
+
+**Decided:** on both consent surfaces, `RegisterForm.tsx` and
+`AccountPage.tsx`, a `CONSENT_RENDER_ORDER` constant lists `METER_LINK`
+before `LEAD_GENERATION`, and each surface maps over that constant rather
+than over `CONSENT_KINDS`. `CONSENT_KINDS` itself is untouched.
+
+**Because:** `CONSENT_KINDS` is `["LEAD_GENERATION", "METER_LINK"]`,
+alphabetical order, and review of the registration form found the commercial
+consent rendering above the one that improves the advice, on the one screen
+where the neutrality this product is built on is visible. Reordering
+`CONSENT_KINDS` was rejected because that constant is also the iteration
+order `MeView` and the frontend's shape check use to decide which two kinds
+exist at all, and changing it to fix a render order would make an unrelated
+contract depend on which consent happens to be listed first.
+
+**Lives in:** `CONSENT_RENDER_ORDER` in
+`frontend/src/app/_account/RegisterForm.tsx` and in
+`frontend/src/app/_account/AccountPage.tsx`.
+
+**To reverse:** delete the two constants and map over `CONSENT_KINDS`
+directly. The order becomes alphabetical again, which is what put
+`LEAD_GENERATION` first the first time.
+
+### 38. A consent's label is a strict reduction of its text, and a future edit is re-checked against that
+
+**Decided:** the two consent kind labels in `CONSENT_LABELS`
+(`frontend/src/app/_account/ConsentRow.tsx`) stand as written, beside the two
+texts in `backend/accounts/nl.py`:
+
+| Kind | Label | Text |
+|---|---|---|
+| `METER_LINK` | "Kwartiergegevens van uw slimme meter" | "Ik geef Ampeer toestemming om de kwartiergegevens van mijn slimme meter te verwerken om mijn advies nauwkeuriger te maken. Ik kan deze toestemming op elk moment intrekken." |
+| `LEAD_GENERATION` | "Doorgeven aan een installateur" | "Ik geef Ampeer toestemming om mijn gegevens door te geven aan een installateur als ik daar zelf om vraag. Dit is niet nodig om Ampeer te gebruiken en het verandert niets aan het advies dat ik krijg." |
+
+Any future edit to a label is re-checked against its text: a label may
+narrow what it says only as far as the text still covers, and it may never
+claim less than its row records. A versioned `label` field on
+`consent-texts/`, so a label edit is caught the same mechanical way
+`text_version` already catches a text edit, is scheduled for the next
+backend touch of `backend/accounts/`.
+
+**Because:** `text_version` locks a change to the recorded text, but a label
+edit is invisible to it today: nothing would notice a label narrowed below
+the text it sits beside. Read side by side, both labels are strict
+reductions of their text and neither adds a claim, a purpose or a scope; the
+one asymmetry runs in the safe direction, since `LEAD_GENERATION`'s label
+omits the text's limitation "als ik daar zelf om vraag", so a visitor can
+expect to have consented to more than the row records, never less.
+`ConsentCheckbox` keeps a label and its text inside one `<label>` element, so
+the two are never encountered apart. `ConsentRow` renders the label and the
+text as two separate `<p>` elements, with no `<label>` at all: only the
+label paragraph is wired to the toggle button, through that button's
+`aria-describedby`, while the text paragraph sits beside it in the same row
+with no ARIA link of its own.
+
+**Lives in:** `backend/accounts/nl.py`,
+`frontend/src/app/_account/ConsentRow.tsx`.
+
+**To reverse:** drop the re-check rule and let a label be edited
+independently of its text. Nothing today would then catch a label narrowed
+below what the text beside it says, since only `text_version` is enforced.
+
+### 39. The deletion confirmation says what deletion removes, before the button that does it
+
+**Decided:** the account view's delete panel shows one sentence, read before
+the password field, saying what deletion removes and what stays:
+
+> "Hiermee verdwijnen uw e-mailadres, uw twee toestemmingen, uw opgeslagen
+> adviezen en uw sessies. In ons logboek blijft alleen de regel staan dat een
+> account is verwijderd, met een nummer dat nergens meer heen wijst."
+
+**Because:** the frontend design's chapter 6.3 as written asked only for
+"one password field and a confirm button", which tells a visitor nothing
+about what they destroy. A confirmation that does not inform is a hesitation
+prompt, not a confirmation, and this is the mirror of consent: the text must
+be read before the tick, so the consequence must be read before the button.
+The sentence matches `delete_account` in `backend/accounts/service.py` (the
+CASCADE takes the email, both consents and every stored advice) and the
+DPIA's own line about the audit id that outlives the account and points
+nowhere afterwards.
+
+**Lives in:** `DELETION_CONSEQUENCES` in
+`frontend/src/app/_account/AccountPage.tsx`, `delete_account` in
+`backend/accounts/service.py`.
+
+**To reverse:** delete the sentence. The panel goes back to a password field
+and a button with no stated consequence.
+
+### 40. A 429 on `/api/auth/` answers in Dutch from this project's own table, not DRF's
+
+**Decided:** `_AuthAPIView.throttled()` overrides DRF's default handling of a
+429. `wait` is turned into whole seconds with the same rounding DRF itself
+uses to build `Retry-After`, and the exception's `detail` is built from
+`nl.py`'s `throttled` (with the seconds filled in) or, when `wait` is `None`,
+`throttled_unknown_wait`. `wait` is set on the raised exception after
+construction, never passed to `Throttled()`.
+
+**Because:** DRF's own Dutch catalogue carries no translation for the
+throttle message, so under `LANGUAGE_CODE = "nl-nl"` the default `detail` is
+the English "Request was throttled. Expected available in {wait} seconds."
+verbatim, and `describeAuthError` shows `detail` on screen by design. Left
+alone, a Dutch site would answer a rate-limited visitor in English at the one
+moment it refuses them. `Throttled.__init__` appends its own English
+"Expected available in N seconds." to whatever `detail` it is given whenever
+`wait` is not `None`, regardless of who supplied that `detail`, which is why
+`wait` cannot be passed to the constructor and is set on the instance
+afterwards instead: `exception_handler` still reads `exc.wait` to build
+`Retry-After`, but the English sentence never gets appended. The advice flow
+never had this gap: `_flow/messages.ts` maps a 429 to its own Dutch sentence
+and never reads `detail`, so its English never reaches a screen.
+
+**Lives in:** `throttled` on `_AuthAPIView` in `backend/accounts/views.py`,
+`NL["throttled"]` and `NL["throttled_unknown_wait"]` in
+`backend/accounts/nl.py`.
+
+**To reverse:** delete the override and let DRF's default `Throttled` stand.
+The English sentence returns on every 429 this API answers, since
+`describeAuthError` shows `detail` literally by design.
+
+### 41. The stack-smoke client sends the Origin header a real browser would, not none
+
+**Decided:** `_Session` in `tests/test_stack_smoke.py` sends
+`Origin: https://127.0.0.1`, no port, on every non-GET request against the
+compose stack, and the CSRF-refusal check omits only the `X-CSRFToken`
+header, never the Origin, with a positive control in the same test: the same
+session with the token present gets past CSRF on `login/`.
+
+**Because:** `infra/nginx/nginx.conf` sets `X-Forwarded-Proto: https`
+unconditionally, because nothing reaches the container except through the
+tunnel, so there is no plain-http caller for whom that would be a lie, and
+`prod.py`'s trust in that header then makes Django treat every request
+through the stack as arriving over https. Django's `CsrfViewMiddleware`, the
+same code DRF's `CSRFCheck` runs, requires an `Origin` or a `Referer` on
+every unsafe request before it ever looks at the token, and the local stack
+has no `CSRF_TRUSTED_ORIGINS`. A check that sent neither header would 403 on
+the missing Origin and read as proof that the missing token was refused,
+which is not what it measured; the positive control is what proves the 403
+in the real check is about the token. `proxy_set_header Host $host;` is why
+the Origin carries no port here.
+
+**Lives in:** `tests/test_stack_smoke.py`, `infra/nginx/nginx.conf`.
+
+**To reverse:** drop the Origin header from `_Session` and the positive
+control from the test. Every non-GET check would then 403 on Origin instead
+of on the token, and the CSRF-refusal check would pass for a reason other
+than the one its name claims.
+
+### 42. A password can be reset, and the token is a row rather than a signature
+
+**Decided:** `POST /api/auth/reset/request/` and `POST /api/auth/reset/confirm/`
+exist, and the link they exchange is backed by a row in `OneTimeToken` that
+holds the sha256 of the token, `issued_at`, `expires_at`, `spent_at` and
+`superseded_at`. Decision 31 is reversed. Its "to reverse" clause named
+`django.contrib.auth.tokens.PasswordResetTokenGenerator`; that is not what was
+built, and this entry says why.
+
+**Because:** the generator hashes `last_login` into the token, which for a
+reset is a merit and for a confirmation link a fault: a new account is signed
+in the moment it is made, and the confirmation mail arriving a minute later
+would already be dead. It also has no notion of "spent": a reset link stays
+valid until the password changes, and a confirmation link changes nothing it
+hashes over, so it would stay valid for seven days. One column, `spent_at`,
+answers both, and the shape already existed: `RefreshSession` is a table that
+holds no credential and still says which token was used when. Two
+vocabularies on one pattern read better than two patterns. The row is locked
+with `select_for_update` before it is read, in the same ordering
+`tokens.rotate` argues for, so two confirmations with one link queue on it
+and the second is refused. A reset does not sign the household in: `login/`
+remains the only place a session starts and `LOGIN_SUCCEEDED` is written.
+
+**Lives in:** `OneTimeToken` in `backend/accounts/models.py`,
+`backend/accounts/recovery.py`, `ResetRequestView` and `ResetConfirmView` in
+`backend/accounts/views.py`.
+
+**To reverse:** remove the two routes and the table. The cost is the one
+chapter 10 of the auth design named as the weakest point of that design: a
+household that forgets its password cannot reach `delete/` and has no
+self-service way back in.
+
+### 43. Mail leaves through an outbox and a timer, not through the request and not through Celery
+
+**Decided:** a request that needs a mail writes one `OutboundMail` row
+(user, kind, when) and returns. `send_outbound_mail`, a management command
+under `infra/systemd/ampeer-mail.timer`, sends every minute what is waiting,
+mints the token as it sends, deletes the row on success and writes
+`MAIL_SENT`, and backs off 1, 5, 15 and 60 minutes on a network fault, a
+timeout, a 429 or a 5xx before giving up after 24 hours. A 4xx other than 429
+fails at once.
+
+**Because:** sending inside the request makes a view wait on an external
+service, turns a provider outage into a 500 or a silent fault, and lets the
+answer time differ between a known and an unknown address, which is the one
+thing `reset/request/` may not do. Celery brings Redis, a worker and a third
+container for two mails a day, and every design in this repository has
+refused it for that reason. The outbox is the shape that already exists: the
+two purge commands run under systemd timers, and this is the third. The
+consequence that matters most is that no request a visitor can reach ever
+opens a connection, so CLAUDE.md's rule that the backend never calls out
+except to a fixed list stays categorical on the request path. The mint and
+the send share one savepoint, so a mail that never left leaves no digest of a
+token nobody received.
+
+**Lives in:** `OutboundMail` in `backend/accounts/models.py`,
+`backend/accounts/management/commands/send_outbound_mail.py`,
+`infra/systemd/ampeer-mail.timer` and its paired ampeer-mail.service unit.
+
+**To reverse:** call the transport from the views and drop the command and the
+units. The costs are the three above, and `test_a_reset_request_answers_the_same_for_a_known_and_an_unknown_address`
+would then be measuring only the body and not the time.
+
+### 44. Resend is reached from one module on the allowlist, and Django's mail API is forbidden by the boundary test
+
+**Decided:** `backend/accounts/mailer.py` is the only module under `backend/`
+that imports `requests`, its destination is the literal
+`https://api.resend.com/emails`, and `tests/test_boundaries.py` holds it to
+the same rule as `pvgis.py`: named, never assembled, handed to the call as a
+module constant. `django.core.mail` joins the forbidden network clients by its
+dotted name, and `_imported_module_names` keeps dotted names so that check can
+see it. No Resend SDK, no SMTP.
+
+**Because:** the context reading for this cycle found a hole in the boundary
+test that had been there since the first day: only the first segment of an
+import was kept, so `from django.core.mail import send_mail` counted as
+`django` and the categorical rule against outbound connections did not see
+outbound mail through Django's own API, whose SMTP client lives in `.venv/`
+where the scan never walks. This design does not use that API and closes the
+hole anyway, because a known gap left open is a decision. One endpoint with
+four fields needs no SDK, and an SDK would open connections from a package
+the test never reads.
+
+**Lives in:** `backend/accounts/mailer.py`, `OUTBOUND_MODULES`,
+`NETWORK_CLIENTS` and `STRICT_DESTINATION_MODULES` in `tests/test_boundaries.py`.
+
+**To reverse:** the reverse of decision 2 applies: add or remove a module in
+that constant, on purpose, and say why the backend now reaches one more
+place.
+
+### 45. The recovery link carries its token in the fragment
+
+**Decided:** the link in a mail is `https://ampeer.nl/account/#herstel=<token>`
+or `#verificatie=<token>`. `/account/` reads the fragment once at load,
+removes it from the address bar with `history.replaceState`, keeps the token
+in page state and renders it nowhere.
+
+**Because:** a fragment never leaves the browser. nginx does not see it, so
+neither the access log nor Cloudflare does, and a `Referer` does not carry
+it. Everything `/advies/<token>/` needed, a `location` with `try_files`, a
+`serve.json` rule, a log-redaction `map` and a sentence in the DPIA about
+Cloudflare seeing a second secret path, does not exist for this link because
+there is nothing to redact. The principle from chapter 2 of the frontend
+design, that a view is state and not an address, holds: the fragment names no
+view, it carries a token, and what the page does with it depends on what
+`me/` and the API answer. Exactly 43 url-safe characters, which is
+`secrets.token_urlsafe(32)`, and `tests/test_frontend_contract.py` holds the
+two sides of that number together.
+
+**Lives in:** `frontend/src/app/_account/fragment.ts`, `_FRAGMENT` in
+`backend/accounts/management/commands/send_outbound_mail.py`.
+
+**To reverse:** move the token into a path and bring back the four things
+above for it.
+
+### 46. Verification is a timestamp, set by a confirmation or a completed reset, and read by nothing before phase 2
+
+**Decided:** `User.email_verified_at` is a nullable `DateTimeField`. A
+confirmation link sets it; a completed password reset sets it if it was
+empty. Nothing in phase 1 reads it, `me/` reports it, and phase 2 requires it
+before a meter is linked. Registration is not blocked on it.
+
+**Because:** a timestamp answers the question a privacy document asks, which
+is "when", and a flag cannot. A reset confirms the address because whoever
+opened a link out of that mailbox holds that address, which is exactly what
+confirmation establishes. The owner chose, on 2026-09-06, a stamp that phase
+2 requires and that blocks nothing before it, over a registration that is
+unusable until a mail is clicked: the first experience of every household
+would otherwise be waiting for a mail.
+
+**Lives in:** `email_verified_at` on `User` in `backend/accounts/models.py`,
+`confirm_password_reset` and `confirm_email_verification` in
+`backend/accounts/recovery.py`.
+
+**To reverse:** make `login/` refuse an account whose stamp is empty. That is
+one condition in `LoginView`, and it changes what a household is told on its
+first visit, which is not a change to make in passing.
+
+### 47. The consent labels travel with the texts under one version
+
+**Decided:** `GET /api/auth/consent-texts/` answers `labels` beside `texts`,
+both keyed by kind, both under `text_version`, and the frontend carries no
+label of its own. Decision 38 is closed.
+
+**Because:** decision 38 recorded that a label edit was invisible to
+`text_version` while a text edit was not, and scheduled a versioned field
+for the next backend touch. This is that touch. A separate `label_version`
+was weighed and refused: label and text are read together and recorded
+together, so one version for the pair is the honest form, and the rule from
+decision 38 (a label may narrow only as far as the text still covers, and
+never claim less than the row records) now sits as a comment beside the
+constant it governs. `test_no_consent_label_lives_in_the_frontend` is what
+keeps the frontend from growing a copy.
+
+**Lives in:** `CONSENT_LABEL_METER_LINK` and `CONSENT_LABEL_LEAD_GENERATION`
+in `backend/accounts/nl.py`, `ConsentTextsView` in `backend/accounts/views.py`,
+`labels` on the `ConsentTexts` type in `frontend/src/lib/accounts.ts`.
+
+**To reverse:** put the labels back in `ConsentRow.tsx` and delete the
+contract test. The cost is the drift decision 38 described.
+
+### 48. A reset request answers the same way for every address, and logs nothing for an unknown one
+
+**Decided:** `POST /api/auth/reset/request/` answers 202 with `{}` for every
+well-formed address, known, unknown, active or blocked. For a known active
+address it writes one outbox row and one `PASSWORD_RESET_REQUESTED` line
+carrying `user_id`, once per pending mail. For anything else it writes
+nothing at all.
+
+**Because:** a 202 and a 404 would be an address book readable at ten
+requests an hour. The answer time is the same for the same reason the outbox
+exists: no mail leaves and no token is minted inside the request, so a known
+address costs one INSERT more than an unknown one. An audit line for an
+unknown address would have to carry the address to mean anything, and
+chapter 2 of the DPIA forbids exactly that in a table with no retention.
+
+**Lives in:** `request_password_reset` in `backend/accounts/recovery.py`,
+`ResetRequestView` in `backend/accounts/views.py`.
+
+**To reverse:** answer 404 for an unknown address. `test_a_reset_request_answers_the_same_for_a_known_and_an_unknown_address`
+is the test that would then be measuring an address book.
+
+### 49. The legal basis for the account is consent, and the 2026-09-02 choice for a contract is reversed
+
+**Decided:** `identity.ts`'s `legalBasis` is `"toestemming"`; chapter 10's
+opening paragraph in `docs/dpia.md` answers the same way, dated 2026-09-07.
+
+**Because:** article 7(4) AVG: `RegisterSerializer` accepts registration with or
+without `METER_LINK` consent, so the service does not depend on a consent it does
+not need, which is what a consent basis requires and a contract basis does not.
+The code already runs two separate, unchecked consents with their own timestamp
+and text version, which a consent basis needs and a contract basis has no use
+for. The owner confirmed the choice on 2026-09-07.
+
+**Lives in:** `legalBasis` in `frontend/src/app/privacy/identity.ts`,
+`docs/dpia.md`.
+
+**To reverse:** set `legalBasis` back to `"overeenkomst"` and rewrite the DPIA
+paragraph and `identity.ts`'s comment. Nothing in `Consent`, `RegisterSerializer` or
+the account flow changes, because none of it depended on which basis this text
+names.
+
+### 50. The site has a terms page, and it carries the disclaimer the advice needs
+
+**Decided:** `/voorwaarden/` exists, is a server component gated by
+`requireCompleteIdentity` like `/privacy/` and `/over-ons/`, and holds the
+disclaimer that the advice is an estimate and not a promise.
+
+**Because:** a disclaimer that sat on a methodology page is one nobody finds at
+the moment it matters. The owner chose a dedicated route over a section, on
+2026-09-07.
+
+**Lives in:** `frontend/src/app/voorwaarden/page.tsx`.
+
+**To reverse:** fold the eight sections back into `/methodologie/` or
+`/over-ons/` and remove the route from `SITEMAP_ROUTES`, the footer and the two
+e2e route lists.
+
+### 51. The article 30 register is a document in this repository, bound by a test
+
+**Decided:** `docs/verwerkersregister.md`, ten chapters, bound by
+`tests/test_verwerkersregister.py` the way `tests/test_dpia.py` binds the
+assessment.
+
+**Because:** everything a register needs was already in this repository, in the
+DPIA's assessment form rather than a register's form. `docs/dpia.md` chapter 10
+said "no register" since phase 1, which stopped being true the day the content
+existed to write one from.
+
+**Lives in:** `docs/verwerkersregister.md`, `tests/test_verwerkersregister.py`.
+
+**To reverse:** delete both and put the sentence back in chapter 10.
+
+### 52. A 401 on `/api/auth/` answers in Dutch from this project's own table, like the 429
+
+**Decided:** `_AuthAPIView.permission_denied` raises `NotAuthenticated(NL["not_signed_in"])`
+rather than letting DRF's own version answer with its untranslated default.
+
+**Because:** decision 40 already did this for a 429; a 401 was the same gap.
+Every frontend stub and e2e mock already answered `NL["not_signed_in"]`, so each
+one disagreed with the real server on every one of the six signed-in routes
+until this override existed.
+
+**Lives in:** `permission_denied` in `backend/accounts/views.py`,
+`NL["forbidden"]` in `backend/accounts/nl.py`.
+
+**To reverse:** delete the override and update every frontend stub and e2e mock
+to expect DRF's English default instead.
+
+### 53. The outbox command sends at most fifty mails per run
+
+**Decided:** `send_outbound_mail --max` defaults to 50; a run stops after
+sending that many rows and says so in its output.
+
+**Because:** `_deliver`'s `while True` loop was theoretical at two mails a day
+and a real liability at a backlog of hundreds, where one run would hold a
+transaction open hundreds of times for ten seconds each. `_report_what_is_stuck`
+still counts what the cap leaves behind after `OVERDUE_AFTER`, which is exactly
+right for a timer that sends fifty a minute and still falls behind.
+
+**Lives in:** `add_arguments`, `_deliver` in
+`backend/accounts/management/commands/send_outbound_mail.py`.
+
+**To reverse:** drop `--max` and go back to draining the whole outbox in one
+run.
+
+### 54. Branch coverage is on, with a floor measured under it
+
+**Decided:** `branch = true` in `[tool.coverage.run]`; `fail_under` set one
+hundredth under a fresh measurement taken without
+`data/nedu-profiles-2025.csv`.
+
+**Because:** statement coverage reads a multi-line ternary as one statement,
+which is how the `wait is None` arm of `_AuthAPIView.throttled` stayed
+invisible until a reviewer found it by hand, recorded as an open question after
+decision 40. Four such gaps were found and closed on 2026-09-07 before the
+floor was measured.
+
+**Lives in:** `[tool.coverage.run]`, `[tool.coverage.report]` in
+`pyproject.toml`.
+
+**To reverse:** set `branch = false` and return `fail_under` to the
+statement-only figure; `MINIMUM_COVERAGE_FLOOR` in
+`tests/test_pipeline_contract.py` stays the floor under either.
+
+### 55. Registration says when an address is taken, and the reset route does not; recorded as a choice
+
+**Decided:** `register/` keeps answering 400 with `NL["email_taken"]` for an
+address that already has an account; `reset/request/` keeps answering the same
+202 for every address.
+
+**Because:** registration logs a household in immediately and shows the account
+view, and an answer for a taken address cannot be made identical to that
+without giving up the immediate sign-in, which would cost every new household
+an extra step and need a third kind of mail. `auth-register` sits at five an
+hour per caller, which makes an address book slow to run; and reset, the route
+an attacker could use one, stays closed.
+
+**Lives in:** `validate_email` in `RegisterSerializer` in
+`backend/accounts/serializers.py`, `request_password_reset` in
+`backend/accounts/recovery.py`.
+
+**To reverse:** if phase 2 drops the immediate sign-in after registration, for
+instance because a meter may only hang off a confirmed address, this is the
+moment to make the two routes agree.
+
+### 56. The meter link couples a device, and the advice engine stays synthetic until phase 3
+
+**Decided:** linking a smart meter creates a row, accepts pushed quarter hour
+readings and stores them; the advice calculation itself keeps running on the
+synthetic NEDU and PVGIS profile. `refuse_unless_shareable` and
+`shareable_token=False` stay exactly as they were, unused, for the day phase 3
+teaches the engine to read a measured series.
+
+**Because:** `CLAUDE.md` says the biggest group of users wants to install
+nothing, and building the storage half of a meter link does not depend on
+teaching the simulation engine to read it. Shipping both together would mean
+neither ships until both are done, for two pieces of work that do not share a
+file.
+
+**Lives in:** `refuse_unless_shareable` in `backend/advice/series.py`,
+`shareable_token` in `backend/advice/serializers.py`.
+
+**To reverse:** wire a measured series into the engine before phase 3 decides
+to. That reopens exactly the risk `docs/dpia.md` chapter 6 exists to close: a
+shareable, no-account token in front of a measured, quarter hour series is
+what the `SYNTHETIC` provenance check is there to keep from happening, and it
+would happen on the first household that links a meter.
+
+### 57. No TimescaleDB in the cycle that creates the first time series
+
+**Decided:** `QuarterReading` and `HourAggregate` are plain tables with an
+index on the columns a lookup uses, on the `postgres:16-alpine` image this
+project already runs. No hypertable, and `CLAUDE.md`'s stack line no longer
+claims one.
+
+**Because:** a hypertable is a change to the database of a running service,
+and that is not a change to make in the same cycle as the first table that
+would fill it. A plain table with an index on `(link, measured_at)` is ample
+for the hundreds of thousands of rows a single household produces; if that
+stops being true, that is a measurement and a decision of its own; a
+household's own meter, `docs/dpia.md` chapter 1 names as the risk that turns
+a "probably" into a "certainly" for article 35, and getting that data flowing
+correctly is worth more right now than the storage engine underneath it.
+
+**Lives in:** `postgres:16-alpine` in `infra/docker-compose.yml`.
+
+**To reverse:** add TimescaleDB to the image and turn `QuarterReading` into a
+hypertable once a measurement says a plain indexed table no longer holds. That
+is a migration on a live table, not a settings change, so it costs a
+maintenance window that this decision avoids paying today.
+
+### 58. Measurements arrive on their own route with their own key, outside the session
+
+**Decided:** a device pushes quarter hour readings to
+`POST /api/meter/readings/`, authenticated by a device key and not by the
+household's session cookie. The route sits outside `/api/auth/` entirely.
+
+**Because:** the caller is a device without a browser: it has no cookie jar,
+cannot pass CSRF, and does not log in. Folding the push into the session API
+would mean a smart meter dongle needs a session, which it cannot have, or a
+carve-out inside the session API that only pretends to be one. A key scoped to
+exactly this route is what the caller actually is.
+
+**Lives in:** `docs/superpowers/specs/2026-09-09-meter-link-design.md`, in
+`POST /api/meter/readings/`.
+
+**To reverse:** fold the push into an existing authenticated route and give
+every meter-pushing device a session token instead of a device key. That
+removes the one thing this design uses to keep a device's credential from
+being able to do anything a browser session can do, such as read the account
+or change a consent.
+
+### 59. The key is shown once, then only kept as a digest
+
+**Decided:** `MeterLink.token_sha256` is what the database keeps. The raw key
+exists only in the request that mints it and in the response to that request,
+the same shape `RefreshSession` and `OneTimeToken` already use.
+
+**Because:** a table that could answer "what is the key" is a table that leaks
+every linked meter's write access the moment it is read, whether by a bug, a
+backup, or a person with database access. A digest can confirm a key without
+being able to produce one, which is the only property this table needs.
+
+**Lives in:** `token_sha256` in `backend/accounts/models.py`.
+
+**To reverse:** add a plaintext column. Nothing downstream reads it today,
+so the change is small and the exposure it reopens is exactly the one this
+decision closes: `docs/dpia.md` chapter 2 says in bold that a stored key is
+not among the things this table can leak, and that sentence becomes false the
+day such a column exists, whether or not anything queries it yet.
+
+### 60. One active link per account, and relinking revokes the previous
+
+**Decided:** `MeterLink.active_for` filters on `user` and on
+`revoked_at__isnull=True`. A second `link_meter` call revokes whatever came
+before it in the same transaction as it creates the new row.
+
+**Because:** a household that lost its key has exactly one recovery path,
+unlinking and linking again, and that path only behaves the way "koppel
+opnieuw" reads if it leaves one link standing rather than two. A key that
+cannot be shown again, decision 59 above, makes this the only way back in, so
+it has to work without a support ticket.
+
+**Lives in:** `active_for` in `backend/accounts/models.py`.
+
+**To reverse:** allow more than one active link per account. That is a larger
+change than removing a filter, because `last_seen_at` and the account page's
+single "gekoppeld sinds" sentence both assume there is at most one link to
+report on.
+
+### 61. The log gets two kinds and no row per reading
+
+**Decided:** `AuditEvent` gains `METER_LINKED` and `METER_UNLINKED`, each
+carrying only `user_id`. Nothing is written when a reading arrives.
+
+**Because:** the audit log is append only and never purged, so a row per
+pushed quarter would add tens of thousands of rows a year per linked
+household to a table that outlives every retention window in this project,
+to answer a question nobody asks. When a link was last used to write
+something is `last_seen_at` on `MeterLink` itself, and that field disappears
+with the link, which is exactly the property an audit row does not have.
+
+**Lives in:** `METER_LINKED` in `backend/advice/models.py`.
+
+**To reverse:** log a row per reading. `docs/dpia.md` chapter 2 says this
+table carries no retention window because it is meant to stay small enough to
+read in full; a row per quarter would turn that same table into the largest
+one this project has, for every household that links a meter, without
+answering a question anybody has asked.
+
+### 62. Withdrawing consent deletes the measurements, not just the access
+
+**Decided:** unlinking a meter and withdrawing `METER_LINK` consent do the
+same thing: revoke the link and delete every `QuarterReading` and
+`HourAggregate` it owns, in one transaction.
+
+**Because:** a consent withdrawal that only closes the door and leaves the
+data standing is not the same right as the one that was granted. `CLAUDE.md`
+says a consent is either given or withdrawn with its own timestamp, and this
+project already treats a withdrawn `LEAD_GENERATION` consent as the end of
+that processing; a household would reasonably expect the same of the
+measurements a meter has already pushed, not only of the ones still to come.
+
+**Lives in:** `docs/superpowers/specs/2026-09-09-meter-link-design.md`, in
+`QuarterReading` and `revoked_at`.
+
+**To reverse:** keep the measurements after a withdrawal and delete only the
+access. That is a smaller diff, one `revoked_at` field instead of a cascading
+delete, and it is smaller for the same reason it is wrong: the household
+that withdrew consent would have no way to tell the difference from the
+account page, while the data it thought it removed keeps existing.
+
 ## What was not decided here
 
-Five belong to the controller and are written up with their trade-offs in
+Four belong to the controller and are written up with their trade-offs in
 chapter 10 of `docs/dpia.md`: whether the conclusion of chapter 1 is adopted,
-the legal basis, the seven day backup window, whether deletion on request
-arrives before phase 1, and access to the host including whether `web2` becomes
-ephemeral. They are not repeated here, because two lists of the same open
+the seven day backup window, access to the host including whether `web2`
+becomes ephemeral, and, since the recovery cycle, Resend as the second
+processor. They are not repeated here, because two lists of the same open
 questions is how one of them gets answered twice and the other not at all.
+Two more used to stand beside those, and both are answered rather than
+dropped. Whether deletion on request arrives before phase 1: decision 28 and
+`docs/dpia.md` chapter 7 both describe `POST /api/auth/delete/`, which is
+what answered it. The legal basis: decision 49 above is the same answer,
+consent, that chapter 10's opening paragraph of `docs/dpia.md` now states
+outright instead of carrying as its own numbered point on that list.
 
-Six sit outside that document.
+Eight sit outside that document.
 
 - **Whether `feat/**` stays in the push trigger of `.github/workflows/ci.yml`.**
   Removing it roughly halves the minutes a branch costs, and rewrites five
@@ -982,48 +1909,15 @@ Six sit outside that document.
   now asserts the set, because a household moving into the middle state and a
   household being sold a battery are not the same event and one assertion could
   not tell them apart.
-- **Whether the allowlist in CLAUDE.md should name a fourth source.** It names
-  PVGIS, ENTSO-E and KNMI as the external sources this project may reach. The
-  repository reaches a fourth: `tools/ingest_profiles.py` downloads the NEDU
-  standard profiles from energiedatawijzer.nl, which it has to, since their
-  redistribution terms are unconfirmed.
-
-  That last clause was corrected on 2026-09-02 and it used to read "since their
-  licence forbids committing them". It was checked and there is no such licence.
-  The profiles for toepassingsjaar 2025 are established by the Platform
-  Verbruiksprofielen and published by MFFBAS, and neither the publication page nor
-  the files carry a licence, a copyright line or a reuse condition of any kind.
-  `docs/superpowers/specs/2026-08-20-simulation-core-design.md` said exactly that
-  when the decision was taken, "Gebruik is onproblematisch, herdistributie niet
-  bevestigd", and the docstring of `nedu_profile_path` in
-  `tests/helpers/profiles.py` still says it. Somewhere between the spec and this
-  entry a caution became a finding. Nothing about the behaviour changes: the files
-  stay out of the tree and the ingest step stays. What changes is that this entry
-  no longer cites a prohibition that does not exist, in a document whose whole
-  purpose is that a later reader can tell what was established from what was
-  assumed. The same sentence in `docs/analysis/2026-08-24-tou-tariff-2029.md` and
-  the same phrase in the comment above `IGNORED_ROOTS` in
-  `tests/test_analysis_docs.py` were corrected in the same pass.
-
-  While that was being checked, one further thing came out that belongs here
-  rather than in a spec: PVGIS is settled and in the other direction. The JRC
-  states on its own user manual page that PVGIS "is completely free to use, with
-  no restrictions on what the results can be used for, and with no registration
-  necessary". So of the two open licence questions the spec recorded, one is
-  answered permissively and one is genuinely still open, and they should stop
-  being carried as a pair.
-
-  Not a hole. The rule in that document is written about the backend, which
-  never fetches, and this is a build time command somebody runs by hand. Its URL
-  is one https constant, the only thing substituted into it is the CLI's year,
-  and argparse types that as an int, so nothing from the command line can reach
-  the host or the path as text. All four of those are now asserted in
-  `tests/test_boundaries.py`, and that file's scan reaches `tools/` as of
-  2026-08-23, having walked only the two packages and `backend/` before while
-  its failure message said the rule allows one file and nothing else.
-
-  What is left is a sentence in CLAUDE.md that lists three sources while the
-  repository uses four. Editing that document is not mine.
+- **Whether the allowlist in CLAUDE.md should name a fourth source.** Answered
+  on 2026-09-06 rather than dropped. The owner had the sentence rewritten to
+  name the destinations the repository actually reaches, PVGIS,
+  energiedatawijzer.nl for the hand-run NEDU ingest, and api.resend.com for
+  transactional mail, with ENTSO-E and KNMI marked as foreseen and not yet
+  reached, and it now points at `OUTBOUND_MODULES` in `tests/test_boundaries.py`
+  as the list itself. The licence findings that were recorded here on
+  2026-09-02 stand: the NEDU files carry no reuse condition of any kind and
+  stay out of the tree, and PVGIS is free to use without restriction.
 
 - **Whether the opening paragraph of CLAUDE.md should carry its own sources.** It
   states four facts about the Netherlands and none of them says where it comes
@@ -1095,3 +1989,11 @@ Six sit outside that document.
 - **The order the two open pull requests are merged in.** #23 carries this
   branch into `dev` and #22 carries `dev` into `main`, so #23 goes first and #22
   is rerun afterwards.
+- **Whether an account whose address is never confirmed is ever removed.** An
+  account made with somebody else's address, or with a typo, stays: whoever
+  made it can delete it, whoever holds the address can reset the password
+  through the link and then delete it, and nothing does it for them. An
+  automatic removal after some number of days is a retention period on a
+  `User` row, which is a DPIA decision and not one to take inside a plan.
+  It becomes a live question only once there are accounts nobody confirms,
+  and chapter 10 of the DPIA does not list it yet for that reason.

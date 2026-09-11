@@ -106,7 +106,7 @@ te testen en te valideren zijn.
 
 ## Stack
 - Backend: Django 5 + Django REST Framework, Python 3.12
-- Database: PostgreSQL 16 + TimescaleDB (hypertables voor tijdreeksen)
+- Database: PostgreSQL 16 (`postgres:16-alpine`), gewone tabellen met een index op wat gezocht wordt; TimescaleDB is een optie voor als dat gemeten te weinig blijkt
 - Async: Celery + Redis
 - Frontend: Next.js 15 (App Router), TypeScript, Tailwind
 - Deploy: Docker Compose, Cloudflare Tunnel in de eerste fase
@@ -158,8 +158,14 @@ ampeer/
 - Object-level permissions: elk queryset filtert op request.user, nooit alleen op pk
 - GEEN outbound HTTP naar door de gebruiker aangeleverde URLs. Meterdata komt binnen
   via push, nooit via een fetch door de backend. Dit sluit SSRF categorisch uit.
-  Uitzondering: een vaste, in de config vastgelegde allowlist van externe bronnen
-  (PVGIS, ENTSO-E, KNMI). Die URLs worden nooit uit gebruikersinvoer opgebouwd;
+  Uitzondering: een vaste allowlist van externe bestemmingen, vastgelegd als
+  moduleconstante `OUTBOUND_MODULES` in `tests/test_boundaries.py` (beslissing
+  3) en niet in de settings: PVGIS voor de opwekreeks, energiedatawijzer.nl
+  voor de NEDU-ingest die met de hand draait, en api.resend.com voor
+  transactionele mail (wachtwoordherstel en e-mailverificatie, vanaf de
+  cyclus van 2026-09-06). ENTSO-E en KNMI zijn voorzien en worden nog nergens
+  bereikt. Per bestemming precies een module, en die module stelt zijn URL
+  nooit samen. Die URLs worden nooit uit gebruikersinvoer opgebouwd;
   gebruikersinvoer levert alleen gevalideerde parameters.
 - Ingest-tokens gehasht opslaan, nooit in plaintext
 - Append-only audit log voor: login, koppeling aangemaakt, toestemming gegeven of

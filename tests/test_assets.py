@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from ampeer_sim.profiles.assets import (
+    _allocate_daily,
     ev_grid_topup,
     ev_profile,
     ev_solar_profile,
@@ -214,3 +215,26 @@ def test_the_surplus_this_invariant_is_measured_against_is_not_flat() -> None:
     from_grid = ev_grid_topup(ev, GRID, from_sun)
     assert from_sun.sum() > 0.0, "the sun charged nothing, so only one term is being summed"
     assert from_grid.sum() > 0.0, "the grid topped up nothing, so only one term is being summed"
+
+
+def test_a_day_that_uses_every_quarter_never_takes_the_early_break() -> None:
+    """The 52->48 branch's arm no existing test takes.
+
+    `_charging_priority` always ranks every quarter of the day, window or not
+    (it falls back to distance from the window rather than filtering to it),
+    so the inner for-loop in `_allocate_daily` iterates over all
+    `QUARTERS_PER_DAY` positions regardless of how big the window is. Every
+    existing test's daily need runs out partway through that iteration, so
+    the loop always exits through `if remaining <= 0.0: break` on line
+    53-54, which is arc 53->54, not 52->48. A need that exactly saturates
+    every quarter at the charger's cap (the largest value `_allocate_daily`
+    accepts without raising) uses the very last position with nothing left
+    over: the loop's iterator simply runs out, with no further item to check
+    `remaining` against, and control returns straight to the outer `for day
+    in range(...)` at line 48 without the break ever firing."""
+    grid = YearGrid(year=2025, days=1)
+    cap = 1.0
+    daily_need = np.array([cap * QUARTERS_PER_DAY])
+    series = _allocate_daily(daily_need, grid, window=(0, 1), cap=cap)
+    assert series.sum() == pytest.approx(daily_need[0])
+    assert (series > 0).all()

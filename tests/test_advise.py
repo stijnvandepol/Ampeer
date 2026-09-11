@@ -285,7 +285,7 @@ def test_no_dutch_text_lives_outside_the_text_module() -> None:
         r"|zonnepanelen|zonnestroom|teruglevert|terugleverkosten|vaatwasser"
         r"|het|een|geen|deze|dat|wordt|worden|zijn|hebben|wettelijk|jaar"
         r"|kosten|bedrag|prijs|meeste|grote|volgens|omdat|maar|ook|nog"
-        r"|de|te)\b",
+        r"|de|te|wachtwoord)\b",
         re.IGNORECASE,
     )
     scanned = [
@@ -792,12 +792,26 @@ def test_the_headline_band_is_passed_through_untouched() -> None:
     assert advice.headline == _stub_result().band
 
 
+@pytest.mark.perf
 def test_a_full_advice_fits_the_budget_excluding_the_capacity_curve() -> None:
     """Timed on the path that does not run the curve.
 
     The curve is five more year simulations through the Python timestep loop and
     is only reached when a battery is genuinely on the table. What has to be
     fast is everything else, because that is what every visitor waits for.
+
+    Marked `perf` since 2026-09-11, which is what the marker was made for.
+    The split exists because a wall clock budget inside the coverage run
+    measures the promise divided by the profiler, and pyproject.toml says so
+    at length about the other timing test this repository has. This one was
+    missed, and it sat on its own boundary until a branch that changes two
+    container image tags turned it red at 0.511s.
+
+    Measured on 2026-09-11 over three runs each, with BUDGET_SECONDS lowered
+    so the assertion prints what it read: 0.078, 0.079 and 0.079 seconds
+    uninstrumented, against 0.348, 0.449 and 0.357 under `--cov` on the same
+    tree and the same machine. The real figure has a six-fold margin under the
+    budget. The instrumented one does not, and the runner measured 0.511.
     """
     case = HOUSEHOLDS["rob_fixed_contract"]
     spec = BatterySpec(capacity_kwh=5.0, max_charge_kw=2.5, max_discharge_kw=2.5)

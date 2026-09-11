@@ -54,4 +54,5 @@ export const SITEMAP_ROUTES: readonly {
   { path: "/methodologie/", changeFrequency: "monthly", priority: 0.6 },
   { path: "/over-ons/", changeFrequency: "yearly", priority: 0.5 },
   { path: "/privacy/", changeFrequency: "yearly", priority: 0.3 },
+  { path: "/voorwaarden/", changeFrequency: "yearly", priority: 0.3 },
 ];

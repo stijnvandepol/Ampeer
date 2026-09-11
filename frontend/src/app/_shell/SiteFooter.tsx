@@ -8,12 +8,17 @@ import Link from "next/link";
  * bottom rather than in a banner. It is interface text: it says what this site
  * is, not what the household should do.
  *
- * The three links under it are the pages that back that sentence up. Until
+ * The links under it are the pages that back that sentence up. Until
  * 2026-09-02 there was only one, to the methodology, and the two that were
  * missing were the two a visitor goes looking for in a footer: who is behind
  * this, and what happens to what I typed in. A site that collects a postcode
  * and a consumption figure and offers neither is a site whose claim about
  * neutrality is made by nobody.
+ *
+ * There are now five, and the fifth is the only entrance to the account: the
+ * site header does not change, and nothing goes on the advice page, because a
+ * footer is where a visitor looks for an account and an account in phase 1 is
+ * a facility rather than an offer.
  *
  * A nav landmark rather than a list of paragraphs, so a screen reader can jump
  * to it and skip it. It carries its own label because the header already has
@@ -41,6 +46,12 @@ export function SiteFooter() {
           </Link>
           <Link href="/privacy/" className="underline underline-offset-4">
             Privacy
+          </Link>
+          <Link href="/voorwaarden/" className="underline underline-offset-4">
+            Voorwaarden
+          </Link>
+          <Link href="/account/" className="underline underline-offset-4">
+            Account
           </Link>
         </nav>
       </div>

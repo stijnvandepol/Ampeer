@@ -21,6 +21,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURE = REPO_ROOT / "frontend" / "tests" / "fixtures" / "advice-response.json"
 TYPES = REPO_ROOT / "frontend" / "src" / "lib" / "types.ts"
@@ -585,8 +587,10 @@ def test_the_third_copy_of_the_postcode_range_agrees_with_the_first() -> None:
 
 ROOT_URLS = REPO_ROOT / "backend" / "ampeer" / "urls.py"
 ADVICE_URLS = REPO_ROOT / "backend" / "advice" / "urls.py"
+ACCOUNTS_URLS = REPO_ROOT / "backend" / "accounts" / "urls.py"
 NGINX = REPO_ROOT / "infra" / "nginx" / "nginx.conf"
 API_TS = REPO_ROOT / "frontend" / "src" / "lib" / "api.ts"
+ACCOUNTS_TS = REPO_ROOT / "frontend" / "src" / "lib" / "accounts.ts"
 
 #: A path this frontend asks the API for, quoted or in a template literal.
 _CALLED_PATH = re.compile(r"""["'`](/api/[^"'`]*)["'`]""")
@@ -596,8 +600,8 @@ _CALLED_PATH = re.compile(r"""["'`](/api/[^"'`]*)["'`]""")
 _INTERPOLATION = re.compile(r"\$\{[^}]*\}")
 
 
-def _api_prefix() -> str:
-    """Where Django mounts the advice API, from the root URL configuration.
+def _api_prefix(module: str) -> str:
+    """Where Django mounts one of the two APIs, from the root URL configuration.
 
     Django is the only place that decides this. nginx forwards it and the
     frontend asks for it, and both of those are copies.
@@ -614,20 +618,15 @@ def _api_prefix() -> str:
             and getattr(included.func, "id", "") == "include"
             and included.args
             and isinstance(included.args[0], ast.Constant)
-            and included.args[0].value == "advice.urls"
+            and included.args[0].value == module
         ):
             return "/" + str(node.args[0].value)
-    raise AssertionError(f"{ROOT_URLS.name} no longer mounts advice.urls anywhere")
+    raise AssertionError(f"{ROOT_URLS.name} no longer mounts {module} anywhere")
 
 
-def _api_routes() -> set[str]:
-    """Every fixed route under that prefix, from the app's own URL configuration.
-
-    The token route is a re_path over a pattern rather than a literal, so it is
-    not a name that can be compared. It is answered for below by allowing one
-    interpolated segment.
-    """
-    tree = ast.parse(ADVICE_URLS.read_text(encoding="utf-8"))
+def _api_routes(urls: Path) -> set[str]:
+    """Every fixed route under that prefix, from one app's URL configuration."""
+    tree = ast.parse(urls.read_text(encoding="utf-8"))
     return {
         str(node.args[0].value)
         for node in ast.walk(tree)
@@ -638,7 +637,17 @@ def _api_routes() -> set[str]:
     }
 
 
-def test_every_path_the_frontend_calls_is_one_the_backend_serves() -> None:
+@pytest.mark.parametrize(
+    ("module", "urls", "client"),
+    [
+        ("advice.urls", ADVICE_URLS, API_TS),
+        ("accounts.urls", ACCOUNTS_URLS, ACCOUNTS_TS),
+    ],
+    ids=["advice", "accounts"],
+)
+def test_every_path_the_frontend_calls_is_one_the_backend_serves(
+    module: str, urls: Path, client: Path
+) -> None:
     """The shape was checked and the address was not.
 
     This file already argues that two codebases sharing a JSON shape with no
@@ -654,16 +663,21 @@ def test_every_path_the_frontend_calls_is_one_the_backend_serves() -> None:
     visitor finds out.
 
     Django decides, so Django is read. Everything else here is a copy.
+
+    Parametrised since the second client arrived. accounts.ts calls nine paths
+    under /api/auth/ and not one of them is reachable by reverse(), by a Vitest
+    mock or by a page.route fixture: all three answer whatever they are asked.
+    Only this reads the URL configuration Django actually serves.
     """
-    prefix = _api_prefix()
-    routes = _api_routes()
-    assert routes, f"{ADVICE_URLS.name} declares no routes at all"
+    prefix = _api_prefix(module)
+    routes = _api_routes(urls)
+    assert routes, f"{urls.name} declares no routes at all"
 
     called = {
         _INTERPOLATION.sub("<dynamic>", path)
-        for path in _CALLED_PATH.findall(API_TS.read_text(encoding="utf-8"))
+        for path in _CALLED_PATH.findall(client.read_text(encoding="utf-8"))
     }
-    assert called, f"{API_TS.name} asks the API for nothing; this test read nothing"
+    assert called, f"{client.name} asks the API for nothing; this test read nothing"
 
     wrong = []
     for path in sorted(called):
@@ -688,7 +702,7 @@ def test_nginx_forwards_the_prefix_django_answers_on() -> None:
     the promise about tokens in logs quietly stops applying to the one path it
     was written for.
     """
-    prefix = _api_prefix()
+    prefix = _api_prefix("advice.urls")
     text = NGINX.read_text(encoding="utf-8")
     assert re.search(rf"location\s+{re.escape(prefix)}\s*\{{", text), (
         f"nginx.conf has no location block for {prefix}, which is where Django now "
@@ -735,3 +749,136 @@ def test_the_counter_names_the_browser_sends_are_the_ones_the_api_accepts() -> N
         f"only in count.ts: {sorted(declared - accepted)}, "
         f"only in models.py: {sorted(accepted - declared)}"
     )
+
+
+# --------------------------------------------------------------------------
+# The consent texts, the one auth response that touches no database.
+# --------------------------------------------------------------------------
+
+CONSENT_TEXTS_FIXTURE = REPO_ROOT / "frontend" / "tests" / "fixtures" / "consent-texts.json"
+FRONTEND_SOURCE = REPO_ROOT / "frontend" / "src"
+
+
+def test_the_consent_texts_fixture_is_byte_for_byte_what_the_generator_writes() -> None:
+    """The same claim advice-response.json carries, for the sentences a
+    household agrees to.
+
+    A hand-edited word here would be a fixture describing a consent nobody
+    ever gave, and every frontend test that renders it would then agree with
+    a sentence the API does not send.
+    """
+    import sys
+
+    sys.path.insert(0, str(REPO_ROOT / "tests"))
+    from helpers.consent_texts_fixture import build_consent_texts_payload
+
+    written = json.dumps(build_consent_texts_payload(), indent=2, ensure_ascii=False) + "\n"
+    committed = CONSENT_TEXTS_FIXTURE.read_text(encoding="utf-8")
+    assert committed == written, (
+        "frontend/tests/fixtures/consent-texts.json is not what "
+        "tests/helpers/consent_texts_fixture.py produces. Regenerate it with\n"
+        "    uv run --no-sync python tests/helpers/consent_texts_fixture.py\n"
+        "rather than editing it, and do not run a formatter over it."
+    )
+
+
+def test_the_fixture_keys_are_the_consent_kinds() -> None:
+    """Two copies of one list: the model, and the fixture the browser builds
+    against. A third kind of consent has to fall over on the side where it was
+    added, not in a browser where the row simply never appears."""
+    import sys
+
+    sys.path.insert(0, str(REPO_ROOT / "backend"))
+    from accounts.models import Consent
+
+    payload = json.loads(CONSENT_TEXTS_FIXTURE.read_text(encoding="utf-8"))
+    assert sorted(payload["texts"]) == sorted(Consent.KINDS)
+    for kind, sentence in payload["texts"].items():
+        assert sentence.strip(), f"{kind} carries an empty sentence"
+    assert sorted(payload["labels"]) == sorted(Consent.KINDS)
+    for kind, label in payload["labels"].items():
+        assert label.strip(), f"{kind} carries an empty label"
+
+
+def test_no_consent_text_lives_in_the_frontend() -> None:
+    """Chapter 5, checked rather than promised.
+
+    If the frontend carried its own copy of either sentence, the text_version
+    column would prove nothing: there would be two texts, the row would point
+    at one and the screen would have shown the other, and nothing could see
+    the difference. Read out of nl.py rather than restated, so this cannot
+    pass by agreeing with a copy of itself.
+    """
+    import sys
+
+    sys.path.insert(0, str(REPO_ROOT / "backend"))
+    from accounts.nl import NL
+
+    sentences = {key: NL[key] for key in ("CONSENT_METER_LINK", "CONSENT_LEAD_GENERATION")}
+    offenders: list[str] = []
+    for path in sorted(FRONTEND_SOURCE.rglob("*.ts*")):
+        text = path.read_text(encoding="utf-8")
+        for key, sentence in sentences.items():
+            # The first clause of each sentence, so a copy a formatter reflowed
+            # over two lines is still found. A whole-sentence search would be
+            # defeated by the one edit somebody would actually make.
+            if sentence.split(".")[0] in text:
+                offenders.append(f"{path.relative_to(REPO_ROOT).as_posix()} carries {key}")
+    assert not offenders, (
+        "the consent text lives in the frontend as well as in nl.py:\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_the_frontend_knows_exactly_the_two_kinds_the_api_has() -> None:
+    """`CONSENT_KINDS` in accounts.ts is what every shape check and both consent
+    rows iterate, so a kind missing there is a consent the API records and the
+    browser never shows, and a kind too many is a row that renders `undefined`.
+    """
+    import sys
+
+    sys.path.insert(0, str(REPO_ROOT / "backend"))
+    from accounts.models import Consent
+
+    declared = _quoted(ACCOUNTS_TS.read_text(encoding="utf-8"), "export const CONSENT_KINDS =")
+    assert declared == sorted(Consent.KINDS), (
+        f"accounts.ts declares {declared} and Consent.KINDS is {sorted(Consent.KINDS)}"
+    )
+
+
+def test_no_consent_label_lives_in_the_frontend() -> None:
+    """Decision 38 closed: the labels travel with the texts, so a copy in the
+    frontend would be the drift `text_version` cannot see."""
+    import sys
+
+    sys.path.insert(0, str(REPO_ROOT / "backend"))
+    from accounts.nl import NL
+
+    labels = {key: NL[key] for key in ("CONSENT_LABEL_METER_LINK", "CONSENT_LABEL_LEAD_GENERATION")}
+    offenders = [
+        f"{path.relative_to(REPO_ROOT).as_posix()} carries {key}"
+        for path in sorted(FRONTEND_SOURCE.rglob("*.ts*"))
+        for key, label in labels.items()
+        if label in path.read_text(encoding="utf-8")
+    ]
+    assert not offenders, (
+        "a consent label lives in the frontend as well as in nl.py:\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_the_fragment_accepts_exactly_the_token_length_the_backend_mints() -> None:
+    """43 in fragment.ts and TOKEN_BYTES in recovery.py are one number written
+    on two sides of a language boundary. Held together here."""
+    import secrets
+    import sys
+
+    sys.path.insert(0, str(REPO_ROOT / "backend"))
+    from accounts.recovery import TOKEN_BYTES
+
+    fragment = (FRONTEND_SOURCE / "app" / "_account" / "fragment.ts").read_text(encoding="utf-8")
+    # `PATTERN` builds itself from `TOKEN_LENGTH` through `new RegExp(` + a
+    # template literal, not a `/.../ ` regex literal with the digits written
+    # out, so the number this test pins is read off the exported constant
+    # rather than off the character class it parameterises.
+    declared = re.search(r"export const TOKEN_LENGTH = (\d+);", fragment)
+    assert declared, "fragment.ts no longer pins a token length"
+    assert int(declared.group(1)) == len(secrets.token_urlsafe(TOKEN_BYTES))

@@ -3,6 +3,10 @@
 There is nothing to log in to, so there is nothing to steal from a session and
 nothing for a cross-site request to abuse: both POSTs are anonymous and change
 nothing that belongs to anyone.
+
+A cookie identity does exist since phase 1, in `accounts/views.py`, and these
+three routes stay outside its reach on purpose: the calculator is anonymous
+whether or not the caller happens to be signed in.
 """
 
 from __future__ import annotations

@@ -1,0 +1,11 @@
+{
+  "text_version": "2026-09-04",
+  "texts": {
+    "LEAD_GENERATION": "Ik geef Ampeer toestemming om mijn gegevens door te geven aan een installateur als ik daar zelf om vraag. Dit is niet nodig om Ampeer te gebruiken en het verandert niets aan het advies dat ik krijg.",
+    "METER_LINK": "Ik geef Ampeer toestemming om de kwartiergegevens van mijn slimme meter te verwerken om mijn advies nauwkeuriger te maken. Ik kan deze toestemming op elk moment intrekken."
+  },
+  "labels": {
+    "LEAD_GENERATION": "Doorgeven aan een installateur",
+    "METER_LINK": "Kwartiergegevens van uw slimme meter"
+  }
+}

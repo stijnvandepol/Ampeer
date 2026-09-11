@@ -52,10 +52,11 @@ BUILT_IMAGES = (
     ("web", "ghcr.io/stijnvandepol/ampeer-web"),
 )
 
-#: The nine names prod.py refuses to start without. Written out here rather
-#: than imported from the preflight or from .env.example, for the reason
-#: tests/test_infra.py gives about the same list: an imported list follows the
-#: change it was supposed to catch, so a drifting script would still be green.
+#: The thirteen names prod.py refuses to start without. Written out here
+#: rather than imported from the preflight or from .env.example, for the
+#: reason tests/test_infra.py gives about the same list: an imported list
+#: follows the change it was supposed to catch, so a drifting script would
+#: still be green.
 REQUIRED_ENV = (
     "DJANGO_SECRET_KEY",
     "DJANGO_ALLOWED_HOSTS",
@@ -66,6 +67,10 @@ REQUIRED_ENV = (
     "POSTGRES_USER",
     "POSTGRES_PASSWORD",
     "POSTGRES_HOST",
+    "AMPEER_MAIL_TRANSPORT",
+    "RESEND_API_KEY",
+    "AMPEER_MAIL_FROM",
+    "AMPEER_SITE_ORIGIN",
 )
 
 
@@ -488,7 +493,7 @@ README_STEP_WORDS = (
     ("Confirm the preflight", "the preflight's digest"),
     ("Confirm the compose file", "the compose file's digest"),
     ("Confirm the backup script", "the backup script's digest"),
-    ("Check the nine variables", "runs the preflight"),
+    ("Check the thirteen variables", "runs the preflight"),
     ("Log in to the registry", "logs in to GHCR"),
     ("Pull what CI built", "`pull`"),
     ("Confirm the images", "confirms the pulled digests"),
@@ -498,6 +503,7 @@ README_STEP_WORDS = (
     ("Start it", "`up -d`"),
     ("Fall back", "falls back"),
     ("Confirm expired advice", "`purge_expired_advice --check`"),
+    ("Confirm the outbox", "`send_outbound_mail --check`"),
     ("Drop the registry credential", "`docker logout`"),
 )
 
@@ -729,11 +735,13 @@ def _complete(profile: Path) -> dict[str, str]:
     readable path, and DJANGO_NUM_PROXIES has to be a whole number, because
     prod.py parses that one rather than reading it. Giving them real values
     here is what keeps each case testing the thing it names instead of failing
-    on the fixture.
+    on the fixture. AMPEER_MAIL_TRANSPORT has to be `resend`, because the
+    preflight refuses every other value on a host.
     """
     values = dict.fromkeys(REQUIRED_ENV, "set")
     values["AMPEER_NEDU_PROFILE_PATH"] = profile.as_posix()
     values["DJANGO_NUM_PROXIES"] = "2"
+    values["AMPEER_MAIL_TRANSPORT"] = "resend"
     return values
 
 
@@ -755,7 +763,7 @@ def _preflight(env_file: Path) -> subprocess.CompletedProcess[str]:
 
 
 class TestThePreflight:
-    def test_it_is_quiet_and_exits_zero_when_all_nine_are_set(self, tmp_path: Path) -> None:
+    def test_it_is_quiet_and_exits_zero_when_all_thirteen_are_set(self, tmp_path: Path) -> None:
         result = _preflight(_write_env(tmp_path, _complete(_profile(tmp_path))))
         assert result.returncode == 0, result.stdout + result.stderr
 
@@ -776,14 +784,26 @@ class TestThePreflight:
             assert name in output, output
 
     @pytest.mark.parametrize("name", REQUIRED_ENV)
-    def test_it_catches_each_of_the_nine_on_its_own(self, tmp_path: Path, name: str) -> None:
+    def test_it_catches_each_of_the_thirteen_on_its_own(self, tmp_path: Path, name: str) -> None:
         """One case per variable, so a name dropped from the script's list
-        names itself instead of hiding in a list that is still nine long."""
+        names itself instead of hiding in a list that is still thirteen long."""
         values = _complete(_profile(tmp_path))
         del values[name]
         result = _preflight(_write_env(tmp_path, values))
         assert result.returncode != 0, f"{name} may be missing without the deploy stopping"
         assert name in result.stdout + result.stderr
+
+    @pytest.mark.parametrize("value", ["file", "memory", "smtp"])
+    def test_the_host_preflight_refuses_any_transport_but_resend(
+        self, tmp_path: Path, value: str
+    ) -> None:
+        """prod.py accepts `file` for the local stack's sake; a host must not
+        be able to say it. Red-proof: drop the case block from the script."""
+        values = _complete(_profile(tmp_path))
+        values["AMPEER_MAIL_TRANSPORT"] = value
+        result = _preflight(_write_env(tmp_path, values))
+        assert result.returncode != 0, f"{value!r} passed the preflight"
+        assert "AMPEER_MAIL_TRANSPORT" in result.stdout + result.stderr
 
     def test_an_empty_value_counts_as_missing(self, tmp_path: Path) -> None:
         """`POSTGRES_PASSWORD=` is what a half-filled copy of .env.example
@@ -1239,6 +1259,64 @@ def test_the_purge_timer_is_the_shape_the_retention_promise_assumes() -> None:
     )
 
 
+METER_PURGE_COMMAND = (
+    REPO_ROOT / "backend" / "accounts" / "management" / "commands" / "purge_meter_readings.py"
+)
+
+
+def test_the_meter_purge_timer_is_the_shape_the_retention_promise_assumes() -> None:
+    """The third daily timer, held to the same reading as the advice purge.
+
+    docs/dpia.md's retention table promises a quarter reading is folded into
+    an hour after ninety days, and chapter 5 of the meter link design calls
+    the fold a daily task. A weekly timer would leave raw quarters on disk for
+    up to six extra days while the document went on calling it daily.
+    """
+    assert _timer_period_hours("ampeer-meter-purge.timer") == 24, (
+        "the meter purge no longer runs daily, and the retention table calls it a daily fold"
+    )
+
+
+def test_the_meter_purge_grace_clears_the_timer_it_is_measured_against() -> None:
+    """GRACE_DAYS and the timer period decide each other, the same pairing
+    `test_the_purge_grace_clears_the_timer_it_is_measured_against` makes for
+    the advice purge, read here against the meter purge's own command and timer.
+    """
+    grace_hours = _python_int(METER_PURGE_COMMAND, "GRACE_DAYS") * 24
+    period = _timer_period_hours("ampeer-meter-purge.timer")
+
+    assert grace_hours >= period, (
+        f"--check calls the meter purge timer dead after {grace_hours} hours and the timer "
+        f"only runs every {period}, so a working host is reported broken before every run"
+    )
+    assert grace_hours < 2 * period, (
+        f"--check tolerates {grace_hours} hours against a timer that runs every {period}, so "
+        "a whole missed run passes as healthy, and a check that survives the failure it is "
+        "for is not a check"
+    )
+
+
+def test_the_meter_purge_timer_needs_no_catch_up() -> None:
+    """No `Persistent=` directive, the same shape
+    `test_the_mail_unit_runs_the_command_every_minute` checks for the mail
+    timer, and for a related but distinct reason: a missed run loses nothing
+    because the next run folds every quarter now past the retention window
+    regardless of how long it waited, and the day of slack `--check` allows on
+    top of ninety is far wider than any realistic downtime.
+
+    Line-anchored rather than a substring check, so the unit may still explain
+    the absence in a comment: only an actual `[Timer]` directive line is
+    forbidden.
+    """
+    text = (REPO_ROOT / "infra" / "systemd" / "ampeer-meter-purge.timer").read_text(
+        encoding="utf-8"
+    )
+    assert not any(line.startswith("Persistent=") for line in text.splitlines()), (
+        "ampeer-meter-purge.timer now catches up after downtime, which the unit's own "
+        "comment says it deliberately does not"
+    )
+
+
 # --------------------------------------------------------------------------
 # The purge timer and the check that watches for its silence.
 #
@@ -1373,21 +1451,30 @@ def test_the_purge_overrides_the_entrypoint_it_would_otherwise_inherit() -> None
     rather than a management command. Overriding the entrypoint is what makes
     this a purge at all, and the unit says so.
 
-    Both invocations, because ExecStartPost runs the same image the same way to
-    ask whether anything is still past its date. A check that inherited the
-    entrypoint would answer a question nobody asked.
+    Three invocations now, not two. The first `ExecStart` deletes expired
+    advice, the second `ExecStart` deletes expired refresh sessions (accounts
+    task 6), and systemd runs both in the order they are declared because the
+    unit is `Type=oneshot`. `ExecStartPost` runs only if both `ExecStart` lines
+    succeeded, and asks whether anything is still past its date. A check that
+    inherited the entrypoint would answer a question nobody asked.
 
-    --env-file with them, from the same paragraph: docker-compose.yml
-    interpolates nine variables and gives none of them a default, so without
-    the file the unit fails while resolving it instead of connecting somewhere
-    unintended, which is the right way round.
+    --env-file with all three, from the same paragraph: docker-compose.yml
+    interpolates thirteen variables and gives none of them a default, so
+    without the file the unit fails while resolving it instead of connecting
+    somewhere unintended, which is the right way round.
+
+    The count below is exact on purpose, the same house style as
+    `test_dpia.py::test_the_audit_log_records_exactly_what_the_document_says_it_does`:
+    a fourth command has to make this assertion fail and a person come here to
+    raise it, rather than land unexamined under a `>=`. Whoever adds one reads
+    this docstring first and confirms the new line carries both flags below.
     """
     calls = [
         line
         for line in _unit_directives("ampeer-purge.service")
         if line.startswith(("ExecStart=", "ExecStartPost="))
     ]
-    assert len(calls) == 2, f"the unit declares {len(calls)} commands, not the pair this reads"
+    assert len(calls) == 3, f"the unit declares {len(calls)} commands, not the three this reads"
     for call in calls:
         assert "--entrypoint python" in call, (
             f"{call.split('=', 1)[0]} inherits the image's entrypoint, which execs gunicorn "
@@ -1399,7 +1486,9 @@ def test_the_purge_overrides_the_entrypoint_it_would_otherwise_inherit() -> None
         )
 
 
-@pytest.mark.parametrize("unit", ["ampeer-purge.service", "ampeer-backup.service"])
+@pytest.mark.parametrize(
+    "unit", ["ampeer-purge.service", "ampeer-backup.service", "ampeer-meter-purge.service"]
+)
 def test_no_unit_puts_a_credential_where_the_host_can_read_it(unit: str) -> None:
     """The backup unit says it sets no environment on purpose, and neither does.
 

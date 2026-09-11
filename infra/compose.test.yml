@@ -64,6 +64,11 @@ name: ampeer-local
 
 services:
   api:
+    environment:
+      # The file transport, for the two live checks that read a mail back
+      # out of infra/fixtures/mail/. prod.py accepts this value for exactly
+      # this stack and scripts/preflight_env.sh refuses it on a host.
+      AMPEER_MAIL_FILE_DIR: /srv/mail
     volumes:
       # Compose merges a volume list by its target path, so this replaces the
       # bind mount in docker-compose.yml rather than adding a second one at the
@@ -72,6 +77,10 @@ services:
       # works on a Windows developer machine where the host path in an env file
       # would have to be spelled in a form the daemon accepts.
       - ./fixtures/nedu-flat-2025.csv:/srv/profiles/nedu.csv:ro
+      # Writable, because the container writes here. Created by
+      # tests/test_stack_smoke.py's main(), world-writable there for a Linux
+      # host where the container's uid 10001 is nobody the developer knows.
+      - ./fixtures/mail:/srv/mail
 
   web:
     ports:

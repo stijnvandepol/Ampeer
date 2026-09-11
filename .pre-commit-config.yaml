@@ -19,7 +19,7 @@ repos:
   # versions take turns rewriting the same files, and the loop only shows up
   # as a pull request that is never quite formatted.
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.5
+    rev: v0.16.7
     hooks:
       - id: ruff
         args: [--fix]

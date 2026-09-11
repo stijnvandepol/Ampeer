@@ -1,0 +1,43 @@
+# THIS FILE IS INSTALLED BY HAND. NOTHING IN THIS REPOSITORY INSTALLS IT.
+#
+# Who:   Stijn, on the Ampeer LXC, as root. No workflow, no deploy job and no
+#        test may copy, enable or start this unit, and none of them does.
+# Where: /etc/systemd/system/ampeer-meter-purge.service, together with
+#        /etc/systemd/system/ampeer-meter-purge.timer.
+# How:   cp infra/systemd/ampeer-meter-purge.* /etc/systemd/system/
+#        systemctl daemon-reload
+#        systemctl enable --now ampeer-meter-purge.timer
+# Check: systemctl list-timers ampeer-meter-purge.timer
+#
+# Spelled out for the same reason ampeer-purge.service is: a file that looks
+# automatic and is not is worse than one that says so. If nobody runs the
+# three commands above, a quarter reading past its ninety day retention stays
+# a quarter reading, and the only observable behaviour is an export carrying
+# raw kwartierdata a household was told would be gone. `purge_meter_readings
+# --check` is the half that notices.
+
+[Unit]
+Description=Fold Ampeer quarter readings older than ninety days into hour totals
+# The command runs inside a container, so there is nothing to do before
+# Docker is up.
+Requires=docker.service
+After=docker.service
+ConditionPathExists=/srv/ampeer/docker-compose.yml
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/ampeer
+# The same shape as ampeer-purge.service, for the same reasons: --env-file
+# because compose gives none of its variables a default, --entrypoint python
+# because the image's entrypoint execs gunicorn and ignores its arguments,
+# backend/manage.py because the image's working directory is /app.
+ExecStart=/usr/bin/docker compose --env-file /srv/ampeer/.env -f /srv/ampeer/docker-compose.yml run --rm --entrypoint python api backend/manage.py purge_meter_readings
+# The half that notices, in the same place ampeer-purge.service puts it:
+# ExecStartPost runs only when ExecStart succeeded, and asks the question a
+# count printed to a log nobody reads cannot: is anything still past its
+# date? A `--check` that ran unconditionally could not tell a genuinely empty
+# tree from a fold that silently failed.
+ExecStartPost=/usr/bin/docker compose --env-file /srv/ampeer/.env -f /srv/ampeer/docker-compose.yml run --rm --entrypoint python api backend/manage.py purge_meter_readings --check
+# The command prints one line with two counts and nothing else. No token, no
+# key digest and no household's numbers reach the journal, which outlives the
+# rows it describes.

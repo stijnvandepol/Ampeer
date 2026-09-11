@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import fixture from "../tests/fixtures/advice-response.json";
+import { ADVICE_PATH, ALL_PATHS } from "./routes";
 
 /**
  * Light and dark, with the explicit choice that has to beat the system.
@@ -14,10 +15,6 @@ import fixture from "../tests/fixtures/advice-response.json";
  * answerable in a real browser.
  */
 
-const TOKEN = fixture.token;
-const ADVICE_PATH = `/advies/${TOKEN}/`;
-const ALL_PATHS = ["/", "/berekenen/", ADVICE_PATH, "/methodologie/"] as const;
-
 async function serveFixture(page: Page): Promise<void> {
   await page.route("**/api/advice/**", (route) =>
     route.fulfill({
@@ -25,6 +22,41 @@ async function serveFixture(page: Page): Promise<void> {
       contentType: "application/json",
       headers: { "access-control-allow-origin": "*" },
       body: JSON.stringify(fixture),
+    }),
+  );
+  // The account route answers 401 to a visitor who is not signed in, which is
+  // the state the dark palette has to be measured in here. Without this the
+  // page would fall into the "nothing came back" state, which is a different
+  // screen and one that depends on whether a server happens to be running.
+  //
+  // The two CORS headers are not decoration. The account client sends
+  // `credentials: "include"`, and a browser refuses a credentialed response
+  // whose allow-origin is `*`, so the wildcard used above for the advice API
+  // would turn every one of these into a network error.
+  await page.route("**/api/auth/me/", (route) =>
+    route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      headers: {
+        "access-control-allow-origin": "http://127.0.0.1:4173",
+        "access-control-allow-credentials": "true",
+      },
+      body: JSON.stringify({ detail: "u bent niet ingelogd" }),
+    }),
+  );
+  // `loadSession` spends its one exchange on a 401: one `refresh/`, then one
+  // more `me/`. Left unmocked, that POST would be an unmocked request to a
+  // server this build does not run, which is a network error and not the
+  // signed-out state this test means to measure.
+  await page.route("**/api/auth/refresh/", (route) =>
+    route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      headers: {
+        "access-control-allow-origin": "http://127.0.0.1:4173",
+        "access-control-allow-credentials": "true",
+      },
+      body: JSON.stringify({ detail: "u bent niet ingelogd" }),
     }),
   );
 }
@@ -117,6 +149,12 @@ test("every route passes axe in the dark palette too", async ({ page }) => {
   // looks at the pixels.
   await serveFixture(page);
   await page.emulateMedia({ colorScheme: "dark" });
+  // Without this line "the loop walked every path" is an assumption: nothing
+  // checks how many paths sit in ALL_PATHS. Nine since 2026-09-11, when this
+  // sweep and the light one in rules.spec.ts were given the same list. Six
+  // stood here before that, and the three the dark palette had never been
+  // looked at on were /einde-saldering/, /over-ons/ and /privacy/.
+  expect(ALL_PATHS).toHaveLength(9);
   for (const path of ALL_PATHS) {
     await page.goto(path);
     await page.evaluate(() =>

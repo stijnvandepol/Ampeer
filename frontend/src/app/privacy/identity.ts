@@ -80,6 +80,15 @@ export interface Identity {
   readonly vatNumber?: string;
   readonly postalAddress: string;
   readonly contactEmail: string;
+  /**
+   * The address a request about personal data goes to, distinct from
+   * `contactEmail`. The AVG gives a month to answer an access or deletion
+   * request, and a request arriving in a general inbox is one that can be
+   * read as ordinary mail and left. `contactEmail` still names the comment
+   * above it; this field is the cheap fix that comment already pointed at,
+   * supplied rather than deferred.
+   */
+  readonly privacyEmail: string;
   readonly legalBasis: LegalBasis | typeof NOG_IN_TE_VULLEN | string;
 }
 
@@ -98,6 +107,7 @@ export interface CompleteIdentity {
   readonly vatNumber?: string;
   readonly postalAddress: string;
   readonly contactEmail: string;
+  readonly privacyEmail: string;
   readonly legalBasis: LegalBasis;
 }
 
@@ -113,6 +123,7 @@ export const IDENTITY_FIELDS = [
   "kvkNumber",
   "postalAddress",
   "contactEmail",
+  "privacyEmail",
   "legalBasis",
 ] as const satisfies readonly (keyof Identity)[];
 
@@ -130,6 +141,8 @@ export const IDENTITY_FIELD_HELP: Readonly<Record<IdentityField, string>> = {
   kvkNumber: "the Chamber of Commerce number, eight digits",
   postalAddress: "a postal address a letter can reach",
   contactEmail: "the address that answers questions about personal data",
+  privacyEmail:
+    "the address a request about personal data goes to, answered within a month",
   legalBasis: `either "${LEGAL_BASES[0]}" or "${LEGAL_BASES[1]}"; see chapter 10 point 2 of docs/dpia.md`,
 };
 
@@ -147,21 +160,20 @@ export const IDENTITY: Identity = {
   legalName: "Stijn IT, eenmanszaak",
   kvkNumber: "42015984",
   postalAddress: "Snavelbiesstraat 8, 5445 NV Landhorst",
-  // One general address rather than a dedicated privacy@ one, chosen on
-  // 2026-09-03. Worth knowing what that costs: the AVG gives a month to answer
-  // an access or deletion request, and a request arriving in a general inbox is
-  // one that can be read as ordinary mail and left. If that ever bites, a
-  // forwarding rule on this address is the cheap fix, not a change here.
+  // The general address, for everything other than a request about
+  // personal data; those go to privacyEmail below.
   contactEmail: "info@ampeer.nl",
-  // Chosen on 2026-09-02, from the two the DPIA leaves open in chapter 10.
-  // Article 6(1)(b): the visitor asks for a calculation and these answers are
-  // what makes one possible, so the processing is the service rather than
-  // something done alongside it. Consent was the alternative and is worse here
-  // in both directions: it has to be as easy to withdraw as to give, and
-  // withdrawing it after an advice has been computed leaves a question nobody
-  // has a good answer to, while asking for it at all implies that saying no
-  // still leaves something to calculate, which it does not.
-  legalBasis: "overeenkomst",
+  privacyEmail: "privacy@ampeer.nl",
+  // Chosen on 2026-09-07, which retires the 2026-09-02 choice for a
+  // contract. The DPIA picks consent in chapter 10, item 2, on the article
+  // 7(4) GDPR argument: RegisterSerializer accepts a registration with or
+  // without METER_LINK, so the service does not depend on a consent it does
+  // not itself need. The code already executes that, with two separate,
+  // unticked consents that carry their own timestamp and text version. What
+  // it costs: consent must be as easy to withdraw as to give, and for the
+  // account itself withdrawing equals deleting, which the button on
+  // /account/ does.
+  legalBasis: "toestemming",
 };
 
 /** True when a field still holds nothing a page may print. */

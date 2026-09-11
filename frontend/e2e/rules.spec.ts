@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import fixture from "../tests/fixtures/advice-response.json";
+import { ADVICE_PATH, ALL_PATHS } from "./routes";
 
 /**
  * The five rules from chapter 2 of the spec, one test each, in a real browser.
@@ -15,19 +16,9 @@ import fixture from "../tests/fixtures/advice-response.json";
  * also proves it read something, because a rule that cannot fail is not a rule.
  */
 
-/** The token in the fixture, which is the shape the API issues: 22 url-safe characters. */
-const TOKEN = fixture.token;
-
-const ADVICE_PATH = `/advies/${TOKEN}/`;
-
-/** Every route the site has, for the sweep that has to cover all of them. */
-const ALL_PATHS = [
-  "/",
-  "/einde-saldering/",
-  "/berekenen/",
-  ADVICE_PATH,
-  "/methodologie/",
-] as const;
+test("checks exactly the nine routes this list names, not more and not fewer", () => {
+  expect(ALL_PATHS).toHaveLength(9);
+});
 
 /** The advice has arrived once its headline band is on the screen. */
 async function openAdvice(page: Page): Promise<void> {

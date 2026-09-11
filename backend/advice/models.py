@@ -1,8 +1,15 @@
 """The three tables the advice API keeps.
 
-None of them holds a personal detail. `StoredAdvice.inputs` holds the answers a
-visitor gave, and the serializer that produces it accepts a four digit postcode
-and nothing longer, so there is no address in here and no way to put one in.
+`StoredAdvice.inputs` holds the answers a visitor gave, and the serializer that
+produces it accepts a four digit postcode and nothing longer, so there is no
+address in here and no way to put one in. `AuditEvent` and `DailyCounter` hold
+nothing that belongs to anybody at all.
+
+One column is the exception, and it arrived with phase 1: `StoredAdvice.owner`
+points at an account, and an account has an email address. It is null on every
+row today, nothing in phase 1 writes it, and the route that reads an advice does
+not look at it. What it is for is phase 2, and the reason it is here already is
+in the note beside it.
 """
 
 from __future__ import annotations
@@ -50,6 +57,28 @@ class StoredAdvice(models.Model):
     inputs = models.JSONField()
     #: The rendered advice, including engine_version and advice_version.
     advice = models.JSONField()
+    #: Nullable, and null is the normal case. Every advice made before phase 1
+    #: has no owner and every advice made anonymously after it has none either.
+    #:
+    #: `get_live` does not filter on this column and must not start to. Ownership
+    #: adds a second way to reach an advice; it does not take the shareable link
+    #: away, and the largest group of visitors will never have an account at all.
+    #:
+    #: CASCADE and not SET_NULL. Deleting an account has to take its advice with
+    #: it, because that advice is the only thing this product keeps about that
+    #: household. SET_NULL would leave the rows behind as ownerless advice, still
+    #: readable on their token for the rest of the ninety days, which turns a
+    #: deletion request into a change of name. Nothing writes this column in
+    #: phase 1; the column exists now because adding it later is a migration over
+    #: every stored advice, which is the same argument `year_field`'s
+    #: `shareable_token` was built on.
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="advices",
+    )
 
     class Meta:
         ordering: ClassVar[list[str]] = ["-created_at"]
@@ -100,6 +129,45 @@ class AuditEvent(models.Model):
     """
 
     ADVICE_GENERATED = "ADVICE_GENERATED"
+
+    #: What this log records, and every entry here is a handling that exists.
+    #: The two from CLAUDE.md's list that are absent, a link being made and a
+    #: lead being sent, are absent because those handlings do not exist yet: a
+    #: log that named them would describe a processing that is not happening.
+    #:
+    #: Context carries `user_id` as a plain integer and never the email address.
+    #: This table is never purged, so anything in it outlives the account, and an
+    #: integer pointing at a deleted row is an empty reference where an address
+    #: would be a permanent personal datum in a table with no retention. Same
+    #: call as `token_sha256` instead of `token` in service.py.
+    ACCOUNT_CREATED = "ACCOUNT_CREATED"
+    LOGIN_SUCCEEDED = "LOGIN_SUCCEEDED"
+    LOGIN_FAILED = "LOGIN_FAILED"
+    LOGOUT = "LOGOUT"
+    CONSENT_GRANTED = "CONSENT_GRANTED"
+    CONSENT_WITHDRAWN = "CONSENT_WITHDRAWN"
+    DATA_EXPORTED = "DATA_EXPORTED"
+    ACCOUNT_DELETED = "ACCOUNT_DELETED"
+
+    #: The four that arrived with password reset and address confirmation.
+    #: A reset request is logged only for an address that belongs to an
+    #: account, with `user_id` and nothing else; for an unknown address there
+    #: is nothing to point at and the log stays silent, because a line about
+    #: it would have to carry the address to mean anything. `MAIL_SENT`
+    #: carries the kind and the id the mail provider returned: that id is not
+    #: a personal datum and is the only handle by which one delivery can be
+    #: found at the processor.
+    #: B105 matches these two constant names, not a credential: they are audit kinds.
+    PASSWORD_RESET_REQUESTED = "PASSWORD_RESET_REQUESTED"  # nosec B105
+    PASSWORD_RESET_COMPLETED = "PASSWORD_RESET_COMPLETED"  # nosec B105
+    EMAIL_VERIFIED = "EMAIL_VERIFIED"
+    MAIL_SENT = "MAIL_SENT"
+
+    #: A link made and a link undone. Both carry `user_id` and nothing else:
+    #: docs/dpia.md chapter 5 says why there is no line per reading, and this
+    #: pair is the whole of what the meter link adds to this log.
+    METER_LINKED = "METER_LINKED"
+    METER_UNLINKED = "METER_UNLINKED"
 
     event_type = models.CharField(max_length=64, db_index=True)
     occurred_at = models.DateTimeField(auto_now_add=True, db_index=True)

@@ -43,6 +43,15 @@ WorkingDirectory=/srv/ampeer
 # they did not: the image ended on WORKDIR /app/backend for a few hours and
 # this line resolved to /app/backend/backend/manage.py.
 ExecStart=/usr/bin/docker compose --env-file /srv/ampeer/.env -f /srv/ampeer/docker-compose.yml run --rm --entrypoint python api backend/manage.py purge_expired_advice
+# A second ExecStart, run after the first in the order they are declared:
+# systemd runs every ExecStart line in a Type=oneshot unit in sequence, which
+# is exactly what a second daily sweep needs. A refresh session that outlives
+# its expires_at is not a stolen-token risk by itself, since a spent token is
+# already refused on presentation regardless of whether its row still exists,
+# but a table that only grows is the same disk question purge_expired_advice
+# was written to avoid for StoredAdvice, so it gets the same timer rather than
+# a second one.
+ExecStart=/usr/bin/docker compose --env-file /srv/ampeer/.env -f /srv/ampeer/docker-compose.yml run --rm --entrypoint python api backend/manage.py purge_expired_sessions
 # The command prints a count and nothing else. No token and no input reaches
 # the journal, which matters because the journal outlives the rows it describes.
 

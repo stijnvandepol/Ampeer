@@ -20,14 +20,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
+    "django.contrib.auth",
     "django.contrib.staticfiles",
+    "axes",
     "corsheaders",
     "rest_framework",
     "advice.apps.AdviceConfig",
+    "accounts.apps.AccountsConfig",
 ]
 
-# No auth, no sessions, no admin. There is nothing to log in to in this phase,
-# and an installed app is an attack surface whether or not a URL points at it.
+# Still no sessions and no admin. Phase 1 adds something to log in to, and that
+# is the only reason `django.contrib.auth` is here; a session is a second way to
+# hold an identity and this service holds one, in a cookie, as a JWT.
 
 MIDDLEWARE = [
     # First, and above SecurityMiddleware, because it has to answer a preflight
@@ -46,7 +50,112 @@ MIDDLEWARE = [
     # quality job refuses a deployment without it.
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "axes.middleware.AxesMiddleware",
 ]
+
+AUTH_USER_MODEL = "accounts.User"
+
+# Axes first, and that ordering is the whole point: a lockout that runs second
+# is a lockout the attempt has already got past. tests/test_backend_settings.py
+# asserts this position rather than the mere presence of the entry.
+AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesStandaloneBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
+
+# Argon2id, and Django's Argon2PasswordHasher is that variant. Argon2 does not
+# replace a blank here, it replaces PBKDF2, which Django supplies whether or not
+# anybody asked for it. That is the harder kind of default to remember.
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.Argon2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+]
+
+# Twelve and not eight. Length beats composition, and this is the only knob on
+# this list that is worth turning.
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {"min_length": 12},
+    },
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
+
+# ---------------------------------------------------------------------------
+# The lockout, and the two callables that keep it from writing anybody down.
+#
+# The cache handler rather than the database one, because the database handler
+# creates AccessAttempt, AccessLog and AccessFailureLog, each with an
+# ip_address column, and docs/dpia.md chapter 2 says there is no IP address in
+# any table. Nothing in this repository would have caught that: the test that
+# guards the sentence reads backend/advice/models.py, so a third party's models
+# do not appear in it.
+#
+# Measured on 2026-09-04 before this handler was chosen: the counter in
+# DatabaseCache is a read followed by a write, so concurrent writers lose some
+# increments. What it does not do is stop crossing the threshold a lockout
+# fires at, which is the property that matters. See
+# tests/test_accounts_lockout_store.py and docs/decisions.md.
+# ---------------------------------------------------------------------------
+AXES_HANDLER = "axes.handlers.cache.AxesCacheHandler"
+AXES_CLIENT_IP_CALLABLE = "accounts.lockout.client_ip"
+AXES_USERNAME_CALLABLE = "accounts.lockout.username"
+AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
+AXES_FAILURE_LIMIT = 5
+AXES_COOLOFF_TIME = 1
+# Axes answers a locked out attempt itself. 429 rather than its default 403,
+# because that is what DRF's own throttle answers and what
+# frontend/src/app/_flow/messages.ts already turns into the one sentence where
+# waiting is the correct advice.
+AXES_HTTP_RESPONSE_CODE = 429
+
+# ---------------------------------------------------------------------------
+# The cookies the tokens travel in.
+#
+# Names and paths as constants, because a cookie name written out in two places
+# is a cookie name that eventually differs between the view that sets it and the
+# view that reads it, and the symptom of that is a silent logout.
+#
+# SameSite=Strict works here because in production there is one origin:
+# infra/nginx/nginx.conf serves the static export and proxies /api/ in the same
+# server block, the deploy builds with an empty NEXT_PUBLIC_API_BASE, and the
+# CSP on that block says connect-src 'self'.
+# ---------------------------------------------------------------------------
+AMPEER_ACCESS_COOKIE = "ampeer_access"
+AMPEER_REFRESH_COOKIE = "ampeer_refresh"
+#: The access token reaches every API route, because phase 2 puts endpoints
+#: outside /api/auth/. The refresh token reaches only the two routes that need
+#: it, so it does not travel on every request the access token makes.
+AMPEER_ACCESS_COOKIE_PATH = "/api/"
+AMPEER_REFRESH_COOKIE_PATH = "/api/auth/"
+#: Overridden per environment, like SESSION_COOKIE_SECURE already is.
+AMPEER_COOKIE_SECURE = False
+
+CSRF_COOKIE_SAMESITE = "Strict"
+#: False on purpose and not a weakening. A double submit token that JavaScript
+#: cannot read is a token JavaScript cannot send back.
+CSRF_COOKIE_HTTPONLY = False
+
+# Placed here rather than with the other imports at the top of the file, so
+# it stays beside the one setting it configures.
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=14),
+    # Rotation is done by accounts/tokens.py against RefreshSession, not by this
+    # package. Its own rotation needs the token_blacklist app, and that app
+    # writes the whole refresh JWT into OutstandingToken.token, which is a
+    # working credential in a column. CLAUDE.md forbids exactly that, and
+    # docs/dpia.md chapter 2 already made the same call for the advice token.
+    "ROTATE_REFRESH_TOKENS": False,
+    "BLACKLIST_AFTER_ROTATION": False,
+    "AUTH_HEADER_TYPES": (),
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
+}
 
 ROOT_URLCONF = "ampeer.urls"
 WSGI_APPLICATION = "ampeer.wsgi.application"
@@ -99,6 +208,29 @@ REST_FRAMEWORK: dict[str, Any] = {
         # response, but a 429 in the console on a working form is noise that
         # costs somebody an afternoon.
         "advice-count": "120/hour",
+        # A real household registers once. This stops mass account creation.
+        "auth-register": "5/hour",
+        # Generous for somebody who mistypes. Axes does the lockout, this bounds volume.
+        "auth-login": "10/hour",
+        # Four refreshes an hour per device, against an access token with a 15 minute lifetime.
+        "auth-refresh": "60/hour",
+        # The starting point of every page load, same as advice-read.
+        "auth-read": "120/hour",
+        # Consent, logout and deletion: actions a person does a handful of times.
+        "auth-write": "20/hour",
+        # The most expensive response this API answers.
+        "auth-export": "5/hour",
+        # A reset link tried at most as often as a password: the same ten as
+        # auth-login, for reset/request/, reset/confirm/ and verify/confirm/.
+        # Decision 33's sum moves from 480 to 490 an hour, which 10 r/s still
+        # clears with a 73-fold margin; tests/test_nginx_config.py re-runs
+        # that arithmetic.
+        "auth-reset": "10/hour",
+        # A device pushing every quarter makes four requests an hour. This
+        # allows a buffered day plus repeats after an outage. Decision 33's
+        # sum moves from 490 to 610 an hour, which 10 r/s still clears with a
+        # 59-fold margin; tests/test_nginx_config.py re-runs that arithmetic.
+        "meter-ingest": "120/hour",
     },
     "UNAUTHENTICATED_USER": None,
 }
@@ -138,6 +270,23 @@ AMPEER_PROFILE_YEAR = 2025
 #: How long a stored advice stays retrievable.
 AMPEER_ADVICE_TTL_DAYS = 90
 
+#: How a mail leaves, and from whom. Base is the test suite's answer: the
+#: memory transport delivers nothing and the suite never touches the network.
+#: dev.py writes files; prod.py reads all of these from the environment and
+#: refuses `memory`. See accounts/mailer.py.
+AMPEER_MAIL_TRANSPORT = "memory"
+AMPEER_MAIL_FROM = "noreply@ampeer.test.invalid"
+#: Where the links in a mail point. The page reads the token off the fragment
+#: of this origin's /account/ route, so it has to be the origin a household
+#: sees and not the API's.
+AMPEER_SITE_ORIGIN = "http://127.0.0.1:3000"
+#: The file transport's directory. A property of the process, not of the
+#: host, so it is not in the env file: prod.py fixes it to /srv/mail and
+#: infra/compose.test.yml mounts the fixture directory there.
+AMPEER_MAIL_FILE_DIR = str(BASE_DIR.parent / "data" / "mail")
+#: Empty everywhere but production. Never a default with a value.
+RESEND_API_KEY = ""
+
 
 #: Which origins the browser may read an answer from.
 #:
@@ -162,9 +311,13 @@ CORS_ALLOWED_ORIGINS: list[str] = []
 CORS_ALLOW_HEADERS = ["content-type"]
 CORS_ALLOW_METHODS = ["GET", "POST", "OPTIONS"]
 
-#: No cookies cross the boundary. There is no session on this API, so there is
-#: nothing to send; saying so out loud means a later view cannot start relying
-#: on one by accident.
+#: No cookies cross this boundary in production, and there they do not have to:
+#: nginx serves the site and proxies /api/ in one server block, so the browser
+#: never makes a cross-origin call at all. On a developer machine the two halves
+#: are on different ports, which is cross-site, and dev.py therefore turns this
+#: on for the three named localhost origins and nothing else. Saying so here
+#: means a later view cannot start relying on it in production by accident, and
+#: that prod.py never gets the line copied up into it.
 CORS_ALLOW_CREDENTIALS = False
 
 
