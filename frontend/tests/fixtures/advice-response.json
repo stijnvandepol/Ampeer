@@ -2,6 +2,7 @@
   "token": "FIXTUREfixture00000000",
   "confidence": "INDICATIVE",
   "confidence_label": "Indicatief",
+  "consumption_source": "TYPED",
   "headline": {
     "p10": "1382.13",
     "p50": "1668.92",

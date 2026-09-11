@@ -371,6 +371,7 @@ def advise(
     result: Result,
     filled_fields: int,
     has_meter_data: bool = False,
+    consumption_measured: bool = False,
     dynamic_contract: bool = False,
     battery_spec: BatterySpec | None = None,
     dynamic_scenario: TariffSet | None = None,
@@ -430,7 +431,7 @@ def advise(
         household=household,
         grid=grid,
         result=result,
-        confidence=confidence_for(filled_fields, has_meter_data),
+        confidence=confidence_for(filled_fields, has_meter_data, consumption_measured),
         dynamic_contract=dynamic_contract,
         battery=battery_spec,
     )

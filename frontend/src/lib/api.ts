@@ -122,6 +122,7 @@ function isStringList(value: unknown): boolean {
 }
 
 const CONFIDENCE_LEVELS = ["INDICATIVE", "GOOD", "PRECISE"];
+const CONSUMPTION_SOURCES = ["TYPED", "MEASURED"];
 const SIZING_BASES = [
   "CHOSEN_FROM_SIMULATED_CAPACITIES",
   "LIMITED_BY_LARGEST_SIMULATED_CAPACITY",
@@ -215,6 +216,8 @@ function isAdvice(value: unknown): value is Advice {
     isString(value["confidence"]) &&
     CONFIDENCE_LEVELS.includes(value["confidence"]) &&
     isString(value["confidence_label"]) &&
+    isString(value["consumption_source"]) &&
+    CONSUMPTION_SOURCES.includes(value["consumption_source"]) &&
     isPercentileBand(value["headline"]) &&
     Array.isArray(value["routes"]) &&
     value["routes"].every(isRouteBlock) &&
