@@ -553,21 +553,36 @@ def test_the_eleventh_reset_request_in_an_hour_is_refused_in_dutch(client: Any) 
 
 
 @pytest.mark.django_db
-def test_the_thirteen_routes_each_carry_a_scope_with_a_rate() -> None:
-    """Spec 3.5, beside tests/test_backend_settings.py's resolver walk: the
-    four new views name `auth-reset` or `auth-write`, and nginx's ceiling
-    still clears the summed per-visitor rate by fifty times."""
+def test_the_sixteen_routes_each_carry_a_scope_with_a_rate() -> None:
+    """Spec 3.5, beside tests/test_backend_settings.py's resolver walk: every
+    view under /api/auth/ names a scope that has a rate, and nginx's ceiling
+    still clears the summed per-visitor rate by fifty times.
+
+    Sixteen since the meter link of 2026-09-09, which added `meter/`,
+    `meter/link/` and `meter/unlink/`. Those three reuse `auth-read` and
+    `auth-write` rather than asking for a scope of their own: they do what
+    those two scopes already describe, and a fourth scope would move the sum
+    below for no gain. What did move the sum is the push route's own
+    `meter-ingest`, which is not one of these sixteen because it is not under
+    /api/auth/ and carries no session; it is counted here anyway, because
+    this sum is over every rate DRF hands one visitor and nginx's ceiling
+    does not care which prefix they were spent on."""
     from django.conf import settings
 
     from accounts import urls, views
 
-    assert len(urls.urlpatterns) == 13
+    assert len(urls.urlpatterns) == 16
     rates = settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]
     assert rates["auth-reset"] == "10/hour"
+    assert rates["meter-ingest"] == "120/hour"
     assert views.ResetRequestView.throttle_scope == "auth-reset"
     assert views.ResetConfirmView.throttle_scope == "auth-reset"
     assert views.VerifyConfirmView.throttle_scope == "auth-reset"
     assert views.VerifyRequestView.throttle_scope == "auth-write"
+    assert views.MeterStatusView.throttle_scope == "auth-read"
+    assert views.MeterLinkView.throttle_scope == "auth-write"
+    assert views.MeterUnlinkView.throttle_scope == "auth-write"
+    assert views.MeterReadingsView.throttle_scope == "meter-ingest"
     per_hour = sum(int(rate.split("/")[0]) for rate in rates.values())
-    assert per_hour == 490
+    assert per_hour == 610
     assert 10.0 >= 50 * (per_hour / 3600)

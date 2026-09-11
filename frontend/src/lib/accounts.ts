@@ -19,7 +19,13 @@ import { ApiError } from "@/lib/api";
  * `isAdvice` gives one module over: there is no error boundary above this page,
  * so a renamed field produces no message, it produces an empty screen.
  */
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8000";
+/**
+ * Exported for `_account/AccountPage.tsx`, which needs it to show the full
+ * push address (`apiBase + push_path`) beside the one-time meter key. Nothing
+ * else outside this file has a reason to read it: every other call already
+ * carries this prefix internally.
+ */
+export const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8000";
 
 /**
  * The two kinds, in the order the API sends them.
@@ -55,6 +61,42 @@ export interface Me {
 export interface ConsentResult {
   readonly kind: ConsentKind;
   readonly granted: boolean;
+}
+
+/**
+ * What `GET /api/auth/meter/` answers with. No reason is carried alongside
+ * `may_link`: the backend knows why linking is blocked (an unconfirmed
+ * address, a missing consent, or both), and this shape does not repeat that
+ * distinction, so the frontend shows one requirement sentence rather than
+ * guessing which half of it still needs doing.
+ */
+export interface MeterStatus {
+  readonly may_link: boolean;
+  readonly linked: boolean;
+  /** ISO 8601, or null when there is no active link. */
+  readonly created_at: string | null;
+  /** ISO 8601, or null when a link exists but nothing has arrived yet. */
+  readonly last_seen_at: string | null;
+  /**
+   * The same moment as words, in Europe/Amsterdam, built by the API.
+   *
+   * The page may not build this itself: `.semgrep/frontend.yml`'s
+   * ampeer-no-reading-the-clock forbids `new Date(...)` here, and says a date
+   * the visitor should see comes from the API, which computed it. Keeping
+   * both means anything that needs the value still has the ISO.
+   */
+  readonly last_seen_label: string | null;
+}
+
+/**
+ * What `POST /api/auth/meter/link/` answers with, once, per design chapter 3:
+ * the key is shown exactly here and never again, so nothing in this file
+ * offers a second way to read it back.
+ */
+export interface MeterKey {
+  readonly token: string;
+  readonly push_path: string;
+  readonly created_at: string;
 }
 
 export interface SignInInput {
@@ -219,6 +261,45 @@ function isMe(value: unknown): value is Me {
   return CONSENT_KINDS.every((kind) => typeof consents[kind] === "boolean");
 }
 
+/**
+ * Five keys of the right type, `created_at`, `last_seen_at` and
+ * `last_seen_label` as a string or
+ * `null`, both checked with `"key" in value` first for the same reason `isMe`
+ * checks `email_verified_at` that way: a missing key is not the same claim as
+ * a `null` one, and a body that dropped the key silently is not a body this
+ * screen can render a state from.
+ */
+function isMeterStatus(value: unknown): value is MeterStatus {
+  if (!isObject(value)) return false;
+  if (typeof value["may_link"] !== "boolean") return false;
+  if (typeof value["linked"] !== "boolean") return false;
+  if (!("created_at" in value)) return false;
+  const createdAt = value["created_at"];
+  if (createdAt !== null && !isString(createdAt)) return false;
+  if (!("last_seen_at" in value)) return false;
+  const lastSeenAt = value["last_seen_at"];
+  if (lastSeenAt !== null && !isString(lastSeenAt)) return false;
+  if (!("last_seen_label" in value)) return false;
+  const lastSeenLabel = value["last_seen_label"];
+  if (lastSeenLabel !== null && !isString(lastSeenLabel)) return false;
+  return true;
+}
+
+/**
+ * A non-empty `token`, a `push_path` that starts with `/` (the address a
+ * device pushes to, always a path on this same API), and a `created_at`.
+ */
+function isMeterKey(value: unknown): value is MeterKey {
+  return (
+    isObject(value) &&
+    isString(value["token"]) &&
+    value["token"].length > 0 &&
+    isString(value["push_path"]) &&
+    value["push_path"].startsWith("/") &&
+    isString(value["created_at"])
+  );
+}
+
 /** The answer is about the kind that was sent, or it is about nothing. */
 function isConsentResult(
   value: unknown,
@@ -316,6 +397,25 @@ export async function postConsent(input: ConsentInput): Promise<ConsentResult> {
     throw unreadable(response, "an answer about another consent");
   }
   return body;
+}
+
+export async function getMeterStatus(): Promise<MeterStatus> {
+  const response = await call("/api/auth/meter/", { method: "GET" });
+  const body: unknown = await response.json().catch(() => null);
+  if (!isMeterStatus(body)) throw unreadable(response, "no meter status");
+  return body;
+}
+
+export async function linkMeter(): Promise<MeterKey> {
+  const response = await call("/api/auth/meter/link/", { method: "POST" });
+  const body: unknown = await response.json().catch(() => null);
+  if (!isMeterKey(body)) throw unreadable(response, "no meter key");
+  return body;
+}
+
+export async function unlinkMeter(): Promise<void> {
+  // 204, so there is no body, the same contract as logout() below.
+  await call("/api/auth/meter/unlink/", { method: "POST" });
 }
 
 /**

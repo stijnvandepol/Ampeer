@@ -10,7 +10,7 @@ machine verlaat. Elk feit hierin is uit de code gelezen of gemeten, niet
 onthouden, en `tests/test_dpia.py` houdt de getallen hieronder naast de plek in
 de code waar ze vandaan komen. Verandert er een, dan valt die test om.
 
-Dit is geen juridisch advies en het is niet ondertekend. Vijf dingen zijn
+Dit is geen juridisch advies en het is niet ondertekend. Vier dingen zijn
 beslissingen van de verwerkingsverantwoordelijke en staan in hoofdstuk 10 met
 de informatie die nodig is om ze te nemen.
 
@@ -95,6 +95,26 @@ verloop (`spent_at` blijft tot dan staan, want een gebruikt token dat nog
 bestaat is wat hergebruik zichtbaar maakt), een outbox-rij bij verzending en
 zeven dagen na een mislukking.
 
+Sinds de meterkoppeling staat er ook `MeterLink`: de koppeling tussen een
+account en het apparaat dat kwartierstanden duwt. De sleutel die dat apparaat
+gebruikt wordt nooit opgeslagen, precies zoals bij `RefreshSession` en
+`OneTimeToken`: de tabel draagt de sha256-afdruk (`token_sha256`), het
+tijdstip van aanmaken, het tijdstip van intrekken (leeg zolang de koppeling
+actief is) en het tijdstip waarop voor het laatst iets binnenkwam. Geen
+EAN-code, geen meternummer en geen adres: de dienst heeft ze niet nodig om
+een reeks getallen bij een account te leggen, en een identificerend gegeven
+dat nergens voor dient is een gegeven dat niet verzameld hoort te worden. Er
+is per account ten hoogste een actieve koppeling; een nieuwe koppeling trekt
+de vorige in dezelfde transactie in.
+
+Wat er via die koppeling binnenkomt staat in twee tabellen. `QuarterReading`
+draagt per kwartier het verbruik en de teruglevering in kilowattuur, met het
+tijdstip waarop is gemeten. `HourAggregate` draagt hetzelfde per uur, met het
+aantal kwartieren waaruit het is opgebouwd, en is wat overblijft zodra een
+kwartier negentig dagen oud wordt. Beide tabellen dragen geen adres en geen
+identificerend kenmerk van het apparaat, alleen de koppeling waar ze bij
+horen en een tijdstip.
+
 Een mislukte aanmelding wordt niet op het account bijgehouden maar in het
 auditlogboek hieronder.
 
@@ -119,7 +139,7 @@ zes mislukte aanmeldingen staan alle drie op nul rijen.
 
 ### Het auditlogboek
 
-`AuditEvent` is append-only en kent sinds fase 1 dertien soorten gebeurtenissen
+`AuditEvent` is append-only en kent sinds fase 1 vijftien soorten gebeurtenissen
 in plaats van een: dat er een advies is gegenereerd (`ADVICE_GENERATED`), dat een
 account is aangemaakt (`ACCOUNT_CREATED`), dat een aanmelding lukte of mislukte
 (`LOGIN_SUCCEEDED`, `LOGIN_FAILED`), dat iemand uitlogde (`LOGOUT`), dat een
@@ -130,10 +150,12 @@ ook dat om wachtwoordherstel is gevraagd voor een adres dat bij een account
 hoort (`PASSWORD_RESET_REQUESTED`), dat een herstel is voltooid
 (`PASSWORD_RESET_COMPLETED`), dat een e-mailadres is bevestigd
 (`EMAIL_VERIFIED`) en dat een bericht bij de mailverwerker is afgeleverd
-(`MAIL_SENT`). Bij de eerste regel staat een
+(`MAIL_SENT`), en sinds de meterkoppeling dat een koppeling met een slimme
+meter tot stand is gebracht (`METER_LINKED`) of ingetrokken
+(`METER_UNLINKED`). Bij de eerste regel staat een
 sha256 van het token, het viercijferige postcodegebied, het
 betrouwbaarheidsniveau en de twee versienummers van de motor en de regeltabel.
-De twaalf andere dragen geen vaste vorm, en dat is opzettelijk beschreven in
+De veertien andere dragen geen vaste vorm, en dat is opzettelijk beschreven in
 plaats van vereenvoudigd tot een: de meeste dragen een `user_id`, een geheel
 getal of `null`, en nooit een e-mailadres. `null` betekent dat een mislukte
 aanmelding een adres probeerde dat bij geen account hoort; er is dan niets om
@@ -164,10 +186,9 @@ werkende link naar een advies dat na negentig dagen weg had moeten zijn. De
 hash houdt waar het logboek voor is: wie de link legitiem heeft kan hem hashen
 en zijn eigen regel terugvinden.
 
-Twee gebeurtenissen uit de lijst in `CLAUDE.md` staan hier nog niet: een
-meterkoppeling die tot stand komt en een verstuurde lead. Die ontbreken omdat de
-handelingen zelf nog niet bestaan. Een logboek dat ze nu al noemde zou een
-verwerking beschrijven die er niet is.
+Een gebeurtenis uit de lijst in `CLAUDE.md` staat hier nog niet: een verstuurde
+lead. Die ontbreekt omdat de handeling zelf nog niet bestaat. Een logboek dat
+hem nu al noemde zou een verwerking beschrijven die er niet is.
 
 Dat logboek heeft geen bewaartermijn, met opzet. Een auditlogboek dat verloopt
 is geen auditlogboek. Wat het draagt verliest wel zijn zeggingskracht: zodra het
@@ -230,6 +251,18 @@ blijft staan is een regel in het auditlogboek, zoals hoofdstuk 2 al
 beschrijft. De back-upruil hierboven maakt geen uitzondering voor een
 verwijderd account: het kan net als een vervallen advies nog ten hoogste acht
 dagen in een dump staan, om precies dezelfde reden.
+
+**Voor kwartierdata van een gekoppelde meter geldt een eigen grens, met een
+andere vorm dan bij een advies.** Een dagelijkse taak, `purge_meter_readings`,
+telt kwartieren op tot uurtotalen zodra ze negentig dagen oud zijn, schrijft
+die uurtotalen weg en verwijdert daarna de kwartieren zelf. Wat in
+kwartierresolutie staat is dus nooit ouder dan negentig dagen; een uurtotaal
+blijft staan tot de koppeling of het account verdwijnt, want dat is minder
+gedetailleerd en zegt niet meer wanneer iemand thuis was. Ontkoppelen en het
+intrekken van de toestemming `METER_LINK` verwijderen beide meteen alles,
+kwartieren en uren: een toestemming intrekken moet even makkelijk zijn als
+hem geven, en de metingen zouden anders blijven staan terwijl de toestemming
+ervoor al is ingetrokken.
 
 De vraag die de back-up daarmee oproept is niet hoe lang de cijfers in de dienst
 leven, maar wie de bestanden kan lezen. Ze worden `0600` geschreven in een map
@@ -442,6 +475,12 @@ alleen de laatste) en de lijst van eigen adviezen terug, met daarin zowel de
 antwoorden als het advies zelf. Dat laatste repareert precies het gat dat de
 vorige alinea beschrijft: de invoer wordt hier wel teruggegeven.
 
+Sinds de meterkoppeling draagt diezelfde export ook de meting: voor wie een
+meter heeft gekoppeld, wanneer die koppeling is gemaakt, wanneer er voor het
+laatst iets binnenkwam, en de kwartieren en uurtotalen die zijn opgeslagen.
+De sleutel staat er niet in, want die kent de dienst niet: hij is nooit iets
+anders dan een afdruk geweest.
+
 Die lijst van eigen adviezen is vandaag structureel aanwezig en materieel
 altijd leeg. Niets in fase 1 zet `StoredAdvice.owner`, dus `advices` in de
 export is een lege lijst totdat fase 2 een advies aan een account koppelt. Het
@@ -499,10 +538,19 @@ nog niet kan: het adres zelf wijzigen; wie een ander adres wil, verwijdert zijn
 account en maakt een nieuw.
 
 Wat er dan gebeurt staat in `delete_account` in `backend/accounts/service.py`,
-in een transactie. `CASCADE` neemt `Consent`, elke `RefreshSession` en elk
-eigen `StoredAdvice` in een keer mee. Wat blijft staan is een regel in
-`AuditEvent` met daarin een `user_id` die naar niets meer wijst: een geheel
-getal zonder persoonsgegeven erbij, zoals hoofdstuk 2 al beschrijft.
+in een transactie. `CASCADE` neemt `Consent`, elke `RefreshSession`, elk
+eigen `StoredAdvice` en, sinds de meterkoppeling, de `MeterLink` met al zijn
+`QuarterReading`- en `HourAggregate`-rijen in een keer mee. Wat blijft staan
+is een regel in `AuditEvent` met daarin een `user_id` die naar niets meer
+wijst: een geheel getal zonder persoonsgegeven erbij, zoals hoofdstuk 2 al
+beschrijft.
+
+Een meter ontkoppelen hoeft niet tot een verwijderd account te wachten. Op de
+knop "Ontkoppel", of op het intrekken van de toestemming `METER_LINK`,
+verwijdert de dienst de kwartieren en de uurtotalen meteen, in dezelfde
+transactie als het intrekken zelf. Beide wegen doen hetzelfde: een
+toestemming intrekken moet even makkelijk zijn als hem geven, en het zou raar
+zijn als de metingen daarna bleven staan.
 
 `CLAUDE.md` zette de export- en verwijderknop bij de fase waarin accounts
 bestaan. Die fase is nu, en de knop bestaat.
@@ -592,40 +640,41 @@ beschrijft.
 
 ## 10. Wat bij Stijn ligt
 
-Vijf dingen kan dit document niet voor de verwerkingsverantwoordelijke
+Vier dingen kan dit document niet voor de verwerkingsverantwoordelijke
 beslissen. Een eerdere vraag, of verwijderen op verzoek mogelijk wordt voor fase
 1, is inmiddels beantwoord: ja. `POST /api/auth/delete/` bestaat, hoofdstuk 7
 beschrijft wat hij doet, en de vier feiten die deze paragraaf eerder opsomde
 zijn opgelost door een account te eisen en het wachtwoord opnieuw te vragen, in
-plaats van bezit van het token als autorisatie te accepteren.
+plaats van bezit van het token als autorisatie te accepteren. Een tweede
+eerdere vraag, de grondslag, is sinds 2026-09-07 ook beantwoord: toestemming.
+De privacyverklaring beschrijft het zo, en `identity.ts` draagt het. De keuze
+van 2026-09-02 voor overeenkomst is daarmee vervallen, en de vraag staat niet
+langer op de genummerde lijst hieronder.
 
 1. **Of de conclusie in hoofdstuk 1 wordt overgenomen.** De feiten staan er; de
    afweging of artikel 35 van toepassing is, is zijn oordeel.
-2. **De grondslag.** Beantwoord op 2026-09-07: toestemming. De privacyverklaring
-   beschrijft het zo, en `identity.ts` draagt het. De keuze van 2026-09-02 voor
-   overeenkomst is daarmee vervallen.
-3. **De back-upruil uit hoofdstuk 4.** Zeven dagen is een keuze die ik heb
+2. **De back-upruil uit hoofdstuk 4.** Zeven dagen is een keuze die ik heb
    gemaakt en verantwoord; korter maakt de kopie kleiner en het herstel
    krapper, en alleen het auditlogboek dumpen laat de dienst onherstelbaar. Die
    ruil geldt sinds fase 1 net zo goed voor een verwijderd account als voor een
    vervallen advies.
-4. **Toegang tot de host**, en of `web2` ephemeer wordt. Die staat los van dit
+3. **Toegang tot de host**, en of `web2` ephemeer wordt. Die staat los van dit
    document en is elders opgeschreven.
-5. **Resend als verwerker.** Drie deelvragen. Of de voorgetekende DPA van
+4. **Resend als verwerker.** Drie deelvragen. Of de voorgetekende DPA van
    Resend volstaat als de verwerkersovereenkomst die artikel 28 vraagt, of dat
    er iets naast moet. Of de verzendregio in het dashboard van Resend op de
    EU-regio staat, wat een instelling is die dit document veronderstelt en
    niet kan controleren. En of opslag van het verzendlog in de Verenigde
    Staten, onder SCC's en het Data Privacy Framework, aanvaardbaar is voor deze
    dienst, of dat een Europese aanbieder de volgende backend-aanraking wordt.
-   Wat daarbij hoort en niet als zesde punt staat, omdat het dezelfde vraag is
-   als punt 2: de grondslag voor het bevestigen van een adres is geen van de
-   twee toestemmingen. Dit document zet hem voorlopig op noodzaak voor de
-   dienst, want zonder bevestigd adres kan de dienst geen wachtwoord herstellen
-   en straks geen meter koppelen.
+   Wat daarbij hoort en niet als eigen punt staat: de grondslag voor het
+   bevestigen van een e-mailadres is geen van de twee toestemmingen. Dit
+   document zet hem voorlopig op noodzaak voor de dienst, want zonder
+   bevestigd adres kan de dienst geen wachtwoord herstellen en geen meter
+   koppelen.
 
 Er is een privacyverklaring op `/privacy/`, herschreven op 2026-09-07 voor fase 1.
 Er is een register in `docs/verwerkersregister.md`, gebonden door
 `tests/test_verwerkersregister.py`. Wat er niet is en bij de
 verwerkingsverantwoordelijke blijft: de vastgelegde aanvaarding van Cloudflares
-verwerkersovereenkomst en de beoordeling van Resends DPA (punt 5).
+verwerkersovereenkomst en de beoordeling van Resends DPA (punt 4).

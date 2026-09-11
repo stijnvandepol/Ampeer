@@ -1259,6 +1259,64 @@ def test_the_purge_timer_is_the_shape_the_retention_promise_assumes() -> None:
     )
 
 
+METER_PURGE_COMMAND = (
+    REPO_ROOT / "backend" / "accounts" / "management" / "commands" / "purge_meter_readings.py"
+)
+
+
+def test_the_meter_purge_timer_is_the_shape_the_retention_promise_assumes() -> None:
+    """The third daily timer, held to the same reading as the advice purge.
+
+    docs/dpia.md's retention table promises a quarter reading is folded into
+    an hour after ninety days, and chapter 5 of the meter link design calls
+    the fold a daily task. A weekly timer would leave raw quarters on disk for
+    up to six extra days while the document went on calling it daily.
+    """
+    assert _timer_period_hours("ampeer-meter-purge.timer") == 24, (
+        "the meter purge no longer runs daily, and the retention table calls it a daily fold"
+    )
+
+
+def test_the_meter_purge_grace_clears_the_timer_it_is_measured_against() -> None:
+    """GRACE_DAYS and the timer period decide each other, the same pairing
+    `test_the_purge_grace_clears_the_timer_it_is_measured_against` makes for
+    the advice purge, read here against the meter purge's own command and timer.
+    """
+    grace_hours = _python_int(METER_PURGE_COMMAND, "GRACE_DAYS") * 24
+    period = _timer_period_hours("ampeer-meter-purge.timer")
+
+    assert grace_hours >= period, (
+        f"--check calls the meter purge timer dead after {grace_hours} hours and the timer "
+        f"only runs every {period}, so a working host is reported broken before every run"
+    )
+    assert grace_hours < 2 * period, (
+        f"--check tolerates {grace_hours} hours against a timer that runs every {period}, so "
+        "a whole missed run passes as healthy, and a check that survives the failure it is "
+        "for is not a check"
+    )
+
+
+def test_the_meter_purge_timer_needs_no_catch_up() -> None:
+    """No `Persistent=` directive, the same shape
+    `test_the_mail_unit_runs_the_command_every_minute` checks for the mail
+    timer, and for a related but distinct reason: a missed run loses nothing
+    because the next run folds every quarter now past the retention window
+    regardless of how long it waited, and the day of slack `--check` allows on
+    top of ninety is far wider than any realistic downtime.
+
+    Line-anchored rather than a substring check, so the unit may still explain
+    the absence in a comment: only an actual `[Timer]` directive line is
+    forbidden.
+    """
+    text = (REPO_ROOT / "infra" / "systemd" / "ampeer-meter-purge.timer").read_text(
+        encoding="utf-8"
+    )
+    assert not any(line.startswith("Persistent=") for line in text.splitlines()), (
+        "ampeer-meter-purge.timer now catches up after downtime, which the unit's own "
+        "comment says it deliberately does not"
+    )
+
+
 # --------------------------------------------------------------------------
 # The purge timer and the check that watches for its silence.
 #
@@ -1428,7 +1486,9 @@ def test_the_purge_overrides_the_entrypoint_it_would_otherwise_inherit() -> None
         )
 
 
-@pytest.mark.parametrize("unit", ["ampeer-purge.service", "ampeer-backup.service"])
+@pytest.mark.parametrize(
+    "unit", ["ampeer-purge.service", "ampeer-backup.service", "ampeer-meter-purge.service"]
+)
 def test_no_unit_puts_a_credential_where_the_host_can_read_it(unit: str) -> None:
     """The backup unit says it sets no environment on purpose, and neither does.
 

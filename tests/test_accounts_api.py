@@ -1035,15 +1035,58 @@ def test_the_consent_texts_carry_their_labels_under_the_same_version(client: Any
 @pytest.mark.django_db
 def test_the_export_fixture_has_the_shape_the_view_answers(client: Any) -> None:
     """The same claim for the heaviest answer on this API, and the one the
-    browser hands straight to a file the visitor keeps."""
+    browser hands straight to a file the visitor keeps.
+
+    The account is given a linked meter with one quarter and one folded hour
+    before the export is read, and the fixture carries both. A fresh
+    registration exports `"meter": null`, and a fixture pinned against that
+    would pin the word null: `_shape` would compare `NoneType` with
+    `NoneType` and every field inside `_meter_export` could be renamed with
+    this test still green. The download is the one place a household sees its
+    own measurements, so the shape that has something in it is the shape
+    worth pinning.
+    """
     from test_frontend_contract import _shape
 
     client.post("/api/auth/register/", BODY, content_type="application/json", **_csrf(client))
+    _give_the_account_a_linked_meter()
     live = client.post("/api/auth/export/", content_type="application/json", **_csrf(client)).json()
     committed = json.loads(EXPORT_FIXTURE.read_text(encoding="utf-8"))
     assert _shape(live) == _shape(committed), (
         "POST export/ no longer has the shape "
         "frontend/tests/fixtures/export-response.json describes"
+    )
+
+
+def _give_the_account_a_linked_meter() -> None:
+    """One link, one quarter and one hour, written directly.
+
+    Not through the push route and not through `purge_meter_readings`: this
+    test is about the shape of one answer, and routing the setup through two
+    more moving parts would make it fail for their reasons as well as its own.
+    Both tables are filled because a household can hold readings younger than
+    ninety days and older ones already folded, and the export owes a copy of
+    both.
+    """
+    from django.utils import timezone
+
+    from accounts import service
+    from accounts.models import HourAggregate, QuarterReading
+
+    user = User.objects.get(email=BODY["email"])
+    user.email_verified_at = timezone.now()
+    user.save(update_fields=["email_verified_at"])
+    link, _ = service.link_meter(user)
+    moment = timezone.now().replace(minute=0, second=0, microsecond=0) - timedelta(days=1)
+    QuarterReading.objects.create(
+        link=link, measured_at=moment, consumption_kwh=0.243, feed_in_kwh=0.0
+    )
+    HourAggregate.objects.create(
+        link=link,
+        hour_start=moment - timedelta(days=120),
+        consumption_kwh=0.9,
+        feed_in_kwh=0.1,
+        quarters=4,
     )
 
 

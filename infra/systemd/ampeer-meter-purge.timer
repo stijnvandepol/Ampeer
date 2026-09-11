@@ -1,0 +1,29 @@
+# THIS FILE IS INSTALLED BY HAND. NOTHING IN THIS REPOSITORY INSTALLS IT.
+#
+# Who:   Stijn, on the Ampeer LXC, as root.
+# Where: /etc/systemd/system/ampeer-meter-purge.timer, next to
+#        ampeer-meter-purge.service.
+# How:   systemctl daemon-reload && systemctl enable --now ampeer-meter-purge.timer
+# Check: systemctl list-timers ampeer-meter-purge.timer shows a NEXT within a day.
+#
+# Enabling the timer is the step that makes the retention promise true. Until
+# somebody runs that command, a quarter reading past ninety days is not
+# folded and not removed.
+
+[Unit]
+Description=Run the Ampeer meter reading fold daily
+
+[Timer]
+OnCalendar=*-*-* 03:45:00
+AccuracySec=1m
+# No catch-up flag here, for the reason ampeer-mail.timer gives for its own
+# absence and not the reason ampeer-purge.timer has one: a run that is missed
+# folds nothing extra into the next run, because the fold walks every
+# quarter reading past the retention window regardless of how long it has
+# been waiting there, and --check's own grace is a day on top of ninety, wide
+# enough that a few missed nights never approach it. A host back up before
+# tomorrow's run has lost nothing this timer needed to catch up on.
+Unit=ampeer-meter-purge.service
+
+[Install]
+WantedBy=timers.target

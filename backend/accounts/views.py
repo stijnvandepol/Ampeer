@@ -10,12 +10,16 @@ account needs a body, which is the other half of the reason.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 from math import ceil
-from typing import Any, NoReturn
+from typing import Any, NoReturn, cast
+from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.contrib.auth import authenticate
+from django.db import transaction
 from django.middleware.csrf import get_token
+from django.utils.formats import date_format
 from rest_framework import status
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import (
@@ -32,11 +36,13 @@ from rest_framework_simplejwt.exceptions import TokenError
 
 from accounts import cookies, recovery, service, tokens
 from accounts.authentication import CookieJWTAuthentication, enforce_csrf
-from accounts.models import Consent, User
+from accounts.meter import MeterTokenAuthentication, store_readings
+from accounts.models import Consent, MeterLink, User
 from accounts.nl import CONSENT_TEXT_VERSION, NL
 from accounts.serializers import (
     ConsentSerializer,
     LoginSerializer,
+    ReadingBatchSerializer,
     RegisterSerializer,
     ResetConfirmSerializer,
     ResetRequestSerializer,
@@ -45,6 +51,10 @@ from accounts.serializers import (
 )
 from advice.models import AuditEvent
 from advice.views import _NoStoreAPIView
+
+#: Where a household reads a moment, against the UTC every moment is stored
+#: in. CLAUDE.md states both halves of that split; this is the second one.
+AMSTERDAM = ZoneInfo("Europe/Amsterdam")
 
 
 class _AuthAPIView(_NoStoreAPIView):
@@ -360,14 +370,21 @@ class ConsentView(_AuthAPIView):
         serializer.is_valid(raise_exception=True)
         kind = serializer.validated_data["kind"]
         action = serializer.validated_data["action"]
-        Consent.record(self.user, kind, action)
-        AuditEvent.record(
-            AuditEvent.CONSENT_GRANTED
-            if action == Consent.GRANTED
-            else AuditEvent.CONSENT_WITHDRAWN,
-            user_id=self.user.pk,
-            kind=kind,
-        )
+        with transaction.atomic():
+            Consent.record(self.user, kind, action)
+            AuditEvent.record(
+                AuditEvent.CONSENT_GRANTED
+                if action == Consent.GRANTED
+                else AuditEvent.CONSENT_WITHDRAWN,
+                user_id=self.user.pk,
+                kind=kind,
+            )
+            # Withdrawing METER_LINK has to be exactly as thorough as
+            # pressing "ontkoppel": a consent taken back with the readings
+            # left in place would make withdrawal a weaker promise than
+            # revoking the link directly.
+            if kind == Consent.METER_LINK and action == Consent.WITHDRAWN:
+                service.unlink_meter(self.user)
         return Response({"kind": kind, "granted": Consent.current(self.user, kind)})
 
 
@@ -517,3 +534,125 @@ class VerifyConfirmView(_AuthAPIView):
         except recovery.TokenInvalid as error:
             raise ValidationError({"token": [NL["token_invalid"]]}) from error
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+def _amsterdam_label(moment: datetime) -> str:
+    """One stored UTC moment, as the words a household in this country reads.
+
+    CLAUDE.md: store in UTC, show in Europe/Amsterdam. `TIME_ZONE` is `UTC`
+    because that is what storage needs, so the conversion is explicit here
+    rather than inherited. `date_format` with `DATETIME_FORMAT` takes its
+    month names from Django's own `nl` locale data under `LANGUAGE_CODE`,
+    which keeps the Dutch out of this module: nothing here is a sentence
+    this project wrote, so nothing here belongs in `nl.py`.
+    """
+    return date_format(moment.astimezone(AMSTERDAM), "DATETIME_FORMAT")
+
+
+class MeterStatusView(_AuthAPIView):
+    """Whether a household may link a meter, and what its link looks like today.
+
+    A route of its own rather than a field on `me/`: adding one there would
+    change the shape `frontend/src/lib/accounts.ts` already validates for
+    that call, and this project would rather add a call than reshape one
+    that already works.
+
+    `last_seen_label` travels beside `last_seen_at` because the page may not
+    build it. `.semgrep/frontend.yml`'s ampeer-no-reading-the-clock forbids
+    `new Date(...)` in the frontend, and its own message says why and what to
+    do instead: a date the visitor should see comes from the API, which
+    computed it, and not from the machine the page happens to be rendered
+    on. The rule reads as being about scarcity, a countdown subtracted from
+    the clock, and this is only a formatted timestamp, but the remedy it
+    names is the right one anyway: the browser's locale data decides nothing
+    here, so two households do not read the same moment differently, and the
+    ISO stays in the answer for anything that needs the value rather than
+    the words.
+    """
+
+    throttle_scope = "auth-read"
+
+    def get(self, request: Request) -> Response:
+        link = MeterLink.active_for(self.user)
+        seen = None if link is None else link.last_seen_at
+        return Response(
+            {
+                "may_link": service.may_link_meter(self.user),
+                "linked": link is not None,
+                "created_at": None if link is None else link.created_at.isoformat(),
+                "last_seen_at": None if seen is None else seen.isoformat(),
+                "last_seen_label": None if seen is None else _amsterdam_label(seen),
+            }
+        )
+
+
+class MeterLinkView(_AuthAPIView):
+    """Mint a fresh key and hand it back exactly once.
+
+    Nothing here composes the address the device pushes to: `push_path` is a
+    fixed string and not a URL. This backend does not know the public origin
+    it is deployed behind, and guessing would risk putting a wrong address in
+    a device nobody revisits; the frontend already knows its own API base and
+    builds the full address from that.
+    """
+
+    throttle_scope = "auth-write"
+
+    def post(self, request: Request) -> Response:
+        if not service.may_link_meter(self.user):
+            raise PermissionDenied(NL["meter_not_allowed"])
+        link, raw = service.link_meter(self.user)
+        return Response(
+            {
+                "token": raw,
+                "push_path": "/api/meter/readings/",
+                "created_at": link.created_at.isoformat(),
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class MeterUnlinkView(_AuthAPIView):
+    """Revoke the key and erase what it collected. 204 either way.
+
+    Whether there was a link to revoke changes nothing about the answer: the
+    result a caller sees, no meter linked, is the same either way, and a
+    different status code here would only tell a caller something they did
+    not ask.
+    """
+
+    throttle_scope = "auth-write"
+
+    def post(self, request: Request) -> Response:
+        service.unlink_meter(self.user)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class MeterReadingsView(_NoStoreAPIView):
+    """Where a household's own device pushes what its meter measured.
+
+    `_NoStoreAPIView` and not `_AuthAPIView`: the cookie machinery that base
+    class carries, the CSRF cookie set in `finalize_response`, is for a
+    browser, and the caller here has none. `Cache-Control: private, no-store`
+    is the one property of the base class this route still needs, since one
+    answer here still describes one household.
+
+    A missing or unresolvable key never reaches `post`: `IsAuthenticated` is
+    what turns that into a 401, on `request.auth` as
+    `MeterTokenAuthentication.authenticate` left it, so this handler is only
+    ever entered with a real `MeterLink` to write into.
+    """
+
+    authentication_classes: Sequence[type[BaseAuthentication]] = (MeterTokenAuthentication,)
+    permission_classes: Sequence[type[BasePermission]] = (IsAuthenticated,)
+    throttle_scope = "meter-ingest"
+
+    def post(self, request: Request) -> Response:
+        # IsAuthenticated has already refused any request whose
+        # authenticator did not return a link, so this cast states what is
+        # already true rather than skipping a check that runs elsewhere.
+        link = cast(MeterLink, request.auth)
+        serializer = ReadingBatchSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        stored, skipped = store_readings(link, serializer.validated_data["readings"])
+        return Response({"stored": stored, "skipped": skipped}, status=status.HTTP_202_ACCEPTED)

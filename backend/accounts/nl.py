@@ -10,7 +10,10 @@ docs/decisions.md entry 1 about the register applies. `email_taken`,
 `consent_kind_unknown`, `consent_action_unknown`, `consent_text_stale`,
 `token_invalid`, `throttled` and `throttled_unknown_wait` are this category. `consent_text_stale`
 names the `text_version` field and says nothing about a typed value, only
-that the page behind it is too old.
+that the page behind it is too old. `meter_token_invalid`, `meter_not_allowed`,
+`meter_reading_invalid` and `meter_batch_too_large`, added with the meter
+link, are this category too: each names what is wrong (the key, the account,
+the reading, the batch) and addresses nobody.
 `password_too_short` is one of them too, and it is the first entry in this
 table to carry a `%(...)` placeholder: the caller formats it with a value it
 alone knows (the configured minimum length), so the string here stays a
@@ -91,6 +94,14 @@ NL: Final[dict[str, str]] = {
     "consent_kind_unknown": "onbekende toestemming",
     "consent_action_unknown": "onbekende handeling",
     "token_invalid": "deze link is verlopen of al gebruikt; vraag een nieuwe aan",
+    "meter_token_invalid": "deze sleutel hoort niet bij een actieve koppeling",
+    "meter_not_allowed": (
+        "koppelen kan pas met een bevestigd e-mailadres en toestemming voor de slimme meter"
+    ),
+    "meter_reading_invalid": (
+        "een meting moet op een heel kwartier staan en kan niet negatief zijn"
+    ),
+    "meter_batch_too_large": "er kunnen ten hoogste honderd metingen per bericht mee",
     "CONSENT_METER_LINK": (
         "Ik geef Ampeer toestemming om de kwartiergegevens van mijn slimme meter te "
         "verwerken om mijn advies nauwkeuriger te maken. Ik kan deze toestemming op elk "

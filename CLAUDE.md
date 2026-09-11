@@ -106,7 +106,7 @@ te testen en te valideren zijn.
 
 ## Stack
 - Backend: Django 5 + Django REST Framework, Python 3.12
-- Database: PostgreSQL 16 + TimescaleDB (hypertables voor tijdreeksen)
+- Database: PostgreSQL 16 (`postgres:16-alpine`), gewone tabellen met een index op wat gezocht wordt; TimescaleDB is een optie voor als dat gemeten te weinig blijkt
 - Async: Celery + Redis
 - Frontend: Next.js 15 (App Router), TypeScript, Tailwind
 - Deploy: Docker Compose, Cloudflare Tunnel in de eerste fase

@@ -163,6 +163,12 @@ class AuditEvent(models.Model):
     EMAIL_VERIFIED = "EMAIL_VERIFIED"
     MAIL_SENT = "MAIL_SENT"
 
+    #: A link made and a link undone. Both carry `user_id` and nothing else:
+    #: docs/dpia.md chapter 5 says why there is no line per reading, and this
+    #: pair is the whole of what the meter link adds to this log.
+    METER_LINKED = "METER_LINKED"
+    METER_UNLINKED = "METER_UNLINKED"
+
     event_type = models.CharField(max_length=64, db_index=True)
     occurred_at = models.DateTimeField(auto_now_add=True, db_index=True)
     #: Context without a personal detail: the token and the four digit

@@ -10,6 +10,8 @@ import {
   exportAccount,
   getConsentTexts,
   getMe,
+  getMeterStatus,
+  linkMeter,
   login,
   logout,
   postConsent,
@@ -17,7 +19,22 @@ import {
   register,
   requestEmailVerification,
   requestPasswordReset,
+  unlinkMeter,
 } from "@/lib/accounts";
+
+const METER_STATUS = {
+  may_link: true,
+  linked: false,
+  created_at: null,
+  last_seen_at: null,
+  last_seen_label: null,
+};
+
+const METER_KEY = {
+  token: "a".repeat(43),
+  push_path: "/api/meter/readings/",
+  created_at: "2026-09-09T10:00:00Z",
+};
 
 const REGISTER_INPUT = {
   email: "iemand@voorbeeld.nl",
@@ -99,6 +116,27 @@ const CALLS: readonly {
     body: exportPayload,
     method: "POST",
     run: exportAccount,
+  },
+  {
+    name: "meter-status",
+    status: 200,
+    body: METER_STATUS,
+    method: "GET",
+    run: getMeterStatus,
+  },
+  {
+    name: "meter-link",
+    status: 201,
+    body: METER_KEY,
+    method: "POST",
+    run: linkMeter,
+  },
+  {
+    name: "meter-unlink",
+    status: 204,
+    body: null,
+    method: "POST",
+    run: unlinkMeter,
   },
   { name: "logout", status: 204, body: null, method: "POST", run: logout },
   {
@@ -536,6 +574,144 @@ describe("the duplicated error reduction", () => {
       expect(fromAccounts.fields).toEqual(fromAdvice.fields);
     },
   );
+});
+
+describe("the three meter calls", () => {
+  it("calls the right path with the right method", async () => {
+    const fetchMock = stub(200, METER_STATUS);
+    await getMeterStatus();
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: "GET" });
+    expect(new URL(String(fetchMock.mock.calls[0]?.[0])).pathname).toBe(
+      "/api/auth/meter/",
+    );
+
+    const linkFetch = stub(201, METER_KEY);
+    await linkMeter();
+    expect(linkFetch.mock.calls[0]?.[1]).toMatchObject({ method: "POST" });
+    expect(new URL(String(linkFetch.mock.calls[0]?.[0])).pathname).toBe(
+      "/api/auth/meter/link/",
+    );
+
+    const unlinkFetch = stub(204, null);
+    await unlinkMeter();
+    expect(unlinkFetch.mock.calls[0]?.[1]).toMatchObject({ method: "POST" });
+    expect(new URL(String(unlinkFetch.mock.calls[0]?.[0])).pathname).toBe(
+      "/api/auth/meter/unlink/",
+    );
+  });
+
+  /**
+   * `isMeterStatus` refuses `may_link` missing, checked by weakening the
+   * guard to `return true;` unconditionally: that mutation turns this test
+   * red, because `getMeterStatus` then resolves with the malformed body
+   * instead of throwing.
+   */
+  it("refuses a meter status missing may_link", async () => {
+    const { may_link: _dropped, ...withoutMayLink } = METER_STATUS;
+    stub(200, withoutMayLink);
+    await expect(getMeterStatus()).rejects.toMatchObject({ message: "" });
+  });
+
+  /**
+   * A response where `created_at` is missing rather than `null`.
+   *
+   * Red-proofed by removing the `"created_at" in value` guard AND widening
+   * the type check on the same field to also accept `undefined`. Either
+   * mutation alone leaves this test green (the other line still catches a
+   * missing key), which is exactly why the guard is written as the two
+   * lines it is: dropping only the `in` check is not, on its own, provable
+   * to fail here, since the type check below it treats `undefined` the same
+   * as "not null and not a string". Both together let a missing key through
+   * and turn this test red.
+   */
+  it("refuses a meter status where created_at is missing rather than null", async () => {
+    const { created_at: _dropped, ...withoutCreatedAt } = METER_STATUS;
+    stub(200, withoutCreatedAt);
+    await expect(getMeterStatus()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses a meter status when the body is null", async () => {
+    stub(200, null);
+    await expect(getMeterStatus()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses a meter status whose linked is not a boolean", async () => {
+    stub(200, { ...METER_STATUS, linked: "false" });
+    await expect(getMeterStatus()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses a meter status whose created_at is neither null nor a string", async () => {
+    stub(200, { ...METER_STATUS, created_at: 1725580800 });
+    await expect(getMeterStatus()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses a meter status where last_seen_at is missing rather than null", async () => {
+    const { last_seen_at: _dropped, ...withoutLastSeenAt } = METER_STATUS;
+    stub(200, withoutLastSeenAt);
+    await expect(getMeterStatus()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses a meter status whose last_seen_at is neither null nor a string", async () => {
+    stub(200, { ...METER_STATUS, last_seen_at: 1725580800 });
+    await expect(getMeterStatus()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses a meter status where last_seen_label is missing rather than null", async () => {
+    const { last_seen_label: _dropped, ...withoutLabel } = METER_STATUS;
+    stub(200, withoutLabel);
+    await expect(getMeterStatus()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses a meter status whose last_seen_label is neither null nor a string", async () => {
+    stub(200, { ...METER_STATUS, last_seen_label: 1725580800 });
+    await expect(getMeterStatus()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("accepts a meter status that is linked and has a last-seen moment", async () => {
+    stub(200, {
+      may_link: true,
+      linked: true,
+      created_at: "2026-09-09T09:00:00Z",
+      last_seen_at: "2026-09-09T10:15:00Z",
+      last_seen_label: "9 september 2026 12:15",
+    });
+    const status = await getMeterStatus();
+    expect(status.linked).toBe(true);
+  });
+
+  it("refuses a meter key missing its push_path", async () => {
+    const { push_path: _dropped, ...withoutPushPath } = METER_KEY;
+    stub(201, withoutPushPath);
+    await expect(linkMeter()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses a meter status whose 200 body is not JSON at all", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(
+        async () => new Response("<html>oeps</html>", { status: 200 }),
+      ),
+    );
+    await expect(getMeterStatus()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("refuses a meter key whose 201 body is not JSON at all", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(
+        async () => new Response("<html>oeps</html>", { status: 201 }),
+      ),
+    );
+    await expect(linkMeter()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("carries the API's own Dutch sentence on a 403 from the meter status route", async () => {
+    stub(403, { detail: "geen toestemming voor deze koppeling" });
+    await expect(getMeterStatus()).rejects.toMatchObject({
+      status: 403,
+      message: "geen toestemming voor deze koppeling",
+    });
+  });
 });
 
 describe("the two shape guards that grew a key", () => {

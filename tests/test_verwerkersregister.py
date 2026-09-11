@@ -39,13 +39,32 @@ LIFETIME_WORDS = {
     timedelta(days=7): "zeven dagen",
 }
 
-#: AuditEvent.record's callers write thirteen kinds today, which is past the
+#: AuditEvent.record's callers write fifteen kinds today, which is past the
 #: range _DUTCH_NUMERALS covers (it stops at "Tien", because every other user
 #: of that table counts a short list of open questions or answered questions).
 #: Extended here rather than copied: importing _DUTCH_NUMERALS and adding the
-#: two words it does not yet need keeps this file from retyping "Een" through
-#: "Tien" while still being able to name thirteen.
-_AUDIT_KIND_WORDS: dict[int, str] = {**_DUTCH_NUMERALS, 11: "Elf", 12: "Twaalf", 13: "Dertien"}
+#: words it does not yet need keeps this file from retyping "Een" through
+#: "Tien" while still being able to name fifteen.
+#:
+#: It reaches to twenty rather than stopping at the count of the day. On
+#: 2026-09-09 the meter link added two kinds, and this table stopped at
+#: thirteen, so the assertion below refused a document that was correct: the
+#: register already said "Vijftien soorten". A table that has to be extended
+#: in the same commit as every new kind turns a check about the document into
+#: a chore about the checker, and the chore is what gets done carelessly.
+_AUDIT_KIND_WORDS: dict[int, str] = {
+    **_DUTCH_NUMERALS,
+    11: "Elf",
+    12: "Twaalf",
+    13: "Dertien",
+    14: "Veertien",
+    15: "Vijftien",
+    16: "Zestien",
+    17: "Zeventien",
+    18: "Achttien",
+    19: "Negentien",
+    20: "Twintig",
+}
 
 
 def _model_class_names(source: Path) -> list[str]:
@@ -153,7 +172,7 @@ def test_the_register_counts_the_audit_kinds() -> None:
     )
     assert count in _AUDIT_KIND_WORDS, (
         f"AuditEvent now declares {count} kinds and this test only knows Dutch words "
-        "up to thirteen; extend the table above rather than dropping the check"
+        "up to twenty; extend the table above rather than dropping the check"
     )
     # Whitespace-flattened, the way test_dpia.py reads its own counted phrases:
     # the register wraps "Dertien\nsoorten" across a Markdown line, and a plain

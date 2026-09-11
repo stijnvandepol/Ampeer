@@ -15,6 +15,9 @@ from accounts.views import (
     ExportView,
     LoginView,
     LogoutView,
+    MeterLinkView,
+    MeterStatusView,
+    MeterUnlinkView,
     MeView,
     RefreshView,
     RegisterView,
@@ -38,4 +41,7 @@ urlpatterns: list[URLPattern] = [
     path("reset/confirm/", ResetConfirmView.as_view(), name="auth-reset-confirm"),
     path("verify/request/", VerifyRequestView.as_view(), name="auth-verify-request"),
     path("verify/confirm/", VerifyConfirmView.as_view(), name="auth-verify-confirm"),
+    path("meter/", MeterStatusView.as_view(), name="auth-meter"),
+    path("meter/link/", MeterLinkView.as_view(), name="auth-meter-link"),
+    path("meter/unlink/", MeterUnlinkView.as_view(), name="auth-meter-unlink"),
 ]

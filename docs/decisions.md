@@ -1576,8 +1576,8 @@ is the test that would then be measuring an address book.
 
 ### 49. The legal basis for the account is consent, and the 2026-09-02 choice for a contract is reversed
 
-**Decided:** `identity.ts`'s `legalBasis` is `"toestemming"`; chapter 10 point 2 of
-`docs/dpia.md` answers the same way, dated 2026-09-07.
+**Decided:** `identity.ts`'s `legalBasis` is `"toestemming"`; chapter 10's
+opening paragraph in `docs/dpia.md` answers the same way, dated 2026-09-07.
 
 **Because:** article 7(4) AVG: `RegisterSerializer` accepts registration with or
 without `METER_LINK` consent, so the service does not depend on a consent it does
@@ -1586,11 +1586,11 @@ The code already runs two separate, unchecked consents with their own timestamp
 and text version, which a consent basis needs and a contract basis has no use
 for. The owner confirmed the choice on 2026-09-07.
 
-**Lives in:** `legalBasis` in `frontend/src/app/privacy/identity.ts`, chapter 10
-point 2 of `docs/dpia.md`.
+**Lives in:** `legalBasis` in `frontend/src/app/privacy/identity.ts`,
+`docs/dpia.md`.
 
 **To reverse:** set `legalBasis` back to `"overeenkomst"` and rewrite the DPIA
-point and `identity.ts`'s comment. Nothing in `Consent`, `RegisterSerializer` or
+paragraph and `identity.ts`'s comment. Nothing in `Consent`, `RegisterSerializer` or
 the account flow changes, because none of it depended on which basis this text
 names.
 
@@ -1698,21 +1698,167 @@ an attacker could use one, stays closed.
 instance because a meter may only hang off a confirmed address, this is the
 moment to make the two routes agree.
 
+### 56. The meter link couples a device, and the advice engine stays synthetic until phase 3
+
+**Decided:** linking a smart meter creates a row, accepts pushed quarter hour
+readings and stores them; the advice calculation itself keeps running on the
+synthetic NEDU and PVGIS profile. `refuse_unless_shareable` and
+`shareable_token=False` stay exactly as they were, unused, for the day phase 3
+teaches the engine to read a measured series.
+
+**Because:** `CLAUDE.md` says the biggest group of users wants to install
+nothing, and building the storage half of a meter link does not depend on
+teaching the simulation engine to read it. Shipping both together would mean
+neither ships until both are done, for two pieces of work that do not share a
+file.
+
+**Lives in:** `refuse_unless_shareable` in `backend/advice/series.py`,
+`shareable_token` in `backend/advice/serializers.py`.
+
+**To reverse:** wire a measured series into the engine before phase 3 decides
+to. That reopens exactly the risk `docs/dpia.md` chapter 6 exists to close: a
+shareable, no-account token in front of a measured, quarter hour series is
+what the `SYNTHETIC` provenance check is there to keep from happening, and it
+would happen on the first household that links a meter.
+
+### 57. No TimescaleDB in the cycle that creates the first time series
+
+**Decided:** `QuarterReading` and `HourAggregate` are plain tables with an
+index on the columns a lookup uses, on the `postgres:16-alpine` image this
+project already runs. No hypertable, and `CLAUDE.md`'s stack line no longer
+claims one.
+
+**Because:** a hypertable is a change to the database of a running service,
+and that is not a change to make in the same cycle as the first table that
+would fill it. A plain table with an index on `(link, measured_at)` is ample
+for the hundreds of thousands of rows a single household produces; if that
+stops being true, that is a measurement and a decision of its own; a
+household's own meter, `docs/dpia.md` chapter 1 names as the risk that turns
+a "probably" into a "certainly" for article 35, and getting that data flowing
+correctly is worth more right now than the storage engine underneath it.
+
+**Lives in:** `postgres:16-alpine` in `infra/docker-compose.yml`.
+
+**To reverse:** add TimescaleDB to the image and turn `QuarterReading` into a
+hypertable once a measurement says a plain indexed table no longer holds. That
+is a migration on a live table, not a settings change, so it costs a
+maintenance window that this decision avoids paying today.
+
+### 58. Measurements arrive on their own route with their own key, outside the session
+
+**Decided:** a device pushes quarter hour readings to
+`POST /api/meter/readings/`, authenticated by a device key and not by the
+household's session cookie. The route sits outside `/api/auth/` entirely.
+
+**Because:** the caller is a device without a browser: it has no cookie jar,
+cannot pass CSRF, and does not log in. Folding the push into the session API
+would mean a smart meter dongle needs a session, which it cannot have, or a
+carve-out inside the session API that only pretends to be one. A key scoped to
+exactly this route is what the caller actually is.
+
+**Lives in:** `docs/superpowers/specs/2026-09-09-meter-link-design.md`, in
+`POST /api/meter/readings/`.
+
+**To reverse:** fold the push into an existing authenticated route and give
+every meter-pushing device a session token instead of a device key. That
+removes the one thing this design uses to keep a device's credential from
+being able to do anything a browser session can do, such as read the account
+or change a consent.
+
+### 59. The key is shown once, then only kept as a digest
+
+**Decided:** `MeterLink.token_sha256` is what the database keeps. The raw key
+exists only in the request that mints it and in the response to that request,
+the same shape `RefreshSession` and `OneTimeToken` already use.
+
+**Because:** a table that could answer "what is the key" is a table that leaks
+every linked meter's write access the moment it is read, whether by a bug, a
+backup, or a person with database access. A digest can confirm a key without
+being able to produce one, which is the only property this table needs.
+
+**Lives in:** `token_sha256` in `backend/accounts/models.py`.
+
+**To reverse:** add a plaintext column. Nothing downstream reads it today,
+so the change is small and the exposure it reopens is exactly the one this
+decision closes: `docs/dpia.md` chapter 2 says in bold that a stored key is
+not among the things this table can leak, and that sentence becomes false the
+day such a column exists, whether or not anything queries it yet.
+
+### 60. One active link per account, and relinking revokes the previous
+
+**Decided:** `MeterLink.active_for` filters on `user` and on
+`revoked_at__isnull=True`. A second `link_meter` call revokes whatever came
+before it in the same transaction as it creates the new row.
+
+**Because:** a household that lost its key has exactly one recovery path,
+unlinking and linking again, and that path only behaves the way "koppel
+opnieuw" reads if it leaves one link standing rather than two. A key that
+cannot be shown again, decision 59 above, makes this the only way back in, so
+it has to work without a support ticket.
+
+**Lives in:** `active_for` in `backend/accounts/models.py`.
+
+**To reverse:** allow more than one active link per account. That is a larger
+change than removing a filter, because `last_seen_at` and the account page's
+single "gekoppeld sinds" sentence both assume there is at most one link to
+report on.
+
+### 61. The log gets two kinds and no row per reading
+
+**Decided:** `AuditEvent` gains `METER_LINKED` and `METER_UNLINKED`, each
+carrying only `user_id`. Nothing is written when a reading arrives.
+
+**Because:** the audit log is append only and never purged, so a row per
+pushed quarter would add tens of thousands of rows a year per linked
+household to a table that outlives every retention window in this project,
+to answer a question nobody asks. When a link was last used to write
+something is `last_seen_at` on `MeterLink` itself, and that field disappears
+with the link, which is exactly the property an audit row does not have.
+
+**Lives in:** `METER_LINKED` in `backend/advice/models.py`.
+
+**To reverse:** log a row per reading. `docs/dpia.md` chapter 2 says this
+table carries no retention window because it is meant to stay small enough to
+read in full; a row per quarter would turn that same table into the largest
+one this project has, for every household that links a meter, without
+answering a question anybody has asked.
+
+### 62. Withdrawing consent deletes the measurements, not just the access
+
+**Decided:** unlinking a meter and withdrawing `METER_LINK` consent do the
+same thing: revoke the link and delete every `QuarterReading` and
+`HourAggregate` it owns, in one transaction.
+
+**Because:** a consent withdrawal that only closes the door and leaves the
+data standing is not the same right as the one that was granted. `CLAUDE.md`
+says a consent is either given or withdrawn with its own timestamp, and this
+project already treats a withdrawn `LEAD_GENERATION` consent as the end of
+that processing; a household would reasonably expect the same of the
+measurements a meter has already pushed, not only of the ones still to come.
+
+**Lives in:** `docs/superpowers/specs/2026-09-09-meter-link-design.md`, in
+`QuarterReading` and `revoked_at`.
+
+**To reverse:** keep the measurements after a withdrawal and delete only the
+access. That is a smaller diff, one `revoked_at` field instead of a cascading
+delete, and it is smaller for the same reason it is wrong: the household
+that withdrew consent would have no way to tell the difference from the
+account page, while the data it thought it removed keeps existing.
+
 ## What was not decided here
 
-Five belong to the controller and are written up with their trade-offs in
+Four belong to the controller and are written up with their trade-offs in
 chapter 10 of `docs/dpia.md`: whether the conclusion of chapter 1 is adopted,
-the legal basis, the seven day backup window, access to the host including
-whether `web2` becomes ephemeral, and, since the recovery cycle, Resend as
-the second processor. They are not repeated here, because two lists of the
-same open questions is how one of them gets answered twice and the other not
-at all. One more used to stand beside the first four, whether deletion on
-request arrives before phase 1, and it is answered rather than dropped:
-decision 28 and `docs/dpia.md` chapter 7 both describe `POST /api/auth/delete/`,
-which is what answered it. A second point that used to stand there the same
-way, the legal basis, is answered without being dropped: chapter 10 point 2 of
-`docs/dpia.md` stays on that numbered list of five and says so, and decision 49
-above is the same answer stated as a decision.
+the seven day backup window, access to the host including whether `web2`
+becomes ephemeral, and, since the recovery cycle, Resend as the second
+processor. They are not repeated here, because two lists of the same open
+questions is how one of them gets answered twice and the other not at all.
+Two more used to stand beside those, and both are answered rather than
+dropped. Whether deletion on request arrives before phase 1: decision 28 and
+`docs/dpia.md` chapter 7 both describe `POST /api/auth/delete/`, which is
+what answered it. The legal basis: decision 49 above is the same answer,
+consent, that chapter 10's opening paragraph of `docs/dpia.md` now states
+outright instead of carrying as its own numbered point on that list.
 
 Eight sit outside that document.
 
