@@ -462,6 +462,35 @@ def test_the_cap_stops_the_run_and_leaves_the_rest_for_the_next_tick(_account: U
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("cap", ["0", "-1"])
+def test_a_cap_below_one_is_refused_rather_than_quietly_sending_nothing(
+    _account: User, cap: str
+) -> None:
+    """The silent outage this flag could otherwise be.
+
+    `while sent < max_rows` runs zero times at a cap of zero, so the command
+    reports "sent 0 messages, deferred 0" and exits zero. A timer installed
+    with that flag looks healthy for as long as nobody notices that no reset
+    link ever arrives, and the mail stays queued rather than failing, so
+    nothing else raises its hand either.
+
+    Refused and not clamped: a clamp would send fifty where the host asked for
+    zero, which is a command doing something other than what a file somebody
+    wrote on purpose says.
+
+    Red proof: delete the `options["max"] < 1` guard in `handle` and both
+    cases pass with `OutboundMail.objects.count() == 1` and no error.
+    """
+    recovery.enqueue(_account, OneTimeToken.PASSWORD_RESET)
+    out = io.StringIO()
+    with pytest.raises(CommandError, match="would send nothing"):
+        call_command("send_outbound_mail", "--max", cap, stdout=out)
+    # Still queued, and untouched: the refusal happens before any row is read.
+    assert OutboundMail.objects.count() == 1
+    assert OutboundMail.objects.get().attempts == 0
+
+
+@pytest.mark.django_db
 def test_the_command_exits_nonzero_when_something_is_overdue(
     _account: User, monkeypatch: pytest.MonkeyPatch
 ) -> None:

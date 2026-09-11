@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import fixture from "../tests/fixtures/advice-response.json";
+import { ADVICE_PATH, ALL_PATHS } from "./routes";
 
 /**
  * Light and dark, with the explicit choice that has to beat the system.
@@ -13,17 +14,6 @@ import fixture from "../tests/fixtures/advice-response.json";
  * has ever been looked at by anything that measures contrast. Both are only
  * answerable in a real browser.
  */
-
-const TOKEN = fixture.token;
-const ADVICE_PATH = `/advies/${TOKEN}/`;
-const ALL_PATHS = [
-  "/",
-  "/berekenen/",
-  ADVICE_PATH,
-  "/methodologie/",
-  "/account/",
-  "/voorwaarden/",
-] as const;
 
 async function serveFixture(page: Page): Promise<void> {
   await page.route("**/api/advice/**", (route) =>
@@ -159,9 +149,12 @@ test("every route passes axe in the dark palette too", async ({ page }) => {
   // looks at the pixels.
   await serveFixture(page);
   await page.emulateMedia({ colorScheme: "dark" });
-  // Without this line "the loop walked five paths" is an assumption: nothing
-  // checks how many paths sit in ALL_PATHS.
-  expect(ALL_PATHS).toHaveLength(6);
+  // Without this line "the loop walked every path" is an assumption: nothing
+  // checks how many paths sit in ALL_PATHS. Nine since 2026-09-11, when this
+  // sweep and the light one in rules.spec.ts were given the same list. Six
+  // stood here before that, and the three the dark palette had never been
+  // looked at on were /einde-saldering/, /over-ons/ and /privacy/.
+  expect(ALL_PATHS).toHaveLength(9);
   for (const path of ALL_PATHS) {
     await page.goto(path);
     await page.evaluate(() =>
