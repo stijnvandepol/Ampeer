@@ -67,6 +67,16 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args: Any, **options: Any) -> None:
+        # Refused rather than clamped, for the reason written out in
+        # send_outbound_mail.handle: a cap below one walks no links, reports
+        # "folded 0" and exits zero, so a timer installed with that flag looks
+        # healthy while quarter readings quietly outlive the retention window
+        # this command exists to enforce.
+        if options["max"] < 1:
+            raise CommandError(
+                f"--max is {options['max']}, so this run would fold nothing and say so "
+                "as though that were normal. Pass 1 or more, or leave it out."
+            )
         if options["check"]:
             self._check()
             return

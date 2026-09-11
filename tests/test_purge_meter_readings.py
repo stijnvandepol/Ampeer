@@ -115,6 +115,31 @@ def test_two_links_old_quarters_never_mix() -> None:
     assert HourAggregate.objects.get(link=link_b, hour_start=OLD_HOUR).consumption_kwh == 0.9
 
 
+@pytest.mark.parametrize("cap", ["0", "-1"])
+def test_a_cap_below_one_is_refused_rather_than_quietly_folding_nothing(cap: str) -> None:
+    """The same silent outage send_outbound_mail's own cap could be.
+
+    A cap below one walks no links, writes "folded 0 quarter reading(s) into 0
+    hour aggregate(s)" and exits zero, so a timer installed with that flag
+    looks healthy while quarter readings outlive the ninety days
+    docs/dpia.md promises they do not. The retention promise is the one thing
+    this command exists for, so a way to switch it off without saying so is
+    worth a refusal.
+
+    Red proof: delete the `options["max"] < 1` guard in `handle` and both
+    cases pass with the old quarter still in the table.
+    """
+    user = User.objects.create_user(email="iemand@voorbeeld.nl", password=TEST_PASSWORD)
+    link = MeterLink.objects.create(user=user, token_sha256="a" * 64)
+    _reading(link, OLD_HOUR)
+
+    with pytest.raises(CommandError, match="would fold nothing"):
+        call_command("purge_meter_readings", "--max", cap)
+
+    assert QuarterReading.objects.count() == 1
+    assert HourAggregate.objects.count() == 0
+
+
 def test_check_is_clean_on_an_empty_tree_and_red_with_old_quarters() -> None:
     """Red proof: make `--check` always exit 0."""
     call_command("purge_meter_readings", check=True)

@@ -606,7 +606,7 @@ function stringArrayNamed(source: string, name: string): string[] {
   return [...match[1]!.matchAll(/"([^"]+)"/g)].map((found) => found[1]!);
 }
 
-describe("the two hand-written e2e route lists stay complete", () => {
+describe("the hand-written e2e route lists stay complete", () => {
   it("names every route under src/app/, or the token template that stands for it", () => {
     const appDir = resolve(process.cwd(), "src/app");
     const routes = readdirSync(appDir, { withFileTypes: true })
@@ -633,9 +633,15 @@ describe("the two hand-written e2e route lists stay complete", () => {
       ).toContain(route);
     }
 
+    // `ALL_PATHS` moved out of rules.spec.ts on 2026-09-11 into
+    // frontend/e2e/routes.ts, which the light sweep and the dark sweep now
+    // share. Before that they were two lists and the dark one was three
+    // routes short, which is the drift this check is here to catch; reading
+    // the shared file means adding a route to one sweep and not the other is
+    // no longer possible at all.
     for (const [file, name] of [
       ["frontend/e2e/privacy.spec.ts", "PAGES"],
-      ["frontend/e2e/rules.spec.ts", "ALL_PATHS"],
+      ["frontend/e2e/routes.ts", "ALL_PATHS"],
     ] as const) {
       const source = readFileSync(resolve(process.cwd(), "..", file), "utf-8");
       const listed = stringArrayNamed(source, name);

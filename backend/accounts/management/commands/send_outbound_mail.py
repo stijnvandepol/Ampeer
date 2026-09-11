@@ -133,6 +133,19 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args: Any, **options: Any) -> None:
+        # A cap below one is a silent outage. `while sent < max_rows` runs zero
+        # times, the command writes "sent 0 messages, deferred 0" and exits
+        # zero, and a timer installed with that flag looks healthy forever
+        # while nobody's reset link ever leaves. --check would eventually
+        # notice, but only after fifteen minutes of somebody waiting. Refused
+        # here rather than clamped: a clamp would silently do something other
+        # than what the host asked for, and the host is a file somebody wrote
+        # on purpose.
+        if options["max"] < 1:
+            raise CommandError(
+                f"--max is {options['max']}, so this run would send nothing and say so "
+                "as though that were normal. Pass 1 or more, or leave it out."
+            )
         if not options["check"]:
             sent, deferred, faulted, capped = self._deliver(options["max"])
             suffix = f", stopped at the cap of {options['max']}" if capped else ""
