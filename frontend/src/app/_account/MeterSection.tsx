@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import type { MeterKey, MeterStatus } from "@/lib/accounts";
+import type {
+  ConsumptionCheckAnswer,
+  MeterKey,
+  MeterStatus,
+} from "@/lib/accounts";
 
 /**
  * The sentence for the one state that has nothing to click.
@@ -19,6 +23,20 @@ const KEY_SHOWN_ONCE =
 
 const NOTHING_RECEIVED_YET = "Er is nog niets binnengekomen.";
 
+/**
+ * What the band was measured over, so the household can weigh it.
+ *
+ * `runs` is the number of refits the band came out of, each with a whole week
+ * of their own readings withheld. That is the thing the number is actually
+ * about: whether the answer depended on which weeks happened to arrive.
+ */
+function measuredOver(quarters: number, runs: number): string {
+  return `Gemeten over ${quarters} kwartieren van uw eigen meter, in ${runs} herberekeningen met telkens een week weggelaten.`;
+}
+
+const KEEP_OWN_FIGURE =
+  "Doet u niets, dan blijft uw advies op uw eigen getal rekenen.";
+
 const UNLINK_CONSEQUENCE =
   "Na het ontkoppelen zijn de metingen van deze meter weg.";
 
@@ -29,6 +47,14 @@ export interface MeterSectionProps {
   readonly busy: boolean;
   readonly onLink: () => void;
   readonly onUnlink: () => void;
+  /**
+   * What the meter says about the annual consumption on the most recent
+   * advice, or null when it says nothing. Null covers a household with no
+   * advice, one whose meter has too little to go on, and one whose meter
+   * agrees with them, because all three deserve the same thing here: silence.
+   */
+  readonly check: ConsumptionCheckAnswer | null;
+  readonly onAccept: () => void;
 }
 
 /**
@@ -52,6 +78,8 @@ export function MeterSection({
   busy,
   onLink,
   onUnlink,
+  check,
+  onAccept,
 }: MeterSectionProps) {
   const [confirmingUnlink, setConfirmingUnlink] = useState(false);
 
@@ -98,6 +126,39 @@ export function MeterSection({
               ? NOTHING_RECEIVED_YET
               : `Laatst binnengekomen: ${status.last_seen_label}`}
           </p>
+
+          {check !== null && check.check !== null && (
+            <div className="flex flex-col gap-2 border-l-2 border-hairline pl-3">
+              {/*
+                Every sentence with a number in it comes from the API, which
+                computed it. The band is shown rather than a single corrected
+                figure: a figure inside it would not have produced this block
+                at all, so the band is the finding and not a decoration on it.
+              */}
+              <p className="max-w-[60ch] text-sm">{check.check.message}</p>
+              <p className="max-w-[60ch] text-sm text-ink-muted">
+                {measuredOver(check.check.quarters_used, check.check.runs)}
+              </p>
+              {check.check.installation_note !== null && (
+                <p className="max-w-[60ch] text-sm">
+                  {check.check.installation_note}
+                </p>
+              )}
+              <p>
+                <button
+                  type="button"
+                  className="button-accent"
+                  disabled={busy}
+                  onClick={onAccept}
+                >
+                  {`Reken met ${Math.round(check.check.p50_kwh)} kWh`}
+                </button>
+              </p>
+              <p className="max-w-[60ch] text-sm text-ink-muted">
+                {KEEP_OWN_FIGURE}
+              </p>
+            </div>
+          )}
           <p>
             <button
               type="button"

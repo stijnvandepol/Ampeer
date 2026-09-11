@@ -11,6 +11,8 @@ import {
   getConsentTexts,
   getMe,
   getMeterStatus,
+  acceptConsumption,
+  checkConsumption,
   linkMeter,
   login,
   logout,
@@ -170,6 +172,20 @@ const CALLS: readonly {
     body: {},
     method: "POST",
     run: requestEmailVerification,
+  },
+  {
+    name: "advice-check",
+    status: 200,
+    body: { advice_token: null, check: null },
+    method: "POST",
+    run: checkConsumption,
+  },
+  {
+    name: "advice-accept",
+    status: 201,
+    body: { token: "b".repeat(22) },
+    method: "POST",
+    run: () => acceptConsumption("b".repeat(22)),
   },
   {
     name: "verify-confirm",
@@ -767,5 +783,122 @@ describe("the two shape guards that grew a key", () => {
       "/api/auth/verify/confirm/",
       "/api/auth/verify/request/",
     ]);
+  });
+});
+
+describe("what the meter says about the typed figure", () => {
+  const CHECK = {
+    advice_token: "b".repeat(22),
+    check: {
+      typed_kwh: 2800,
+      p10_kwh: 3600,
+      p50_kwh: 4000,
+      p90_kwh: 4400,
+      runs: 8,
+      quarters_used: 5376,
+      message: "een zin uit de API",
+      installation_note: null,
+    },
+  };
+
+  it("reads a whole answer back", async () => {
+    stub(200, CHECK);
+    await expect(checkConsumption()).resolves.toEqual(CHECK);
+  });
+
+  it("reads the silent answer back, which is the common one", async () => {
+    stub(200, { advice_token: null, check: null });
+    await expect(checkConsumption()).resolves.toEqual({
+      advice_token: null,
+      check: null,
+    });
+  });
+
+  it("carries the note about the installation when the API sends one", async () => {
+    const withNote = {
+      ...CHECK,
+      check: { ...CHECK.check, installation_note: "kijk naar uw panelen" },
+    };
+    stub(200, withNote);
+    await expect(checkConsumption()).resolves.toEqual(withNote);
+  });
+
+  it.each([
+    ["a band missing a figure", { ...CHECK.check, p50_kwh: undefined }],
+    ["a figure that is not a number", { ...CHECK.check, p50_kwh: "4000" }],
+    ["a message that is not a string", { ...CHECK.check, message: 12 }],
+    [
+      "a note that is neither null nor text",
+      { ...CHECK.check, installation_note: 7 },
+    ],
+    [
+      "a body that dropped the note key entirely",
+      {
+        typed_kwh: 2800,
+        p10_kwh: 3600,
+        p50_kwh: 4000,
+        p90_kwh: 4400,
+        runs: 8,
+        quarters_used: 5376,
+        message: "een zin uit de API",
+      },
+    ],
+  ])("refuses %s rather than showing it", async (_name, check) => {
+    stub(200, { advice_token: "b".repeat(22), check });
+    await expect(checkConsumption()).rejects.toThrow();
+  });
+
+  it.each([
+    ["a token that is not text", { advice_token: 12, check: null }],
+    ["a check that is not an object", { advice_token: null, check: 5 }],
+    ["an answer with neither key", {}],
+    ["an answer that is not an object", 7],
+  ])("refuses %s rather than showing it", async (_name, body) => {
+    stub(200, body);
+    await expect(checkConsumption()).rejects.toThrow();
+  });
+
+  it("hands back the new token when a figure is accepted", async () => {
+    stub(201, { token: "c".repeat(22) });
+    await expect(acceptConsumption("b".repeat(22))).resolves.toBe(
+      "c".repeat(22),
+    );
+  });
+
+  it("refuses an acceptance with no token in it", async () => {
+    stub(201, {});
+    await expect(acceptConsumption("b".repeat(22))).rejects.toThrow();
+  });
+
+  it("puts the advice token in the path it posts to", async () => {
+    const fetchMock = stub(201, { token: "c".repeat(22) });
+    await acceptConsumption("b".repeat(22));
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
+      `/api/auth/advice/${"b".repeat(22)}/accept/`,
+    );
+  });
+});
+
+describe("an answer about the meter that is not JSON at all", () => {
+  it("is refused when asking what the meter says", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(
+        async () => new Response("<html>oeps</html>", { status: 200 }),
+      ),
+    );
+    await expect(checkConsumption()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("is refused when accepting the measured figure", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(
+        async () => new Response("<html>oeps</html>", { status: 201 }),
+      ),
+    );
+    await expect(acceptConsumption("b".repeat(22))).rejects.toBeInstanceOf(
+      ApiError,
+    );
   });
 });

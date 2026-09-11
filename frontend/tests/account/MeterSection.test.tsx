@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MeterSection } from "@/app/_account/MeterSection";
-import type { MeterKey, MeterStatus } from "@/lib/accounts";
+import type {
+  ConsumptionCheckAnswer,
+  MeterKey,
+  MeterStatus,
+} from "@/lib/accounts";
 
 const API_BASE = "http://127.0.0.1:8000";
 
@@ -56,6 +60,8 @@ describe("the meter section: not possible", () => {
         busy={false}
         onLink={noop}
         onUnlink={noop}
+        check={null}
+        onAccept={noop}
       />,
     );
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
@@ -76,6 +82,8 @@ describe("the meter section: possible and not linked", () => {
         busy={false}
         onLink={onLink}
         onUnlink={noop}
+        check={null}
+        onAccept={noop}
       />,
     );
     await userEvent.click(
@@ -93,6 +101,8 @@ describe("the meter section: possible and not linked", () => {
         busy={true}
         onLink={noop}
         onUnlink={noop}
+        check={null}
+        onAccept={noop}
       />,
     );
     expect(
@@ -112,6 +122,8 @@ describe("the meter section: the issued key", () => {
         busy={false}
         onLink={noop}
         onUnlink={noop}
+        check={null}
+        onAccept={noop}
       />,
     );
     expect(screen.getByText(ISSUED_KEY.token)).toBeInTheDocument();
@@ -131,6 +143,8 @@ describe("the meter section: linked", () => {
         busy={false}
         onLink={noop}
         onUnlink={noop}
+        check={null}
+        onAccept={noop}
       />,
     );
     expect(
@@ -147,6 +161,8 @@ describe("the meter section: linked", () => {
         busy={false}
         onLink={noop}
         onUnlink={noop}
+        check={null}
+        onAccept={noop}
       />,
     );
     // The sentence the API built, shown word for word. This used to compute
@@ -177,6 +193,8 @@ describe("the meter section: linked", () => {
         busy={false}
         onLink={noop}
         onUnlink={onUnlink}
+        check={null}
+        onAccept={noop}
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Ontkoppel" }));
@@ -205,6 +223,8 @@ describe("the meter section: linked", () => {
         busy={false}
         onLink={noop}
         onUnlink={noop}
+        check={null}
+        onAccept={noop}
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Ontkoppel" }));
@@ -216,11 +236,114 @@ describe("the meter section: linked", () => {
         busy={true}
         onLink={noop}
         onUnlink={noop}
+        check={null}
+        onAccept={noop}
       />,
     );
     expect(screen.getByRole("button", { name: "Ontkoppel" })).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Ontkoppelen bevestigen" }),
     ).toBeDisabled();
+  });
+});
+
+const CONTRADICTED: ConsumptionCheckAnswer = {
+  advice_token: "b".repeat(22),
+  check: {
+    typed_kwh: 2800,
+    p10_kwh: 3600,
+    p50_kwh: 4000,
+    p90_kwh: 4400,
+    runs: 8,
+    quarters_used: 5376,
+    message:
+      "U gaf 2800 kWh per jaar op. Over de periode die uw meter heeft doorgegeven komen wij uit op 3600 tot 4400 kWh per jaar.",
+    installation_note: null,
+  },
+};
+
+describe("the meter section: what the meter says about the typed figure", () => {
+  it("shows the API's sentence, what the band rests on, and the button", async () => {
+    const onAccept = vi.fn();
+    render(
+      <MeterSection
+        status={LINKED_WITH_READING}
+        issuedKey={null}
+        apiBase={API_BASE}
+        busy={false}
+        onLink={noop}
+        onUnlink={noop}
+        check={CONTRADICTED}
+        onAccept={onAccept}
+      />,
+    );
+
+    expect(screen.getByText(CONTRADICTED.check!.message)).toBeInTheDocument();
+    // The band is what makes this a finding rather than a corrected number,
+    // so what it was measured over is on the screen beside it.
+    expect(screen.getByText(/5376 kwartieren/)).toBeInTheDocument();
+    expect(screen.getByText(/8 herberekeningen/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /4000 kWh/ }));
+
+    expect(onAccept).toHaveBeenCalledOnce();
+  });
+
+  it("says nothing at all when the meter does not contradict", () => {
+    render(
+      <MeterSection
+        status={LINKED_WITH_READING}
+        issuedKey={null}
+        apiBase={API_BASE}
+        busy={false}
+        onLink={noop}
+        onUnlink={noop}
+        check={{ advice_token: null, check: null }}
+        onAccept={noop}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /kWh/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("passes on the note about the installation when there is one", () => {
+    const note =
+      "Wat u teruglevert komt niet goed overeen met onze berekening.";
+    render(
+      <MeterSection
+        status={LINKED_WITH_READING}
+        issuedKey={null}
+        apiBase={API_BASE}
+        busy={false}
+        onLink={noop}
+        onUnlink={noop}
+        check={{
+          ...CONTRADICTED,
+          check: { ...CONTRADICTED.check!, installation_note: note },
+        }}
+        onAccept={noop}
+      />,
+    );
+
+    expect(screen.getByText(note)).toBeInTheDocument();
+  });
+
+  it("disables the button while something else is in flight", () => {
+    render(
+      <MeterSection
+        status={LINKED_WITH_READING}
+        issuedKey={null}
+        apiBase={API_BASE}
+        busy={true}
+        onLink={noop}
+        onUnlink={noop}
+        check={CONTRADICTED}
+        onAccept={noop}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /4000 kWh/ })).toBeDisabled();
   });
 });

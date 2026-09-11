@@ -89,6 +89,40 @@ export interface MeterStatus {
 }
 
 /**
+ * What this household's own meter says about the annual consumption it typed.
+ *
+ * A band and not a number. Ampeer puts this in front of a household only when
+ * their own figure falls outside it, so the band is both the answer and the
+ * reason there is one: a figure inside it is a figure the measurements do not
+ * contradict, and then nothing is shown at all.
+ */
+export interface ConsumptionCheck {
+  readonly typed_kwh: number;
+  readonly p10_kwh: number;
+  readonly p50_kwh: number;
+  readonly p90_kwh: number;
+  /** How many refits the band was measured over, each with a week withheld. */
+  readonly runs: number;
+  readonly quarters_used: number;
+  /** The Dutch sentence, from the API. No wording is built here. */
+  readonly message: string;
+  /**
+   * Set when the modelled feed-in does not match the meter's either.
+   *
+   * The fit matched offtake, so a disagreeing feed-in points at the
+   * description of the installation rather than at the consumption, and a
+   * household should hear that before accepting a figure that carries it.
+   */
+  readonly installation_note: string | null;
+}
+
+export interface ConsumptionCheckAnswer {
+  /** The advice the correction applies to, or null when there is nothing. */
+  readonly advice_token: string | null;
+  readonly check: ConsumptionCheck | null;
+}
+
+/**
  * What `POST /api/auth/meter/link/` answers with, once, per design chapter 3:
  * the key is shown exactly here and never again, so nothing in this file
  * offers a second way to read it back.
@@ -269,6 +303,36 @@ function isMe(value: unknown): value is Me {
  * a `null` one, and a body that dropped the key silently is not a body this
  * screen can render a state from.
  */
+function isConsumptionCheck(value: unknown): value is ConsumptionCheck {
+  if (!isObject(value)) return false;
+  for (const key of [
+    "typed_kwh",
+    "p10_kwh",
+    "p50_kwh",
+    "p90_kwh",
+    "runs",
+    "quarters_used",
+  ]) {
+    if (typeof value[key] !== "number") return false;
+  }
+  if (!isString(value["message"])) return false;
+  if (!("installation_note" in value)) return false;
+  const note = value["installation_note"];
+  if (note !== null && !isString(note)) return false;
+  return true;
+}
+
+function isConsumptionCheckAnswer(
+  value: unknown,
+): value is ConsumptionCheckAnswer {
+  if (!isObject(value)) return false;
+  if (!("advice_token" in value) || !("check" in value)) return false;
+  const token = value["advice_token"];
+  if (token !== null && !isString(token)) return false;
+  const check = value["check"];
+  return check === null || isConsumptionCheck(check);
+}
+
 function isMeterStatus(value: unknown): value is MeterStatus {
   if (!isObject(value)) return false;
   if (typeof value["may_link"] !== "boolean") return false;
@@ -397,6 +461,41 @@ export async function postConsent(input: ConsentInput): Promise<ConsentResult> {
     throw unreadable(response, "an answer about another consent");
   }
   return body;
+}
+
+/**
+ * Ask what the meter says about the most recent advice on this account.
+ *
+ * A POST for a question, which is unusual and deliberate: answering runs the
+ * engine several times over the measured window, so it sits behind the same
+ * rate as the routes that write, and nothing between here and the API should
+ * treat it as cacheable.
+ */
+export async function checkConsumption(): Promise<ConsumptionCheckAnswer> {
+  const response = await call("/api/auth/advice/check/", { method: "POST" });
+  const body: unknown = await response.json().catch(() => null);
+  if (!isConsumptionCheckAnswer(body)) {
+    throw unreadable(response, "no consumption check");
+  }
+  return body;
+}
+
+/**
+ * Take the meter's figure and recompute that advice on it.
+ *
+ * Answers with a fresh advice under a new token: the old one keeps the answer
+ * the household's own figure produced, which is what makes accepting a choice
+ * rather than an overwrite.
+ */
+export async function acceptConsumption(token: string): Promise<string> {
+  const response = await call(`/api/auth/advice/${token}/accept/`, {
+    method: "POST",
+  });
+  const body: unknown = await response.json().catch(() => null);
+  if (!isObject(body) || !isString(body["token"])) {
+    throw unreadable(response, "no advice");
+  }
+  return body["token"];
 }
 
 export async function getMeterStatus(): Promise<MeterStatus> {
