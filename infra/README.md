@@ -14,6 +14,42 @@ this subproject has touched it.
 
 ---
 
+## 0. What a fresh host needs, in one list
+
+The sections below explain each of these and why it is checked. This is the
+list itself, because assembling it from four sections is how a deploy ends up
+stopping on the one file somebody missed.
+
+Four things in `/srv/ampeer/`:
+
+| File | Comes from | Checked by the deploy |
+|---|---|---|
+| `docker-compose.yml` | `infra/docker-compose.yml` at the tag | sha256 against `COMPOSE_SHA256` |
+| `preflight_env.sh` | `scripts/preflight_env.sh` at the tag | sha256 against `PREFLIGHT_SHA256` |
+| `backup_db.sh` | `scripts/backup_db.sh` at the tag | sha256 against `BACKUP_SHA256` |
+| `.env` | `infra/.env.example`, filled in | contents, by the preflight |
+
+The three scripts are compared by digest and not by version, because a version
+string is updated by whoever remembered, which is the thing they forgot. Copy
+all three again whenever any of them changes in a release, not only the one you
+edited.
+
+**Verify before tagging:**
+
+```sh
+sha256sum /srv/ampeer/docker-compose.yml /srv/ampeer/preflight_env.sh /srv/ampeer/backup_db.sh
+bash /srv/ampeer/preflight_env.sh /srv/ampeer/.env
+```
+
+The first three digests have to match the literals in
+`.github/workflows/deploy.yml`; the deploy prints both when they do not. The
+preflight exits zero when `.env` is complete.
+
+Two more things are the host's own and are described in section 3: the retention
+timer and the outbox timer, neither of which this repository installs.
+
+---
+
 ## What runs
 
 Four services, in `docker-compose.yml`:

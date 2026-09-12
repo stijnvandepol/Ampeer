@@ -1073,3 +1073,43 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+def test_the_host_list_names_every_file_the_deploy_verifies() -> None:
+    """The README's own first list, held against what the deploy checks.
+
+    Every file below is already explained in a section of its own further
+    down. This asserts they are also named together in section 0, because
+    assembling the list from four sections is exactly how a deploy ends up
+    stopping on the one file somebody missed. It happened three times in a row
+    on 2026-09-12, twice because the instruction given was short of a file the
+    deploy was about to check.
+
+    Derived from the workflow rather than written out here. A fourth checksum
+    added to the deploy without a line in that list fails this, which is the
+    only way a list like it stays complete.
+    """
+    workflow = DEPLOY_WORKFLOW.read_text(encoding="utf-8")
+    checked = set(re.findall(r"^\s+([A-Z]+)_SHA256:", workflow, re.MULTILINE))
+    assert checked, "deploy.yml pins no checksums at all; this test read nothing"
+
+    #: Which file each checksum is of. The workflow names the digest and the
+    #: path separately, so the pairing lives here and is asserted rather than
+    #: parsed out of shell.
+    files = {
+        "COMPOSE": "docker-compose.yml",
+        "PREFLIGHT": "preflight_env.sh",
+        "BACKUP": "backup_db.sh",
+    }
+    assert checked <= set(files), (
+        f"deploy.yml checks {sorted(checked - set(files))}, which this test "
+        "cannot name a file for. Add it to `files` above and to section 0 of "
+        "infra/README.md."
+    )
+
+    readme = (INFRA / "README.md").read_text(encoding="utf-8")
+    section = readme.split("## 0.", 1)[-1].split("\n## ", 1)[0]
+    missing = sorted(files[name] for name in checked if files[name] not in section)
+    assert not missing, (
+        f"infra/README.md section 0 does not name {missing}, which the deploy checks the host for"
+    )
