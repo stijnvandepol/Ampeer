@@ -50,6 +50,16 @@ export interface MeterSectionProps {
   readonly onAccept: () => void;
   /** Turn an advice link into one that belongs to this account. */
   readonly onClaim: (link: string) => void;
+  /**
+   * The link in the field, owned by the page.
+   *
+   * Controlled from above rather than held here, because the account page
+   * fills it from `#advies=` in an effect: a lazy `useState` initialiser
+   * cannot read `window` without breaking the static export, so the value
+   * arrives after the first render and local state would never see it.
+   */
+  readonly adviceLink: string;
+  readonly onAdviceLinkChange: (value: string) => void;
 }
 
 /**
@@ -76,9 +86,10 @@ export function MeterSection({
   check,
   onAccept,
   onClaim,
+  adviceLink,
+  onAdviceLinkChange,
 }: MeterSectionProps) {
   const [confirmingUnlink, setConfirmingUnlink] = useState(false);
-  const [adviceLink, setAdviceLink] = useState("");
 
   function confirmUnlink(): void {
     setConfirmingUnlink(false);
@@ -140,7 +151,7 @@ export function MeterSection({
                   className="input"
                   value={adviceLink}
                   disabled={busy}
-                  onChange={(event) => setAdviceLink(event.target.value)}
+                  onChange={(event) => onAdviceLinkChange(event.target.value)}
                 />
               </label>
               <p>

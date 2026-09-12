@@ -63,6 +63,8 @@ describe("the meter section: not possible", () => {
         check={null}
         onAccept={noop}
         onClaim={noop}
+        adviceLink=""
+        onAdviceLinkChange={noop}
       />,
     );
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
@@ -86,6 +88,8 @@ describe("the meter section: possible and not linked", () => {
         check={null}
         onAccept={noop}
         onClaim={noop}
+        adviceLink=""
+        onAdviceLinkChange={noop}
       />,
     );
     await userEvent.click(
@@ -106,6 +110,8 @@ describe("the meter section: possible and not linked", () => {
         check={null}
         onAccept={noop}
         onClaim={noop}
+        adviceLink=""
+        onAdviceLinkChange={noop}
       />,
     );
     expect(
@@ -128,6 +134,8 @@ describe("the meter section: the issued key", () => {
         check={null}
         onAccept={noop}
         onClaim={noop}
+        adviceLink=""
+        onAdviceLinkChange={noop}
       />,
     );
     expect(screen.getByText(ISSUED_KEY.token)).toBeInTheDocument();
@@ -150,6 +158,8 @@ describe("the meter section: linked", () => {
         check={null}
         onAccept={noop}
         onClaim={noop}
+        adviceLink=""
+        onAdviceLinkChange={noop}
       />,
     );
     expect(
@@ -169,6 +179,8 @@ describe("the meter section: linked", () => {
         check={null}
         onAccept={noop}
         onClaim={noop}
+        adviceLink=""
+        onAdviceLinkChange={noop}
       />,
     );
     // The sentence the API built, shown word for word. This used to compute
@@ -202,6 +214,8 @@ describe("the meter section: linked", () => {
         check={null}
         onAccept={noop}
         onClaim={noop}
+        adviceLink=""
+        onAdviceLinkChange={noop}
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Ontkoppel" }));
@@ -233,6 +247,8 @@ describe("the meter section: linked", () => {
         check={null}
         onAccept={noop}
         onClaim={noop}
+        adviceLink=""
+        onAdviceLinkChange={noop}
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Ontkoppel" }));
@@ -247,6 +263,8 @@ describe("the meter section: linked", () => {
         check={null}
         onAccept={noop}
         onClaim={noop}
+        adviceLink=""
+        onAdviceLinkChange={noop}
       />,
     );
     expect(screen.getByRole("button", { name: "Ontkoppel" })).toBeDisabled();
@@ -289,6 +307,8 @@ describe("the meter section: what the meter says about the typed figure", () => 
         check={CONTRADICTED}
         onAccept={onAccept}
         onClaim={noop}
+        adviceLink=""
+        onAdviceLinkChange={noop}
       />,
     );
 
@@ -315,6 +335,8 @@ describe("the meter section: what the meter says about the typed figure", () => 
         check={{ advice_token: null, check: null }}
         onAccept={noop}
         onClaim={noop}
+        adviceLink=""
+        onAdviceLinkChange={noop}
       />,
     );
 
@@ -340,6 +362,8 @@ describe("the meter section: what the meter says about the typed figure", () => 
         }}
         onAccept={noop}
         onClaim={noop}
+        adviceLink=""
+        onAdviceLinkChange={noop}
       />,
     );
 
@@ -358,6 +382,8 @@ describe("the meter section: what the meter says about the typed figure", () => 
         check={CONTRADICTED}
         onAccept={noop}
         onClaim={noop}
+        adviceLink=""
+        onAdviceLinkChange={noop}
       />,
     );
 
@@ -368,7 +394,7 @@ describe("the meter section: what the meter says about the typed figure", () => 
 describe("the meter section: an account with no advice of its own", () => {
   const NO_ADVICE = { advice_token: null, check: null } as const;
 
-  it("offers to turn a link into one, and passes on what was typed", async () => {
+  it("offers to turn a link into one, and hands on what is in the field", async () => {
     const onClaim = vi.fn();
     render(
       <MeterSection
@@ -381,13 +407,11 @@ describe("the meter section: an account with no advice of its own", () => {
         check={NO_ADVICE}
         onAccept={noop}
         onClaim={onClaim}
+        adviceLink="https://ampeer.nl/advies/bbbbbbbbbbbbbbbbbbbbbb/"
+        onAdviceLinkChange={noop}
       />,
     );
 
-    await userEvent.type(
-      screen.getByLabelText("Link van uw advies"),
-      "https://ampeer.nl/advies/bbbbbbbbbbbbbbbbbbbbbb/",
-    );
     await userEvent.click(
       screen.getByRole("button", { name: "Koppel aan mijn account" }),
     );
@@ -395,6 +419,29 @@ describe("the meter section: an account with no advice of its own", () => {
     expect(onClaim).toHaveBeenCalledWith(
       "https://ampeer.nl/advies/bbbbbbbbbbbbbbbbbbbbbb/",
     );
+  });
+
+  it("reports what the visitor types to the page that owns the field", async () => {
+    const onAdviceLinkChange = vi.fn();
+    render(
+      <MeterSection
+        status={LINKED_WITH_READING}
+        issuedKey={null}
+        apiBase={API_BASE}
+        busy={false}
+        onLink={noop}
+        onUnlink={noop}
+        check={NO_ADVICE}
+        onAccept={noop}
+        onClaim={noop}
+        adviceLink=""
+        onAdviceLinkChange={onAdviceLinkChange}
+      />,
+    );
+
+    await userEvent.type(screen.getByLabelText("Link van uw advies"), "a");
+
+    expect(onAdviceLinkChange).toHaveBeenCalledWith("a");
   });
 
   it("keeps the button out of reach until something is typed", () => {
@@ -409,6 +456,8 @@ describe("the meter section: an account with no advice of its own", () => {
         check={NO_ADVICE}
         onAccept={noop}
         onClaim={noop}
+        adviceLink=""
+        onAdviceLinkChange={noop}
       />,
     );
 
@@ -429,6 +478,8 @@ describe("the meter section: an account with no advice of its own", () => {
         check={CONTRADICTED}
         onAccept={noop}
         onClaim={noop}
+        adviceLink=""
+        onAdviceLinkChange={noop}
       />,
     );
 

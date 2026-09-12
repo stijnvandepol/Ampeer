@@ -78,6 +78,7 @@
 /*.txt$
 /__next
 /account/
+/account/#advies=
 /advies
 /advies/
 /berekenen/
@@ -132,6 +133,7 @@ Bent u het niet eens met wat wij doen, laat het ons weten. U kunt uw bezwaar stu
 Bent u uw wachtwoord kwijt, dan herstelt u het eerst via de mail. Daarna verwijdert u uw account.
 Berekenen
 Betrouwbaarheid:
+Bewaar dit advies bij uw account
 Beweeg over de plaat of gebruik de pijltjestoetsen om een kwartier te lezen.
 Bezig.
 Bezwaar maken

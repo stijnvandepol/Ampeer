@@ -33,7 +33,7 @@ import { ResetConfirmForm } from "./ResetConfirmForm";
 import { ResetRequestForm } from "./ResetRequestForm";
 import { SignInForm } from "./SignInForm";
 import { downloadJson } from "./download";
-import { readRecoveryFragment } from "./fragment";
+import { readAdviceFragment, readRecoveryFragment } from "./fragment";
 import { describeAuthError, fieldErrors } from "./messages";
 import { LOADING, loadSession, signedOut, type AccountState } from "./session";
 
@@ -419,6 +419,7 @@ function AccountView({
   const [issuedKey, setIssuedKey] = useState<MeterKey | null>(null);
   const [check, setCheck] = useState<ConsumptionCheckAnswer | null>(null);
   const [acceptedToken, setAcceptedToken] = useState<string | null>(null);
+  const [adviceLink, setAdviceLink] = useState("");
   const [mailNotice, setMailNotice] = useState<string | null>(
     justRegistered ? CONFIRMATION_MAIL_UNDERWAY : null,
   );
@@ -476,6 +477,20 @@ function AccountView({
     return () => {
       alive = false;
     };
+  }, []);
+
+  useEffect(() => {
+    // Sent here by the advice page, which knows the token because the visitor
+    // is standing on it. Read in this view rather than the one around it, so
+    // that somebody who follows the link while signed out still finds the
+    // fragment waiting once they have signed in: nothing consumes it until
+    // there is a field to put it in.
+    //
+    // Filled in rather than acted on. The household still presses the button,
+    // so no advice is attached to an account by following a link alone.
+    const fragment = readAdviceFragment();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (fragment !== null) setAdviceLink(fragment);
   }, []);
 
   useEffect(() => {
@@ -556,6 +571,7 @@ function AccountView({
     setFailure(null);
     try {
       await claimAdvice(token);
+      setAdviceLink("");
       // The account has an advice now, so the question this page asks about
       // the meter has a household to be asked about. Asked rather than
       // assumed, like every other refresh here.
@@ -748,6 +764,8 @@ function AccountView({
         check={check}
         onAccept={() => void acceptAction()}
         onClaim={(link) => void claimAction(link)}
+        adviceLink={adviceLink}
+        onAdviceLinkChange={setAdviceLink}
       />
 
       {acceptedToken !== null && (

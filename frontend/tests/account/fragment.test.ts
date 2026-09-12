@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { readRecoveryFragment } from "@/app/_account/fragment";
+import {
+  readAdviceFragment,
+  readRecoveryFragment,
+} from "@/app/_account/fragment";
 
 const TOKEN = "A".repeat(43);
 
@@ -61,5 +64,39 @@ describe("the token in the fragment", () => {
     expect(url).not.toContain("#");
     replaceSpy.mockRestore();
     pushSpy.mockRestore();
+  });
+});
+
+describe("the advice token in the fragment", () => {
+  const ADVICE = "b".repeat(22);
+
+  it("reads the link the advice page sends, and clears it", () => {
+    window.history.replaceState(null, "", `/account/#advies=${ADVICE}`);
+    expect(readAdviceFragment()).toBe(ADVICE);
+    expect(window.location.hash).toBe("");
+    expect(window.location.pathname).toBe("/account/");
+  });
+
+  it("reads nothing on a second call, because the first one cleared it", () => {
+    window.history.replaceState(null, "", `/account/#advies=${ADVICE}`);
+    readAdviceFragment();
+    expect(readAdviceFragment()).toBeNull();
+  });
+
+  it.each([
+    ["no fragment at all", "/account/"],
+    ["a recovery fragment", `/account/#herstel=${"A".repeat(43)}`],
+    ["a token of the wrong length", `/account/#advies=${"b".repeat(21)}`],
+    [
+      "a token with a character a token cannot hold",
+      `/account/#advies=${"b".repeat(21)}!`,
+    ],
+    ["something else entirely", "/account/#advies"],
+  ])("leaves %s alone", (_name, url) => {
+    window.history.replaceState(null, "", url);
+    expect(readAdviceFragment()).toBeNull();
+    // Left in the address bar rather than quietly removed: this function only
+    // consumes what it recognises.
+    expect(window.location.href).toContain(url);
   });
 });
