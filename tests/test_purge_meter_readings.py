@@ -12,6 +12,8 @@ from datetime import datetime, timedelta
 import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from helpers.accounts import TEST_PASSWORD
 
@@ -173,3 +175,38 @@ def test_the_command_writes_no_audit_event() -> None:
     call_command("purge_meter_readings")
 
     assert AuditEvent.objects.count() == 0
+
+
+def test_folding_does_not_ask_the_database_once_per_hour() -> None:
+    """The guard on the shape of the fold, not on its speed.
+
+    Asserting a duration would measure the machine. This measures what the
+    code does: one link with eight times the hours must cost the same number
+    of queries, because the fold reads every hour it touches at once and
+    writes the new and the changed ones in one statement each.
+
+    It is worth a test because the per-hour version was invisible under a
+    nightly timer, which folds twenty-four hours, and expensive exactly once:
+    on the first run after a timer installed late, where one link can hold
+    ninety days, and a run takes up to two hundred links.
+    """
+    old = timezone.now() - RETENTION - timedelta(days=1)
+
+    few = _link("weinig@voorbeeld.nl")
+    for hour in range(3):
+        _reading(few, old - timedelta(hours=hour))
+    with CaptureQueriesContext(connection) as small:
+        call_command("purge_meter_readings")
+
+    many = _link("veel@voorbeeld.nl")
+    for hour in range(24):
+        _reading(many, old - timedelta(hours=hour))
+    with CaptureQueriesContext(connection) as large:
+        call_command("purge_meter_readings")
+
+    assert HourAggregate.objects.filter(link=few).count() == 3
+    assert HourAggregate.objects.filter(link=many).count() == 24
+    assert len(large) == len(small), (
+        f"twenty-four hours cost {len(large)} queries and three cost "
+        f"{len(small)}; the fold is asking per hour again"
+    )

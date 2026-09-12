@@ -152,19 +152,46 @@ class Command(BaseCommand):
         for row in rows:
             hour_start = row.measured_at.replace(minute=0, second=0, microsecond=0)
             buckets.setdefault(hour_start, []).append(row)
+        # Read every hour this fold touches in one query, then write the new
+        # ones and the changed ones in one each. The loop used to ask the
+        # database three times per hour, which is invisible under a nightly
+        # timer that folds twenty-four of them and is not invisible on the
+        # first run after a timer was installed late: ninety days is over two
+        # thousand hours for one link, and a run takes up to two hundred
+        # links.
+        existing = {
+            row.hour_start: row
+            for row in HourAggregate.objects.filter(link_id=link_id, hour_start__in=list(buckets))
+        }
+        fresh: list[HourAggregate] = []
+        changed: list[HourAggregate] = []
         for hour_start, group in buckets.items():
-            existing = HourAggregate.objects.filter(link_id=link_id, hour_start=hour_start).first()
-            base_consumption = existing.consumption_kwh if existing else 0.0
-            base_feed_in = existing.feed_in_kwh if existing else 0.0
-            base_quarters = existing.quarters if existing else 0
-            HourAggregate.objects.update_or_create(
-                link_id=link_id,
-                hour_start=hour_start,
-                defaults={
-                    "consumption_kwh": base_consumption + sum(r.consumption_kwh for r in group),
-                    "feed_in_kwh": base_feed_in + sum(r.feed_in_kwh for r in group),
-                    "quarters": base_quarters + len(group),
-                },
+            consumption = sum(row.consumption_kwh for row in group)
+            feed_in = sum(row.feed_in_kwh for row in group)
+            # Added to whatever the hour already held rather than replacing
+            # it, so a second fold of the same hour totals both folds. That
+            # is the behaviour a partial hour depends on: quarters can arrive
+            # late and cross the cutoff in a later run.
+            if (aggregate := existing.get(hour_start)) is not None:
+                aggregate.consumption_kwh += consumption
+                aggregate.feed_in_kwh += feed_in
+                aggregate.quarters += len(group)
+                changed.append(aggregate)
+            else:
+                fresh.append(
+                    HourAggregate(
+                        link_id=link_id,
+                        hour_start=hour_start,
+                        consumption_kwh=consumption,
+                        feed_in_kwh=feed_in,
+                        quarters=len(group),
+                    )
+                )
+        if fresh:
+            HourAggregate.objects.bulk_create(fresh)
+        if changed:
+            HourAggregate.objects.bulk_update(
+                changed, ["consumption_kwh", "feed_in_kwh", "quarters"]
             )
         QuarterReading.objects.filter(pk__in=[row.pk for row in rows]).delete()
         return len(rows), len(buckets)
