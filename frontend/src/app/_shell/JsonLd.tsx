@@ -96,3 +96,32 @@ export function PageJsonLd({
   };
   return <script type="application/ld+json">{emit(page)}</script>;
 }
+
+/**
+ * The questions a page answers, for the result that can carry them.
+ *
+ * Every question and every answer here must already be on the page in the same
+ * words. Google's guidelines say not to mark up content a visitor cannot see,
+ * and this project has a second reason: an answer that exists only in the
+ * markup is an answer nobody proofread, on a page whose whole argument is that
+ * it says what it means.
+ *
+ * The caller passes the same array it renders, so the two cannot drift.
+ */
+export function FaqJsonLd({
+  questions,
+}: {
+  readonly questions: readonly (readonly [string, string])[];
+}) {
+  const faq = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    inLanguage: "nl-NL",
+    mainEntity: questions.map(([question, answer]) => ({
+      "@type": "Question",
+      name: question,
+      acceptedAnswer: { "@type": "Answer", text: answer },
+    })),
+  };
+  return <script type="application/ld+json">{emit(faq)}</script>;
+}
