@@ -210,6 +210,7 @@ E-mailadres nog niet bevestigd
 EAST
 Een account per e-mailadres. U kiest en bewaart uw wachtwoord; wij kunnen het niet lezen en geven het niet terug. Bent u het kwijt, dan herstelt u het via de mail.
 Een adres bevestigen, of een mail versturen.
+Een advies dat u zonder in te loggen hebt gemaakt, hoort nog niet bij uw account. Plak de link erbij, dan rekenen wij het opnieuw voor u.
 Een bedrag met een bandbreedte, niet één getal
 Een bedrag per jaar met de bandbreedte eromheen, hoe zeker dat antwoord is, en drie routes in vaste volgorde: uw eigen ritme verschuiven, slimmer sturen met wat u al heeft, en stroom opslaan in een thuisbatterij. De routes die niets kosten staan altijd bovenaan, ook als er bij u aan een ervan niets te halen valt.
 Een bedrag van laag tot hoog, geen los getal
@@ -297,6 +298,7 @@ Klagen kan bij de toezichthouder
 Komt u er met ons niet uit, dan kunt u een klacht indienen bij de Nederlandse toezichthouder. Dat kan altijd en het kost u niets.
 Kopieer deze link
 Kopieren lukte niet. Neem de link hierboven over.
+Koppel aan mijn account
 Koppel uw meter
 Krijg ik straks te horen dat ik een batterij moet kopen?
 KvK-nummer
@@ -306,6 +308,7 @@ Laatst binnengekomen:
 Laatst gewijzigd op 7 september 2026.
 Laten verwijderen
 Licht
+Link van uw advies
 MEASURED
 METER_LINK
 Maakt u een account, dan bewaren wij meer dan voor een berekening alleen.

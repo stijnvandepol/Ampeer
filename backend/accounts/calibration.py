@@ -113,25 +113,19 @@ def as_payload(fit: ConsumptionFit, typed_kwh: float) -> dict[str, Any]:
     }
 
 
-def latest_check(user: User) -> tuple[StoredAdvice, ConsumptionFit] | None:
-    """The correction worth showing beside this household's meter, if any.
+def latest_advice(user: User) -> StoredAdvice | None:
+    """This account's most recent advice that has not expired.
 
-    Read off their most recent advice rather than off a figure of its own,
-    because a fit needs a described household: a roof, an orientation and
-    whichever assets were declared. That description only exists as the inputs
-    of an advice they already asked for.
+    A fit needs a described household: a roof, an orientation and whichever
+    assets were declared. That description exists only as the inputs of an
+    advice, so this is where one comes from.
 
-    Filtered on the owner, and only among advices that have not expired. An
-    advice whose ninety days ran out cannot be recomputed under its token
-    either, so proposing a correction to it would offer a button that could
-    not work.
+    Expired ones are skipped. An advice past its ninety days cannot be
+    recomputed under its token either, so offering a correction to it would be
+    offering a button that could not work.
     """
-    stored = (
+    return (
         StoredAdvice.objects.filter(owner=user, expires_at__gt=timezone.now())
         .order_by("-created_at")
         .first()
     )
-    if stored is None:
-        return None
-    fit = propose_correction(user, dict(stored.inputs))
-    return None if fit is None else (stored, fit)

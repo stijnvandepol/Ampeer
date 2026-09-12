@@ -126,6 +126,7 @@ NL: Final[dict[str, str]] = {
         "niets te corrigeren."
     ),
     "advice_not_found": "dit advies bestaat niet of hoort niet bij uw account",
+    "advice_link_unknown": "deze link hoort niet bij een advies dat nog bestaat",
     "CONSENT_METER_LINK": (
         "Ik geef Ampeer toestemming om de kwartiergegevens van mijn slimme meter te "
         "verwerken om mijn advies nauwkeuriger te maken. Ik kan deze toestemming op elk "

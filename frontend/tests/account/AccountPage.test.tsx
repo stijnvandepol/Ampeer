@@ -871,6 +871,38 @@ describe("the meter section on the account page", () => {
     },
   };
 
+  it("turns a pasted link into an advice and asks the meter again", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    const { seen } = stub(
+      [
+        { status: 200, body: me },
+        { status: 200, body: consentTexts },
+        { status: 201, body: { token: "c".repeat(22) } },
+      ],
+      {
+        meterStatus: { status: 200, body: LINKED },
+        consumptionCheck: { advice_token: null, check: null },
+      },
+    );
+
+    render(<AccountPage />);
+    await userEvent.type(
+      await screen.findByLabelText("Link van uw advies"),
+      `/advies/${"b".repeat(22)}/`,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Koppel aan mijn account" }),
+    );
+
+    const claim = seen.filter((url) => url.includes("/api/auth/advice/claim/"));
+    expect(claim).toHaveLength(1);
+    // Asked again afterwards, because the account now has a household for the
+    // meter to be held against.
+    expect(
+      seen.filter((url) => url.includes("/api/auth/advice/check/")).length,
+    ).toBeGreaterThan(1);
+  });
+
   it("asks what the meter says and shows it beside the link", async () => {
     stub(
       [

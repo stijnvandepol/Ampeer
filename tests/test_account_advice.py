@@ -188,10 +188,19 @@ def test_an_advice_does_not_pay_for_a_fit_nobody_asked_for(client: Any) -> None:
 
 
 def test_without_a_meter_there_is_nothing_to_check(client: Any) -> None:
-    _register(client)
-    _advice(client)
+    """The advice is named anyway, because that is a different fact.
 
-    assert _check(client) == {"advice_token": None, "check": None}
+    An account with an advice and no meter and an account with neither both
+    have nothing to show, and the page offers help in only one of those two
+    cases, so the answer has to say which one it is.
+    """
+    _register(client)
+    advice = _advice(client)
+
+    answer = _check(client)
+
+    assert answer["check"] is None
+    assert answer["advice_token"] == advice["token"]
 
 
 def test_without_an_advice_there_is_nothing_to_check(client: Any) -> None:
@@ -199,7 +208,10 @@ def test_without_an_advice_there_is_nothing_to_check(client: Any) -> None:
     user = _register(client)
     _give_the_account_a_meter(user)
 
-    assert _check(client)["check"] is None
+    answer = _check(client)
+
+    assert answer["check"] is None
+    assert answer["advice_token"] is None
 
 
 def test_a_meter_that_disagrees_is_reported_with_its_band(client: Any) -> None:
@@ -351,3 +363,87 @@ def test_a_measurement_outside_the_window_is_ignored_by_the_fit(client: Any) -> 
 
     assert check is not None
     assert check["p50_kwh"] == pytest.approx(TRUE_ANNUAL_KWH, rel=0.02)
+
+
+def _anonymous_advice(client: Any) -> dict[str, Any]:
+    """An advice made the ordinary way, which carries no owner."""
+    response = client.post("/api/advice/refine/", BODY, content_type="application/json")
+    assert response.status_code == 201, response.content
+    return cast(dict[str, Any], response.json())
+
+
+def _claim(client: Any, token: str) -> Any:
+    return client.post(
+        "/api/auth/advice/claim/",
+        {"token": token},
+        content_type="application/json",
+        **_csrf(client),
+    )
+
+
+def test_a_link_becomes_an_advice_of_this_accounts_own(client: Any) -> None:
+    user = _register(client)
+    anonymous = _anonymous_advice(client)
+
+    response = _claim(client, anonymous["token"])
+
+    assert response.status_code == 201, response.content
+    claimed = response.json()
+    assert claimed["token"] != anonymous["token"]
+    assert StoredAdvice.objects.get(token=claimed["token"]).owner == user
+
+
+def test_claiming_takes_nothing_away_from_whoever_shared_the_link(
+    client: Any,
+) -> None:
+    """The reason this copies rather than hands the row over.
+
+    A token is a bearer credential. If claiming moved ownership, anybody a
+    link was shared with could take the advice from the person who shared it,
+    and it would then vanish with their account rather than the sharer's.
+    """
+    _register(client)
+    anonymous = _anonymous_advice(client)
+
+    _claim(client, anonymous["token"])
+
+    source = StoredAdvice.objects.get(token=anonymous["token"])
+    assert source.owner is None
+    assert client.get(f"/api/advice/{anonymous['token']}/").status_code == 200
+
+
+def test_claiming_is_what_makes_the_meter_check_reachable_at_all(
+    client: Any,
+) -> None:
+    """The gap this route exists to close, as an assertion.
+
+    The calculator posts anonymously and has to keep doing so, so no advice it
+    makes carries an owner, and `advice/check/` has nothing to describe a
+    household with. Before the claim it answers silence for a household whose
+    meter plainly disagrees; after it, the same meter is heard.
+    """
+    user = _register(client)
+    _give_the_account_a_meter(user)
+    anonymous = _anonymous_advice(client)
+    assert _check(client)["check"] is None
+
+    _claim(client, anonymous["token"])
+
+    check = _check(client)["check"]
+    assert check is not None
+    assert check["p50_kwh"] == pytest.approx(TRUE_ANNUAL_KWH, rel=0.02)
+
+
+def test_a_link_to_an_advice_that_no_longer_exists_is_not_found(client: Any) -> None:
+    _register(client)
+    assert _claim(client, "z" * 22).status_code == 404
+
+
+def test_a_link_that_is_not_shaped_like_one_is_refused(client: Any) -> None:
+    """Refused by shape before anything is looked up, so a 404 means one thing."""
+    _register(client)
+    assert _claim(client, "te-kort").status_code == 400
+
+
+def test_a_stranger_cannot_claim_anything(client: Any) -> None:
+    assert _claim(client, "z" * 22).status_code == 401

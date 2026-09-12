@@ -11,6 +11,7 @@ from django.urls import URLPattern, path
 from accounts.views import (
     AccountAdviceAcceptView,
     AccountAdviceCheckView,
+    AccountAdviceClaimView,
     AccountAdviceView,
     ConsentTextsView,
     ConsentView,
@@ -46,6 +47,7 @@ urlpatterns: list[URLPattern] = [
     path("verify/confirm/", VerifyConfirmView.as_view(), name="auth-verify-confirm"),
     path("advice/", AccountAdviceView.as_view(), name="auth-advice"),
     path("advice/check/", AccountAdviceCheckView.as_view(), name="auth-advice-check"),
+    path("advice/claim/", AccountAdviceClaimView.as_view(), name="auth-advice-claim"),
     path(
         "advice/<str:token>/accept/",
         AccountAdviceAcceptView.as_view(),

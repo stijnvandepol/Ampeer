@@ -11,6 +11,7 @@ from rest_framework import serializers
 
 from accounts.models import Consent, User
 from accounts.nl import CONSENT_TEXT_VERSION, NL
+from advice.urls import TOKEN_LENGTH
 
 #: A device pushing more than this in one call is sending a buffer nobody
 #: would build by hand. One hundred is a day and a half of quarters, generous
@@ -220,3 +221,18 @@ class ReadingBatchSerializer(serializers.Serializer[dict[str, Any]]):
         if len(value) > MAX_READINGS_PER_REQUEST:
             raise serializers.ValidationError(NL["meter_batch_too_large"])
         return value
+
+
+class AdviceClaimSerializer(serializers.Serializer[dict[str, Any]]):
+    """One advice link, as the token inside it.
+
+    The token is the credential that already opens that advice, so holding it
+    is the whole permission this route needs. What it does with it is
+    deliberately not to move the advice: it reads the answers and computes a
+    new one for this account, so a link somebody shared cannot be taken away
+    from them by the person they shared it with.
+    """
+
+    token = serializers.RegexField(
+        rf"^[A-Za-z0-9_-]{{{TOKEN_LENGTH}}}$", error_messages={"invalid": NL["advice_link_unknown"]}
+    )

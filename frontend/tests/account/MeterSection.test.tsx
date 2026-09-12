@@ -62,6 +62,7 @@ describe("the meter section: not possible", () => {
         onUnlink={noop}
         check={null}
         onAccept={noop}
+        onClaim={noop}
       />,
     );
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
@@ -84,6 +85,7 @@ describe("the meter section: possible and not linked", () => {
         onUnlink={noop}
         check={null}
         onAccept={noop}
+        onClaim={noop}
       />,
     );
     await userEvent.click(
@@ -103,6 +105,7 @@ describe("the meter section: possible and not linked", () => {
         onUnlink={noop}
         check={null}
         onAccept={noop}
+        onClaim={noop}
       />,
     );
     expect(
@@ -124,6 +127,7 @@ describe("the meter section: the issued key", () => {
         onUnlink={noop}
         check={null}
         onAccept={noop}
+        onClaim={noop}
       />,
     );
     expect(screen.getByText(ISSUED_KEY.token)).toBeInTheDocument();
@@ -145,6 +149,7 @@ describe("the meter section: linked", () => {
         onUnlink={noop}
         check={null}
         onAccept={noop}
+        onClaim={noop}
       />,
     );
     expect(
@@ -163,6 +168,7 @@ describe("the meter section: linked", () => {
         onUnlink={noop}
         check={null}
         onAccept={noop}
+        onClaim={noop}
       />,
     );
     // The sentence the API built, shown word for word. This used to compute
@@ -195,6 +201,7 @@ describe("the meter section: linked", () => {
         onUnlink={onUnlink}
         check={null}
         onAccept={noop}
+        onClaim={noop}
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Ontkoppel" }));
@@ -225,6 +232,7 @@ describe("the meter section: linked", () => {
         onUnlink={noop}
         check={null}
         onAccept={noop}
+        onClaim={noop}
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Ontkoppel" }));
@@ -238,6 +246,7 @@ describe("the meter section: linked", () => {
         onUnlink={noop}
         check={null}
         onAccept={noop}
+        onClaim={noop}
       />,
     );
     expect(screen.getByRole("button", { name: "Ontkoppel" })).toBeDisabled();
@@ -279,6 +288,7 @@ describe("the meter section: what the meter says about the typed figure", () => 
         onUnlink={noop}
         check={CONTRADICTED}
         onAccept={onAccept}
+        onClaim={noop}
       />,
     );
 
@@ -304,6 +314,7 @@ describe("the meter section: what the meter says about the typed figure", () => 
         onUnlink={noop}
         check={{ advice_token: null, check: null }}
         onAccept={noop}
+        onClaim={noop}
       />,
     );
 
@@ -328,6 +339,7 @@ describe("the meter section: what the meter says about the typed figure", () => 
           check: { ...CONTRADICTED.check!, installation_note: note },
         }}
         onAccept={noop}
+        onClaim={noop}
       />,
     );
 
@@ -345,9 +357,83 @@ describe("the meter section: what the meter says about the typed figure", () => 
         onUnlink={noop}
         check={CONTRADICTED}
         onAccept={noop}
+        onClaim={noop}
       />,
     );
 
     expect(screen.getByRole("button", { name: /4000 kWh/ })).toBeDisabled();
+  });
+});
+
+describe("the meter section: an account with no advice of its own", () => {
+  const NO_ADVICE = { advice_token: null, check: null } as const;
+
+  it("offers to turn a link into one, and passes on what was typed", async () => {
+    const onClaim = vi.fn();
+    render(
+      <MeterSection
+        status={LINKED_WITH_READING}
+        issuedKey={null}
+        apiBase={API_BASE}
+        busy={false}
+        onLink={noop}
+        onUnlink={noop}
+        check={NO_ADVICE}
+        onAccept={noop}
+        onClaim={onClaim}
+      />,
+    );
+
+    await userEvent.type(
+      screen.getByLabelText("Link van uw advies"),
+      "https://ampeer.nl/advies/bbbbbbbbbbbbbbbbbbbbbb/",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Koppel aan mijn account" }),
+    );
+
+    expect(onClaim).toHaveBeenCalledWith(
+      "https://ampeer.nl/advies/bbbbbbbbbbbbbbbbbbbbbb/",
+    );
+  });
+
+  it("keeps the button out of reach until something is typed", () => {
+    render(
+      <MeterSection
+        status={LINKED_WITH_READING}
+        issuedKey={null}
+        apiBase={API_BASE}
+        busy={false}
+        onLink={noop}
+        onUnlink={noop}
+        check={NO_ADVICE}
+        onAccept={noop}
+        onClaim={noop}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Koppel aan mijn account" }),
+    ).toBeDisabled();
+  });
+
+  it("does not offer it once the account has an advice", () => {
+    render(
+      <MeterSection
+        status={LINKED_WITH_READING}
+        issuedKey={null}
+        apiBase={API_BASE}
+        busy={false}
+        onLink={noop}
+        onUnlink={noop}
+        check={CONTRADICTED}
+        onAccept={noop}
+        onClaim={noop}
+      />,
+    );
+
+    expect(
+      screen.queryByLabelText("Link van uw advies"),
+    ).not.toBeInTheDocument();
   });
 });

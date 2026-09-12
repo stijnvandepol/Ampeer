@@ -12,6 +12,7 @@ import {
   getMe,
   getMeterStatus,
   acceptConsumption,
+  claimAdvice,
   checkConsumption,
   linkMeter,
   login,
@@ -179,6 +180,13 @@ const CALLS: readonly {
     body: { advice_token: null, check: null },
     method: "POST",
     run: checkConsumption,
+  },
+  {
+    name: "advice-claim",
+    status: 201,
+    body: { token: "c".repeat(22) },
+    method: "POST",
+    run: () => claimAdvice("b".repeat(22)),
   },
   {
     name: "advice-accept",
@@ -904,5 +912,29 @@ describe("an answer about the meter that is not JSON at all", () => {
     await expect(acceptConsumption("b".repeat(22))).rejects.toBeInstanceOf(
       ApiError,
     );
+  });
+});
+
+describe("turning a link into an advice of this account's own", () => {
+  it("sends the token and hands the new one back", async () => {
+    const fetchMock = stub(201, { token: "c".repeat(22) });
+    await expect(claimAdvice("b".repeat(22))).resolves.toBe("c".repeat(22));
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect(JSON.parse(String(init.body))).toEqual({ token: "b".repeat(22) });
+  });
+
+  it("refuses an answer with no advice in it", async () => {
+    stub(201, {});
+    await expect(claimAdvice("b".repeat(22))).rejects.toThrow();
+  });
+
+  it("refuses an answer that is not JSON at all", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(
+        async () => new Response("<html>oeps</html>", { status: 201 }),
+      ),
+    );
+    await expect(claimAdvice("b".repeat(22))).rejects.toBeInstanceOf(ApiError);
   });
 });

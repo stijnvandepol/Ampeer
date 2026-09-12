@@ -494,6 +494,27 @@ export async function checkConsumption(): Promise<ConsumptionCheckAnswer> {
 }
 
 /**
+ * Turn an advice link into an advice that belongs to this account.
+ *
+ * The calculator posts anonymously and keeps doing so, so nothing it makes
+ * carries an owner and `checkConsumption` has no household to describe. This
+ * is how one gets there. The answers are copied and recomputed rather than the
+ * existing advice being handed over, so a link somebody shared is not taken
+ * away from them.
+ */
+export async function claimAdvice(token: string): Promise<string> {
+  const response = await call("/api/auth/advice/claim/", {
+    method: "POST",
+    body: { token },
+  });
+  const body: unknown = await response.json().catch(() => null);
+  if (!isObject(body) || !isString(body["token"])) {
+    throw unreadable(response, "no advice");
+  }
+  return body["token"];
+}
+
+/**
  * Take the meter's figure and recompute that advice on it.
  *
  * Answers with a fresh advice under a new token: the old one keeps the answer

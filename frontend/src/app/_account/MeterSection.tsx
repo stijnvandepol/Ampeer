@@ -23,6 +23,13 @@ const KEY_SHOWN_ONCE =
 
 const NOTHING_RECEIVED_YET = "Er is nog niets binnengekomen.";
 
+const NO_ADVICE_YET =
+  "Een advies dat u zonder in te loggen hebt gemaakt, hoort nog niet bij uw account. Plak de link erbij, dan rekenen wij het opnieuw voor u.";
+
+const ADVICE_LINK_LABEL = "Link van uw advies";
+
+const CLAIM_BUTTON = "Koppel aan mijn account";
+
 const UNLINK_CONSEQUENCE =
   "Na het ontkoppelen zijn de metingen van deze meter weg.";
 
@@ -41,6 +48,8 @@ export interface MeterSectionProps {
    */
   readonly check: ConsumptionCheckAnswer | null;
   readonly onAccept: () => void;
+  /** Turn an advice link into one that belongs to this account. */
+  readonly onClaim: (link: string) => void;
 }
 
 /**
@@ -66,8 +75,10 @@ export function MeterSection({
   onUnlink,
   check,
   onAccept,
+  onClaim,
 }: MeterSectionProps) {
   const [confirmingUnlink, setConfirmingUnlink] = useState(false);
+  const [adviceLink, setAdviceLink] = useState("");
 
   function confirmUnlink(): void {
     setConfirmingUnlink(false);
@@ -112,6 +123,38 @@ export function MeterSection({
               ? NOTHING_RECEIVED_YET
               : `Laatst binnengekomen: ${status.last_seen_label}`}
           </p>
+
+          {check !== null && check.advice_token === null && (
+            <div className="flex flex-col gap-2 border-l-2 border-hairline pl-3">
+              {/*
+                Shown only when this account has no advice of its own. The
+                calculator posts anonymously and keeps doing so, so an advice
+                made there has no owner and the meter has nothing to be held
+                against.
+              */}
+              <p className="max-w-[60ch] text-sm">{NO_ADVICE_YET}</p>
+              <label className="flex flex-col gap-1 text-sm">
+                {ADVICE_LINK_LABEL}
+                <input
+                  type="text"
+                  className="input"
+                  value={adviceLink}
+                  disabled={busy}
+                  onChange={(event) => setAdviceLink(event.target.value)}
+                />
+              </label>
+              <p>
+                <button
+                  type="button"
+                  className="button-quiet"
+                  disabled={busy || adviceLink.trim() === ""}
+                  onClick={() => onClaim(adviceLink.trim())}
+                >
+                  {CLAIM_BUTTON}
+                </button>
+              </p>
+            </div>
+          )}
 
           {check !== null && check.check !== null && (
             <div className="flex flex-col gap-2 border-l-2 border-hairline pl-3">

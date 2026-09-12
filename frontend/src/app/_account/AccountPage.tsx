@@ -11,6 +11,7 @@ import {
   checkConsumption,
   getMeterStatus,
   acceptConsumption,
+  claimAdvice,
   linkMeter,
   logout,
   postConsent,
@@ -26,6 +27,7 @@ import {
 } from "@/lib/accounts";
 import { ConsentRow } from "./ConsentRow";
 import { MeterSection } from "./MeterSection";
+import { tokenFromPath } from "../_advice/link";
 import { RegisterForm } from "./RegisterForm";
 import { ResetConfirmForm } from "./ResetConfirmForm";
 import { ResetRequestForm } from "./ResetRequestForm";
@@ -107,7 +109,8 @@ type AccountActionId =
   | "verify"
   | "meter_link"
   | "meter_unlink"
-  | "consumption_accept";
+  | "consumption_accept"
+  | "advice_claim";
 
 /**
  * One route, three views, and the state comes from `me/`.
@@ -544,6 +547,26 @@ function AccountView({
     }
   }
 
+  async function claimAction(link: string): Promise<void> {
+    // A pasted link or a bare token, reduced to the token by the same helper
+    // the advice page reads its own URL with, so there is one definition of
+    // which part of a path is a token.
+    const token = tokenFromPath(link) ?? link;
+    markBusy("advice_claim");
+    setFailure(null);
+    try {
+      await claimAdvice(token);
+      // The account has an advice now, so the question this page asks about
+      // the meter has a household to be asked about. Asked rather than
+      // assumed, like every other refresh here.
+      setCheck(await checkConsumption());
+    } catch (error) {
+      setFailure(describeAuthError(error));
+    } finally {
+      clearBusy("advice_claim");
+    }
+  }
+
   async function acceptAction(): Promise<void> {
     if (check === null || check.advice_token === null) return;
     markBusy("consumption_accept");
@@ -714,11 +737,17 @@ function AccountView({
         status={meterStatus}
         issuedKey={issuedKey}
         apiBase={BASE}
-        busy={busy.has("meter_link") || busy.has("meter_unlink")}
+        busy={
+          busy.has("meter_link") ||
+          busy.has("meter_unlink") ||
+          busy.has("advice_claim") ||
+          busy.has("consumption_accept")
+        }
         onLink={() => void linkAction()}
         onUnlink={() => void unlinkAction()}
         check={check}
         onAccept={() => void acceptAction()}
+        onClaim={(link) => void claimAction(link)}
       />
 
       {acceptedToken !== null && (
