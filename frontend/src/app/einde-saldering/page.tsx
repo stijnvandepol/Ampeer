@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PriceGap } from "@/components/gap/PriceGap";
 import { PageJsonLd } from "../_shell/JsonLd";
-import styles from "./saldering.module.css";
+import styles from "../_shell/content.module.css";
 
 const PATH = "/einde-saldering/";
 const TITLE = "Einde salderingsregeling: wat het bij u doet";
