@@ -57,7 +57,10 @@ interface StubAnswer {
  */
 function stub(
   answers: readonly StubAnswer[],
-  options?: { readonly meterStatus?: StubAnswer | readonly StubAnswer[] },
+  options?: {
+    readonly meterStatus?: StubAnswer | readonly StubAnswer[];
+    readonly consumptionCheck?: unknown;
+  },
 ) {
   const seen: string[] = [];
   let index = 0;
@@ -76,6 +79,20 @@ function stub(
         status: answer?.status ?? 200,
         headers: { "content-type": "application/json" },
       });
+    }
+    if (new URL(String(input)).pathname === "/api/auth/advice/check/") {
+      // Answered outside the queue, like the meter status above. The account
+      // page asks this whenever a link exists, so leaving it in the queue
+      // would shift every planned answer by one in any test that happens to
+      // have a linked meter. Silence is the default because most of these
+      // tests are not about the correction at all; the ones that are plan it
+      // through `consumptionCheck`.
+      return new Response(
+        JSON.stringify(
+          options?.consumptionCheck ?? { advice_token: null, check: null },
+        ),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
     }
     const answer = answers[index];
     index += 1;
@@ -835,6 +852,142 @@ describe("the meter section on the account page", () => {
     push_path: "/api/meter/readings/",
     created_at: "2026-09-09T09:00:00Z",
   };
+
+  const CHECK = {
+    advice_token: "b".repeat(22),
+    check: {
+      typed_kwh: 2800,
+      p10_kwh: 3600,
+      p50_kwh: 4000,
+      p90_kwh: 4400,
+      runs: 8,
+      quarters_used: 5376,
+      message: "Uw meter wijst op 3600 tot 4400 kWh per jaar.",
+      measured_over:
+        "Gemeten over 5376 kwartieren van uw eigen meter, in 8 herberekeningen met telkens een week weggelaten.",
+      accept_label: "Reken met 4000 kWh",
+      keep_own: "Doet u niets, dan blijft uw advies op uw eigen getal rekenen.",
+      installation_note: null,
+    },
+  };
+
+  it("asks what the meter says and shows it beside the link", async () => {
+    stub(
+      [
+        { status: 200, body: me },
+        { status: 200, body: consentTexts },
+      ],
+      {
+        meterStatus: { status: 200, body: LINKED },
+        consumptionCheck: CHECK,
+      },
+    );
+
+    render(<AccountPage />);
+
+    expect(await screen.findByText(CHECK.check.message)).toBeInTheDocument();
+  });
+
+  it("does not ask at all when no meter is linked", async () => {
+    // Answering runs the engine several times, so a household without a link
+    // must not spend that on a question whose answer is already known.
+    const { seen } = stub(
+      [
+        { status: 200, body: me },
+        { status: 200, body: consentTexts },
+      ],
+      { meterStatus: { status: 200, body: MAY_LINK } },
+    );
+
+    render(<AccountPage />);
+    await screen.findByRole("button", { name: "Koppel uw meter" });
+
+    expect(seen.some((url) => url.includes("/api/auth/advice/check/"))).toBe(
+      false,
+    );
+  });
+
+  it("stays usable when the answer about the meter cannot be read", async () => {
+    // Silent by design. A household who cannot be told what their meter
+    // thinks is not a household with a broken account page, so the section
+    // renders its ordinary linked state and nothing else.
+    stub(
+      [
+        { status: 200, body: me },
+        { status: 200, body: consentTexts },
+      ],
+      {
+        meterStatus: { status: 200, body: LINKED },
+        consumptionCheck: { advice_token: 12, check: "onleesbaar" },
+      },
+    );
+
+    render(<AccountPage />);
+
+    expect(
+      await screen.findByRole("button", { name: "Ontkoppel" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /kWh/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("accepts the measured figure and points at the recomputed advice", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    const { seen } = stub(
+      [
+        { status: 200, body: me },
+        { status: 200, body: consentTexts },
+        { status: 201, body: { token: "c".repeat(22) } },
+      ],
+      {
+        meterStatus: { status: 200, body: LINKED },
+        consumptionCheck: CHECK,
+      },
+    );
+
+    render(<AccountPage />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: /4000 kWh/ }),
+    );
+
+    const link = await screen.findByRole("link", {
+      name: "Bekijk het nieuwe advies",
+    });
+    expect(link).toHaveAttribute("href", `/advies/${"c".repeat(22)}/`);
+    expect(
+      seen.some((url) =>
+        url.includes(`/api/auth/advice/${"b".repeat(22)}/accept/`),
+      ),
+    ).toBe(true);
+  });
+
+  it("says what went wrong when accepting fails, and keeps the offer", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    stub(
+      [
+        { status: 200, body: me },
+        { status: 200, body: consentTexts },
+        { status: 400, body: { detail: "er valt nu niets te corrigeren" } },
+      ],
+      {
+        meterStatus: { status: 200, body: LINKED },
+        consumptionCheck: CHECK,
+      },
+    );
+
+    render(<AccountPage />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: /4000 kWh/ }),
+    );
+
+    expect(
+      await screen.findByText("er valt nu niets te corrigeren"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Bekijk het nieuwe advies" }),
+    ).not.toBeInTheDocument();
+  });
 
   it("shows the issued key once linking succeeds", async () => {
     const userEvent = (await import("@testing-library/user-event")).default;

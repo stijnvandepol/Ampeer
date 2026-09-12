@@ -428,6 +428,35 @@ def test_the_model_constants_are_pinned_to_the_engine_version() -> None:
             ("ampeer_sim.types.TariffSet.net_metering", "False"),
             ("ampeer_sim.types.TariffSet.standing_charge_year", "Decimal('0')"),
         ),
+        # 0.5.0 moved no dataclass default. The row is identical to 0.4.0's and
+        # it is here because the version moved: a version with no row is what
+        # this test refuses, and "nothing changed" is a claim worth recording
+        # rather than an excuse for leaving the table silent.
+        "0.5.0": (
+            ("ampeer_sim.types.BatterySpec.allow_grid_charging", "False"),
+            ("ampeer_sim.types.BatterySpec.round_trip_efficiency", "0.9"),
+            ("ampeer_sim.types.BatterySpec.usable_dod", "0.9"),
+            ("ampeer_sim.types.EV.annual_km", "12000"),
+            ("ampeer_sim.types.EV.charge_power_kw", "3.7"),
+            ("ampeer_sim.types.EV.kwh_per_100km", "18.0"),
+            ("ampeer_sim.types.EnergyFlows.grid_charge", "None"),
+            ("ampeer_sim.types.EnergyFlows.grid_discharge", "None"),
+            ("ampeer_sim.types.HeatPump.base_temperature_c", "15.0"),
+            ("ampeer_sim.types.HeatPump.cop_at_7c", "3.5"),
+            ("ampeer_sim.types.HeatPump.cop_slope_per_c", "0.06"),
+            ("ampeer_sim.types.Household.daytime_occupancy", "False"),
+            ("ampeer_sim.types.Household.ev", "None"),
+            ("ampeer_sim.types.Household.heat_pump", "None"),
+            ("ampeer_sim.types.Household.profile_category", "ProfileCategory.E1A"),
+            ("ampeer_sim.types.Household.shiftable_block_kwh", "1.0"),
+            ("ampeer_sim.types.PVSystem.install_year", "None"),
+            ("ampeer_sim.types.PVSystem.system_loss_fraction", "0.14"),
+            ("ampeer_sim.types.TariffSet.dynamic", "False"),
+            ("ampeer_sim.types.TariffSet.feed_in_cost_per_kwh", "Decimal('0')"),
+            ("ampeer_sim.types.TariffSet.feed_in_fixed_cost_year", "Decimal('0')"),
+            ("ampeer_sim.types.TariffSet.net_metering", "False"),
+            ("ampeer_sim.types.TariffSet.standing_charge_year", "Decimal('0')"),
+        ),
     }
     assert ENGINE_VERSION in snapshot, (
         f"ENGINE_VERSION is {ENGINE_VERSION!r} and this table has no row for it. "
@@ -568,6 +597,70 @@ def test_the_module_constants_are_pinned_to_the_engine_version() -> None:
             ("ampeer_sim.validate.DEFAULT_TOLERANCE_PERCENT", "f1e42019aecc858f"),
             ("ampeer_sim.validate.REQUIRED_FIELDS", "45b84058cdd90331"),
         ),
+        # 0.5.0 added ampeer_sim.fit, and with it six names. None of them enters
+        # a simulated number: the fit proposes a corrected annual consumption and
+        # the advice that follows is computed by the same engine from whatever
+        # figure the household accepted. They are written down anyway, because
+        # the figure that was accepted was produced by these six, and an advice
+        # whose input came from a fit nobody can reproduce is exactly the gap
+        # this table exists to close.
+        "0.5.0": (
+            ("ampeer_sim.economics.sensitivity.CENTRAL_FACTOR", "d0ff5974b6aa52cf"),
+            ("ampeer_sim.economics.sensitivity.VARIATIONS", "4b3b6cc9ab933edf"),
+            ("ampeer_sim.economics.tariffs.EUR_PRECISION", "66341319baafc19a"),
+            ("ampeer_sim.economics.tariffs.KWH_PRECISION", "66341319baafc19a"),
+            ("ampeer_sim.engine.strategies.FORESIGHT_HORIZON_DAYS", "6b86b273ff34fce1"),
+            ("ampeer_sim.engine.strategies.HYBRID_SAFETY_MARGIN", "9f29a130438b8117"),
+            ("ampeer_sim.fit.BRACKET_HIGH_FACTOR", "a19a1584344c1f37"),
+            ("ampeer_sim.fit.BRACKET_LOW_FACTOR", "44896b09365746b5"),
+            ("ampeer_sim.fit.MAX_ITERATIONS", "d59eced1ded07f84"),
+            ("ampeer_sim.fit.MIN_WEEKS", "4e07408562bedb8b"),
+            ("ampeer_sim.fit.QUARTERS_PER_WEEK", "12f26af0dcdfae8f"),
+            ("ampeer_sim.fit.TOLERANCE_KWH", "d0ff5974b6aa52cf"),
+            (
+                "ampeer_sim.production.fallback_yield.MONTHLY_MEAN_PRODUCTION_W_PER_KWP",
+                "0678f9f6b8831e49",
+            ),
+            ("ampeer_sim.production.fallback_yield.MONTHLY_MEAN_TEMPERATURE", "115c55510054006f"),
+            ("ampeer_sim.production.fallback_yield.ORIENTATION_FACTORS", "79fe2b88af8001d3"),
+            ("ampeer_sim.production.fallback_yield.TABLE_LONGITUDE", "4b9c27c3a3718066"),
+            ("ampeer_sim.production.model.DEGRADATION_PER_YEAR", "07e17407c7918077"),
+            ("ampeer_sim.production.model.MAX_DEGRADATION", "44896b09365746b5"),
+            ("ampeer_sim.production.pvgis.FALLBACK_DAYLIGHT_HOURS", "77c52f3feed5acdd"),
+            ("ampeer_sim.production.pvgis.FALLBACK_SOLAR_NOON_HOUR", "456baac0519e7bbe"),
+            ("ampeer_sim.production.pvgis.PVGIS_STAMP_MINUTES_PAST_HOUR", "f1e42019aecc858f"),
+            ("ampeer_sim.production.pvgis.PVGIS_URL", "83e0554d696623d2"),
+            ("ampeer_sim.production.pvgis.RADIATION_DATABASE", "d4666808263aa56c"),
+            ("ampeer_sim.production.pvgis.REFERENCE_LOSS_PERCENT", "8aed642bf5118b9d"),
+            ("ampeer_sim.production.pvgis.REFERENCE_PEAK_POWER_KW", "d0ff5974b6aa52cf"),
+            ("ampeer_sim.production.pvgis.UTC_TO_WINTER_TIME_HOURS", "6b86b273ff34fce1"),
+            ("ampeer_sim.production.pvgis._DEFAULT_CENTROID", "45a1d875efbe8796"),
+            ("ampeer_sim.production.pvgis._POSTCODE_CENTROIDS", "7c3619d3e0959da1"),
+            ("ampeer_sim.profiles.assets.ARRIVAL_WINDOW", "e8c3a86ba10aea79"),
+            ("ampeer_sim.profiles.assets.MIN_COP", "d0ff5974b6aa52cf"),
+            ("ampeer_sim.profiles.assets.NIGHT_WINDOW", "7b5f404e02b3e494"),
+            ("ampeer_sim.profiles.nedu.BASE_SERIES_SUFFIX", "ef3d560c808a0096"),
+            ("ampeer_sim.profiles.nedu.FEED_IN_SERIES_SUFFIX", "6f8e0f7c337b21bd"),
+            ("ampeer_sim.profiles.nedu.FIRST_DATA_COLUMN", "4e07408562bedb8b"),
+            ("ampeer_sim.profiles.nedu.HEADER_ROWS", "7902699be42c8a8e"),
+            ("ampeer_sim.profiles.nedu.NAME_ROW", "5feceb66ffc86f38"),
+            ("ampeer_sim.profiles.nedu.SINGLE_REGISTER", "b1741201e5ef1384"),
+            ("ampeer_sim.profiles.nedu.SUM_TOLERANCE", "1187132475a4431d"),
+            ("ampeer_sim.profiles.nedu.YEAR_ROW", "6b86b273ff34fce1"),
+            ("ampeer_sim.profiles.presence.EVENING_WINDOW", "e8c3a86ba10aea79"),
+            ("ampeer_sim.profiles.presence.MIDDAY_WINDOW", "cbd2debb98ebecca"),
+            ("ampeer_sim.simulate.DEFAULT_WEATHER_YEAR", "d398b29d3dbbb9bf"),
+            ("ampeer_sim.timebase.DST_SWITCH_QUARTER", "2c624232cdd22177"),
+            ("ampeer_sim.timebase.HOURLY_MEAN_ANCHOR_MINUTES", "26c9a96ce053a14d"),
+            ("ampeer_sim.timebase.HOURS_PER_DAY", "c2356069e9d1e79c"),
+            ("ampeer_sim.timebase.MINUTES_PER_DAY", "a4ff3ad278c7b057"),
+            ("ampeer_sim.timebase.MINUTES_PER_QUARTER", "e629fa6598d73276"),
+            ("ampeer_sim.timebase.QUARTERS_PER_DAY", "7b1a278f5abe8e9d"),
+            ("ampeer_sim.timebase.QUARTERS_PER_HOUR", "4b227777d4dd1fc6"),
+            ("ampeer_sim.validate.DEFAULT_PROFILE_YEAR", "b2b2f104d32c6389"),
+            ("ampeer_sim.validate.DEFAULT_TOLERANCE_PERCENT", "f1e42019aecc858f"),
+            ("ampeer_sim.validate.REQUIRED_FIELDS", "45b84058cdd90331"),
+        ),
     }
     assert ENGINE_VERSION in snapshot, (
         f"ENGINE_VERSION is {ENGINE_VERSION!r} and this table has no row for it. "
@@ -661,6 +754,25 @@ def test_the_golden_answers_are_pinned_to_the_engine_version() -> None:
         # sander_heat_pump moves, because a heat pump reads a temperature series
         # through the same anchor and its degree hours shift with it.
         "0.4.0": (
+            ("hand_checkable.expected_consumption_kwh", 3650.0),
+            ("hand_checkable.expected_self_consumption_rate", 0.9391),
+            ("large_array_small_use.expected_consumption_kwh", 2200.0),
+            ("large_array_small_use.expected_self_consumption_rate", 0.1194),
+            ("marloes_ev_at_night.expected_consumption_kwh", 5700.0),
+            ("marloes_ev_at_night.expected_self_consumption_rate", 0.2647),
+            ("marloes_ev_on_solar.expected_consumption_kwh", 5700.0),
+            ("marloes_ev_on_solar.expected_self_consumption_rate", 0.7661),
+            ("rob_fixed_contract.expected_consumption_kwh", 3500.0),
+            ("rob_fixed_contract.expected_self_consumption_rate", 0.341),
+            ("sander_heat_pump.expected_consumption_kwh", 6802.0),
+            ("sander_heat_pump.expected_self_consumption_rate", 0.4977),
+        ),
+        # 0.5.0 moved no golden answer. ampeer_sim.fit takes no part in a
+        # simulation, so all twelve figures are 0.4.0's to the digit, and that is
+        # the point of copying them here rather than pointing at the row above: a
+        # reader comparing two advices across the bump can see that nothing they
+        # depend on moved.
+        "0.5.0": (
             ("hand_checkable.expected_consumption_kwh", 3650.0),
             ("hand_checkable.expected_self_consumption_rate", 0.9391),
             ("large_array_small_use.expected_consumption_kwh", 2200.0),

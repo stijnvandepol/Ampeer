@@ -8,7 +8,9 @@ import {
   exportAccount,
   getConsentTexts,
   getMe,
+  checkConsumption,
   getMeterStatus,
+  acceptConsumption,
   linkMeter,
   logout,
   postConsent,
@@ -19,6 +21,7 @@ import {
   type ConsentTexts,
   type Me,
   type MeterKey,
+  type ConsumptionCheckAnswer,
   type MeterStatus,
 } from "@/lib/accounts";
 import { ConsentRow } from "./ConsentRow";
@@ -98,7 +101,13 @@ const DELETION_CONSEQUENCES =
 
 /** The six actions that share one disabled state, alongside a `ConsentKind`. */
 type AccountActionId =
-  "export" | "logout" | "delete" | "verify" | "meter_link" | "meter_unlink";
+  | "export"
+  | "logout"
+  | "delete"
+  | "verify"
+  | "meter_link"
+  | "meter_unlink"
+  | "consumption_accept";
 
 /**
  * One route, three views, and the state comes from `me/`.
@@ -405,6 +414,8 @@ function AccountView({
   // one answer. Cleared on unlinking so a stale key never survives past the
   // link it belonged to.
   const [issuedKey, setIssuedKey] = useState<MeterKey | null>(null);
+  const [check, setCheck] = useState<ConsumptionCheckAnswer | null>(null);
+  const [acceptedToken, setAcceptedToken] = useState<string | null>(null);
   const [mailNotice, setMailNotice] = useState<string | null>(
     justRegistered ? CONFIRMATION_MAIL_UNDERWAY : null,
   );
@@ -464,6 +475,27 @@ function AccountView({
     };
   }, []);
 
+  useEffect(() => {
+    // Only for an account that actually has a meter. Answering this runs the
+    // engine several times, so asking on every page load for a household
+    // without a link would spend that for a question whose answer is known.
+    if (meterStatus === null || !meterStatus.linked) return;
+    let alive = true;
+    checkConsumption()
+      .then((answer) => {
+        if (alive) setCheck(answer);
+      })
+      .catch(() => {
+        // Silent, like the meter status above: `MeterSection` shows nothing
+        // when there is nothing, and a household who cannot be told what
+        // their meter thinks is not a household with a broken account page.
+        if (alive) setCheck(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [meterStatus]);
+
   // Right after signing in, focus follows the view that replaced the form the
   // visitor was standing in, because otherwise they are left on a control
   // that no longer exists. On a page load it does not move: nothing was
@@ -509,6 +541,23 @@ function AccountView({
       setFailure(describeAuthError(error));
     } finally {
       clearBusy(kind);
+    }
+  }
+
+  async function acceptAction(): Promise<void> {
+    if (check === null || check.advice_token === null) return;
+    markBusy("consumption_accept");
+    setFailure(null);
+    try {
+      setAcceptedToken(await acceptConsumption(check.advice_token));
+      // The advice it applied to now runs on the accepted figure, so the
+      // meter has nothing left to contradict. Asked again rather than
+      // assumed, because that is the same question this block always answers.
+      setCheck(await checkConsumption());
+    } catch (error) {
+      setFailure(describeAuthError(error));
+    } finally {
+      clearBusy("consumption_accept");
     }
   }
 
@@ -668,7 +717,19 @@ function AccountView({
         busy={busy.has("meter_link") || busy.has("meter_unlink")}
         onLink={() => void linkAction()}
         onUnlink={() => void unlinkAction()}
+        check={check}
+        onAccept={() => void acceptAction()}
       />
+
+      {acceptedToken !== null && (
+        <p className="max-w-[60ch] text-sm">
+          Uw advies is opnieuw berekend.{" "}
+          <a className="underline" href={`/advies/${acceptedToken}/`}>
+            Bekijk het nieuwe advies
+          </a>
+          .
+        </p>
+      )}
 
       {failure !== null && (
         <p role="alert" className="text-danger">

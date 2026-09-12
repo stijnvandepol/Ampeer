@@ -9,6 +9,9 @@ from __future__ import annotations
 from django.urls import URLPattern, path
 
 from accounts.views import (
+    AccountAdviceAcceptView,
+    AccountAdviceCheckView,
+    AccountAdviceView,
     ConsentTextsView,
     ConsentView,
     DeleteView,
@@ -41,6 +44,13 @@ urlpatterns: list[URLPattern] = [
     path("reset/confirm/", ResetConfirmView.as_view(), name="auth-reset-confirm"),
     path("verify/request/", VerifyRequestView.as_view(), name="auth-verify-request"),
     path("verify/confirm/", VerifyConfirmView.as_view(), name="auth-verify-confirm"),
+    path("advice/", AccountAdviceView.as_view(), name="auth-advice"),
+    path("advice/check/", AccountAdviceCheckView.as_view(), name="auth-advice-check"),
+    path(
+        "advice/<str:token>/accept/",
+        AccountAdviceAcceptView.as_view(),
+        name="auth-advice-accept",
+    ),
     path("meter/", MeterStatusView.as_view(), name="auth-meter"),
     path("meter/link/", MeterLinkView.as_view(), name="auth-meter-link"),
     path("meter/unlink/", MeterUnlinkView.as_view(), name="auth-meter-unlink"),

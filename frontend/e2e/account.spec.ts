@@ -95,6 +95,13 @@ async function serveAuth(
   const counts: Record<string, number> = {};
   const effectivePlan: Plan = {
     "/api/auth/meter/": DEFAULT_METER_STATUS,
+    // Silence by default, like the meter status above. The account page asks
+    // this whenever a link exists, so every test with a linked meter would
+    // otherwise have to plan an answer for a question it is not about.
+    "/api/auth/advice/check/": {
+      status: 200,
+      body: { advice_token: null, check: null },
+    },
     ...plan,
   };
   await page.route("**/api/auth/**", async (route: Route) => {

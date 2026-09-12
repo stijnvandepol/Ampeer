@@ -9,7 +9,7 @@ rather than an error message.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from django.conf import settings
 
@@ -29,8 +29,21 @@ from ampeer_advice.advise import advise
 from ampeer_sim.simulate import run_advice
 from ampeer_sim.timebase import YearGrid
 
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    # Type only, so `advice` gains no runtime dependency on `accounts`.
+    # The field is a ForeignKey to settings.AUTH_USER_MODEL and this is
+    # what that resolves to; naming it here keeps the annotation honest
+    # without the import existing when the module runs.
+    from accounts.models import User
 
-def compute_and_store(data: dict[str, Any], question_count: int) -> dict[str, Any]:
+
+def compute_and_store(
+    data: dict[str, Any],
+    question_count: int,
+    *,
+    owner: User | None = None,
+    consumption_measured: bool = False,
+) -> dict[str, Any]:
     """Run the engine for one set of answers, store the result, log the event.
 
     ``question_count`` is the number of questions the form asked, not the number
@@ -69,6 +82,7 @@ def compute_and_store(data: dict[str, Any], question_count: int) -> dict[str, An
         production_provider=production,
         result=result,
         filled_fields=question_count,
+        consumption_measured=consumption_measured,
         dynamic_contract=bool(data.get("dynamic_contract", False)),
         battery_spec=battery_spec,
         dynamic_scenario=dynamic_scenario,
@@ -105,9 +119,16 @@ def compute_and_store(data: dict[str, Any], question_count: int) -> dict[str, An
         # and this is what makes a visitor who entered their bill total anyway
         # able to notice.
         entered_consumption_kwh=float(data["annual_consumption_kwh"]),
+        consumption_measured=consumption_measured,
     )
     stored.advice = payload
-    stored.save(update_fields=["advice"])
+    # The owner arrives here and nowhere else. An anonymous advice keeps none,
+    # which is what `StoredAdvice.get_live` is written to serve; an advice asked
+    # for through a session gets one, and with it the CASCADE on account
+    # deletion and the row in the article 15 export that both already existed
+    # and had nothing to act on.
+    stored.owner = owner
+    stored.save(update_fields=["advice", "owner"])
 
     # Context without a personal detail: a digest of the token so the record
     # stays correlatable, and the postcode area so a later question about
