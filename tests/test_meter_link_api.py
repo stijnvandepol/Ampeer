@@ -7,6 +7,7 @@ Follows the shape tests/test_accounts_api.py already uses: a Django test
 from __future__ import annotations
 
 import json
+from datetime import timedelta
 from typing import Any, TypedDict
 
 import pytest
@@ -277,3 +278,58 @@ def test_the_export_carries_the_meter_and_never_the_key(client: Any) -> None:
     assert raw not in json.dumps(payload)
     link = MeterLink.objects.get(user=user)
     assert link.token_sha256 not in json.dumps(payload)
+
+
+#: More rows than any plausible page size, so a sliced or paginated export
+#: cannot pass this by accident. Two hundred and fifty is past DRF's default
+#: of fifty and past the hundred this project caps a push at.
+BEYOND_A_PAGE = 250
+
+
+@pytest.mark.django_db
+def test_the_export_carries_every_row_and_not_a_page_of_them(client: Any) -> None:
+    """Article 15 asks for everything, so this asks for everything.
+
+    The test above proves the meter is in the export at all; with a handful of
+    rows it cannot tell "all of them" from "the first few". This one can, and
+    it is here to fail when somebody paginates or slices the export to make it
+    cheaper.
+
+    That is a real temptation rather than a hypothetical one. `HourAggregate`
+    has no expiry, so this query grows for as long as an account exists, and
+    CODE_GUIDELINES.md section 7 says in so many words that a query which can
+    grow is paginated or bounded. Decision 64 records why this one is the
+    exception, what it costs at five years, and when that stops being
+    acceptable. Red proof: slice either queryset in `_meter_export` and the
+    matching assertion below reports the two counts.
+    """
+    user, _ = _linked(client)
+    link = MeterLink.objects.get(user=user)
+    moment = timezone.now().replace(minute=0, second=0, microsecond=0)
+    HourAggregate.objects.bulk_create(
+        HourAggregate(
+            link=link,
+            hour_start=moment - timedelta(hours=n),
+            consumption_kwh=0.4,
+            feed_in_kwh=0.1,
+            quarters=4,
+        )
+        for n in range(BEYOND_A_PAGE)
+    )
+    QuarterReading.objects.bulk_create(
+        QuarterReading(
+            link=link,
+            measured_at=moment - timedelta(minutes=15 * n),
+            consumption_kwh=0.1,
+            feed_in_kwh=0.0,
+        )
+        for n in range(BEYOND_A_PAGE)
+    )
+
+    response = client.post("/api/auth/export/", content_type="application/json", **_csrf(client))
+
+    assert response.status_code == 200, response.content
+    meter = response.json()["meter"]
+    assert len(meter["hours"]) == HourAggregate.objects.filter(link=link).count()
+    assert len(meter["quarters"]) == QuarterReading.objects.filter(link=link).count()
+    assert len(meter["hours"]) == BEYOND_A_PAGE

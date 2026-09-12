@@ -1896,6 +1896,47 @@ carrying a `MEASURED` series may not be openable by whoever holds a link, so
 either the token stops being a bearer credential or such an advice stops being
 retrievable by one. Neither is a change to this module.
 
+### 64. The article 15 export reads everything, and is measured rather than paginated
+
+**Decided:** `export_account` keeps returning every stored row in one answer.
+It is not paginated, not sliced and not streamed, and
+`tests/test_meter_link_api.py` now asserts the completeness rather than
+leaving it to be noticed.
+
+**Because:** `CODE_GUIDELINES.md` section 7 says every query that can grow is
+paginated or bounded, and this one grows: `HourAggregate` has no expiry, so it
+accumulates for as long as an account exists. The rule and article 15 point
+opposite ways here. A paginated export is an export that answers "some of your
+data", and completeness is the obligation rather than a nice property, so the
+law wins and the exception is written down instead of being left as an
+oversight somebody repairs.
+
+Measured on 2026-09-13 rather than argued, against a database filled to the
+size in the first column and with quarters at the ceiling retention allows,
+ninety days:
+
+| Linked for | Hour rows | Seconds | Peak memory | JSON |
+|---|---|---|---|---|
+| 1 year | 8 760 | 1.09 | 8.9 MB | 1.6 MB |
+| 3 years | 26 280 | 2.08 | 18.4 MB | 3.3 MB |
+| 5 years | 43 800 | 3.29 | 30.4 MB | 5.1 MB |
+
+Linear in both, which is what makes it predictable rather than safe. Against
+the api container's `mem_limit: 768m` a five year export is four percent of
+the cap, and `auth-export` allows five an hour per visitor, so the shape this
+would have to take to hurt is many accounts exporting at once after years of
+readings. That is not today.
+
+**Lives in:** `_meter_export` in `backend/accounts/service.py`, and
+`test_the_export_carries_every_row_and_not_a_page_of_them` in
+`tests/test_meter_link_api.py`.
+
+**To reverse:** stream it. The moment to do that is when the measurement
+above, repeated, puts one export near the container's limit or past a few
+seconds: streaming keeps the answer complete while the memory stops scaling
+with the account's age, which is the only part of this that is genuinely
+unbounded. Pagination stays wrong at every size.
+
 ## What was not decided here
 
 Four belong to the controller and are written up with their trade-offs in
