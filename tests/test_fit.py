@@ -9,6 +9,8 @@ fail it by the whole distance between the two.
 
 from __future__ import annotations
 
+import time
+
 import numpy as np
 import pytest
 
@@ -268,3 +270,41 @@ def test_the_floor_finds_its_variation_by_name_and_not_by_position(
     fit = _fit(TRUE_ANNUAL_KWH)
     assert fit is not None
     assert fit.p10_kwh < fit.p50_kwh < fit.p90_kwh
+
+
+#: The fit must complete inside this. A household waits for it: the account
+#: page asks as soon as it knows a link exists, and nothing on the screen
+#: resolves until the answer arrives.
+FIT_BUDGET_SECONDS = 0.5
+
+
+@pytest.mark.perf
+def test_the_fit_over_a_full_retention_window_fits_the_budget() -> None:
+    """Timed on the longest window that can exist.
+
+    Quarter readings are folded to hours after ninety days, so about twelve
+    weeks and six days is the most a household can ever present. Twelve whole
+    weeks is the most the leave-one-week-out band will ever be measured over,
+    which makes this the slowest the route gets rather than a typical case.
+
+    Marked `perf` for the reason pyproject.toml gives at length: coverage makes
+    this about three times slower, and a wall clock budget measured under the
+    profiler tests the promise divided by the instrument.
+
+    Measured on 2026-09-12 over three runs each, against the offline providers
+    this file uses: 0.068, 0.076 and 0.096 seconds at four weeks, 0.127, 0.128
+    and 0.128 at eight, and 0.133, 0.154 and 0.166 at twelve. The budget stands
+    at three times the worst of those.
+
+    The figure is not the whole request. A deployment reads the NEDU profile
+    through `NeduFileProvider`, which re-parses a 13 MB CSV on the one
+    `fractions` call this makes, and that parse is paid by every advice as
+    well. What this measures is the part the fit added.
+    """
+    window = _window(weeks=12)
+    started = time.perf_counter()
+    fit = _fit(TRUE_ANNUAL_KWH * 0.7, window=window)
+    elapsed = time.perf_counter() - started
+    assert fit is not None, "an empty fit would make this timing meaningless"
+    assert fit.runs == 12, "the band has to have been measured, not skipped"
+    assert elapsed < FIT_BUDGET_SECONDS, f"the fit took {elapsed:.3f}s"
