@@ -72,6 +72,7 @@
 . Een vraag of klacht over uw gegevens gaat naar
 . Hoe wij rekenen, staat in
 . Wij antwoorden binnen een maand.
+. Wij verkopen geen batterijen en geven uw gegevens niet door aan een installateur. Hoe het antwoord tot stand komt staat op
 /
 /#organisatie
 /#website
@@ -170,6 +171,7 @@ De bevestigingsmail is onderweg.
 De dienst kan er even niet zijn. Wij beloven geen beschikbaarheid.
 De drie routes, en de gratis routes eerst
 De eerste ronde stelt vier vragen:
+De eerste twee routes hebben een eigen pagina:
 De eerste vier cijfers van uw postcode, hoeveel wattpiek er ligt, hoe het dak ligt en uw jaarverbruik. Meer niet. Wij bouwen daar een kwartierprofiel van een heel jaar mee op, 35.040 kwartieren, en rekenen dat door op de tarieven van nu en die van 2027.
 De eerste vier cijfers van uw postcode, hoeveel wattpiek er op uw dak ligt, welke kant dat dak op ligt, en uw jaarverbruik.
 De eerste vier cijfers van uw postcode, voor de instraling in uw regio. Van uw postcode bewaren wij alleen die vier cijfers.
@@ -287,6 +289,7 @@ Groot genoeg om uw avondverbruik te dragen en niet groter. Een batterij die 's o
 Heb ik een slimme meter nodig?
 Heb ik een thuisbatterij nodig als de saldering stopt?
 Heeft u al een thuisbatterij?
+Heeft u de gratis route nog niet uitgeprobeerd, begin daar:
 Heeft u een account, dan staat op uw accountpagina uw adres en de stand van beide toestemmingen. De knop exporteren geeft alles wat wij over uw account hebben, als bestand dat een computer kan lezen.
 Heeft u een dynamisch energiecontract, met een prijs per uur?
 Heeft u een warmtepomp?
@@ -661,7 +664,6 @@ Wij sturen uw apparaten niet aan. Wij geven advies en grijpen niet in.
 Wij tellen hoeveel verzoeken er per bezoeker binnenkomen. Dat is nodig om misbruik te stoppen. Uw IP-adres wordt daarvoor eerst onomkeerbaar versleuteld.
 Wij tonen altijd alle drie de routes, in deze volgorde, ook als er bij u aan een ervan niets te halen valt. Een lege route is zelf een antwoord.
 Wij tonen ook altijd eerst de routes die u niets kosten. Uw ritme verschuiven, en slimmer omgaan met apparaten die u al heeft. Een investering komt als laatste in beeld.
-Wij verkopen geen batterijen en geven uw gegevens niet door aan een installateur. Hoe het antwoord tot stand komt staat op
 Wij verkopen geen energiecontract en wij bemiddelen er ook geen.
 Wij verkopen geen panelen, geen batterijen en geen energiecontract, en plaatsen geen advertenties. Niemand betaalt ons voor de uitkomst die u krijgt.
 Wij verkopen geen zonnepanelen en geen thuisbatterijen.
@@ -746,6 +748,7 @@ https://www.autoriteitpersoonsgegevens.nl/
 in.
 info@ampeer.nl
 inloggen
+is een thuisbatterij iets voor mij
 is verantwoordelijk voor de gegevens die via ampeer.nl worden verwerkt. Heeft u een vraag over uw gegevens, mail dan naar
 ja
 jaar
@@ -762,6 +765,8 @@ legalName
 light
 loading
 mailto:
+meer van uw eigen stroom gebruiken
+meer van uw eigen stroom zelf gebruiken
 mei
 monthly
 mrt

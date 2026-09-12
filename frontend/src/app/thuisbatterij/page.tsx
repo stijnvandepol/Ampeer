@@ -248,7 +248,11 @@ export default function ThuisbatterijPage() {
           <Link href="/berekenen/">Bereken wat het bij u doet</Link>
         </p>
         <p className={styles.note}>
-          Wij verkopen geen batterijen en geven uw gegevens niet door aan een
+          Heeft u de gratis route nog niet uitgeprobeerd, begin daar:{" "}
+          <Link href="/zelf-verbruiken/">
+            meer van uw eigen stroom zelf gebruiken
+          </Link>
+          . Wij verkopen geen batterijen en geven uw gegevens niet door aan een
           installateur. Hoe het antwoord tot stand komt staat op{" "}
           <Link href="/methodologie/">de methodepagina</Link>.
         </p>
