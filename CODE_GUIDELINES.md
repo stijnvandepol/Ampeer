@@ -48,11 +48,13 @@ Assumptions go in the PR description or the response, never silently into the co
 
 | Naming rule | Good | Bad |
 |---|---|---|
-| Intent over mechanics | `expiredSubscriptions` | `filteredList2` |
-| No unexplained abbreviations | `maxRetryCount` | `mxRtCnt` |
-| Booleans read as a question | `isActive`, `hasAccess` | `flag`, `check` |
-| Functions start with a verb | `calculateInvoiceTotal` | `invoiceStuff` |
-| One casing per language, repo-wide | `userId` everywhere | mixing `userId` and `user_id` |
+| Intent over mechanics | expired subscriptions | filtered list 2 |
+| No unexplained abbreviations | max retry count | mx rt cnt |
+| Booleans read as a question | is active, has access | flag, check |
+| Functions start with a verb | calculate invoice total | invoice stuff |
+| Casing follows the language's own convention, applied repo-wide | one style everywhere | two styles in one codebase |
+
+Examples are written as words on purpose; apply the casing of the language you are in.
 
 ---
 
@@ -82,7 +84,7 @@ Assumptions go in the PR description or the response, never silently into the co
 - On failure, deny by default. No silent fallback to a default value when a lookup or check fails.
 - User-facing error messages say what went wrong and what to do next. Never stack traces, queries, file paths or internal identifiers.
 - Log with context (operation, identifiers, state) and a severity that means something. Never log secrets, tokens or personal data.
-- Release resources deterministically with the language's scoped construct (`defer`, `with`, `using`, `try-with-resources`).
+- Release resources deterministically with the language's scoped cleanup construct, never by hand at the end of a function.
 - Every external call has a timeout. Retries use backoff and a maximum attempt count, and only for idempotent operations.
 
 ---
@@ -117,7 +119,7 @@ Trust nothing that comes from outside the process, including other internal serv
 
 - Correct first, then measure, then optimise. Optimising without a measurement is guessing.
 - Never query inside a loop. Batch, join or preload.
-- Every list endpoint and every query that can grow is paginated or bounded. No unbounded `SELECT *`.
+- Every list endpoint and every query that can grow is paginated or bounded. No unbounded reads.
 - Index what you filter, sort and join on.
 - Schema changes go through versioned migrations. A migration is reversible or ships with a documented rollback. Never edit a migration that has already been merged.
 - Slow work (email, PDF generation, chained third-party calls) runs asynchronously in a queue, job or worker, never inside a request handler.
@@ -131,7 +133,7 @@ Trust nothing that comes from outside the process, including other internal serv
 
 - Contract first. Plural nouns for resources, no verbs in paths (`/users/5`, not `/getUser?id=5`).
 - One casing across the entire API surface. Never mix.
-- Status codes: 200 read/update, 201 create, 204 delete, 400 invalid input, 401 unauthenticated, 403 unauthorised, 404 not found, 409 conflict, 422 semantic validation, 429 rate limited, 500 unexpected.
+- Use the protocol's status codes correctly: success, created, no content, invalid input, unauthenticated, unauthorised, not found, conflict, semantic validation, rate limited, unexpected. For HTTP that is 200, 201, 204, 400, 401, 403, 404, 409, 422, 429, 500.
 - One stable error shape across the whole API: machine-readable code, human-readable message, field-level details where relevant.
 - Breaking changes need a version, a deprecation period and a migration note.
 - Public endpoints, functions and modules are documented where they are defined (OpenAPI, docstrings, type signatures), generated from the code where possible.
@@ -155,7 +157,7 @@ Trust nothing that comes from outside the process, including other internal serv
 
 - One concern per commit, one purpose per PR. Refactoring and behaviour change never travel together; the reviewer cannot see the risky part through the noise.
 - Commit messages explain why. The diff already shows what.
-- Never commit generated files, local config, `.env`, credentials or large binaries.
+- Never commit generated files, local config, environment files, credentials or large binaries.
 - Every PR is reviewed by someone other than the author. No merge without approval.
 - A PR description states: what changed, why, how it was tested, what could break.
 - Reviewers check, in this order: does it do the right thing, does it break something else, is it safe, is it maintainable, does it follow this file. Spotting a security concern and approving anyway is negligence, not politeness.
@@ -165,7 +167,7 @@ Trust nothing that comes from outside the process, including other internal serv
 ## 11. Comments and documentation
 
 - Comment the why: the trade-off, the constraint, the reason this looks strange. If a comment is needed to explain what the code does, rewrite the code.
-- No commented-out code, no changelog comments, no `// updated by X on Y`. That is what git is for.
+- No commented-out code, no changelog comments, no "updated by X on Y" notes. That is what version control is for.
 - `TODO` requires a ticket reference or it does not get merged.
 - Public modules and non-obvious algorithms get a short docstring: purpose, inputs, outputs, failure modes.
 - Update the README when setup, commands or architecture change. Stale documentation is worse than none.
@@ -179,7 +181,7 @@ Everything above applies. These exist because generated code fails in specific, 
 - Verify that every library, function, method and configuration key exists in the version this project depends on. Do not invent API surface.
 - Run the tests, linter and type checker before claiming they pass, and report the actual output. Never write "tests should pass".
 - Change only what the task requires. No opportunistic reformatting, renaming or "while I was in there" refactors. Do not delete or rewrite working code outside the scope of the request.
-- Deliver runnable, complete code. No `...`, no `// implement the rest`, no functions that return a hardcoded example value.
+- Deliver runnable, complete code. No ellipses, no "implement the rest" comments, no functions that return a hardcoded example value.
 - Do not add a dependency for something the standard library or an existing dependency already does.
 - Do not generate defensive null checks, validation layers or abstraction layers that nothing asked for.
 - Do not add comments that restate the line below them. No emoji, banners or ASCII art in code, logs or CLI output unless the project already does it.
@@ -211,7 +213,7 @@ Stack:            Python 3.12, Django 5 + DRF, PostgreSQL 16. Next.js 15,
                   TypeScript strict, Tailwind. Docker Compose, Cloudflare
                   Tunnel, GitHub Actions. Dependencies via `uv`, lock committed.
 
-Run locally:      docker start ampeer-devtest   (Postgres, port 5433, not 5432)
+Run locally:      docker start ampeer-devtest (Postgres on 5433), then
                   cd frontend && npm run dev
 
 Run tests:        bash scripts/gates.sh runs everything CI runs and names the
@@ -235,15 +237,13 @@ Architecture:     `ampeer_sim/` (engine) and `ampeer_advice/` (rules) import
 Known oddities:   Money is Decimal, energy is float. Code is English, the app
                   is Dutch, and `language.spec.ts` fails on any new
                   user-visible string outside `frontend/tests/ui-strings.txt`.
-                  `perf`-marked tests run uninstrumented, because under
-                  coverage they measure the profiler. `ENGINE_VERSION` is
-                  pinned to a snapshot of every module constant in
-                  `ampeer_sim`. `data/nedu-profiles-2025.csv` is not committed
-                  and coverage floors are measured without it. The calculator
-                  is anonymous by design. Each has an entry in
-                  `docs/decisions.md`.
+                  `perf` tests run uninstrumented; under coverage they measure
+                  the profiler. `ENGINE_VERSION` is pinned to a snapshot of
+                  every module constant in `ampeer_sim`. The NEDU CSV is not
+                  committed and coverage floors are measured without it. The
+                  calculator is anonymous. Each has an entry in `docs/decisions.md`.
 
 Do not touch:     `frontend/tests/fixtures/advice-response.json` (regenerate
-                  with `tests/helpers/advice_fixture.py`), the allowlist
-                  above, and any merged migration.
+                  with `tests/helpers/advice_fixture.py`), the string
+                  allowlist, and any merged migration.
 ```
