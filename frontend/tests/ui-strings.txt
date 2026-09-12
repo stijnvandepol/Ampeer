@@ -78,7 +78,9 @@
 /*.txt$
 /__next
 /account/
+/account/#advies=
 /advies
+/advies/
 /berekenen/
 /berekenen/?ronde=2
 /einde-saldering/
@@ -126,10 +128,12 @@ Beantwoord eerst de vier vragen over uw huis. Daarna kunt u verfijnen.
 Beantwoord vier vragen
 Bedragen per kilowattuur, exclusief btw, op een vast contract. De veelgenoemde 3 tot 8 cent is de brutovergoeding, met de terugleverkosten er nog voor. Op een dynamisch contract blijft de vergoeding 5 tot 7 cent en positief. Zie
 Begin een nieuwe berekening
+Bekijk het nieuwe advies
 Bent u het niet eens met wat wij doen, laat het ons weten. U kunt uw bezwaar sturen naar
 Bent u uw wachtwoord kwijt, dan herstelt u het eerst via de mail. Daarna verwijdert u uw account.
 Berekenen
 Betrouwbaarheid:
+Bewaar dit advies bij uw account
 Beweeg over de plaat of gebruik de pijltjestoetsen om een kwartier te lezen.
 Bezig.
 Bezwaar maken
@@ -208,6 +212,7 @@ E-mailadres nog niet bevestigd
 EAST
 Een account per e-mailadres. U kiest en bewaart uw wachtwoord; wij kunnen het niet lezen en geven het niet terug. Bent u het kwijt, dan herstelt u het via de mail.
 Een adres bevestigen, of een mail versturen.
+Een advies dat u zonder in te loggen hebt gemaakt, hoort nog niet bij uw account. Plak de link erbij, dan rekenen wij het opnieuw voor u.
 Een bedrag met een bandbreedte, niet één getal
 Een bedrag per jaar met de bandbreedte eromheen, hoe zeker dat antwoord is, en drie routes in vaste volgorde: uw eigen ritme verschuiven, slimmer sturen met wat u al heeft, en stroom opslaan in een thuisbatterij. De routes die niets kosten staan altijd bovenaan, ook als er bij u aan een ervan niets te halen valt.
 Een bedrag van laag tot hoog, geen los getal
@@ -295,6 +300,7 @@ Klagen kan bij de toezichthouder
 Komt u er met ons niet uit, dan kunt u een klacht indienen bij de Nederlandse toezichthouder. Dat kan altijd en het kost u niets.
 Kopieer deze link
 Kopieren lukte niet. Neem de link hierboven over.
+Koppel aan mijn account
 Koppel uw meter
 Krijg ik straks te horen dat ik een batterij moet kopen?
 KvK-nummer
@@ -304,6 +310,8 @@ Laatst binnengekomen:
 Laatst gewijzigd op 7 september 2026.
 Laten verwijderen
 Licht
+Link van uw advies
+MEASURED
 METER_LINK
 Maakt u een account, dan bewaren wij meer dan voor een berekening alleen.
 Maat waarop dit is gebaseerd
@@ -397,6 +405,7 @@ Stijn IT, eenmanszaak
 Stond vast
 Stuur een herstellink
 Systeem
+TYPED
 Tabel
 Terug
 Terug naar inloggen
@@ -426,6 +435,7 @@ Uw account bewaren wij tot u het verwijdert. Een herstel- of bevestigingslink be
 Uw account is verwijderd.
 Uw advies
 Uw advies is opgehaald.
+Uw advies is opnieuw berekend.
 Uw advies wordt opgehaald
 Uw antwoorden op de vragen staan in de opslag van uw eigen browser. Die verlaten uw browser niet. Uw keuze voor licht of donker ook niet.
 Uw boiler, uw laadpaal of uw warmtepomp anders inregelen, of kijken of een ander contract bij uw patroon past. Apparaten die u al heeft, anders gebruikt.

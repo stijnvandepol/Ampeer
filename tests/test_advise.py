@@ -159,6 +159,7 @@ def _advise(
     case: dict[str, Any],
     filled_fields: int = 6,
     has_meter_data: bool = False,
+    consumption_measured: bool = False,
     dynamic_contract: bool = False,
     battery_spec: BatterySpec | None = None,
     result: Result | None = None,
@@ -174,6 +175,7 @@ def _advise(
         result=_stub_result() if result is None else result,
         filled_fields=filled_fields,
         has_meter_data=has_meter_data,
+        consumption_measured=consumption_measured,
         dynamic_contract=dynamic_contract,
         battery_spec=battery_spec,
         weather_year=WEATHER_YEAR,
@@ -783,6 +785,34 @@ def test_the_confidence_label_reaches_the_advice(
         HOUSEHOLDS["marloes_ev_on_solar"],
         filled_fields=filled_fields,
         has_meter_data=has_meter_data,
+    )
+    assert advice.confidence is expected
+
+
+@pytest.mark.parametrize(
+    ("filled_fields", "consumption_measured", "expected"),
+    [
+        (2, False, Confidence.INDICATIVE),
+        (2, True, Confidence.GOOD),
+        (7, True, Confidence.GOOD),
+    ],
+)
+def test_a_measured_annual_consumption_lifts_the_label_to_good_and_no_further(
+    filled_fields: int, consumption_measured: bool, expected: Confidence
+) -> None:
+    """Phase 3's rung, and the ceiling above it.
+
+    Two questions and a figure read off the meter beats two questions, because
+    the figure is the input that moves the answer most. It does not beat nine
+    questions, and it never reaches PRECISE: a fitted annual consumption
+    replaces a parameter of the standard profile, and PRECISE is reserved for
+    replacing that profile. The third case is the one that would catch a
+    reading where measured data simply outranks everything.
+    """
+    advice = _advise(
+        HOUSEHOLDS["marloes_ev_on_solar"],
+        filled_fields=filled_fields,
+        consumption_measured=consumption_measured,
     )
     assert advice.confidence is expected
 

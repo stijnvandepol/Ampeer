@@ -89,6 +89,51 @@ export interface MeterStatus {
 }
 
 /**
+ * What this household's own meter says about the annual consumption it typed.
+ *
+ * A band and not a number. Ampeer puts this in front of a household only when
+ * their own figure falls outside it, so the band is both the answer and the
+ * reason there is one: a figure inside it is a figure the measurements do not
+ * contradict, and then nothing is shown at all.
+ */
+export interface ConsumptionCheck {
+  readonly typed_kwh: number;
+  readonly p10_kwh: number;
+  readonly p50_kwh: number;
+  readonly p90_kwh: number;
+  /** How many refits the band was measured over, each with a week withheld. */
+  readonly runs: number;
+  readonly quarters_used: number;
+  /**
+   * The four sentences, all from the API. None is built here.
+   *
+   * `frontend/e2e/language.spec.ts` is the reason and it is not a style
+   * preference: a line of interface text may name the shape of a figure, and
+   * it may never be a sentence about the household's electricity. All four of
+   * these are the second kind, so all four are written in
+   * `backend/accounts/nl.py` and arrive already worded.
+   */
+  readonly message: string;
+  readonly measured_over: string;
+  readonly accept_label: string;
+  readonly keep_own: string;
+  /**
+   * Set when the modelled feed-in does not match the meter's either.
+   *
+   * The fit matched offtake, so a disagreeing feed-in points at the
+   * description of the installation rather than at the consumption, and a
+   * household should hear that before accepting a figure that carries it.
+   */
+  readonly installation_note: string | null;
+}
+
+export interface ConsumptionCheckAnswer {
+  /** The advice the correction applies to, or null when there is nothing. */
+  readonly advice_token: string | null;
+  readonly check: ConsumptionCheck | null;
+}
+
+/**
  * What `POST /api/auth/meter/link/` answers with, once, per design chapter 3:
  * the key is shown exactly here and never again, so nothing in this file
  * offers a second way to read it back.
@@ -269,6 +314,38 @@ function isMe(value: unknown): value is Me {
  * a `null` one, and a body that dropped the key silently is not a body this
  * screen can render a state from.
  */
+function isConsumptionCheck(value: unknown): value is ConsumptionCheck {
+  if (!isObject(value)) return false;
+  for (const key of [
+    "typed_kwh",
+    "p10_kwh",
+    "p50_kwh",
+    "p90_kwh",
+    "runs",
+    "quarters_used",
+  ]) {
+    if (typeof value[key] !== "number") return false;
+  }
+  for (const key of ["message", "measured_over", "accept_label", "keep_own"]) {
+    if (!isString(value[key])) return false;
+  }
+  if (!("installation_note" in value)) return false;
+  const note = value["installation_note"];
+  if (note !== null && !isString(note)) return false;
+  return true;
+}
+
+function isConsumptionCheckAnswer(
+  value: unknown,
+): value is ConsumptionCheckAnswer {
+  if (!isObject(value)) return false;
+  if (!("advice_token" in value) || !("check" in value)) return false;
+  const token = value["advice_token"];
+  if (token !== null && !isString(token)) return false;
+  const check = value["check"];
+  return check === null || isConsumptionCheck(check);
+}
+
 function isMeterStatus(value: unknown): value is MeterStatus {
   if (!isObject(value)) return false;
   if (typeof value["may_link"] !== "boolean") return false;
@@ -397,6 +474,62 @@ export async function postConsent(input: ConsentInput): Promise<ConsentResult> {
     throw unreadable(response, "an answer about another consent");
   }
   return body;
+}
+
+/**
+ * Ask what the meter says about the most recent advice on this account.
+ *
+ * A POST for a question, which is unusual and deliberate: answering runs the
+ * engine several times over the measured window, so it sits behind the same
+ * rate as the routes that write, and nothing between here and the API should
+ * treat it as cacheable.
+ */
+export async function checkConsumption(): Promise<ConsumptionCheckAnswer> {
+  const response = await call("/api/auth/advice/check/", { method: "POST" });
+  const body: unknown = await response.json().catch(() => null);
+  if (!isConsumptionCheckAnswer(body)) {
+    throw unreadable(response, "no consumption check");
+  }
+  return body;
+}
+
+/**
+ * Turn an advice link into an advice that belongs to this account.
+ *
+ * The calculator posts anonymously and keeps doing so, so nothing it makes
+ * carries an owner and `checkConsumption` has no household to describe. This
+ * is how one gets there. The answers are copied and recomputed rather than the
+ * existing advice being handed over, so a link somebody shared is not taken
+ * away from them.
+ */
+export async function claimAdvice(token: string): Promise<string> {
+  const response = await call("/api/auth/advice/claim/", {
+    method: "POST",
+    body: { token },
+  });
+  const body: unknown = await response.json().catch(() => null);
+  if (!isObject(body) || !isString(body["token"])) {
+    throw unreadable(response, "no advice");
+  }
+  return body["token"];
+}
+
+/**
+ * Take the meter's figure and recompute that advice on it.
+ *
+ * Answers with a fresh advice under a new token: the old one keeps the answer
+ * the household's own figure produced, which is what makes accepting a choice
+ * rather than an overwrite.
+ */
+export async function acceptConsumption(token: string): Promise<string> {
+  const response = await call(`/api/auth/advice/${token}/accept/`, {
+    method: "POST",
+  });
+  const body: unknown = await response.json().catch(() => null);
+  if (!isObject(body) || !isString(body["token"])) {
+    throw unreadable(response, "no advice");
+  }
+  return body["token"];
 }
 
 export async function getMeterStatus(): Promise<MeterStatus> {

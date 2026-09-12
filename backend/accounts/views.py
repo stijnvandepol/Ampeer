@@ -25,6 +25,7 @@ from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import (
     AuthenticationFailed,
     NotAuthenticated,
+    NotFound,
     PermissionDenied,
     Throttled,
     ValidationError,
@@ -36,10 +37,12 @@ from rest_framework_simplejwt.exceptions import TokenError
 
 from accounts import cookies, recovery, service, tokens
 from accounts.authentication import CookieJWTAuthentication, enforce_csrf
+from accounts.calibration import as_payload, latest_advice, propose_correction
 from accounts.meter import MeterTokenAuthentication, store_readings
 from accounts.models import Consent, MeterLink, User
 from accounts.nl import CONSENT_TEXT_VERSION, NL
 from accounts.serializers import (
+    AdviceClaimSerializer,
     ConsentSerializer,
     LoginSerializer,
     ReadingBatchSerializer,
@@ -49,7 +52,9 @@ from accounts.serializers import (
     TokenSerializer,
     password_error_messages,
 )
-from advice.models import AuditEvent
+from advice.models import AuditEvent, StoredAdvice
+from advice.serializers import RefineInputSerializer
+from advice.service import compute_and_store
 from advice.views import _NoStoreAPIView
 
 #: Where a household reads a moment, against the UTC every moment is stored
@@ -656,3 +661,141 @@ class MeterReadingsView(_NoStoreAPIView):
         serializer.is_valid(raise_exception=True)
         stored, skipped = store_readings(link, serializer.validated_data["readings"])
         return Response({"stored": stored, "skipped": skipped}, status=status.HTTP_202_ACCEPTED)
+
+
+class AccountAdviceView(_AuthAPIView):
+    """An advice asked for through a session, which is what makes it theirs.
+
+    The anonymous calculator is untouched and stays the ordinary way in. This
+    route exists because two things need an account behind them: an advice that
+    can carry an owner, and a correction that can only be proposed by reading
+    this household's own meter.
+
+    The body is the refine form's, unchanged. A household with an account
+    answers the same nine questions as anybody else; what the account adds is
+    who the answer belongs to.
+
+    It does not ask the meter. A fit costs several runs of the engine over the
+    measured window, and an advice nobody follows up on would pay for an answer
+    nobody reads. `advice/check/` asks, when something asks it.
+    """
+
+    throttle_scope = "auth-write"
+
+    def post(self, request: Request) -> Response:
+        serializer = RefineInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+
+        payload = compute_and_store(data, RefineInputSerializer.QUESTION_COUNT, owner=self.user)
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class AccountAdviceAcceptView(_AuthAPIView):
+    """Recompute one advice on the figure its owner accepted.
+
+    The fit is run again here rather than read back from the proposal. Storing
+    it would mean this route trusted a number written down earlier, and
+    recomputing costs one fit on a route nobody takes twice while buying two
+    things: the accepted figure is the current one, and a meter that has since
+    stopped disagreeing says so instead of being overruled by its own older
+    opinion.
+
+    The lookup filters on the owner. `StoredAdvice.get_live` deliberately does
+    not, because the shareable token has to keep opening an advice for whoever
+    holds it, and that is exactly why it is not what this route uses.
+    """
+
+    throttle_scope = "auth-write"
+
+    def post(self, request: Request, token: str) -> Response:
+        stored = StoredAdvice.objects.filter(owner=self.user, token=token).first()
+        if stored is None:
+            raise NotFound(NL["advice_not_found"])
+
+        data = dict(stored.inputs)
+        fit = propose_correction(self.user, data)
+        if fit is None:
+            raise ValidationError(NL["consumption_correction_gone"])
+
+        data["annual_consumption_kwh"] = fit.p50_kwh
+        payload = compute_and_store(
+            data,
+            RefineInputSerializer.QUESTION_COUNT,
+            owner=self.user,
+            consumption_measured=True,
+        )
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class AccountAdviceCheckView(_AuthAPIView):
+    """What this household's meter says about its most recent advice.
+
+    A POST rather than a GET, and that is about cost and not about semantics.
+    Answering runs the engine several times over the measured window, so it
+    belongs behind `auth-write`'s twenty an hour rather than `auth-read`'s
+    hundred and twenty, and a route that expensive should not look cacheable
+    to anything between here and the browser.
+
+    Recomputed on every call and stored nowhere. Keeping it out of the advice
+    payload is deliberate: that payload is retrievable for ninety days by
+    whoever holds the link, and a household's real annual consumption is not
+    something a shared link should carry. This answer only ever goes to the
+    session that asked for it.
+    """
+
+    throttle_scope = "auth-write"
+
+    def post(self, request: Request) -> Response:
+        # Two different facts, reported separately. An account with no advice
+        # at all and an account whose meter simply agrees both have nothing to
+        # show, but only the first can be helped, and the page needs to know
+        # which one it is looking at before it offers to help.
+        #
+        # Built from names rather than written out with a literal `None` beside
+        # the key: bandit reads `"advice_token": None` as a hardcoded
+        # credential on the strength of the spelling alone, and a suppression
+        # would be a comment claiming "not a password" in perpetuity.
+        stored = latest_advice(self.user)
+        advice_token = None if stored is None else stored.token
+        fit = None if stored is None else propose_correction(self.user, dict(stored.inputs))
+        check = (
+            None
+            if stored is None or fit is None
+            else as_payload(fit, float(stored.inputs["annual_consumption_kwh"]))
+        )
+        return Response({"advice_token": advice_token, "check": check})
+
+
+class AccountAdviceClaimView(_AuthAPIView):
+    """Turn an advice link into an advice that belongs to this account.
+
+    Without this the rest of phase 3 cannot be reached at all. The calculator
+    posts anonymously and must keep doing so: `docs/dpia.md` states that an
+    account exists beside an advice and never before it, so no advice made
+    there carries an owner, and `advice/check/` has nothing to describe a
+    household with.
+
+    The answers are copied and recomputed rather than the existing row being
+    handed over. That is the difference between this and a claim: a link
+    somebody shared cannot be taken away from the person they shared it with,
+    because nothing about their advice changes. What the caller gets is a new
+    advice of their own, from the same answers, under a new token.
+
+    Holding the token is the whole permission. It is already the credential
+    that opens that advice in full, so nothing is disclosed here that the
+    caller could not read a second earlier.
+    """
+
+    throttle_scope = "auth-write"
+
+    def post(self, request: Request) -> Response:
+        serializer = AdviceClaimSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        source = StoredAdvice.get_live(serializer.validated_data["token"])
+        if source is None:
+            raise NotFound(NL["advice_link_unknown"])
+        payload = compute_and_store(
+            dict(source.inputs), RefineInputSerializer.QUESTION_COUNT, owner=self.user
+        )
+        return Response(payload, status=status.HTTP_201_CREATED)

@@ -28,9 +28,11 @@ from helpers.accounts import TEST_PASSWORD
 from rest_framework.settings import api_settings
 from rest_framework.test import APIClient
 
+from accounts.models import User
 from advice.models import AuditEvent, ProductionCache, StoredAdvice, token_digest
 from advice.production import CachedProductionProvider
 from advice.serializers import MAX_REPORTED_UNKNOWN_FIELDS
+from advice.service import compute_and_store
 from ampeer_sim.production.pvgis import FallbackProvider
 from ampeer_sim.providers import ProductionProvider, ProfileProvider
 from ampeer_sim.timebase import YearGrid
@@ -1007,3 +1009,42 @@ class TestWhatAFiveHundredIsAllowedToWriteDown:
         token = "TESTtokenTESTtoken0000"
         APIClient().get(reverse("advice-detail", args=[token]))
         assert token not in written.getvalue(), written.getvalue()
+
+
+def test_an_advice_computed_for_an_account_carries_its_owner() -> None:
+    """The field has existed since migration 0005 and nothing ever set it.
+
+    Setting it is what makes two controls that were already written start
+    acting: the CASCADE that takes a household's advices when the account is
+    deleted, and the article 15 export that lists them. Both were tested
+    against rows a test had to own by hand.
+    """
+    user = User.objects.create_user(email="eigenaar@voorbeeld.nl", password=TEST_PASSWORD)
+
+    payload = compute_and_store(dict(ESTIMATE), 4, owner=user)
+
+    stored = StoredAdvice.objects.get(token=payload["token"])
+    assert stored.owner == user
+
+
+def test_an_anonymous_advice_keeps_no_owner() -> None:
+    """The calculator stays outside the account, which is the default path."""
+    payload = compute_and_store(dict(ESTIMATE), 4)
+    assert StoredAdvice.objects.get(token=payload["token"]).owner is None
+
+
+def test_the_payload_says_where_the_annual_consumption_came_from() -> None:
+    """Two answers can both read GOOD and mean different things.
+
+    A household that answered nine questions and one that accepted a figure
+    read off its own meter land on the same word. This key is what tells them
+    apart, and it is the reason the confidence ladder did not have to grow a
+    fourth rung to stay honest.
+    """
+    typed = compute_and_store(dict(ESTIMATE), 4)
+    measured = compute_and_store(dict(ESTIMATE), 4, consumption_measured=True)
+
+    assert typed["consumption_source"] == "TYPED"
+    assert typed["confidence"] == "INDICATIVE"
+    assert measured["consumption_source"] == "MEASURED"
+    assert measured["confidence"] == "GOOD"

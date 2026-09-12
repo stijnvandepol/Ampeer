@@ -148,6 +148,10 @@ export interface Advice {
   readonly token: string;
   readonly confidence: "INDICATIVE" | "GOOD" | "PRECISE";
   readonly confidence_label: string;
+  /** Where the annual consumption came from. A household that accepted a
+   *  figure read off its own meter and one that answered nine questions
+   *  both read GOOD, and the confidence word alone cannot tell them apart. */
+  readonly consumption_source: "TYPED" | "MEASURED";
   readonly headline: PercentileBand;
   readonly routes: readonly RouteBlock[];
   readonly battery: BatteryAdvice | null;

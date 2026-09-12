@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import type { MeterKey, MeterStatus } from "@/lib/accounts";
+import type {
+  ConsumptionCheckAnswer,
+  MeterKey,
+  MeterStatus,
+} from "@/lib/accounts";
 
 /**
  * The sentence for the one state that has nothing to click.
@@ -19,6 +23,13 @@ const KEY_SHOWN_ONCE =
 
 const NOTHING_RECEIVED_YET = "Er is nog niets binnengekomen.";
 
+const NO_ADVICE_YET =
+  "Een advies dat u zonder in te loggen hebt gemaakt, hoort nog niet bij uw account. Plak de link erbij, dan rekenen wij het opnieuw voor u.";
+
+const ADVICE_LINK_LABEL = "Link van uw advies";
+
+const CLAIM_BUTTON = "Koppel aan mijn account";
+
 const UNLINK_CONSEQUENCE =
   "Na het ontkoppelen zijn de metingen van deze meter weg.";
 
@@ -29,6 +40,26 @@ export interface MeterSectionProps {
   readonly busy: boolean;
   readonly onLink: () => void;
   readonly onUnlink: () => void;
+  /**
+   * What the meter says about the annual consumption on the most recent
+   * advice, or null when it says nothing. Null covers a household with no
+   * advice, one whose meter has too little to go on, and one whose meter
+   * agrees with them, because all three deserve the same thing here: silence.
+   */
+  readonly check: ConsumptionCheckAnswer | null;
+  readonly onAccept: () => void;
+  /** Turn an advice link into one that belongs to this account. */
+  readonly onClaim: (link: string) => void;
+  /**
+   * The link in the field, owned by the page.
+   *
+   * Controlled from above rather than held here, because the account page
+   * fills it from `#advies=` in an effect: a lazy `useState` initialiser
+   * cannot read `window` without breaking the static export, so the value
+   * arrives after the first render and local state would never see it.
+   */
+  readonly adviceLink: string;
+  readonly onAdviceLinkChange: (value: string) => void;
 }
 
 /**
@@ -52,6 +83,11 @@ export function MeterSection({
   busy,
   onLink,
   onUnlink,
+  check,
+  onAccept,
+  onClaim,
+  adviceLink,
+  onAdviceLinkChange,
 }: MeterSectionProps) {
   const [confirmingUnlink, setConfirmingUnlink] = useState(false);
 
@@ -98,6 +134,71 @@ export function MeterSection({
               ? NOTHING_RECEIVED_YET
               : `Laatst binnengekomen: ${status.last_seen_label}`}
           </p>
+
+          {check !== null && check.advice_token === null && (
+            <div className="flex flex-col gap-2 border-l-2 border-hairline pl-3">
+              {/*
+                Shown only when this account has no advice of its own. The
+                calculator posts anonymously and keeps doing so, so an advice
+                made there has no owner and the meter has nothing to be held
+                against.
+              */}
+              <p className="max-w-[60ch] text-sm">{NO_ADVICE_YET}</p>
+              <label className="flex flex-col gap-1 text-sm">
+                {ADVICE_LINK_LABEL}
+                <input
+                  type="text"
+                  className="input"
+                  value={adviceLink}
+                  disabled={busy}
+                  onChange={(event) => onAdviceLinkChange(event.target.value)}
+                />
+              </label>
+              <p>
+                <button
+                  type="button"
+                  className="button-quiet"
+                  disabled={busy || adviceLink.trim() === ""}
+                  onClick={() => onClaim(adviceLink.trim())}
+                >
+                  {CLAIM_BUTTON}
+                </button>
+              </p>
+            </div>
+          )}
+
+          {check !== null && check.check !== null && (
+            <div className="flex flex-col gap-2 border-l-2 border-hairline pl-3">
+              {/*
+                Every sentence with a number in it comes from the API, which
+                computed it. The band is shown rather than a single corrected
+                figure: a figure inside it would not have produced this block
+                at all, so the band is the finding and not a decoration on it.
+              */}
+              <p className="max-w-[60ch] text-sm">{check.check.message}</p>
+              <p className="max-w-[60ch] text-sm text-ink-muted">
+                {check.check.measured_over}
+              </p>
+              {check.check.installation_note !== null && (
+                <p className="max-w-[60ch] text-sm">
+                  {check.check.installation_note}
+                </p>
+              )}
+              <p>
+                <button
+                  type="button"
+                  className="button-accent"
+                  disabled={busy}
+                  onClick={onAccept}
+                >
+                  {check.check.accept_label}
+                </button>
+              </p>
+              <p className="max-w-[60ch] text-sm text-ink-muted">
+                {check.check.keep_own}
+              </p>
+            </div>
+          )}
           <p>
             <button
               type="button"

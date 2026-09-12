@@ -44,3 +44,32 @@ export function readRecoveryFragment(): RecoveryFragment | null {
     token: match[2] ?? "",
   };
 }
+
+/**
+ * An advice token off `/account/#advies=<token>`, read once and then gone.
+ *
+ * The same reasoning as the recovery links above, for a different reason. An
+ * advice link is not secret in the way a reset link is, but the fragment keeps
+ * this one out of the access log and out of a Referer just the same, and it
+ * means the advice page can point at the account page without either of them
+ * learning anything about the other.
+ *
+ * Twenty two url-safe characters, which is `secrets.token_urlsafe(16)` on the
+ * Python side. Anything else reads as no fragment at all.
+ */
+export const ADVICE_TOKEN_LENGTH = 22;
+
+const ADVICE_PATTERN = new RegExp(
+  `^#advies=([A-Za-z0-9_-]{${ADVICE_TOKEN_LENGTH}})$`,
+);
+
+export function readAdviceFragment(): string | null {
+  const match = ADVICE_PATTERN.exec(window.location.hash);
+  if (match === null) return null;
+  window.history.replaceState(
+    window.history.state,
+    "",
+    window.location.pathname + window.location.search,
+  );
+  return match[1] ?? "";
+}

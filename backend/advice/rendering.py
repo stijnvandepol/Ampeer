@@ -252,12 +252,20 @@ def _modelled_consumption(advice: Advice, entered_kwh: float) -> dict[str, Any]:
     }
 
 
+#: What the annual consumption in an answer rests on. Two words rather than a
+#: bare boolean, because this travels on the wire and a reader of the payload
+#: should not have to know which way round a flag was named.
+TYPED_CONSUMPTION = "TYPED"
+MEASURED_CONSUMPTION = "MEASURED"
+
+
 def render(
     advice: Advice,
     result: Result,
     token: str,
     year: dict[str, Any] | None = None,
     entered_consumption_kwh: float | None = None,
+    consumption_measured: bool = False,
 ) -> dict[str, Any]:
     """The whole response, JSON-safe, with no Decimal left in it.
 
@@ -285,6 +293,11 @@ def render(
         # language enters, so the frontend never writes one of these three
         # words itself.
         "confidence_label": CONFIDENCE_LABELS[advice.confidence],
+        # Where the annual consumption came from, which the confidence word
+        # alone cannot say: a household that accepted a figure read off its own
+        # meter and one that answered nine questions both read GOOD, and only
+        # one of them measured the input that moves the answer most.
+        "consumption_source": MEASURED_CONSUMPTION if consumption_measured else TYPED_CONSUMPTION,
         "headline": _band(advice.headline),
         "routes": _routes(advice),
         "battery": _battery(advice),

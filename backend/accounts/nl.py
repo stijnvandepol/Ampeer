@@ -102,6 +102,31 @@ NL: Final[dict[str, str]] = {
         "een meting moet op een heel kwartier staan en kan niet negatief zijn"
     ),
     "meter_batch_too_large": "er kunnen ten hoogste honderd metingen per bericht mee",
+    "consumption_correction": (
+        "U gaf {typed} kWh per jaar op. Over de periode die uw meter heeft doorgegeven "
+        "komen wij uit op {low} tot {high} kWh per jaar. Dat is meer verschil dan wij "
+        "aan een ingetypt getal toerekenen, dus wij leggen het aan u voor in plaats van "
+        "het zelf te veranderen."
+    ),
+    "consumption_correction_export_off": (
+        "Wat u teruglevert komt niet goed overeen met wat wij voor uw installatie "
+        "berekenen. Dat wijst eerder op de beschrijving van uw panelen, zoals het "
+        "vermogen of de richting, dan op uw verbruik. Controleer die eerst."
+    ),
+    "consumption_correction_measured_over": (
+        "Gemeten over {quarters} kwartieren van uw eigen meter, in {runs} "
+        "herberekeningen met telkens een week weggelaten."
+    ),
+    "consumption_correction_accept": "Reken met {kwh} kWh",
+    "consumption_correction_keep": (
+        "Doet u niets, dan blijft uw advies op uw eigen getal rekenen."
+    ),
+    "consumption_correction_gone": (
+        "Uw meter spreekt het opgegeven verbruik niet langer tegen, dus er valt nu "
+        "niets te corrigeren."
+    ),
+    "advice_not_found": "dit advies bestaat niet of hoort niet bij uw account",
+    "advice_link_unknown": "deze link hoort niet bij een advies dat nog bestaat",
     "CONSENT_METER_LINK": (
         "Ik geef Ampeer toestemming om de kwartiergegevens van mijn slimme meter te "
         "verwerken om mijn advies nauwkeuriger te maken. Ik kan deze toestemming op elk "

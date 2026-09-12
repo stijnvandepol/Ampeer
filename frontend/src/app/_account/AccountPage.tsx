@@ -8,7 +8,10 @@ import {
   exportAccount,
   getConsentTexts,
   getMe,
+  checkConsumption,
   getMeterStatus,
+  acceptConsumption,
+  claimAdvice,
   linkMeter,
   logout,
   postConsent,
@@ -19,16 +22,18 @@ import {
   type ConsentTexts,
   type Me,
   type MeterKey,
+  type ConsumptionCheckAnswer,
   type MeterStatus,
 } from "@/lib/accounts";
 import { ConsentRow } from "./ConsentRow";
 import { MeterSection } from "./MeterSection";
+import { tokenFromPath } from "../_advice/link";
 import { RegisterForm } from "./RegisterForm";
 import { ResetConfirmForm } from "./ResetConfirmForm";
 import { ResetRequestForm } from "./ResetRequestForm";
 import { SignInForm } from "./SignInForm";
 import { downloadJson } from "./download";
-import { readRecoveryFragment } from "./fragment";
+import { readAdviceFragment, readRecoveryFragment } from "./fragment";
 import { describeAuthError, fieldErrors } from "./messages";
 import { LOADING, loadSession, signedOut, type AccountState } from "./session";
 
@@ -98,7 +103,14 @@ const DELETION_CONSEQUENCES =
 
 /** The six actions that share one disabled state, alongside a `ConsentKind`. */
 type AccountActionId =
-  "export" | "logout" | "delete" | "verify" | "meter_link" | "meter_unlink";
+  | "export"
+  | "logout"
+  | "delete"
+  | "verify"
+  | "meter_link"
+  | "meter_unlink"
+  | "consumption_accept"
+  | "advice_claim";
 
 /**
  * One route, three views, and the state comes from `me/`.
@@ -405,6 +417,9 @@ function AccountView({
   // one answer. Cleared on unlinking so a stale key never survives past the
   // link it belonged to.
   const [issuedKey, setIssuedKey] = useState<MeterKey | null>(null);
+  const [check, setCheck] = useState<ConsumptionCheckAnswer | null>(null);
+  const [acceptedToken, setAcceptedToken] = useState<string | null>(null);
+  const [adviceLink, setAdviceLink] = useState("");
   const [mailNotice, setMailNotice] = useState<string | null>(
     justRegistered ? CONFIRMATION_MAIL_UNDERWAY : null,
   );
@@ -464,6 +479,41 @@ function AccountView({
     };
   }, []);
 
+  useEffect(() => {
+    // Sent here by the advice page, which knows the token because the visitor
+    // is standing on it. Read in this view rather than the one around it, so
+    // that somebody who follows the link while signed out still finds the
+    // fragment waiting once they have signed in: nothing consumes it until
+    // there is a field to put it in.
+    //
+    // Filled in rather than acted on. The household still presses the button,
+    // so no advice is attached to an account by following a link alone.
+    const fragment = readAdviceFragment();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (fragment !== null) setAdviceLink(fragment);
+  }, []);
+
+  useEffect(() => {
+    // Only for an account that actually has a meter. Answering this runs the
+    // engine several times, so asking on every page load for a household
+    // without a link would spend that for a question whose answer is known.
+    if (meterStatus === null || !meterStatus.linked) return;
+    let alive = true;
+    checkConsumption()
+      .then((answer) => {
+        if (alive) setCheck(answer);
+      })
+      .catch(() => {
+        // Silent, like the meter status above: `MeterSection` shows nothing
+        // when there is nothing, and a household who cannot be told what
+        // their meter thinks is not a household with a broken account page.
+        if (alive) setCheck(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [meterStatus]);
+
   // Right after signing in, focus follows the view that replaced the form the
   // visitor was standing in, because otherwise they are left on a control
   // that no longer exists. On a page load it does not move: nothing was
@@ -509,6 +559,44 @@ function AccountView({
       setFailure(describeAuthError(error));
     } finally {
       clearBusy(kind);
+    }
+  }
+
+  async function claimAction(link: string): Promise<void> {
+    // A pasted link or a bare token, reduced to the token by the same helper
+    // the advice page reads its own URL with, so there is one definition of
+    // which part of a path is a token.
+    const token = tokenFromPath(link) ?? link;
+    markBusy("advice_claim");
+    setFailure(null);
+    try {
+      await claimAdvice(token);
+      setAdviceLink("");
+      // The account has an advice now, so the question this page asks about
+      // the meter has a household to be asked about. Asked rather than
+      // assumed, like every other refresh here.
+      setCheck(await checkConsumption());
+    } catch (error) {
+      setFailure(describeAuthError(error));
+    } finally {
+      clearBusy("advice_claim");
+    }
+  }
+
+  async function acceptAction(): Promise<void> {
+    if (check === null || check.advice_token === null) return;
+    markBusy("consumption_accept");
+    setFailure(null);
+    try {
+      setAcceptedToken(await acceptConsumption(check.advice_token));
+      // The advice it applied to now runs on the accepted figure, so the
+      // meter has nothing left to contradict. Asked again rather than
+      // assumed, because that is the same question this block always answers.
+      setCheck(await checkConsumption());
+    } catch (error) {
+      setFailure(describeAuthError(error));
+    } finally {
+      clearBusy("consumption_accept");
     }
   }
 
@@ -665,10 +753,30 @@ function AccountView({
         status={meterStatus}
         issuedKey={issuedKey}
         apiBase={BASE}
-        busy={busy.has("meter_link") || busy.has("meter_unlink")}
+        busy={
+          busy.has("meter_link") ||
+          busy.has("meter_unlink") ||
+          busy.has("advice_claim") ||
+          busy.has("consumption_accept")
+        }
         onLink={() => void linkAction()}
         onUnlink={() => void unlinkAction()}
+        check={check}
+        onAccept={() => void acceptAction()}
+        onClaim={(link) => void claimAction(link)}
+        adviceLink={adviceLink}
+        onAdviceLinkChange={setAdviceLink}
       />
+
+      {acceptedToken !== null && (
+        <p className="max-w-[60ch] text-sm">
+          Uw advies is opnieuw berekend.{" "}
+          <a className="underline" href={`/advies/${acceptedToken}/`}>
+            Bekijk het nieuwe advies
+          </a>
+          .
+        </p>
+      )}
 
       {failure !== null && (
         <p role="alert" className="text-danger">

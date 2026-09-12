@@ -16,6 +16,9 @@ import { useLocationHref, useLocationPath } from "../_shell/browser";
 /** Where the second round of questions lives, which is the first of the two calls to action. */
 const REFINE_HREF = "/berekenen/?ronde=2";
 
+/** Navigation, which is what this line is: it goes to the account page. */
+const SAVE_TO_ACCOUNT = "Bewaar dit advies bij uw account";
+
 /**
  * Whether the sizing detail is shown without the visitor asking for it.
  *
@@ -420,6 +423,28 @@ export default function AdviesPage() {
           {advice.battery !== null && <BatteryBlock battery={advice.battery} />}
 
           <CallsToAction shareUrl={shareUrl} />
+
+          {/*
+            The token travels in the fragment, which never leaves the browser:
+            nginx does not see it, the access log does not, and a Referer does
+            not carry it. That is decision 45's arrangement, reused because it
+            fits, and it is also why this page can point at the account page
+            without either of them learning anything about the other.
+
+            A plain link and no check for a session. This page asks the API
+            nothing about who is reading it, so a stranger opening a shared
+            advice is not probed and gets no cookie: the privacy statement says
+            opening the account page is what sets one, and that stays true.
+          */}
+          <p className="text-sm">
+            <Link
+              href={`/account/#advies=${advice.token}`}
+              className="underline underline-offset-4"
+            >
+              {SAVE_TO_ACCOUNT}
+            </Link>
+          </p>
+
           <Provenance advice={advice} />
         </>
       )}

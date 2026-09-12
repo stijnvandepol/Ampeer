@@ -599,6 +599,11 @@ _CALLED_PATH = re.compile(r"""["'`](/api/[^"'`]*)["'`]""")
 #: read the same. What matters is the shape of the address, not the value.
 _INTERPOLATION = re.compile(r"\$\{[^}]*\}")
 
+#: A Django path converter, `<str:token>` and friends. Reduced to the same
+#: `<dynamic>` the frontend's `${...}` becomes, so the two notations for one
+#: variable segment can be compared at all.
+_CONVERTER = re.compile(r"<[^>]+>")
+
 
 def _api_prefix(module: str) -> str:
     """Where Django mounts one of the two APIs, from the root URL configuration.
@@ -679,13 +684,20 @@ def test_every_path_the_frontend_calls_is_one_the_backend_serves(
     }
     assert called, f"{client.name} asks the API for nothing; this test read nothing"
 
+    # A Django converter and a template literal describe the same segment in
+    # two notations, so both are reduced to the same word before they are
+    # compared. Without this, `advice/<str:token>/accept/` and the frontend's
+    # `advice/${token}/accept/` are a mismatch on spelling alone, and the only
+    # way to pass would be to stop parametrising the route.
+    comparable = {_CONVERTER.sub("<dynamic>", route) for route in routes}
+
     wrong = []
     for path in sorted(called):
         if not path.startswith(prefix):
             wrong.append(f"{path} is not under {prefix}")
             continue
         rest = path[len(prefix) :]
-        if rest == "<dynamic>/" or rest in routes:
+        if rest == "<dynamic>/" or rest in comparable:
             continue
         wrong.append(f"{path} asks for {rest!r}, which is not one of {sorted(routes)}")
     assert not wrong, "the frontend calls addresses the backend does not serve:\n  " + "\n  ".join(
