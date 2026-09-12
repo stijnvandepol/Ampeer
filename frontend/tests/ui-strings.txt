@@ -91,6 +91,7 @@
 /sitemap.xml
 /thuisbatterij/
 /voorwaarden/
+/zelf-verbruiken/
 0%
 00
 00:00
@@ -123,6 +124,7 @@ Ampeer rekent uit wat het einde van de saldering u kost. Wij verkopen niets en w
 Ampeer stelt u een paar vragen en rekent daar een antwoord mee uit. Deze pagina zegt wat wij daarvan bewaren, hoe lang, en wie het verder kan zien. Wij hebben het zo kort mogelijk opgeschreven.
 Ampeer verkoopt geen panelen, geen batterijen en geen energiecontract, en plaatst geen advertenties. Niemand betaalt ons voor de uitkomst die u krijgt.
 Ampeer verkoopt geen zonnepanelen, geen thuisbatterijen en geen energiecontract, en plaatst geen advertenties. Niemand betaalt ons voor de uitkomst die u krijgt. Daarom is nu geen batterij hier een geldige uitkomst.
+Apparaten die niet kunnen wachten, zoals een koelkast of verlichting, vallen hier buiten. Die draaien wanneer ze moeten.
 Autoriteit Persoonsgegevens
 Beantwoord deze vraag om verder te gaan.
 Beantwoord eerst de vier vragen over uw huis. Daarna kunt u verfijnen.
@@ -131,6 +133,7 @@ Bedragen per kilowattuur, exclusief btw, op een vast contract. De veelgenoemde 3
 Begin een nieuwe berekening
 Bekijk het nieuwe advies
 Bent u het niet eens met wat wij doen, laat het ons weten. U kunt uw bezwaar sturen naar
+Bent u overdag thuis en gebruikt u uw opwek al grotendeels zelf, dan is er weinig te verschuiven en levert dit weinig op.
 Bent u uw wachtwoord kwijt, dan herstelt u het eerst via de mail. Daarna verwijdert u uw account.
 Bereken wat het bij u doet
 Berekenen
@@ -153,9 +156,11 @@ Combinaties
 Corrigeren
 Daardoor ziet Cloudflare bij elk verzoek twee dingen. Uw IP-adres, en het webadres van de pagina die u opvraagt. In dat webadres staat ook uw link naar uw advies.
 Daarmee opent u uw antwoord later opnieuw, ook op een andere telefoon of computer, zonder in te loggen. Bewaar hem dus, en bedenk dat wie hem heeft het antwoord ook ziet.
+Daarmee wordt een kilowattuur die u zelf gebruikt meer waard dan een die het net op gaat. Verschuiven kost u niets en vergroot precies dat deel. Daarom staat deze route bij ons voor de twee andere, en niet omdat hij spannender is.
 Daarom is er geen cookiemelding. De wet vraagt geen toestemming voor cookies die alleen doen wat u zelf vroeg.
 Daarom kan hier ook uit komen dat u nu geen batterij nodig heeft, en dat is bij ons een gewone uitkomst.
 Dat exportbestand van uw account is de overdracht voor uw account.
+Dat hangt van uw contract af en het is een andere vraag dan deze. Bij een dubbeltarief is nachtstroom goedkoper dan dagstroom van het net, maar zonnestroom van uw eigen dak is goedkoper dan allebei zolang u hem zelf gebruikt.
 Dat laatste is de kern, en het is de belofte die blijft staan als er wel geld binnenkomt. Ons advies mag niet afhangen van wie ons betaalt. Laat code het advies meebewegen met een commerciele afspraak, dan is dat bij ons een fout. Dat staat zo in de projectafspraken die bij de broncode horen.
 Dat staat allemaal in
 Dat staat allemaal uitgeschreven, met de aannames en de bandbreedtes erbij, in
@@ -170,12 +175,17 @@ De eerste vier cijfers van uw postcode, hoeveel wattpiek er op uw dak ligt, welk
 De eerste vier cijfers van uw postcode, voor de instraling in uw regio. Van uw postcode bewaren wij alleen die vier cijfers.
 De eerste vier cijfers van uw postcode.
 De eerste vier vragen ontbreken nog
+De elektrische boiler of warmtepompboiler
+De goedkoopste manier om het einde van de saldering op te vangen kost niets. Welke apparaten het verschil maken, wanneer u ze het best aanzet, en waar het ophoudt te helpen.
 De hele doorrekening van de batterij
+De laadpaal
+De omvormer van vrijwel elke installatie laat dat zien, meestal in een app. Wie een slimme meter heeft, ziet het ook aan de meterstand die op dat moment niet oploopt. Een vaste klok werkt minder goed, omdat het venster per seizoen en per dakrichting verschilt.
 De rekenserver gaf een antwoord dat wij niet konden lezen.
 De rekenserver had een storing. Probeer het straks opnieuw.
 De rekenserver kon dit antwoord niet gebruiken. Controleer uw invoer.
 De rekenserver kon dit antwoord niet gebruiken:
 De richting van uw dak ziet u op een satellietfoto van uw adres, bijvoorbeeld in Google Maps. Voor de hoek: een gewoon schuin dak in Nederland ligt rond de 35 graden, en panelen op een plat dak staan meestal op 10 tot 15 graden.
+De route die niets kost
 De salderingsregeling laat u de stroom die u teruglevert wegstrepen tegen de stroom die u afneemt. Dat wegstrepen stopt. U blijft leveren en afnemen, maar de twee worden niet meer tegen elkaar weggestreept.
 De salderingsregeling stopt op 1 januari 2027. Wat dat u kost hangt niet af van hoeveel panelen u heeft, maar van hoeveel van uw eigen opwek u zelf gebruikt, en dat verschilt sterk per huishouden. Deze rekenmachine bouwt uit uw antwoorden een kwartierprofiel van een heel jaar op en rekent dat door op de tarieven van nu en die van 2027.
 De schaal loopt van
@@ -190,8 +200,10 @@ De vier vragen
 De vijf vragen hierna maken een antwoord scherper dat er al is, en in dit browservenster staat dat antwoord er nog niet. Dat gebeurt als u uw bewaarde link in een nieuw venster opent of op een ander apparaat.
 De vorm van uw verbruik komt uit de standaardprofielen die netbeheerders publiceren. De opwek van uw dak komt uit PVGIS, de rekentool van de Europese Commissie, op basis van echte instralingsmetingen voor uw postcodegebied. De tarieven komen uit gepubliceerde cijfers, en welke dat zijn staat er per bedrag bij.
 De vragen worden klaargezet.
+De warmtepomp
 De wasmachine, de vaatwasser en de droger draaien op het moment dat uw panelen leveren. Dit kost niets en het is bij veel huishoudens de grootste post.
 De wasmachine, de vaatwasser en de droger draaien terwijl uw panelen leveren. Dit vraagt geen apparaat en geen investering, en bij veel huishoudens is het de grootste post van de drie.
+Deze drie zijn het makkelijkst te verschuiven, want het maakt u meestal niet uit wanneer ze draaien zolang ze klaar zijn. Samen zijn ze bij veel huishoudens de grootste post die zomaar te verzetten is.
 Deze link hoort niet bij een berekening. Controleer of hij compleet is overgenomen.
 Deze link opent dit advies opnieuw, zonder account. Bewaar hem als u er later bij wilt.
 Deze pagina hoort bij een berekening en er staat er geen in de link.
@@ -205,6 +217,7 @@ Dit advies konden wij niet laten zien
 Dit is de samenvatting. De volledige methode staat in
 Dit is een volwaardige uitkomst en bij ons geen mislukking. Een advies dat nooit nee zegt, is geen advies.
 Dit is geen belofte maar een test. Bij elke wijziging leest een test alle verzoeken mee die een pagina doet. Gaat er één naar een ander bedrijf, dan gaat die test rood en komt de wijziging er niet in.
+Dit is het eerste dat u kunt doen en het kost niets: dezelfde apparaten, op een ander moment. Als de saldering stopt wordt een kilowattuur die u zelf gebruikt een stuk meer waard dan een die u teruglevert, en dat verschil is precies wat verschuiven u oplevert.
 Dit logboek ruimen wij niet op. Zodra uw advies weg is, wijst die afdruk nergens meer naar. Wat overblijft is een postcodegebied, een tijdstip en twee versienummers.
 Dit staat op de offerte of de factuur van uw installateur, en meestal ook in de app van uw omvormer. Weet u het niet: tel uw panelen en reken ongeveer 400 wattpiek per paneel. Twaalf panelen is dan ongeveer 4.800.
 Dit staat op uw jaarnota, of in uw account bij uw energieleverancier. Reken zonder het laden van een elektrische auto en zonder een warmtepomp, ook als u die wel heeft. Daar vragen wij zo apart naar en wij tellen ze er dan zelf bij op. Staan ze op uw jaarnota, haal ze er dan af. Een schatting is genoeg: zonder auto en zonder warmtepomp zit een huishouden vaak tussen 2.000 en 3.500 kWh.
@@ -219,11 +232,13 @@ EAST
 Een account per e-mailadres. U kiest en bewaart uw wachtwoord; wij kunnen het niet lezen en geven het niet terug. Bent u het kwijt, dan herstelt u het via de mail.
 Een adres bevestigen, of een mail versturen.
 Een advies dat u zonder in te loggen hebt gemaakt, hoort nog niet bij uw account. Plak de link erbij, dan rekenen wij het opnieuw voor u.
+Een auto die overdag thuisstaat kan op de zon laden in plaats van 's nachts op het net. Staat de auto doordeweeks elders, dan geldt dit alleen in het weekend, en dat is precies het soort verschil dat een gemiddelde wegpoetst.
 Een batterij verdient alleen aan stroom die u anders had teruggeleverd en later had teruggekocht. Gebruikt u het grootste deel van uw opwek al meteen zelf, dan is er weinig over om op te slaan.
 Een bedrag met een bandbreedte, niet één getal
 Een bedrag per jaar met de bandbreedte eromheen, hoe zeker dat antwoord is, en drie routes in vaste volgorde: uw eigen ritme verschuiven, slimmer sturen met wat u al heeft, en stroom opslaan in een thuisbatterij. De routes die niets kosten staan altijd bovenaan, ook als er bij u aan een ervan niets te halen valt.
 Een bedrag van laag tot hoog, geen los getal
 Een bevestigd adres is straks nodig om een slimme meter te koppelen. Vandaag is het nergens voor nodig.
+Een bewolkte dag heeft geen scherpe piek. Het venster is er dan nog wel, maar vlakker.
 Een boiler, een laadpaal of een warmtepomp die op een ander moment aanslaat. U bezit die apparaten al; ze staan alleen op een tijdstip dat niet bij uw opwek past.
 Een herstel aanvragen of afronden.
 Een huis dat doordeweeks leeg is levert overdag bijna alles terug en koopt 's avonds bijna alles terug. Daar zit de grootste ruimte. Een huis waar de hele dag iemand is, gebruikt veel van die stroom al.
@@ -231,6 +246,7 @@ Een hulpprogramma tegen inbrekers brengt drie tabellen mee die een IP-adres zoud
 Een jaar in kwartieren. Van links naar rechts de dagen van het jaar, van boven naar beneden het etmaal van middernacht tot middernacht. Geel staat voor een kwartier waarin u vooral uw eigen opwek gebruikte, lichtgrijsblauw voor een kwartier waarin u vooral stroom van het net haalde, en donkerblauw voor een kwartier waarin u vooral stroom teruggaf aan het net.
 Een klacht over de dienst gaat naar
 Een kwartierprofiel van een heel jaar, uit de verbruiksprofielen die netbeheerders publiceren en de instraling voor uw postcodegebied.
+Een lijst met tips die alleen de goede kant laat zien, is geen advies. Dit zijn de grenzen van deze route.
 Een moment, wij halen de doorrekening op die bij deze link hoort.
 Een thuisbatterij verdient aan één ding: stroom die u anders had teruggeleverd en later duurder had teruggekocht. Alles wat u al meteen zelf gebruikt, levert een batterij niets op. Daarom zijn dit de vier dingen die de uitkomst bepalen.
 Een toestemming geven of intrekken.
@@ -246,7 +262,9 @@ Elk advies zegt welke regels gevuurd hebben. U ziet dus waarom u juist dit antwo
 Elk antwoord is nodig voor de berekening. Uw postcodegebied kiest de zonnereeks. Uw jaarverbruik schaalt uw verbruiksprofiel. Wattpiek en dakligging bepalen uw opbrengst.
 Elke kolom is een dag, van 1 januari links tot 31 december rechts. Elke rij is een kwartier, van middernacht boven tot middernacht onder.
 Er is een e-mail onderweg om uw adres te bevestigen.
+Er is een grens: als alles wat kan verschuiven verschoven is, is de volgende stap slimmer sturen of opslag, en dat kost wel iets.
 Er is geen tabel bij ons met een IP-adres erin. Er is ook geen logregel die er een bewaart.
+Er is geen vast tijdstip dat voor elk dak klopt. Dit is wat het venster bepaalt.
 Er is geen vraag die wij alleen voor de statistiek stellen. Er is ook geen tweede doel: geen advertenties, geen profiel en geen doorverkoop.
 Er is nog niets binnengekomen.
 Er staat geen knop op deze site die naar een verkopende partij leidt. Zoekt u er een, dan is die er niet.
@@ -273,10 +291,12 @@ Heeft u een account, dan staat op uw accountpagina uw adres en de stand van beid
 Heeft u een dynamisch energiecontract, met een prijs per uur?
 Heeft u een warmtepomp?
 Heeft u iets verkeerd ingevuld, dan kunt u dat niet wijzigen. Reken opnieuw en u krijgt een nieuw advies met een nieuwe link. Het oude blijft staan tot het na 90 dagen verdwijnt.
+Helpt verschuiven bij u niet genoeg, dan leest u op
 Herstel en bevestiging gaan per mail, met een link die eenmalig werkt. Een herstellink werkt een uur, een bevestigingslink zeven dagen.
 Het antwoord achter uw link is een bestand dat een computer kan lezen. U kunt het dus meenemen naar iemand anders.
 Het eerlijke antwoord
 Het einde van de saldering, en hoe u uitrekent wat het bij u doet
+Het huis een paar graden voorverwarmen terwijl de zon schijnt, zodat de pomp 's avonds minder hoeft. Dit werkt alleen bij een goed geïsoleerd huis, want een huis dat de warmte niet vasthoudt slaat niets op.
 Het invoerveld accepteert alleen vier cijfers. Typt u er zes, dan wordt de invoer geweigerd. Hij wordt niet stilletjes afgekapt.
 Het openen van een pagina van Ampeer doet geen enkel verzoek aan een ander bedrijf.
 Het verkeer naar deze site loopt via Cloudflare Inc. Dat bedrijf is onze verwerker. Cloudflare beveiligt de verbinding en beëindigt die aan de rand van hun netwerk.
@@ -296,7 +316,9 @@ Hoe meer van deze vier op u van toepassing zijn, hoe waarschijnlijker het wordt.
 Hoe schuin staat het dak?
 Hoe u ons kunt nakijken
 Hoe uw dak ligt: de richting en de hellingshoek.
+Hoe weet ik wanneer mijn panelen leveren?
 Hoe zeker het antwoord is
+Hoeveel deze route u oplevert hangt af van uw dak, uw verbruik en of er overdag iemand thuis is. Vier vragen zijn genoeg voor een eerste antwoord.
 Hoeveel stroom gebruikt de warmtepomp per jaar?
 Hoeveel stroom u per jaar verbruikt, zonder het laden van een elektrische auto en zonder een warmtepomp. Naar die twee vragen wij apart.
 Hoeveel stroom verbruikt u per jaar, zonder auto en warmtepomp?
@@ -306,15 +328,19 @@ Hoeveel wattpiek aan zonnepanelen ligt er op uw dak?
 Hoofdnavigatie
 INDICATIVE
 Ik heb al een account. Inloggen
+In de winter is dat venster een stuk korter en de opbrengst een fractie, dus verschuiven levert dan minder op.
+In de zomer levert een dak in Nederland grofweg tussen acht uur 's ochtends en zes uur 's avonds, met het zwaartepunt rond het midden van die periode.
 In die regels staat een nummer dat naar uw account wijst, en nooit uw e-mailadres. Na verwijdering wijst dat nummer nergens meer naar. Bij een herstelverzoek voor een adres dat wij niet kennen schrijven wij niets.
 Inloggen
 Inloggen of een account aanmaken, uw toestemmingen bekijken en omzetten, uw gegevens downloaden of uw account verwijderen.
 Investeren: stroom opslaan in een thuisbatterij
 Inzien
 Is een thuisbatterij iets voor mij?
+Is een wasmachine 's nachts niet goedkoper?
 Is er op een doordeweekse dag overdag meestal iemand thuis?
 Ja
 Kan ik met een thuisbatterij van het net af?
+Kijk wat het bij u doet
 Klagen kan bij de toezichthouder
 Komt u er met ons niet uit, dan kunt u een klacht indienen bij de Nederlandse toezichthouder. Dat kan altijd en het kost u niets.
 Kopieer deze link
@@ -329,6 +355,7 @@ Laatst binnengekomen:
 Laatst gewijzigd op 7 september 2026.
 Laten verwijderen
 Licht
+Ligt uw dak op het oosten, dan zit uw piek eerder op de dag; op het westen later. Een vaste klok past dus niet op elk dak.
 Link van uw advies
 MEASURED
 METER_LINK
@@ -339,10 +366,12 @@ Meer hoeft u niet in te vullen. Geen account, geen e-mailadres, en niets aan uw 
 Meer niet. Er is geen account, wij vragen geen e-mailadres en er hoeft niets aan uw meterkast te gebeuren. Weet u een getal niet precies, dan is een schatting genoeg.
 Meer over
 Meer regels zijn er niet.
+Meer van uw eigen zonnestroom zelf gebruiken
 Meestal 's nachts
 Meestal bij thuiskomst, aan het begin van de avond
 Met een link waarmee u er later bij kunt, zonder account. Wilt u het scherper, dan komen er vijf vragen bij.
 Methodologie
+Moet ik hiervoor iets kopen?
 Moet ik mijn zonnepanelen nu weghalen?
 Moet ik overstappen op een dynamisch contract?
 Motorversie
@@ -360,12 +389,14 @@ Naam
 Naar de inhoud
 Nederlands recht is van toepassing.
 Nee
+Nee. Dit is de route die niets kost: dezelfde apparaten, op een ander moment. Er bestaan timers en slimme stekkers die het automatisch doen, maar de winst zit in het verschuiven zelf en niet in het apparaat dat het voor u doet.
 Nee. In de winter wekken panelen in Nederland een fractie op van wat ze in de zomer doen, en geen batterij van huishoudelijke omvang overbrugt dat seizoen. Een batterij verschuift stroom over uren, niet over maanden.
 Nee. Panelen leveren stroom die u anders had moeten kopen, en dat blijft na 2027 zo. Wat verandert is wat de stroom opbrengt die u niet zelf gebruikt.
 Nergens anders voor. Die mail vertrekt via Resend, Inc. Resend is onze tweede verwerker.
 Netbeheerders hebben een tijdsafhankelijk nettarief voorgesteld: het transporttarief hangt dan af van het moment van de dag en het seizoen, met een klein aantal prijsniveaus over een klein aantal tijdsblokken. Dat maakt het moment waarop u stroom gebruikt nog belangrijker dan het vanaf 2027 al wordt.
 Neutrale energie-adviseur voor Nederlandse huishoudens met zonnepanelen. Verkoopt geen panelen, geen batterijen en geen energiecontract, en plaatst geen advertenties.
 Niemand weet wat de terugleververgoeding in 2027 werkelijk wordt. Wij rekenen met een band en niet met een getal.
+Niet alles kan wachten. Wat hieronder staat kan dat meestal wel, en juist daar zit de winst.
 Niet om bij ons een antwoord te krijgen. Wij bouwen uw jaar op uit standaardprofielen en uw eigen opgave. Echte meetgegevens maken het antwoord scherper, maar zijn geen voorwaarde.
 Niets. Er is geen abonnement, geen proefperiode en geen versie die wel geld kost. Wij verkopen geen panelen, geen batterijen en geen energiecontract, wij plaatsen geen advertenties en wij verkopen uw gegevens niet door.
 Nieuw wachtwoord
@@ -422,6 +453,7 @@ SOUTHEAST
 SOUTHWEST
 STORAGE
 Salderen kijkt alleen naar wat door de meter ging en telt dat over een heel jaar op. De volgorde in de tijd valt daarbij weg, en de
+Salderen streept teruggeleverde stroom weg tegen afgenomen stroom. Zo lang dat kan, maakt het niet veel uit of u een kilowattuur meteen gebruikt of later terugkoopt. Als dat wegstrepen stopt, krijgt u voor teruglevering een vergoeding die lager ligt dan de prijs die u voor afname betaalt.
 Slaan jullie mijn gegevens op?
 Snavelbiesstraat 8, 5445 NV Landhorst
 Soms, en soms niet. Op een dynamisch contract zitten geen aparte terugleverkosten, maar beweegt uw prijs per uur mee. Of het bij u gunstig uitpakt hangt af van uw patroon, en dat rekenen wij door.
@@ -533,14 +565,17 @@ Vul minstens
 WEST
 WITHDRAWN
 Waar het antwoord op rust
+Waar het ophoudt te helpen
 Waar het van afhangt
 Waar onze getallen vandaan komen
 Waarmee gerekend is
 Waarom Ampeer bestaat
+Waarom dit nu meer oplevert dan vroeger
 Waarom een gemiddeld bedrag u niets zegt
 Waarom het bedrag per huishouden zo verschilt
 Waarom het moment telt
 Waarom krijg ik een bereik en niet een bedrag?
+Waarom loont zelf verbruiken meer na 2027?
 Waarom wij dit vragen
 Waarover varieert dit bedrag?
 Waarvan Ampeer betaald wordt
@@ -551,8 +586,11 @@ Wachtwoord opslaan
 Wachtwoord vergeten?
 Wanneer een batterij wel kan uitkomen
 Wanneer hij dat niet doet
+Wanneer is overdag
 Wanneer laadt uw elektrische auto?
 Wanneer u stroom gebruikt
+Warm water dat u 's middags maakt, is 's avonds nog warm. Een boiler die standaard 's nachts opwarmt doet dat op het moment dat uw panelen niets leveren.
+Wasmachine, vaatwasser en droger
 Wat Ampeer is
 Wat Ampeer niet is
 Wat Ampeer van u vraagt, waarom, hoe lang wij het bewaren en wat u eraan kunt doen. In gewone taal, zonder verwijzing naar een document dat u niet krijgt te zien.
@@ -581,6 +619,7 @@ Wat teruglevering u straks oplevert
 Wat u al heeft, anders inregelen
 Wat u met uw gegevens kunt
 Wat u op deze pagina berekent
+Wat u overdag niet gebruikt, gaat alsnog het net op. Verschuiven verhoogt uw eigen verbruik; het maakt uw teruglevering niet nul.
 Wat u te zien krijgt
 Wat u terugkrijgt
 Wat vóór een batterij komt
@@ -596,6 +635,7 @@ WebSite
 Weerjaar
 Weg zijn dan uw adres, uw wachtwoord, beide toestemmingen en alle adviezen die aan uw account hingen. Wat blijft is een logregel met een nummer dat nergens meer naar wijst.
 Welk jaar
+Welke apparaten het verschil maken
 Welke kant ligt het dak op?
 Welke verbruiksprofielen, welke instralingsreeks en welke tarieven wij gebruiken, met de aannames en de bandbreedtes erbij. Geschreven om nagerekend te worden.
 West
@@ -643,6 +683,7 @@ Zijn zonnepanelen na 2027 nog rendabel?
 Zo vaak rekenen wij uw jaar opnieuw door, met de onzekere aannames op verschillende standen. Wat u ziet is de bandbreedte die daaruit komt.
 Zoals het nu is
 Zoals salderen telt
+Zolang er gesaldeerd wordt, is een kilowattuur die u teruglevert bijna evenveel waard als een die u zelf gebruikt. Als dat wegstrepen stopt, krijgt u voor teruglevering een vergoeding die lager ligt dan wat u voor afname betaalt. Het verschil tussen die twee is wat u wint door de stroom zelf te gebruiken.
 Zolang u mag salderen is een teruggeleverde kilowattuur precies zo veel waard als een die u zelf gebruikt, want de ene wordt van de andere afgetrokken. Daarom staan beide banden op dezelfde hoogte: dat is niet vereenvoudigd, dat is de regeling.
 Zonder die antwoorden kunnen wij geen antwoord geven. Er is geen andere grondslag en er is geen tweede doel.
 Zonder inloggen, en zonder dat u iets hoeft te koppelen.
@@ -670,6 +711,7 @@ dark
 data-theme
 de methodepagina
 de pagina over ons
+de pagina over thuisbatterijen
 dec
 dingen te koop
 doorrekeningen
@@ -778,6 +820,7 @@ vraag-titel
 vraag-toelichting
 vragen
 wachtwoord-herstellen
+wat de volgende stap wel en niet oplevert.
 wat er met uw postcode en uw verbruik gebeurt
 wat er op 1 januari 2027 verandert
 website
