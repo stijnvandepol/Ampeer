@@ -52,7 +52,7 @@ timer and the outbox timer, neither of which this repository installs.
 
 ## What runs
 
-Four services, in `docker-compose.yml`:
+Three services, in `docker-compose.yml`:
 
 | Service | Image | What it does |
 |---|---|---|
@@ -69,6 +69,19 @@ host firewall's INPUT rules, so **restricting who may reach port 80 is a
 decision for the host** and cannot be made in the compose file. On a machine
 whose only other occupant is the connector, binding it to the interface that
 connector uses is the smallest opening that works.
+
+**Why that rule is not optional.** nginx appends to `X-Forwarded-For` and
+`DJANGO_NUM_PROXIES` counts hops from the right of it, which is correct for
+every request that arrives through the connector and is the reason a visitor
+cannot buy themselves a fresh rate limit by sending a header. A caller who
+reaches port 80 *without* going through the connector is one hop short: the
+value the throttle lands on is then whatever they wrote, and they can rotate it
+per request. Forty requests with a rotating header produced zero 429s when this
+was measured on 2026-08-21, which is what set `NUM_PROXIES` in the first place.
+
+Until the stack published a port this was unreachable by construction and the
+firewall was defence in depth. It is now the control. Allow port 80 from the
+connector's address and from nothing else.
 
 `tests/test_infra.py` asserts on every pull request that `api` and `db`
 publish nothing. That is the property worth protecting: nginx is what strips

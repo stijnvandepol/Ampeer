@@ -1004,10 +1004,6 @@ def env_fixture_lines(profile_path: str) -> list[str]:
         # tags them with this string, so nothing here can be confused with
         # something CI published.
         "AMPEER_VERSION=smoke",
-        # Empty and present. compose interpolates it into the tunnel's command
-        # whether or not the tunnel starts, and an absent name is a warning on
-        # every command; an empty one is the truth, since there is no tunnel.
-        "CLOUDFLARE_TUNNEL_TOKEN=",
     ]
 
 
@@ -1020,6 +1016,13 @@ def test_the_environment_fixture_names_every_variable_the_stack_reads() -> None:
     exits with a RuntimeError that reads like a code fault. That is the failure
     scripts/preflight_env.sh exists to prevent, and it would be embarrassing to
     meet it in the rehearsal for it.
+
+    Both directions, since 2026-09-13. A name the fixture sets that compose
+    never reads is dead, and dead is not harmless here: this file is one `cp`
+    away from /srv/ampeer/.env, so every line in it reads as something the
+    stack needs. CLOUDFLARE_TUNNEL_TOKEN sat here for a day after the connector
+    was removed, described by a comment about a tunnel that no longer existed,
+    and the one-directional assertion above had nothing to say about it.
     """
     text = COMPOSE.read_text(encoding="utf-8")
     interpolated = set(re.findall(r"(?<!\$)\$\{([A-Z_][A-Z0-9_]*)[:}]", text))
@@ -1030,6 +1033,9 @@ def test_the_environment_fixture_names_every_variable_the_stack_reads() -> None:
     }
     assert not interpolated - named, (
         f"read by compose, absent from the fixture: {interpolated - named}"
+    )
+    assert not named - interpolated, (
+        f"set by the fixture, read by nothing in the compose file: {named - interpolated}"
     )
 
 
