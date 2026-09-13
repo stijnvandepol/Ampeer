@@ -194,6 +194,41 @@ gh api "repos/${REPO}/actions/permissions/workflow" -X PUT   -f default_workflow
 echo "requiring SHA-pinned actions server side"
 gh api "repos/${REPO}/actions/permissions" -X PUT   -F enabled=true -f allowed_actions=all -F sha_pinning_required=true
 
+# The one gate this repository claims and cannot create.
+#
+# .github/workflows/deploy.yml says, in its own header, that `environment:
+# production` makes "a tag push a request that waits for a review rather than a
+# deploy". That is only true if the environment carries required reviewers, and
+# that is a setting on the environment rather than anything in a file here.
+# tests/test_deploy_workflow.py can assert the workflow names the environment
+# and stops there, as its own docstring says.
+#
+# On 2026-09-13 the environment carried a branch policy and no reviewers, so
+# `git push origin v0.3.0` went straight at the host with nobody asked. It
+# stopped on the first digest check and touched nothing, which is a different
+# control doing its job and not this one. The claim had been in the file since
+# 2026-08-21 and nothing had ever looked.
+#
+# So this reports rather than sets. Creating the reviewer list would mean this
+# script deciding who may approve a deploy, and that is the repository owner's
+# choice about people; what it can do is refuse to let the question go
+# unanswered by whoever runs it. Settings, Environments, production, Required
+# reviewers is where it is set.
+echo
+echo "the production environment:"
+if reviewers="$(gh api "repos/${REPO}/environments/production"   --jq '[.protection_rules[] | select(.type == "required_reviewers")
+         | .reviewers[].reviewer.login // .reviewers[].reviewer.name] | join(", ")' 2>/dev/null)"; then
+  if [ -n "${reviewers}" ]; then
+    echo "  required reviewers: ${reviewers}"
+  else
+    echo "  NO REQUIRED REVIEWERS. A tag push deploys to the host with nobody asked." >&2
+    echo "  deploy.yml's header says it waits for a review. Today it does not." >&2
+    echo "  Set them at Settings > Environments > production > Required reviewers." >&2
+  fi
+else
+  echo "  could not be read; check it by hand before trusting a tag push" >&2
+fi
+
 echo
 echo "rulesets now on ${REPO}:"
 gh api "repos/${REPO}/rulesets" --jq '.[] | "  \(.name): \(.enforcement)"'
