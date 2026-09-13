@@ -59,13 +59,22 @@ Four services, in `docker-compose.yml`:
 | `db` | `postgres:16-alpine`, by digest | The database, on a named volume that survives `down` |
 | `api` | `ghcr.io/stijnvandepol/ampeer-api:<tag>` | Django on gunicorn, uid 10001, no port of its own |
 | `web` | `ghcr.io/stijnvandepol/ampeer-web:<tag>` | nginx: the exported site, and `/api/` to `api` |
-| `tunnel` | `cloudflare/cloudflared`, by digest | The outbound connection Cloudflare answers on |
 
-**Nothing listens.** There is no `ports:` entry anywhere in
-`docker-compose.yml`, no host networking and no inbound firewall rule; the
-tunnel connector dials out. `tests/test_infra.py` reads the file for a
-published port on every pull request, in three different spellings, because
-that is a line somebody adds while debugging and does not take out again.
+**One port listens, and it is nginx.** `web` publishes 80 and nothing else
+does. A tunnel operated outside this stack points at it; this repository does
+not run, configure or hold a credential for that tunnel.
+
+Docker publishes through its own iptables chain, which is evaluated before a
+host firewall's INPUT rules, so **restricting who may reach port 80 is a
+decision for the host** and cannot be made in the compose file. On a machine
+whose only other occupant is the connector, binding it to the interface that
+connector uses is the smallest opening that works.
+
+`tests/test_infra.py` asserts on every pull request that `api` and `db`
+publish nothing. That is the property worth protecting: nginx is what strips
+`X-Forwarded-Proto`, Django's only TLS signal, and `X-Forwarded-For`, which
+the throttle counts, and a caller who reached `api:8000` directly could forge
+both.
 
 The two images built from this repository are pulled at the release tag in
 `AMPEER_VERSION`. A rollback is that one string plus `docker compose up -d`,
@@ -94,7 +103,7 @@ default for a secret is a secret in the repository with extra steps.
 | `POSTGRES_PASSWORD` | Database password |
 | `POSTGRES_HOST` | `db`, the compose service name |
 | `AMPEER_MAIL_TRANSPORT` | `resend` on a host. The preflight refuses every other value here: `file` writes each mail to a file inside the container and delivers none |
-| `RESEND_API_KEY` | The Resend key with send permission for the domain below. A credential, like the tunnel token |
+| `RESEND_API_KEY` | The Resend key with send permission for the domain below. A credential |
 | `AMPEER_MAIL_FROM` | The sender a household sees, `noreply@ampeer.nl`, on a domain verified at Resend with the SPF and DKIM records it hands out |
 | `AMPEER_SITE_ORIGIN` | Where the links in a mail point, `https://ampeer.nl`. The page reads the token off the fragment of that origin's `/account/` route |
 
@@ -104,7 +113,6 @@ Two more names are read by `docker-compose.yml` and are not in that list because
 | Name | What goes in it |
 |---|---|
 | `AMPEER_VERSION` | The release tag both images are pulled at. The deploy job exports it from the tag it is deploying, and a shell variable beats the file, so this only matters when starting the stack by hand |
-| `CLOUDFLARE_TUNNEL_TOKEN` | The connector token. It is a credential: anyone who can read this file can run a connector for this tunnel |
 
 The file must be readable only by the account that runs the stack, and it must
 have **Unix line endings**. A file edited on Windows arrives with a carriage
@@ -137,8 +145,10 @@ the rate limit can be reset with one header. Measured on 2026-08-21 against this
 stack: with the correct count, 130 requests carrying 130 different forged
 `X-Forwarded-For` values produced 120 answers and then ten `429`s. With the
 count one too high, the same 130 requests produced 130 answers and no `429` at
-all. Two is right for the host because there are two hops; the local test
-override uses one because it has no tunnel.
+all. Two is right for the host because there are two hops, the connector and
+nginx, and that stays true now that the connector runs outside this stack: it
+is still in front of nginx. The local test override uses one, because there is
+no connector in front of a developer machine.
 
 **Verify:**
 
@@ -623,7 +633,7 @@ where this leaked before it was fixed.
 
 ## 7. Running the stack locally
 
-`infra/compose.test.yml` is an override that swaps the tunnel for a port on
+`infra/compose.test.yml` is an override that narrows the published port to
 `127.0.0.1` and mounts a synthetic profile. **It must never be used on a host.**
 Read its header before using it.
 
@@ -774,12 +784,12 @@ docker compose -f infra/docker-compose.yml -f infra/compose.test.yml \
   --env-file infra/fixtures/env.smoke down -v
 ```
 
-### Reading the merged file without printing three secrets
+### Reading the merged file without printing two secrets
 
-`docker compose config` substitutes every variable, and three of the values in
+`docker compose config` substitutes every variable, and two of the values in
 this stack are credentials. Measured on 2026-08-21 against the production file:
-the output carried `--token <the connector token>` on the tunnel's command line,
-plus `DJANGO_SECRET_KEY` once and `POSTGRES_PASSWORD` twice, in cleartext, into
+when a connector token was a third of them: the output carried
+`DJANGO_SECRET_KEY` once and `POSTGRES_PASSWORD` twice, in cleartext, into
 the terminal and whatever scrollback or CI log it writes to. Use:
 
 ```sh
@@ -787,10 +797,8 @@ docker compose -f infra/docker-compose.yml -f infra/compose.test.yml \
   --env-file infra/fixtures/env.smoke config --no-interpolate
 ```
 
-which prints `${CLOUDFLARE_TUNNEL_TOKEN}` instead of its value and answers every
-question about the shape of the document. `config --services` is smaller still,
-and it does not list `tunnel`, because a service behind a disabled profile is not
-in that list.
+which prints `${DJANGO_SECRET_KEY}` instead of its value and answers every
+question about the shape of the document. `config --services` is smaller still.
 
 ---
 
@@ -960,10 +968,9 @@ Section 12 of `docs/superpowers/specs/2026-08-21-deploy-design.md` lists seven
 things to prove against a running stack. They were run on 2026-08-21 against the
 override above and their output is in the commit that added this file. Six of
 the seven pass as written.
-
-The first does not, and cannot: it asks for all four services up and healthy,
-and the override that makes a local run possible at all is the one that stops
-the tunnel from starting. A connector needs a real credential and would register
-a route to a tunnel serving a real domain, which is a change to a host. So three
-of four come up healthy locally, the fourth is present in the merged document
-and deliberately not started, and the tunnel is only ever exercised on the host.
+All seven pass as written. The first used to be the exception: it asked
+for all four services up and healthy, and the override that makes a local
+run possible stopped the fourth, a connector, from starting, because one
+started from a developer machine would register a route to a tunnel
+serving a real domain. That service is gone from this stack, so the check
+is now three of three.

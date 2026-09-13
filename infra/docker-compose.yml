@@ -23,7 +23,7 @@ name: ampeer
 # prints a count. None of it is written inside a container. That moves the whole
 # retention question to the log driver, and Docker's default json-file driver
 # keeps every byte until the container is removed, with no rotation at all.
-# `restart: unless-stopped` on all four services means these containers are not
+# `restart: unless-stopped` on all three services means these containers are not
 # removed, so "until it is removed" is "for as long as the machine lives".
 #
 # Section 9 of the design asks for that retention to be set explicitly, on the
@@ -35,7 +35,7 @@ name: ampeer
 #                  wraps each one in a 70 byte envelope carrying a timestamp
 #                  and a stream name. So a logged request costs about 136
 #                  bytes, and 10 MB is roughly 77 thousand requests per file.
-#   max-file 5     Five files, so the ceiling is 50 MB per service and 200 MB
+#   max-file 5     Five files, so the ceiling is 50 MB per service and 150 MB
 #                  for the whole stack, and what can be read back is about 385
 #                  thousand requests. Rotation then discards a fifth at a time
 #                  instead of everything, which is what keeps the oldest file
@@ -247,9 +247,20 @@ services:
     # `depends_on: service_healthy` would never have released.
 
   web:
-    # Both, and the only service on both. That is what makes nginx the one path
-    # from the tunnel to Django.
-    networks: [edge, back]
+    networks: [back]
+    # The one published port in this file, and the only way into the stack.
+    #
+    # A tunnel operated outside this compose file points at it, so the site is
+    # reachable from the internet without anything here running or configuring
+    # a connector of its own.
+    #
+    # What it costs is an open port on whatever network the host sits on.
+    # Docker publishes through its own iptables chain, which is evaluated
+    # before a host firewall's INPUT rules, so restricting who may reach this
+    # is a decision for the host and cannot be made in this file.
+    # infra/README.md says so where it describes the host.
+    ports:
+      - "80:80"
     image: ghcr.io/stijnvandepol/ampeer-web:${AMPEER_VERSION}
     logging: *logging
     build:
@@ -311,75 +322,29 @@ services:
       api:
         condition: service_healthy
 
-  tunnel:
-    networks: [edge]
-    image: cloudflare/cloudflared:2026.9.0@sha256:ff69a2225ad7c6f85ed84fbd5f3087df46202426b2388ec60214098e0adf05e9
-    logging: *logging
-    restart: unless-stopped
-    security_opt: *no-new-privileges
-    mem_limit: 256m
-    # cloudflared makes an outbound connection and does nothing else. It binds
-    # no privileged port, changes no ownership and switches to no user, so
-    # there is nothing to add back.
-    cap_drop: [ALL]
-    # The token is an environment variable and not an argument, and the
-    # difference is who can read it.
-    #
-    # infra/.env.example already says what this credential is worth: whoever
-    # reads it can run a connector for this tunnel. On the command line it was
-    # additionally in `docker inspect` output and in /proc/<pid>/cmdline, which
-    # is world readable, so any local account on the LXC could read it.
-    # /proc/<pid>/environ is mode 0400 and owner only, which is the whole gain.
-    #
-    # It is worth being exact about what this does not fix, because a wider
-    # claim was made for it once: nothing in this repository backs up
-    # /var/lib/docker and scripts/backup_db.sh is a pg_dump, so the token was
-    # never in a host backup either way.
-    #
-    # TUNNEL_TOKEN is the name cloudflared reads, verified rather than assumed,
-    # because getting it wrong takes the site off the internet. Three sources
-    # agree: the flag is declared in cloudflared's own source as
-    # `EnvVars: []string{"TUNNEL_TOKEN"}`, Cloudflare's run-parameters page
-    # lists TUNNEL_TOKEN beside `--token`, and their Kubernetes deployment
-    # guide supplies it exactly this way from a secret.
-    #
-    # A compose `secrets:` entry would be better still, because the token would
-    # then be a file under /run/secrets and not in the container environment at
-    # all, and cloudflared has a `--token-file` flag for that. It is not done
-    # here because it needs two things that cannot be checked with Docker down:
-    # that the compose on the LXC is new enough for a secret sourced from
-    # `environment:`, and that `--token-file` is in the pinned image rather
-    # than only in a later one.
-    environment:
-      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
-    command: tunnel --no-autoupdate run
-    depends_on:
-      web:
-        condition: service_started
-
 networks:
-  # Two networks, and the split is a security boundary rather than tidiness.
+  # One network, and what keeps `api` and `db` off the internet is that they
+  # publish nothing.
   #
-  # Everything used to sit on one implicit default network. Cloudflare Tunnel
-  # makes every request to the origin internally between `cloudflared` and the
-  # origin, so REMOTE_ADDR is always a bridge address and there is no peer
-  # signal telling "came through nginx" apart from "came from anything else on
-  # the bridge". Anything holding a position on that flat network could reach
-  # api:8000 directly, around nginx, and then forge X-Forwarded-Proto, which is
-  # Django's only TLS signal, and X-Forwarded-For, which is what the throttle
-  # counts. Django's own SECURE_PROXY_SSL_HEADER documentation makes "your proxy
-  # strips the header from all incoming requests" a precondition for setting it
-  # at all; nginx satisfies that and a direct connection to api:8000 does not.
+  # There used to be two. The second existed because a `cloudflared` container
+  # ran in this stack and was the one image here not built from this repository
+  # and the only one that talked to the internet, so it was kept on a network
+  # from which it could reach `web` and nothing else. That container is gone:
+  # the tunnel is now operated outside this stack and reaches the site through
+  # the port `web` publishes, so there is no longer a member of this compose
+  # file that faces the internet from the inside.
   #
-  # The likeliest holder of that position is `tunnel`: the one image here that
-  # is not built from this repository and the only one that talks to the
-  # internet. It is now on `edge` alone, so it can reach `web` and nothing else.
+  # What the split protected is still protected, by a different mechanism.
+  # `web` is the only service with a `ports:` entry, so `api:8000` cannot be
+  # reached from off the host at all. That matters because nginx is what strips
+  # X-Forwarded-Proto, Django's only TLS signal, and X-Forwarded-For, which the
+  # throttle counts; Django's own SECURE_PROXY_SSL_HEADER documentation makes
+  # "your proxy strips the header from all incoming requests" a precondition
+  # for setting it, and a direct connection to api:8000 would not satisfy it.
   #
   # `back` is deliberately NOT `internal: true`. The api makes outbound calls to
   # PVGIS, which CLAUDE.md's allowlist permits, and an internal network has no
-  # route out. The finding this fixes is about INGRESS: which containers can be
-  # reached from the one that faces the internet.
-  edge:
+  # route out.
   back:
 
 volumes:

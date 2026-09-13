@@ -42,12 +42,12 @@ updates:
   # names, applied to images instead of actions.
   #
   # Two directories, because the updater reads Dockerfiles and compose files
-  # separately. `postgres` and `cloudflared` carry a tag again beside their
-  # digest: they were digest-only, and an image with no tag gives the updater no
-  # version to reason about, so it cannot tell that a newer one exists. Docker
-  # resolves by digest when both are present, so what runs is unchanged; the tag
-  # is there to be read. Both tags are the ones the digests were resolved from,
-  # recorded in docs/superpowers/plans/ on 2026-08-21, not guessed.
+  # separately. `postgres` carries a tag again beside its digest: it was
+  # digest-only, and an image with no tag gives the updater no version to
+  # reason about, so it cannot tell that a newer one exists. Docker resolves by
+  # digest when both are present, so what runs is unchanged; the tag is there
+  # to be read, and it is the one the digest was resolved from, recorded in
+  # docs/superpowers/plans/ on 2026-08-21, not guessed.
   - package-ecosystem: "docker"
     directory: "/infra"
     schedule:
