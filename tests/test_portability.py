@@ -372,6 +372,11 @@ ALLOWED_SKIPS = {
     "the API now supplies meter data, so PRECISE is reachable": (
         "same shape, for the confidence ceiling"
     ),
+    "no quarter-hour table; chapter 1's original weighing stands": (
+        "same shape again, for the DPIA: the correction is only owed while "
+        "QuarterReading exists, and a phase that dropped the table would make "
+        "the document's original article 35 reasoning right again"
+    ),
 }
 
 _SKIP_REASON = re.compile(r'(?:pytest\.skip\(|reason=)"([^"]+)"')

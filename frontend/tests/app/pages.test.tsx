@@ -37,6 +37,30 @@ describe("the landing page", () => {
     expect(hrefs.filter((href) => /^https?:/.test(href ?? ""))).toEqual([]);
   });
 
+  it("links to each page written to be found by a search", () => {
+    // Measured on the built site on 2026-09-13: out/index.html linked to
+    // /berekenen/, /einde-saldering/ and the four footer pages, and to neither
+    // /thuisbatterij/ nor /zelf-verbruiken/. Those two exist to answer a
+    // question somebody types into a search engine, and they were reachable
+    // only from /einde-saldering/ and from each other, so the page with the
+    // most weight pointed at neither of them. A visitor here who wants to know
+    // whether a battery suits them had no way to the page that answers it.
+    //
+    // Asserted on the route rather than on the link text, because the text is
+    // allowed to change and the route is the thing that would go missing. The
+    // trailing slash is optional for the reason the calculator link states:
+    // Link renders the href it was given and the build adds the slash.
+    const { container } = render(<Home />);
+    const hrefs = [...container.querySelectorAll("a[href]")].map((element) =>
+      element.getAttribute("href"),
+    );
+    for (const route of ["thuisbatterij", "zelf-verbruiken"]) {
+      expect(
+        hrefs.filter((href) => new RegExp(`^/${route}/?$`).test(href ?? "")),
+      ).toHaveLength(1);
+    }
+  });
+
   it("puts no euro amount on the page, because it has computed none", () => {
     // Every amount this product knows comes out of a simulation of one
     // specific household, with a band around it. A number here would be a

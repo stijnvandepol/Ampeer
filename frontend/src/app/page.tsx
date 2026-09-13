@@ -308,7 +308,12 @@ export default function Home() {
             <dd className={styles.answer}>
               Alleen als het bij u uitkomt, en bij een deel van de huishoudens
               komt dat er niet uit. Nu geen batterij is bij ons een volwaardige
-              uitkomst, en wij verdienen niets aan de andere.
+              uitkomst, en wij verdienen niets aan de andere. Waar het van
+              afhangt, staat op{" "}
+              <Link href="/thuisbatterij/">
+                is een thuisbatterij iets voor mij
+              </Link>
+              .
             </dd>
             <dt className={styles.question}>
               Wat kan ik met de link die ik krijg?
@@ -319,9 +324,29 @@ export default function Home() {
               bedenk dat wie hem heeft het antwoord ook ziet.
             </dd>
           </dl>
+          {/*
+            THE ONLY THREE LINKS OUT OF THE HOME PAGE THAT ARE NOT NAVIGATION.
+            Measured on the built site on 2026-09-13: out/index.html linked to
+            /berekenen/, /einde-saldering/ and the four pages in the footer, and
+            to neither of the two pages written to answer a question somebody
+            types into a search engine. Those two were reachable from
+            /einde-saldering/ and from each other and from nowhere else, so the
+            page with the most weight pointed at neither, and a visitor here who
+            wants to know whether a battery suits them had no way to the page
+            that answers it.
+
+            Three sentences and not a list of links. The one about the battery
+            sits in the answer to the question about the battery, which is where
+            somebody reading it is already asking.
+          */}
           <p className={styles.body}>
             Wat er op 1 januari 2027 precies verandert, staat op{" "}
-            <Link href="/einde-saldering/">het einde van de saldering</Link>.
+            <Link href="/einde-saldering/">het einde van de saldering</Link>. De
+            goedkoopste stap staat apart, want die kost niets:{" "}
+            <Link href="/zelf-verbruiken/">
+              meer van uw eigen stroom zelf gebruiken
+            </Link>
+            .
           </p>
         </section>
 

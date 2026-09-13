@@ -617,6 +617,61 @@ def test_the_backend_network_can_still_reach_the_outside() -> None:
 
 
 # ---------------------------------------------------------------------------
+# The list a fresh host is set up from
+# ---------------------------------------------------------------------------
+
+#: The section of infra/README.md that exists to be the one complete list.
+README = INFRA / "README.md"
+FRESH_HOST_SECTION = "## 0. What a fresh host needs, in one list"
+
+
+def _fresh_host_section() -> str:
+    """Section 0 alone, collapsed to one line.
+
+    Scoped to the section rather than the whole file because every path below
+    is also discussed in a later section, and a search over the document would
+    find it there and pass while the list itself was short. Collapsed because
+    the file is hard wrapped and a path that straddles a line break is still
+    the path a reader reads.
+    """
+    text = README.read_text(encoding="utf-8")
+    assert FRESH_HOST_SECTION in text, "infra/README.md no longer has the fresh host list"
+    after = text.split(FRESH_HOST_SECTION, 1)[1]
+    section = re.split(r"^## ", after, maxsplit=1, flags=re.MULTILINE)[0]
+    return " ".join(section.split())
+
+
+def test_the_fresh_host_list_names_every_host_path_the_stack_mounts() -> None:
+    """A bind mount is a file somebody has to put there, and this is the list.
+
+    The section says of itself that assembling it from four others is how a
+    deploy stops on the one file somebody missed. On 2026-09-13 the list named
+    four files and the NEDU profile was not one of them, while
+    docker-compose.yml bind mounts it into the api container and the Docker
+    daemon creates a DIRECTORY at that path when it is absent. It is also the
+    only one of the five that is gitignored, so it is the one that cannot be
+    recovered from the tag the deploy names in its error message.
+
+    Read from the compose file, so a sixth mount added later has to appear in
+    the list on the day it is added rather than on the day it is missed. Named
+    volumes are skipped: those are Docker's to create and nobody copies them.
+    """
+    missing = []
+    for spec in _services().values():
+        for mount in spec.get("volumes") or []:
+            source = str(mount).split(":", 1)[0]
+            if "/" not in source and "$" not in source:
+                continue  # a named volume, not a path on the host
+            name = source.rsplit("/", 1)[-1].strip("${}")
+            if name not in _fresh_host_section():
+                missing.append(source)
+    assert not missing, (
+        f"mounted from the host, absent from the fresh host list: {missing}; "
+        "a deploy stops on exactly the file that list forgot"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Container hardening, and the credential that was in argv
 # ---------------------------------------------------------------------------
 
