@@ -68,6 +68,7 @@
 -value
 .
 . Dat document is er om nagerekend te worden.
+. De goedkoopste stap staat apart, want die kost niets:
 . De regels voor het gebruik staan in
 . Een vraag of klacht over uw gegevens gaat naar
 . Hoe wij rekenen, staat in
@@ -114,7 +115,7 @@ Account aanmaken
 Account verwijderen
 Adviesversie
 Alle drie zijn nodig om de accountpagina veilig te gebruiken, en voor niets anders. Ze volgen u niet, ze meten niets en ze gaan naar geen ander bedrijf.
-Alleen als het bij u uitkomt, en bij een deel van de huishoudens komt dat er niet uit. Nu geen batterij is bij ons een volwaardige uitkomst, en wij verdienen niets aan de andere.
+Alleen als het bij u uitkomt, en bij een deel van de huishoudens komt dat er niet uit. Nu geen batterij is bij ons een volwaardige uitkomst, en wij verdienen niets aan de andere. Waar het van afhangt, staat op
 Alleen als het bij u uitkomt. Voor een deel van de huishoudens is het antwoord nee, en dat is bij ons een geldige en volwaardige uitkomst.
 Alles daarover staat in
 Als dit adres bij ons bekend is, staat er binnen enkele minuten een e-mail voor u klaar. De link daarin werkt een uur.
