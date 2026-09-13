@@ -40,12 +40,6 @@ ENV_FILE="${1:-/srv/ampeer/.env}"
 #                            file in compose interpolation. Requiring it in the
 #                            file would demand the host be edited per release,
 #                            which is the manual step this pipeline removes.
-#   CLOUDFLARE_TUNNEL_TOKEN  it belongs to the tunnel, not to Django, and the
-#                            local test override replaces the tunnel with a
-#                            published port. A preflight that failed on it
-#                            could not be run against the stack it is meant to
-#                            be rehearsed on. Its absence is still an outage;
-#                            it is one cloudflared reports as itself.
 REQUIRED=(
   DJANGO_SECRET_KEY
   DJANGO_ALLOWED_HOSTS

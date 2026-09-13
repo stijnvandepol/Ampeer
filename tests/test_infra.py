@@ -62,11 +62,13 @@ def service(name: str) -> dict[str, Any]:
     return definition
 
 
-def test_the_stack_has_the_four_services_it_needs() -> None:
-    assert set(compose()["services"]) == {"api", "web", "db", "tunnel"}
+def test_the_stack_has_the_three_services_it_needs() -> None:
+    """Three since the tunnel left. A connector used to run here and now runs
+    outside the stack, reaching the site through the port `web` publishes."""
+    assert set(compose()["services"]) == {"api", "web", "db"}
 
 
-@pytest.mark.parametrize("name", ["db", "tunnel"])
+@pytest.mark.parametrize("name", ["db"])
 def test_every_image_pulled_from_a_registry_is_pinned_by_digest(name: str) -> None:
     """A tag is a name somebody else can repoint.
 
@@ -98,33 +100,32 @@ def test_only_the_images_this_repository_builds_are_exempt_from_the_digest_rule(
     assert not unpinned, f"images from a registry that are not pinned by digest: {unpinned}"
 
 
-def test_nothing_publishes_a_port_to_the_world() -> None:
-    """Cloudflare Tunnel makes an outbound connection, so nothing listens.
+def test_only_the_web_container_publishes_a_port_and_only_that_one() -> None:
+    """One way in, and it is nginx.
 
-    A published port here is how a stack that was designed to be unreachable
-    quietly becomes reachable, and the person who adds one is usually debugging,
-    not deploying. Three forms of the same mistake are checked, because the
-    parsed-document check alone would miss two of them:
+    This file used to publish nothing at all, because a `cloudflared` container
+    inside the stack made an outbound connection and there was no inbound route
+    anywhere. The tunnel is operated outside the stack now and has to reach the
+    site from another machine, so exactly one port is open and the question
+    changed from "is anything published" to "is anything but nginx published".
 
-    * the short syntax, `- "8000:8000"`, and the long one, a mapping with a
-      `published:` key, which reads as documentation rather than as an opening
-    * a mapping under any key at all, not only under a service, so a fragment
-      parked in an anchor or an unused block cannot carry one in
-    * `network_mode: host`, which publishes nothing and listens on everything
+    `api` is the one that must never be: nginx is what strips
+    X-Forwarded-Proto, which is Django's only TLS signal, and X-Forwarded-For,
+    which the throttle counts. A reachable api:8000 lets a caller forge both.
+
+    `network_mode: host` is checked separately because it publishes nothing and
+    listens on everything, so a document-level look at `ports:` would miss it.
     """
-    text = COMPOSE.read_text(encoding="utf-8")
     services = compose()["services"]
 
-    declared = [name for name, spec in services.items() if spec.get("ports")]
-    assert not declared, f"services publishing ports: {declared}"
+    publishing = {name for name, spec in services.items() if spec.get("ports")}
+    assert publishing == {"web"}, f"services publishing ports: {sorted(publishing)}"
+    assert services["web"]["ports"] == ["80:80"], services["web"]["ports"]
 
     host_network = [
         name for name, spec in services.items() if "host" in str(spec.get("network_mode", ""))
     ]
     assert not host_network, f"services on the host network: {host_network}"
-
-    assert not PORT_KEY.search(text), "the compose file declares a port mapping key"
-    assert not PUBLISHED_KEY.search(text), "the compose file publishes a port in the long syntax"
 
 
 def test_no_secret_has_a_default_in_the_compose_file() -> None:
@@ -554,36 +555,34 @@ def _services() -> dict[str, Any]:
     return services
 
 
-def test_the_tunnel_can_reach_the_web_container_and_nothing_else() -> None:
-    """The one container facing the internet is not on the network the others share.
+def test_the_api_and_the_database_cannot_be_reached_from_off_the_host() -> None:
+    """What the two networks used to protect, now protected by publishing one.
 
-    Cloudflare Tunnel makes every request to the origin internally between
-    `cloudflared` and the origin, so ``REMOTE_ADDR`` is always a bridge address
-    and there is no peer signal separating "arrived through nginx" from
-    "arrived from anything else on the bridge". While all four services sat on
-    one implicit default network, anything holding a position there could reach
-    ``api:8000`` around nginx and forge ``X-Forwarded-Proto``, which is
-    Django's only TLS signal, and ``X-Forwarded-For``, which is what the
-    throttle counts. Django's own ``SECURE_PROXY_SSL_HEADER`` documentation
-    makes "your proxy strips the header from all incoming requests" a
-    precondition for setting it, and a direct connection to the api does not
-    satisfy it.
+    The stack used to keep a `cloudflared` container on a network of its own so
+    that the one member facing the internet could reach nginx and nothing else.
+    That container is gone and the tunnel runs outside the stack, so the
+    question is no longer which container is exposed but which port is.
 
-    ``tunnel`` is the likeliest holder of that position: the only image here not
-    built from this repository, and the only one that talks to the internet.
+    The property is the same either way. nginx is what strips
+    ``X-Forwarded-Proto``, which is Django's only TLS signal, and
+    ``X-Forwarded-For``, which is what the throttle counts. Django's own
+    ``SECURE_PROXY_SSL_HEADER`` documentation makes "your proxy strips the
+    header from all incoming requests" a precondition for setting it, and a
+    caller who reached the api directly could forge both.
+
+    Red proof: publish a port on `api` and the first assertion fails; take the
+    api off `back` and the last one does.
     """
     services = _services()
-    tunnel = set(services["tunnel"]["networks"])
-    api = set(services["api"]["networks"])
-    db = set(services["db"]["networks"])
-    web = set(services["web"]["networks"])
+    api, db, web = (set(services[name]["networks"]) for name in ("api", "db", "web"))
 
-    assert tunnel == {"edge"}, f"the tunnel is on {sorted(tunnel)} and should be on edge alone"
-    assert not tunnel & api, "the tunnel shares a network with the api and can reach it directly"
-    assert not tunnel & db, "the tunnel shares a network with the database"
-    # nginx is the bridge, and the only one.
-    assert tunnel & web, "the tunnel cannot reach nginx, so nothing can be served"
+    for name in ("api", "db"):
+        assert not services[name].get("ports"), (
+            f"{name} publishes a port, so it can be reached without passing nginx"
+        )
+    assert services["web"].get("ports"), "nothing publishes a port, so nothing can be served"
     assert api & web, "nginx cannot reach the api, so nothing can be served"
+    assert db & api, "the api cannot reach the database"
 
 
 def test_every_service_says_which_network_it_is_on() -> None:

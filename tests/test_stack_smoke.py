@@ -568,18 +568,6 @@ def test_the_override_publishes_only_on_the_loopback_interface() -> None:
             )
 
 
-def test_the_override_does_not_start_the_tunnel() -> None:
-    """A connector started from a developer machine registers a route to a
-    tunnel that serves a real domain, which is a change to a host.
-
-    Checked as "has a profile nobody enables" rather than as "is absent",
-    because a compose override cannot remove a service: the only two honest
-    outcomes are this one and a container that is up and doing nothing.
-    """
-    tunnel = _compose_document(OVERRIDE)["services"]["tunnel"]
-    assert tunnel.get("profiles"), "the tunnel would start with the rest of the stack"
-
-
 def test_the_override_introduces_no_image_of_its_own() -> None:
     """It holds a door open in the production stack; it is not a second stack.
 
@@ -593,14 +581,24 @@ def test_the_override_introduces_no_image_of_its_own() -> None:
     assert not offenders, f"the override names its own images for: {offenders}"
 
 
-def test_the_production_file_still_publishes_nothing() -> None:
-    """The reason the override exists is that the production file may not do
-    this. Asserted here as well as in tests/test_infra.py, because the failure
-    that matters is somebody moving a line from this file into that one.
+def test_the_override_narrows_the_published_port_to_this_machine() -> None:
+    """The production file publishes 80 on every interface, because a tunnel on
+    another machine has to reach it. A developer machine needs no such thing.
+
+    This used to assert that the production file published nothing at all. It
+    cannot any more, and what replaces it is the property that still matters:
+    the override may only ever make the opening smaller. A `127.0.0.1` in the
+    production file would be a local binding no tunnel could reach, and a bare
+    port in this one would open a developer machine to its network.
     """
-    text = COMPOSE.read_text(encoding="utf-8")
-    assert not re.search(r"^\s*ports\s*:", text, re.MULTILINE)
-    assert "127.0.0.1" not in text
+    production = _compose_document(COMPOSE)["services"]["web"]["ports"]
+    override = _compose_document(OVERRIDE)["services"]["web"]["ports"]
+
+    assert production == ["80:80"], production
+    assert "127.0.0.1" not in COMPOSE.read_text(encoding="utf-8"), (
+        "the production file binds to the loopback, which no other machine can reach"
+    )
+    assert all(str(entry).startswith("127.0.0.1:") for entry in override), override
 
 
 def test_the_override_says_it_must_never_reach_a_host() -> None:
