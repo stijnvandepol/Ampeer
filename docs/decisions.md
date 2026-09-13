@@ -2113,3 +2113,33 @@ Eight sit outside that document.
   this stack already has. Worth doing the day a second machine can route to the
   host for any reason, and worth doing anyway if the answer to "who else is on
   that subnet" is ever longer than one line.
+
+- **Whether the lead-generation consent already on file can authorise a lead
+  feature when one is built.** It cannot, and this is written down now rather
+  than when somebody is looking at a table of ticked boxes and a deadline.
+
+  `Consent.LEAD_GENERATION` has been collected since fase 1, is revocable,
+  exports with the account, and is read by nothing: no code path passes anything
+  to an installer, because no such path exists. The site says so in the present
+  tense on /over-ons/, "wij verkopen niets en wij bemiddelen niets", and that
+  sentence is true.
+
+  The same page also promises, in the future tense, "Gaat Ampeer ooit
+  doorverwijzen, dan vragen wij daar apart toestemming voor." That promise is the
+  binding one and it outranks the box. A consent has to be specific and informed
+  about a processing that exists; one ticked today, against a single sentence
+  written before any referral flow was designed, describes nothing a household
+  could have understood. So the boxes on file are a record that somebody was
+  once willing, and they are not a legal basis. Asking again is not a courtesy
+  there, it is the requirement.
+
+  Not removing the box, and that is deliberate rather than lazy. CLAUDE.md's
+  privacy section requires both opt-ins to exist as separate, unticked consents
+  with their own timestamp, and taking one out would be this file overruling that
+  one. What the box costs while dormant is small and what it buys is that the
+  shape is built and tested before there is any pressure to hurry it.
+
+  What protects the advice itself is already enforced and is not this entry:
+  `test_nothing_that_computes_an_advice_can_see_a_consent` forbids the
+  advice packages from mentioning the consent vocabulary at all, so "uw advies
+  verandert er niet door" cannot quietly stop being true.
