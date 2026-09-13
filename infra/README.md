@@ -34,6 +34,37 @@ string is updated by whoever remembered, which is the thing they forgot. Copy
 all three again whenever any of them changes in a release, not only the one you
 edited.
 
+**And a fifth thing that is not in `/srv/ampeer/` and is not in git**: the NEDU
+consumption profile, a CSV of about 13 MB, at whatever path `.env` gives as
+`AMPEER_NEDU_PROFILE_PATH`. `docker-compose.yml` bind mounts it, so it has to
+exist as a **readable file** before the stack comes up; if it does not, the
+Docker daemon silently creates a directory in its place. It is `data/` in a
+checkout, which `.gitignore` excludes, so it cannot be fetched from the tag the
+way the three scripts can. Copy it from a developer machine, or produce it from
+the source named in section 2. Section 2 is the whole story and this line exists
+only so that the list is a list.
+
+This section is the list because assembling it from four others is how a deploy
+stops on the one file somebody missed. It has done that: on 2026-09-13 the list
+named four things and the profile was not one of them, and the profile is the
+one that cannot be recovered from a git tag.
+
+**Getting the bytes there.** The deploy job checks nothing out, so there is no
+source tree on the host and never will be; that is one of the four properties
+that make a self-hosted runner defensible at all, and it is why this step is
+yours. From a checkout at the tag:
+
+```sh
+ssh <host> 'mkdir -p /srv/ampeer'
+git -C <checkout> switch --detach v0.3.0
+scp infra/docker-compose.yml scripts/preflight_env.sh scripts/backup_db.sh <host>:/srv/ampeer/
+scp data/nedu-profiles-2025.csv <host>:/srv/profiles/nedu-profiles-2025.csv
+```
+
+The `.env` is not in that list on purpose. It holds a signing key, a database
+password and a mail API key; write it on the host, once, and never copy it
+between machines.
+
 **Verify before tagging:**
 
 ```sh
@@ -43,7 +74,9 @@ bash /srv/ampeer/preflight_env.sh /srv/ampeer/.env
 
 The first three digests have to match the literals in
 `.github/workflows/deploy.yml`; the deploy prints both when they do not. The
-preflight exits zero when `.env` is complete.
+preflight exits zero when `.env` is complete, and it is also what checks that
+the profile path is a readable file, so a green preflight covers the fifth thing
+as well as the fourth.
 
 Two more things are the host's own and are described in section 3: the retention
 timer and the outbox timer, neither of which this repository installs.
