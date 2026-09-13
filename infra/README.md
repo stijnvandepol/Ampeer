@@ -1011,12 +1011,17 @@ redistributed. Until then this is a deploy that works and may not be pointed at
 ## The seven checks
 
 Section 12 of `docs/superpowers/specs/2026-08-21-deploy-design.md` lists seven
-things to prove against a running stack. They were run on 2026-08-21 against the
-override above and their output is in the commit that added this file. Six of
-the seven pass as written.
-All seven pass as written. The first used to be the exception: it asked
-for all four services up and healthy, and the override that makes a local
-run possible stopped the fourth, a connector, from starting, because one
-started from a developer machine would register a route to a tunnel
-serving a real domain. That service is gone from this stack, so the check
-is now three of three.
+things to prove against a running stack. They were first run on 2026-08-21
+against the override above and their output is in the commit that added this
+file, and last run on 2026-09-13 against v0.3.0, where all seven passed along
+with the twenty-eight assertions in `tests/test_stack_smoke.py`.
+
+All seven pass as written. The first used to be the exception: it asked for all
+four services up and healthy, and the override that makes a local run possible
+stopped the fourth, a connector, from starting, because one started from a
+developer machine would register a route to a tunnel serving a real domain.
+That service is gone from this stack, so the check is now three of three.
+
+This paragraph said both "six of the seven pass" and "all seven pass" in
+adjacent sentences between 2026-09-13 and the same day, which is what a
+half-finished edit looks like when the thing it was editing is prose.

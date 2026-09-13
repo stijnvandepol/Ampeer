@@ -589,10 +589,11 @@ def test_every_service_says_which_network_it_is_on() -> None:
     """A service with no `networks` key joins the default one silently.
 
     That is how all four ended up sharing a network in the first place: nobody
-    wrote it down, so nobody read it. An addition made without this key would
-    quietly undo the split above and no assertion in this file would notice,
-    because the two tests there only look at the four services that exist
-    today.
+    wrote it down, so nobody read it. Four then, three now, and the count is
+    beside the point, which is why this test reads the services out of the file
+    rather than naming them. An addition made without this key would quietly
+    undo the split above and no assertion in this file would notice, because
+    the two tests there only look at the services that are already there.
     """
     missing = [name for name, body in _services().items() if "networks" not in body]
     assert not missing, f"these services join the default network by omission: {missing}"
