@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { ESLint } from "eslint";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -32,14 +32,35 @@ if (!existsSync(join(cwd, "eslint.config.mjs"))) {
   );
 }
 
-// Each case boots a real eslint, which loads `eslint-config-next` and the
-// typescript-eslint parser. Measured at 2.5 s on its own and over 5 s
-// alongside the other 36 test files, so the default per-test timeout made this
-// suite fail on how busy the machine was rather than on what the rule does.
+// Booting eslint loads `eslint-config-next` and the typescript-eslint parser,
+// which is the expensive part: measured at 2.5 s on its own and over 5 s
+// alongside the other test files. It used to happen once per case, and on
+// 2026-09-13 the three boots together passed 30 s under the parallel load of
+// 52 test files and the suite failed on how busy the machine was rather than
+// on what the rule does. Raising the budget again would be the same treatment
+// applied harder, so the boot moved into setup and happens once.
+//
+// Sharing one instance across the three cases does not couple them.
+// `lintText` returns a result and keeps nothing between calls, so no case can
+// see what another did; what is shared is the cost of loading a parser, not
+// state.
 const BOOTS_ESLINT = 30_000;
 
+let eslint: ESLint;
+
+beforeAll(async () => {
+  eslint = new ESLint({ cwd });
+  // Linting something is what pays for the boot. Constructing an `ESLint` is
+  // cheap and loads nothing; the configuration and the typescript-eslint
+  // parser arrive on the first `lintText`, so a setup that only constructed
+  // would leave the cost on whichever case ran first. Measured on 2026-09-13:
+  // without this line the first case timed out at five seconds on every run.
+  await eslint.lintText("export const warm = 1;\n", {
+    filePath: join(cwd, "src", "unused-vars-warmup.ts"),
+  });
+}, BOOTS_ESLINT);
+
 async function lint(code: string): Promise<readonly string[]> {
-  const eslint = new ESLint({ cwd });
   const results = await eslint.lintText(code, {
     // Never written to disk. The path only decides which configuration entries
     // apply, and this one is inside `src/` like the code the rule guards.
@@ -59,40 +80,28 @@ async function lint(code: string): Promise<readonly string[]> {
 }
 
 describe("the unused variable rule after ignoreRestSiblings", () => {
-  it(
-    "still reports a variable that is simply never used",
-    async () => {
-      const messages = await lint(
-        "const forgotten = 1;\nexport const used = 2;\n",
-      );
-      expect(messages).toHaveLength(1);
-      expect(messages[0]).toContain("forgotten");
-    },
-    BOOTS_ESLINT,
-  );
+  it("still reports a variable that is simply never used", async () => {
+    const messages = await lint(
+      "const forgotten = 1;\nexport const used = 2;\n",
+    );
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain("forgotten");
+  });
 
-  it(
-    "still reports an import that nothing in the file uses",
-    async () => {
-      const messages = await lint(
-        'import { readFile } from "node:fs";\nexport const used = 2;\n',
-      );
-      expect(messages).toHaveLength(1);
-      expect(messages[0]).toContain("readFile");
-    },
-    BOOTS_ESLINT,
-  );
+  it("still reports an import that nothing in the file uses", async () => {
+    const messages = await lint(
+      'import { readFile } from "node:fs";\nexport const used = 2;\n',
+    );
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain("readFile");
+  });
 
-  it(
-    "leaves the binding that exists so a rest element can exclude it",
-    async () => {
-      const messages = await lint(
-        "const fixture = { year: 2026, rest: 1 };\n" +
-          "const { year: _dropped, ...without } = fixture;\n" +
-          "export const kept = without;\n",
-      );
-      expect(messages).toEqual([]);
-    },
-    BOOTS_ESLINT,
-  );
+  it("leaves the binding that exists so a rest element can exclude it", async () => {
+    const messages = await lint(
+      "const fixture = { year: 2026, rest: 1 };\n" +
+        "const { year: _dropped, ...without } = fixture;\n" +
+        "export const kept = without;\n",
+    );
+    expect(messages).toEqual([]);
+  });
 });

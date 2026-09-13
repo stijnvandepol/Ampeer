@@ -210,8 +210,8 @@ A change is done when every line is true:
 
 ```
 Stack:            Python 3.12, Django 5 + DRF, PostgreSQL 16. Next.js 15,
-                  TypeScript strict, Tailwind. Docker Compose, Cloudflare
-                  Tunnel, GitHub Actions. Dependencies via `uv`, lock committed.
+                  TypeScript strict, Tailwind. Docker Compose, GitHub
+                  Actions. Dependencies via `uv`, lock committed.
 
 Run locally:      docker start ampeer-devtest (Postgres on 5433), then
                   cd frontend && npm run dev

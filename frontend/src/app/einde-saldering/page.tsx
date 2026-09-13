@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PriceGap } from "@/components/gap/PriceGap";
 import { PageJsonLd } from "../_shell/JsonLd";
-import styles from "./saldering.module.css";
+import styles from "../_shell/content.module.css";
 
 const PATH = "/einde-saldering/";
 const TITLE = "Einde salderingsregeling: wat het bij u doet";
@@ -205,6 +205,21 @@ export default function EindeSalderingPage() {
             </li>
           ))}
         </ol>
+        {/*
+          Two of the three routes have a page of their own now. Linked from
+          here rather than from the site header, which carries four entries on
+          purpose: this is the section that already names them, so this is
+          where a reader looking for more is standing.
+        */}
+        <p className={styles.body}>
+          De eerste twee routes hebben een eigen pagina:{" "}
+          <Link href="/zelf-verbruiken/">
+            meer van uw eigen stroom gebruiken
+          </Link>{" "}
+          en{" "}
+          <Link href="/thuisbatterij/">is een thuisbatterij iets voor mij</Link>
+          .
+        </p>
       </section>
 
       <section className={styles.section} aria-labelledby="getallen">

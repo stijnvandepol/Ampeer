@@ -16,8 +16,8 @@ import { ADVICE_PATH, ALL_PATHS } from "./routes";
  * also proves it read something, because a rule that cannot fail is not a rule.
  */
 
-test("checks exactly the nine routes this list names, not more and not fewer", () => {
-  expect(ALL_PATHS).toHaveLength(9);
+test("checks exactly the eleven routes this list names, not more and not fewer", () => {
+  expect(ALL_PATHS).toHaveLength(11);
 });
 
 /** The advice has arrived once its headline band is on the screen. */

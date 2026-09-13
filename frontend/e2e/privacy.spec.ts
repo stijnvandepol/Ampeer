@@ -40,6 +40,8 @@ const ADVICE_PATH = `/advies/${TOKEN}/`;
 const PAGES = [
   "/",
   "/einde-saldering/",
+  "/thuisbatterij/",
+  "/zelf-verbruiken/",
   "/berekenen/",
   ADVICE_PATH,
   "/methodologie/",
@@ -91,8 +93,8 @@ for (const path of PAGES) {
   });
 }
 
-test("checks exactly the nine pages this list names, not more and not fewer", () => {
-  expect(PAGES).toHaveLength(9);
+test("checks exactly the eleven pages this list names, not more and not fewer", () => {
+  expect(PAGES).toHaveLength(11);
 });
 
 test("the fonts are served from this origin rather than fetched from one", async ({

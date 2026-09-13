@@ -568,18 +568,6 @@ def test_the_override_publishes_only_on_the_loopback_interface() -> None:
             )
 
 
-def test_the_override_does_not_start_the_tunnel() -> None:
-    """A connector started from a developer machine registers a route to a
-    tunnel that serves a real domain, which is a change to a host.
-
-    Checked as "has a profile nobody enables" rather than as "is absent",
-    because a compose override cannot remove a service: the only two honest
-    outcomes are this one and a container that is up and doing nothing.
-    """
-    tunnel = _compose_document(OVERRIDE)["services"]["tunnel"]
-    assert tunnel.get("profiles"), "the tunnel would start with the rest of the stack"
-
-
 def test_the_override_introduces_no_image_of_its_own() -> None:
     """It holds a door open in the production stack; it is not a second stack.
 
@@ -593,14 +581,24 @@ def test_the_override_introduces_no_image_of_its_own() -> None:
     assert not offenders, f"the override names its own images for: {offenders}"
 
 
-def test_the_production_file_still_publishes_nothing() -> None:
-    """The reason the override exists is that the production file may not do
-    this. Asserted here as well as in tests/test_infra.py, because the failure
-    that matters is somebody moving a line from this file into that one.
+def test_the_override_narrows_the_published_port_to_this_machine() -> None:
+    """The production file publishes 80 on every interface, because a tunnel on
+    another machine has to reach it. A developer machine needs no such thing.
+
+    This used to assert that the production file published nothing at all. It
+    cannot any more, and what replaces it is the property that still matters:
+    the override may only ever make the opening smaller. A `127.0.0.1` in the
+    production file would be a local binding no tunnel could reach, and a bare
+    port in this one would open a developer machine to its network.
     """
-    text = COMPOSE.read_text(encoding="utf-8")
-    assert not re.search(r"^\s*ports\s*:", text, re.MULTILINE)
-    assert "127.0.0.1" not in text
+    production = _compose_document(COMPOSE)["services"]["web"]["ports"]
+    override = _compose_document(OVERRIDE)["services"]["web"]["ports"]
+
+    assert production == ["80:80"], production
+    assert "127.0.0.1" not in COMPOSE.read_text(encoding="utf-8"), (
+        "the production file binds to the loopback, which no other machine can reach"
+    )
+    assert all(str(entry).startswith("127.0.0.1:") for entry in override), override
 
 
 def test_the_override_says_it_must_never_reach_a_host() -> None:
@@ -1073,3 +1071,43 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+def test_the_host_list_names_every_file_the_deploy_verifies() -> None:
+    """The README's own first list, held against what the deploy checks.
+
+    Every file below is already explained in a section of its own further
+    down. This asserts they are also named together in section 0, because
+    assembling the list from four sections is exactly how a deploy ends up
+    stopping on the one file somebody missed. It happened three times in a row
+    on 2026-09-12, twice because the instruction given was short of a file the
+    deploy was about to check.
+
+    Derived from the workflow rather than written out here. A fourth checksum
+    added to the deploy without a line in that list fails this, which is the
+    only way a list like it stays complete.
+    """
+    workflow = DEPLOY_WORKFLOW.read_text(encoding="utf-8")
+    checked = set(re.findall(r"^\s+([A-Z]+)_SHA256:", workflow, re.MULTILINE))
+    assert checked, "deploy.yml pins no checksums at all; this test read nothing"
+
+    #: Which file each checksum is of. The workflow names the digest and the
+    #: path separately, so the pairing lives here and is asserted rather than
+    #: parsed out of shell.
+    files = {
+        "COMPOSE": "docker-compose.yml",
+        "PREFLIGHT": "preflight_env.sh",
+        "BACKUP": "backup_db.sh",
+    }
+    assert checked <= set(files), (
+        f"deploy.yml checks {sorted(checked - set(files))}, which this test "
+        "cannot name a file for. Add it to `files` above and to section 0 of "
+        "infra/README.md."
+    )
+
+    readme = (INFRA / "README.md").read_text(encoding="utf-8")
+    section = readme.split("## 0.", 1)[-1].split("\n## ", 1)[0]
+    missing = sorted(files[name] for name in checked if files[name] not in section)
+    assert not missing, (
+        f"infra/README.md section 0 does not name {missing}, which the deploy checks the host for"
+    )

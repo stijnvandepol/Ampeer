@@ -23,6 +23,8 @@ export const ADVICE_PATH = `/advies/${TOKEN}/`;
 export const ALL_PATHS = [
   "/",
   "/einde-saldering/",
+  "/thuisbatterij/",
+  "/zelf-verbruiken/",
   "/berekenen/",
   ADVICE_PATH,
   "/methodologie/",

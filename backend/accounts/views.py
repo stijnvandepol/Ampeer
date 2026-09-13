@@ -402,6 +402,14 @@ class LogoutView(_AuthAPIView):
             try:
                 tokens.revoke(raw)
             except TokenError:
+                # Handled by doing nothing, which is the whole answer here
+                # rather than an omission. A refresh token that is already
+                # expired, already revoked or simply malformed is a token
+                # that cannot be used again, so there is nothing left to
+                # revoke and the caller asked to be logged out either way.
+                # The cookies are cleared below on both paths, so refusing
+                # here would leave somebody holding a useless token and a
+                # session they could not end.
                 pass
         AuditEvent.record(AuditEvent.LOGOUT, user_id=self.user.pk)
         response = Response(status=status.HTTP_204_NO_CONTENT)

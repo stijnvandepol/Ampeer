@@ -109,14 +109,15 @@ te testen en te valideren zijn.
 - Database: PostgreSQL 16 (`postgres:16-alpine`), gewone tabellen met een index op wat gezocht wordt; TimescaleDB is een optie voor als dat gemeten te weinig blijkt
 - Async: Celery + Redis
 - Frontend: Next.js 15 (App Router), TypeScript, Tailwind
-- Deploy: Docker Compose, Cloudflare Tunnel in de eerste fase
+- Deploy: Docker Compose. De stack publiceert poort 80 en een tunnel buiten
+  deze repository wijst daarnaartoe; niets hier draait of beheert die tunnel
 - CI: GitHub Actions
 
 ## Repo-structuur
 ampeer/
   backend/          Django project "ampeer"
   frontend/         Next.js
-  infra/            docker-compose, nginx, tunnel config
+  infra/            docker-compose, nginx
   docs/             methodologie, aannames, DPIA
   .github/workflows/
 

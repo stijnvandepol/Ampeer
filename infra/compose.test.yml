@@ -2,27 +2,23 @@
 # section 12 of docs/superpowers/specs/2026-08-21-deploy-design.md can be run
 # against a real stack on a developer machine, and for nothing else.
 #
-# It changes exactly four things. Three of them are things that would be a
-# defect in production, and the fourth is what keeps this file away from it:
+# It changes exactly three things. Two of them are things that would be a
+# defect in production, and the third is what keeps this file away from it:
 #
-#   1. It publishes a port. The whole network design is that nothing listens:
-#      cloudflared makes an outbound connection and there is no inbound route
-#      anywhere. A local run has no tunnel, so there has to be some way in, and
-#      it is bound to 127.0.0.1 so it is a way in from this machine only.
-#   2. It stops the tunnel from starting. A connector needs a real credential,
-#      and running one from here would register a route to a Cloudflare tunnel
-#      that serves a real domain. That is a change to a host, which is out of
-#      bounds for every task in this subproject.
-#   3. It mounts a synthetic consumption profile. See the header of the file it
+#   1. It moves the published port to the loopback. docker-compose.yml
+#      publishes 80 on every interface, because a tunnel outside the stack has
+#      to reach it from another machine. A developer machine needs no such
+#      thing, so here it is 127.0.0.1:8080 and a way in from this machine only.
+#   2. It mounts a synthetic consumption profile. See the header of the file it
 #      mounts: it is a flat curve, it proves the plumbing, and the arithmetic
 #      it produces is not an advice.
-#   4. It renames the project, which is the `name:` below and the only line
+#   3. It renames the project, which is the `name:` below and the only line
 #      here that is not about the stack at all. See the comment on it.
 #
 # infra/docker-compose.yml is untouched by all of this, and stays the file that
-# runs on the host. tests/test_stack_smoke.py asserts that the production file
-# still publishes nothing, that this override binds only to the loopback, and
-# that this file names no image of its own, so a `docker compose -f
+# runs on the host. tests/test_stack_smoke.py asserts that this override binds
+# only to the loopback and that it names no image of its own, so a `docker
+# compose -f
 # docker-compose.yml -f compose.test.yml` run is the production stack with a
 # door held open rather than a different stack.
 #
@@ -94,34 +90,3 @@ services:
       # the tunnel route names on the real host. 8080 outside, because binding
       # 80 on a developer machine needs privileges this does not have.
       - "127.0.0.1:8080:80"
-
-  tunnel:
-    # A profile that is never enabled, which is how compose is told to leave a
-    # service alone. `docker compose up` skips it; `docker compose config
-    # --no-interpolate` still shows it, so the override does not hide the
-    # fourth service from anybody reading the merged file.
-    #
-    # --no-interpolate is not a detail. Plain `docker compose config` prints
-    # every variable with its value substituted, and three of the values in
-    # this stack are credentials. Measured on 2026-08-21 against the production
-    # file with a placeholder env file, the merged output contained the
-    # connector token, plus DJANGO_SECRET_KEY and POSTGRES_PASSWORD twice, all
-    # in cleartext on a terminal and in whatever scrollback or CI log that
-    # terminal writes to. --no-interpolate prints
-    # `${CLOUDFLARE_TUNNEL_TOKEN}` instead, which answers every question about
-    # the shape of the document and none about its secrets.
-    #
-    # The token moved off the command line on 2026-09-01, because argv is
-    # readable through /proc by every local account where an environment is
-    # not. It is now `TUNNEL_TOKEN` under `environment:`, and this paragraph
-    # used to say the merged output carried `--token` on the line below, which
-    # stopped being true with that move. What did not change is the reason for
-    # the flag: `docker compose config` substitutes an environment value just
-    # as readily as a command line one, so the token is still printed in
-    # cleartext without it.
-    #
-    # It is not deleted, because a compose override cannot delete a service and
-    # faking it with an inert command would produce a container that is up and
-    # doing nothing, which is the exact shape of failure this whole subproject
-    # keeps finding. Absent and named is honest; present and pretending is not.
-    profiles: ["tunnel-is-never-started-from-a-test"]
