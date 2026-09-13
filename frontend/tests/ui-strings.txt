@@ -49,6 +49,12 @@
 ",c)}}catch(e){}
 "; see chapter 10 point 2 of docs/dpia.md
 #
+#0b6e63
+#0e1519
+#1f7c70
+#45535f
+#e8ecf0
+#ffffff
 #pagina
 %
 %s | Ampeer
@@ -126,6 +132,7 @@ Ampeer rekent uit wat het einde van de saldering u kost. Wij verkopen niets en w
 Ampeer stelt u een paar vragen en rekent daar een antwoord mee uit. Deze pagina zegt wat wij daarvan bewaren, hoe lang, en wie het verder kan zien. Wij hebben het zo kort mogelijk opgeschreven.
 Ampeer verkoopt geen panelen, geen batterijen en geen energiecontract, en plaatst geen advertenties. Niemand betaalt ons voor de uitkomst die u krijgt.
 Ampeer verkoopt geen zonnepanelen, geen thuisbatterijen en geen energiecontract, en plaatst geen advertenties. Niemand betaalt ons voor de uitkomst die u krijgt. Daarom is nu geen batterij hier een geldige uitkomst.
+Ampeer, met een bandbreedte in plaats van een enkel getal
 Apparaten die niet kunnen wachten, zoals een koelkast of verlichting, vallen hier buiten. Die draaien wanneer ze moeten.
 Autoriteit Persoonsgegevens
 Beantwoord deze vraag om verder te gaan.
@@ -713,6 +720,7 @@ als middelpunt, uit
 ampeer-antwoorden
 ampeer-gegevens.json
 ampeer-thema
+ampeer.nl
 apr
 aug
 betaalt de server en de domeinnaam zelf.
@@ -759,6 +767,7 @@ http://127.0.0.1:8000
 https://ampeer.nl
 https://schema.org
 https://www.autoriteitpersoonsgegevens.nl/
+image/png
 in.
 info@ampeer.nl
 inloggen
