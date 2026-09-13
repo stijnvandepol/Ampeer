@@ -10,7 +10,16 @@ repos:
       - id: check-merge-conflict
       - id: check-added-large-files
         args: [--maxkb=1024]
+      # Two entries rather than one --unsafe everywhere. `--unsafe` checks
+      # syntax and stops resolving tags, which is what compose's own
+      # `!override` needs and what every other YAML file here should not get:
+      # a typo that makes a document parse as a string still has to fail.
       - id: check-yaml
+        exclude: ^infra/compose\.test\.yml$
+      - id: check-yaml
+        name: check yaml (compose tags allowed)
+        args: [--unsafe]
+        files: ^infra/compose\.test\.yml$
       - id: check-toml
       - id: mixed-line-ending
         args: [--fix=lf]

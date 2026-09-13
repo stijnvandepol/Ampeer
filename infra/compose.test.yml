@@ -79,7 +79,13 @@ services:
       - ./fixtures/mail:/srv/mail
 
   web:
-    ports:
+    # `!override` and not a plain list. Compose MERGES two `ports:` lists
+    # rather than replacing one with the other, so without this tag a local run
+    # published 0.0.0.0:80 from docker-compose.yml as well as the loopback
+    # binding below, and the override that exists to make the opening smaller
+    # made it larger instead. Seen on 2026-09-13 in `docker compose ps`, which
+    # listed both mappings on the same container.
+    ports: !override
       # 127.0.0.1 and not 0.0.0.0. Docker publishes a port by writing a
       # forwarding rule that is evaluated before the host firewall, so
       # "8080:80" would be reachable from the local network no matter what the
