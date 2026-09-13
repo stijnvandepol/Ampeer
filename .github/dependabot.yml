@@ -34,6 +34,31 @@ updates:
       day: "monday"
     open-pull-requests-limit: 5
     target-branch: "dev"
+    ignore:
+      # @types/node describes a runtime rather than shipping one, so its major
+      # is not a version to choose: it is a reading of frontend/.nvmrc, which
+      # every job resolves through `node-version-file`. Types for a newer major
+      # declare APIs the installed Node does not have, and nothing in this
+      # repository would go red for it. `typecheck` would pass over a call that
+      # crashes at runtime, which is the one failure that gate exists to catch.
+      #
+      # Refused twice before this line existed, as #55 and again as #76 one
+      # cycle later. Closing the pull request is not an answer the updater
+      # remembers; it proposes the next patch of the same major and the refusal
+      # has to be argued again by whoever is looking.
+      #
+      # Majors only. A patch inside major 24 is still a better description of
+      # the runtime we run and is taken like any other. There is no security
+      # case being suppressed here either: this package is type definitions and
+      # executes nothing, in CI or in a browser.
+      #
+      # The pairing this protects is asserted by
+      # test_the_node_types_describe_the_node_that_runs in
+      # tests/test_pipeline_contract.py, so raising .nvmrc without raising the
+      # types goes red rather than quiet. Lift both together and delete
+      # nothing here: the rule is about majors, not about 24.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   # The OS layer that actually ships. Five base images are pinned by digest and
   # until 2026-09-02 nothing revisited any of them: no gate in this repository

@@ -67,7 +67,7 @@ if [ ! -f "${ENV_FILE}" ]; then
 fi
 
 # Parsed, never sourced. `source` on this file executes it, and it holds a
-# signing key, a database password and a tunnel token: a stray backtick or a $(
+# signing key, a database password and a mail API key: a stray backtick or a $(
 # in any of them would become a command running as whoever deploys. Compose
 # does not treat an env file as shell either, so parsing it is also the reading
 # that matches what compose will do with it.

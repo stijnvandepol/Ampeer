@@ -632,8 +632,15 @@ def test_the_backend_network_can_still_reach_the_outside() -> None:
 SERVICE_NAMES: tuple[str, ...] = tuple(sorted(_services()))
 
 #: What a credential looks like in a variable name. Matched case insensitively
-#: against the whole command line, so `${CLOUDFLARE_TUNNEL_TOKEN}`,
-#: `--api-secret`, and `PGPASSWORD=...` are all one finding.
+#: against the whole command line, so `--api-secret`, `PGPASSWORD=...` and any
+#: `${...TOKEN}` are all one finding.
+#:
+#: The finding this was written for was the tunnel connector, which took its
+#: token as an argument and so published it in /proc/<pid>/cmdline to every
+#: local account. That service is gone since 2026-09-13, along with every other
+#: mention of it: the stack now publishes a port and a tunnel outside it
+#: connects. The rule is not about that service, though, and `db` still puts a
+#: real argv in the file for this to read, so nothing here is vacuous.
 CREDENTIAL_WORDS = ("token", "password", "secret", "credential", "apikey", "api_key")
 
 

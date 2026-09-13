@@ -758,6 +758,35 @@ def test_every_lockfile_has_something_that_updates_it() -> None:
     assert ("github-actions", "/") in configured, "nothing updates the pinned action SHAs"
 
 
+def test_dependabot_cannot_propose_the_node_types_apart_from_node() -> None:
+    """The pairing above is asserted; this is what stops it being argued weekly.
+
+    `test_the_node_types_describe_the_node_that_actually_runs` goes red when
+    @types/node and .nvmrc disagree, and it did its job: the bump was refused
+    on 2026-08-24 as #55 and again on 2026-09-13 as #76. Closing a pull request
+    is not something the updater remembers, so it proposed the next patch of
+    the same major and the same reasoning had to be found again by whoever was
+    looking. The `ignore` entry is the part it does remember.
+
+    Majors only, and that is asserted rather than assumed: a patch inside the
+    major we run is a better description of the runtime and has to keep
+    arriving. An `ignore` with no `update-types` would silence the whole
+    package, which is how a dependency stops being updated by accident, and
+    this file exists because the header of dependabot.yml says pinning without
+    an updater trades one risk for another.
+    """
+    npm = next(
+        update
+        for update in yaml.safe_load(DEPENDABOT.read_text(encoding="utf-8"))["updates"]
+        if (update["package-ecosystem"], update["directory"]) == ("npm", "/frontend")
+    )
+    ignored = {rule["dependency-name"]: rule.get("update-types") for rule in npm.get("ignore", [])}
+    assert ignored.get("@types/node") == ["version-update:semver-major"], (
+        "dependabot may propose @types/node freely again, or has been told to "
+        f"ignore it entirely: {ignored.get('@types/node')!r}"
+    )
+
+
 def test_the_language_boundary_check_is_still_in_the_tree() -> None:
     """The check the spec asks for, and the file it compares against.
 
