@@ -201,7 +201,7 @@ jobs:
       # request, so this literal cannot drift from the repository. It can only
       # disagree with the host, which is exactly the disagreement worth
       # stopping a deploy for.
-      PREFLIGHT_SHA256: fd73aa5090808cc35d4ba6e70bd811227b00872a5fa3d8a18e196ecf55de4074
+      PREFLIGHT_SHA256: 02ba5f88e8b4e30cf90b74ee2829bb6d25d6b5ab8d4d12aa6443a3ceb96cc46d
       # The sha256 of infra/docker-compose.yml in this repository at this tag,
       # for the same reason and with one difference: this is the file that
       # decides what actually runs.
