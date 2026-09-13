@@ -107,8 +107,36 @@ def test_every_live_check_is_gated_on_the_same_variable() -> None:
         )
 
 
+class _ComposeLoader(yaml.SafeLoader):
+    """SafeLoader that understands compose's own merge tags.
+
+    `!override` and `!reset` tell compose to replace a value from an earlier
+    file rather than merge into it. They are compose's, not YAML's, so
+    `safe_load` refuses the document outright. Reading them as their plain
+    value is right for every test here: what a test asks is what the value is,
+    and `test_the_override_replaces_the_published_port_rather_than_adding_to_it`
+    asserts the tag's presence separately, on the raw text, because that is the
+    part a parsed document cannot show.
+    """
+
+
+def _construct_tagged(loader: yaml.SafeLoader, node: yaml.Node) -> Any:
+    """The tagged value, with the tag dropped."""
+    if isinstance(node, yaml.SequenceNode):
+        return loader.construct_sequence(node, deep=True)
+    if isinstance(node, yaml.MappingNode):
+        return loader.construct_mapping(node, deep=True)
+    if isinstance(node, yaml.ScalarNode):
+        return loader.construct_scalar(node)
+    raise TypeError(f"compose tag on an unexpected node: {node!r}")
+
+
+for _tag in ("!override", "!reset"):
+    _ComposeLoader.add_constructor(_tag, _construct_tagged)
+
+
 def _compose_document(path: Path) -> dict[str, Any]:
-    document: dict[str, Any] = yaml.safe_load(path.read_text(encoding="utf-8"))
+    document: dict[str, Any] = yaml.load(path.read_text(encoding="utf-8"), Loader=_ComposeLoader)
     return document
 
 
@@ -581,19 +609,31 @@ def test_the_override_introduces_no_image_of_its_own() -> None:
     assert not offenders, f"the override names its own images for: {offenders}"
 
 
-def test_the_override_narrows_the_published_port_to_this_machine() -> None:
-    """The production file publishes 80 on every interface, because a tunnel on
-    another machine has to reach it. A developer machine needs no such thing.
+def test_the_override_replaces_the_published_port_rather_than_adding_to_it() -> None:
+    """The tag is the whole fix, and it is invisible in a parsed document.
 
-    This used to assert that the production file published nothing at all. It
-    cannot any more, and what replaces it is the property that still matters:
-    the override may only ever make the opening smaller. A `127.0.0.1` in the
-    production file would be a local binding no tunnel could reach, and a bare
-    port in this one would open a developer machine to its network.
+    Compose MERGES two `ports:` lists rather than replacing one with the
+    other. Without `!override` a local run published 0.0.0.0:80 from
+    docker-compose.yml as well as the loopback binding from this file, so the
+    override that exists to make the opening smaller made it larger, on a
+    machine that is on somebody's wifi. Seen on 2026-09-13 in
+    `docker compose ps`, which listed both mappings on one container, and not
+    seen by the first version of this test, which compared the two files and
+    never asked what compose does with them.
+
+    Asserted on the raw text, because a parsed document cannot show a tag.
+
+    Red proof: drop the tag and `docker compose ... ps` shows two mappings
+    again; this assertion is what makes that visible without Docker.
     """
+    raw = OVERRIDE.read_text(encoding="utf-8")
+    assert "ports: !override" in raw, (
+        "the override adds a port mapping instead of replacing the production "
+        "one, so a local run publishes on every interface as well"
+    )
+
     production = _compose_document(COMPOSE)["services"]["web"]["ports"]
     override = _compose_document(OVERRIDE)["services"]["web"]["ports"]
-
     assert production == ["80:80"], production
     assert "127.0.0.1" not in COMPOSE.read_text(encoding="utf-8"), (
         "the production file binds to the loopback, which no other machine can reach"
