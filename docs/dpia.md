@@ -42,9 +42,30 @@ wachtwoordhash en een bijgehouden inlogpoging, en dat is niet de kwartierdata
 die hierboven het hoge risico beschrijft: een inlogformulier op zichzelf is
 geen artikel 35-geval. Maar de afweging hierboven zei zelf dat de reden om te
 wachten bij deze fase zou verdwijnen, en dat is precies wat er gebeurd is: een
-beoordeling is nu waarschijnlijk wel verplicht. Hoofdstuk 9 zet uiteen wat er
-bij fase 1 is bijgekomen en wat fase 2 nog brengt. Hoofdstuk 10 laat de
-conclusie zelf aan de verwerkingsverantwoordelijke.
+beoordeling is nu waarschijnlijk wel verplicht. Hoofdstuk 10 laat de conclusie
+zelf aan de verwerkingsverantwoordelijke.
+
+**En sinds 2026-09-13 is de zin "die data is er niet" onwaar.** Dat is de zin
+waarop de hele afweging hierboven rust, dus hij wordt hier rechtgezet in plaats
+van herschreven: hij beschreef fase 0.5 en was toen juist. Met de
+meterkoppeling van fase 2 bestaat de kwartierdata wel. Zij komt binnen via een
+push uit de P1-poort, staat negentig dagen in `QuarterReading`, en daarna
+blijven de uuraggregaten staan. Hoofdstuk 2 beschrijft beide tabellen en
+hoofdstuk 4 hoe lang elk blijft.
+
+Daarmee is precies de verwerking gaan bestaan die deze paragraaf als het hoge
+risico aanwijst, en is de voorwaarde vervuld die hoofdstuk 9 stelde. "Waarschijnlijk
+wel verplicht" hierboven gold voor een dienst zonder die data. Voor de dienst
+zoals hij vandaag draait staat er geen "waarschijnlijk" meer tussen: artikel 35
+noemt stelselmatige en uitgebreide beoordeling van persoonlijke aspecten, en een
+kwartierreeks van het elektriciteitsverbruik van een woning is wat de EDPB in
+haar richtsnoeren over artikel 35 zelf als voorbeeld van een hoog risico noemt.
+
+Wat dat betekent voor wie dit leest: punt 1 van hoofdstuk 10 is geen
+toekomstige vraag meer. Dit document verzamelt de feiten en de maatregelen; de
+formele beoordeling en de conclusie zijn het oordeel van de
+verwerkingsverantwoordelijke, en die staat vandaag open terwijl de verwerking
+draait. Hoofdstuk 9 zet uiteen wat fase 1, 2 en 3 elk hebben gebracht.
 
 ## 2. Wat wij verwerken
 
@@ -605,7 +626,7 @@ naast de padvorm moeten aannemen zolang er links van voor de wijziging rondgaan.
 Die links leven negentig dagen, dus de padvorm kan niet in een keer weg. Zolang
 dat niet is gebeurd, staat de regel hierboven in de tabel zonder iets ernaast.
 
-## 9. Wat er is veranderd bij fase 1, en wat fase 2 nog brengt
+## 9. Wat fase 1, 2 en 3 elk hebben gebracht
 
 Dit document beschreef fase 0.5 en is voor fase 1 herschreven: de hoofdstukken
 2, 4, 7 en 10 hierboven beschrijven de accountlaag zoals hij nu draait, niet
@@ -644,10 +665,19 @@ vooruitblik meer. Op een vijfde punt is het dat nog wel.
   het eerst gediend. Tot fase 3 werd die data verzameld voor een doel dat nog
   niet bestond.
 
-Zodra die laatste verwerking bestaat, moet dit document opnieuw geschreven
-worden, en dan is een beoordeling niet langer waarschijnlijk verplicht maar
-zeker verplicht: de kwartierdata is precies wat hoofdstuk 1 als het hoge risico
-beschrijft.
+**Die laatste verwerking bestaat.** Deze alinea stond hier als voorwaarde,
+in de toekomende tijd, en de voorwaarde is vervuld: de kwartierdata is precies
+wat hoofdstuk 1 als het hoge risico beschrijft, en zij wordt sinds de
+meterkoppeling verwerkt. Een beoordeling is daarmee niet langer waarschijnlijk
+verplicht maar verplicht.
+
+De hoofdstukken hierboven zijn voor fase 2 en fase 3 bijgewerkt en beschrijven
+de dienst zoals hij draait, dus "opnieuw geschreven worden" is geen open post
+meer. Wat wel open staat is de beoordeling zelf, en die staat op hoofdstuk 10
+punt 1, waar zij hoort: een document kan de feiten leveren en niet het oordeel.
+Zolang dat oordeel niet is vastgelegd, draait de verwerking met een beoordeling
+die verplicht is en niet is uitgevoerd, en dat is een feit over vandaag en niet
+over een volgende fase.
 
 ## 10. Wat bij Stijn ligt
 
