@@ -562,3 +562,72 @@ def test_nothing_is_served_that_nothing_asks_for() -> None:
         + "\n  ".join(unused)
         + "\nEither use them or delete them; a static export serves whatever is here."
     )
+
+
+#: The documents that describe the service as it is, as opposed to the dated
+#: plans and specs under docs/superpowers/, which describe what somebody
+#: intended on a day and name test functions that were often renamed before
+#: they were written. Those are a record and correcting them would be editing
+#: history; these are read by somebody deciding what is true today.
+LIVING_DOCS = (
+    "CLAUDE.md",
+    "CODE_GUIDELINES.md",
+    "docs/decisions.md",
+    "docs/dpia.md",
+    "docs/methodologie.md",
+    "docs/verwerkersregister.md",
+    "infra/README.md",
+)
+
+#: A test name, possibly hard wrapped. Markdown in this repository is wrapped
+#: at about 79 columns and an identifier is not exempt, so
+#: `test_the_modelled_export_stops_earlier_in_the_day_than_the_country` and
+#: `_does` land on separate lines in docs/decisions.md. Reading only the first
+#: half and reporting it as missing is how a check like this earns a reputation
+#: for crying wolf and then gets deleted.
+_CITED_TEST = re.compile(r"test_[a-z0-9_]{4,}(?:\n[a-z0-9_]+)?")
+
+
+def _defined_test_names() -> set[str]:
+    """Every test function this suite defines, plus every test module name.
+
+    Module names are included because a document that says "see
+    tests/test_infra.py" is citing a file and not a function, and both forms
+    appear.
+    """
+    names: set[str] = set()
+    for path in (REPO_ROOT / "tests").rglob("*.py"):
+        names.add(path.stem)
+        names.update(
+            re.findall(r"^def (test_[a-z0-9_]+)", path.read_text(encoding="utf-8"), re.MULTILINE)
+        )
+    return names
+
+
+def test_every_test_named_in_a_living_document_exists() -> None:
+    """A document that points at a test that is gone is worse than one that
+    points at nothing.
+
+    It reads as evidence. Somebody deciding whether a property is enforced
+    looks up the name, does not find it, and has to work out whether the test
+    was renamed or the guarantee was dropped; more often they take the sentence
+    at its word and move on. This repository cites test names 568 times, so the
+    surface for that is large and it grows with every rename.
+
+    Written on 2026-09-13 after a paragraph added to docs/decisions.md an hour
+    earlier cited `test_the_advice_side_cannot_read_what_a_household_consented_to`,
+    which has never existed. The real name is
+    `test_nothing_that_computes_an_advice_can_see_a_consent`. Nothing would have
+    said so.
+    """
+    defined = _defined_test_names()
+    dangling: list[str] = []
+    for relative in LIVING_DOCS:
+        path = REPO_ROOT / relative
+        if not path.is_file():
+            continue
+        for match in _CITED_TEST.findall(path.read_text(encoding="utf-8")):
+            name = match.replace("\n", "")
+            if name not in defined and name.split("\n")[0] not in defined:
+                dangling.append(f"{relative}: {name}")
+    assert not dangling, "documents name tests that do not exist:\n  " + "\n  ".join(dangling)
