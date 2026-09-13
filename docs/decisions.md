@@ -2089,3 +2089,27 @@ Eight sit outside that document.
   `User` row, which is a DPIA decision and not one to take inside a plan.
   It becomes a live question only once there are accounts nobody confirms,
   and chapter 10 of the DPIA does not list it yet for that reason.
+
+- **Whether nginx should refuse a forwarded header from anywhere but the
+  connector.** Until 2026-09-13 the stack published no port, so the only way to
+  reach nginx was through a `cloudflared` container inside it, and the hop count
+  `DJANGO_NUM_PROXIES` assumes was guaranteed by the topology. The connector now
+  runs outside the stack and `web` publishes 80 on every interface, so the
+  guarantee is gone: a caller who reaches that port directly is one hop short of
+  the chain the count assumes, the throttle keys on a value they wrote, and they
+  can rotate it per request. That is the same defect measured on 2026-08-21,
+  reachable again by a different route.
+
+  Scoped, not open: it needs routing to the host, so the host firewall closes it
+  completely and `infra/README.md` now says so under "What runs" in those terms.
+  The question is whether to close it a second time in nginx as well, with
+  `set_real_ip_from <connector>` so a forwarded header from any other source is
+  discarded rather than counted.
+
+  Not taken here because it needs the connector's address, which is a fact about
+  one deployment and is not in this repository. It would arrive as another
+  required environment variable, and `scripts/preflight_env.sh` would have to
+  refuse a host without it, which is the shape every other deployment fact in
+  this stack already has. Worth doing the day a second machine can route to the
+  host for any reason, and worth doing anyway if the answer to "who else is on
+  that subnet" is ever longer than one line.

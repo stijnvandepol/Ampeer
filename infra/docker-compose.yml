@@ -10,10 +10,27 @@
 # known until the deploy that creates it, and tests/test_infra.py asserts that
 # the exemption is exactly those two names.
 #
-# Nothing in this file makes anything reachable. cloudflared opens an outbound
-# connection, so there is no published port, no host network, and no inbound
-# firewall rule anywhere on the path. Adding one here is the single change that
-# would undo that, which is why a test reads this file for it.
+# EXACTLY ONE THING IN THIS FILE IS REACHABLE, and it is `web` on port 80.
+#
+# It used to be none: a `cloudflared` container ran in this stack and opened an
+# outbound connection, so there was no published port anywhere on the path.
+# That connector now runs outside this stack, on another machine, and reaches
+# the site the way anything else would, so the port has to exist and has to be
+# published on every interface rather than the loopback.
+#
+# What that costs is real and is written down rather than implied: anything
+# that can route to this host can now reach nginx on port 80, which before was
+# true of nothing at all. The host firewall is what narrows that to the machine
+# the connector runs on, and it is not in this file, so this file cannot assert
+# it. The "What runs" section of infra/README.md is where that rule is
+# written, and it says why the host is the only place it can be made: docker
+# publishes through its own iptables chain, which is evaluated before the
+# host firewall's INPUT rules.
+#
+# What is still true is that `web` is the ONLY service with a `ports:` entry.
+# `api` on 8000 and `db` on 5432 are reachable from inside the compose network
+# and from nowhere else, and adding a second `ports:` is the single change that
+# would undo it. tests/test_infra.py reads this file for exactly that.
 name: ampeer
 
 # How long the container logs live, chosen here rather than inherited.
@@ -114,15 +131,18 @@ x-hardening: &no-new-privileges
 #                 rather than causing a kill.
 #   web     256m  nginx with `worker_processes auto`, so one worker per core,
 #                 at roughly 10 MB each with this configuration and no cache.
-#   tunnel  256m  cloudflared is a Go binary holding a connection pool.
 #
-# These are caps, not reservations. Their sum, 1.75 GB, may be more than the
-# LXC has, and that is the intended shape: the property being bought is that no
-# single container can take the machine, not that the machine is divided up.
+# There was a fourth row, `tunnel 256m`, for the cloudflared container. That
+# container is gone, so the sum is 1.5 GB and not the 1.75 GB this paragraph
+# claimed for a day after it left.
+#
+# These are caps, not reservations. Their sum may be more than the LXC has, and
+# that is the intended shape: the property being bought is that no single
+# container can take the machine, not that the machine is divided up.
 #
 # NOT SET HERE, and this is a decision rather than an oversight: `read_only`
-# with `tmpfs` for the paths each image writes to. All four would need at least
-# one such path. The api's gunicorn 26 control server writes under
+# with `tmpfs` for the paths each image writes to. All three would need at
+# least one such path. The api's gunicorn 26 control server writes under
 # /home/ampeer, which api.Dockerfile already had to discover the hard way.
 # nginx writes /var/cache/nginx and its pid file. postgres writes
 # /var/run/postgresql. None of those lists can be confirmed by reading, only by

@@ -201,7 +201,7 @@ jobs:
       # request, so this literal cannot drift from the repository. It can only
       # disagree with the host, which is exactly the disagreement worth
       # stopping a deploy for.
-      PREFLIGHT_SHA256: fd73aa5090808cc35d4ba6e70bd811227b00872a5fa3d8a18e196ecf55de4074
+      PREFLIGHT_SHA256: 02ba5f88e8b4e30cf90b74ee2829bb6d25d6b5ab8d4d12aa6443a3ceb96cc46d
       # The sha256 of infra/docker-compose.yml in this repository at this tag,
       # for the same reason and with one difference: this is the file that
       # decides what actually runs.
@@ -221,7 +221,7 @@ jobs:
       # drift from the repository. Changing that file therefore means changing
       # this line in the same commit, which is the point: it can then only
       # disagree with the host.
-      COMPOSE_SHA256: f975f643b2ecaba09b9b56aef4ab656b9b67502b82bdf555ddba2f7c202a7ce7
+      COMPOSE_SHA256: 48035023954cd833b4ff210c6784ade1605cd7444c96fe08aab140e70e3575fc
       # The sha256 of scripts/backup_db.sh in this repository at this tag, for
       # the same reason as the two above. This one guards a retention window:
       # an older copy on the host keeps a different number of dumps and allows
