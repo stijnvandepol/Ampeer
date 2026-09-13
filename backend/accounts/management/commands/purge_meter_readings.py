@@ -27,11 +27,9 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
-from accounts.models import HourAggregate, QuarterReading
+from accounts.models import RETENTION, HourAggregate, QuarterReading
 
-#: How long a quarter reading survives before it is folded into an hour and
-#: removed. docs/dpia.md's retention table quotes this in words.
-RETENTION = timedelta(days=90)
+__all__ = ["GRACE_DAYS", "RETENTION", "Command"]
 
 #: How long past `RETENTION` a quarter may sit before --check calls the
 #: timer dead. The timer fires daily, so a timer that has not run yet today is
