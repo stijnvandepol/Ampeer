@@ -788,3 +788,27 @@ def test_no_credential_is_passed_on_a_command_line(name: str) -> None:
         f"{name} names {found} on its command line, where /proc/<pid>/cmdline makes it "
         f"readable by every local account: {command!r}. Pass it in `environment:` instead."
     )
+
+
+def test_nginx_answers_any_host_so_django_is_the_only_gate_on_the_name() -> None:
+    """Which is fine, and is only fine because the README says what it means.
+
+    `server_name _` is a catch all, so a second hostname pointed at this stack
+    serves every static page and then fails every API call, because Django
+    refuses a Host outside ALLOWED_HOSTS before a view runs. A page that renders
+    and a button that does not is harder to diagnose than a site that is down.
+
+    Asserted together rather than separately: the catch all is a choice, and a
+    choice whose consequence is only written in a document is one somebody
+    undoes. If nginx ever starts naming hosts itself, this test says so and the
+    paragraph in the README has to be rewritten in the same commit.
+    """
+    config = (INFRA / "nginx" / "nginx.conf").read_text(encoding="utf-8")
+    assert re.search(r"^\s*server_name\s+_;", config, re.MULTILINE), (
+        "nginx no longer answers to any host; the README paragraph about a "
+        "second hostname describes a stack that has changed underneath it"
+    )
+    readme = README.read_text(encoding="utf-8")
+    assert "www.ampeer.nl" in readme, (
+        "the README no longer warns what a second hostname does to the API"
+    )
