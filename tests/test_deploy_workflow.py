@@ -1509,3 +1509,60 @@ def test_no_unit_puts_a_credential_where_the_host_can_read_it(unit: str) -> None
     )
     passwords = [line for line in directives if "PASSWORD" in line or "SECRET" in line]
     assert not passwords, f"{unit} names a secret on a directive line: {passwords}"
+
+
+INSTALLER = REPO_ROOT / "scripts" / "install_host.sh"
+
+
+def test_the_host_installer_reads_its_digests_out_of_the_workflow() -> None:
+    """Three literals that must agree would be two that eventually will not.
+
+    The installer copies exactly the files the deploy checks, and it refuses a
+    copy whose digest is not the pinned one. That refusal is only worth
+    anything if the number it compares against is the workflow's own: a script
+    carrying its own copy of the digest would happily install a file the deploy
+    then rejects, which is a worse outcome than doing nothing, and it would go
+    stale on the first release that changes one of the three.
+    """
+    body = INSTALLER.read_text(encoding="utf-8")
+    assert ".github/workflows/deploy.yml" in body, (
+        "the installer no longer reads the workflow, so its digests are its own"
+    )
+    assert not re.search(r"[0-9a-f]{64}", body), (
+        "the installer carries a literal digest; it has to read them from the workflow"
+    )
+    for name in ("COMPOSE_SHA256", "PREFLIGHT_SHA256", "BACKUP_SHA256"):
+        assert name in body, f"the installer does not check {name}"
+
+
+def test_the_host_installer_writes_no_secret_and_starts_nothing() -> None:
+    """The two things it must never grow into.
+
+    Writing .env would mean a signing key, a database password and a mail API
+    key travelling between machines, and the whole reason that file is absent
+    from every copy command in this repository is that it belongs on one.
+    Starting the stack would mean a second path to a running deploy that does
+    less than the real one: no digest pinning to what CI built, no migration,
+    no fallback to the previous release.
+    """
+    body = INSTALLER.read_text(encoding="utf-8")
+    assert not re.search(r"scp[^\n]*\.env|cat[^\n]*>[^\n]*\.env", body), (
+        "the installer writes or copies an env file"
+    )
+    assert not re.search(r"docker\s+compose[^\n]*\b(up|start|restart)\b", body), (
+        "the installer starts the stack; the deploy is what does that, and it "
+        "pins digests, migrates and falls back"
+    )
+
+
+def test_the_host_installer_is_never_run_by_a_workflow() -> None:
+    """It writes to the host, so a workflow calling it would put back exactly
+    the property the self-hosted runner exception rests on not having: a job
+    that can place files on the LXC."""
+    workflows = REPO_ROOT / ".github" / "workflows"
+    offenders = [
+        path.name
+        for path in sorted(workflows.glob("*.yml"))
+        if "install_host" in path.read_text(encoding="utf-8")
+    ]
+    assert not offenders, f"install_host.sh is called by a workflow: {offenders}"

@@ -635,6 +635,13 @@ def test_the_override_replaces_the_published_port_rather_than_adding_to_it() -> 
     seen by the first version of this test, which compared the two files and
     never asked what compose does with them.
 
+    Since 2026-09-14 the production file publishes 8080 as well, so the merged
+    pair would be 0.0.0.0:8080 and 127.0.0.1:8080 and the container would
+    refuse to start on an address already in use. That is a louder failure than
+    the quiet one this test was written for, and it is not a reason to keep the
+    tag any less deliberately: a loud failure on a developer machine is still
+    the override doing the opposite of what it exists for.
+
     Asserted on the raw text, because a parsed document cannot show a tag.
 
     Red proof: drop the tag and `docker compose ... ps` shows two mappings
@@ -648,7 +655,7 @@ def test_the_override_replaces_the_published_port_rather_than_adding_to_it() -> 
 
     production = _compose_document(COMPOSE)["services"]["web"]["ports"]
     override = _compose_document(OVERRIDE)["services"]["web"]["ports"]
-    assert production == ["80:80"], production
+    assert production == ["8080:80"], production
     assert "127.0.0.1" not in COMPOSE.read_text(encoding="utf-8"), (
         "the production file binds to the loopback, which no other machine can reach"
     )

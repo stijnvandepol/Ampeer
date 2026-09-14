@@ -6,9 +6,12 @@
 # defect in production, and the third is what keeps this file away from it:
 #
 #   1. It moves the published port to the loopback. docker-compose.yml
-#      publishes 80 on every interface, because a tunnel outside the stack has
-#      to reach it from another machine. A developer machine needs no such
+#      publishes 8080 on every interface, because a tunnel outside the stack
+#      has to reach it from another machine. A developer machine needs no such
 #      thing, so here it is 127.0.0.1:8080 and a way in from this machine only.
+#      Same port number on both sides since 2026-09-14, so the address in
+#      section 7 of infra/README.md is the address on the host as well, and the
+#      interface is now the only difference between them.
 #   2. It mounts a synthetic consumption profile. See the header of the file it
 #      mounts: it is a flat curve, it proves the plumbing, and the arithmetic
 #      it produces is not an advice.
@@ -85,6 +88,10 @@ services:
     # binding below, and the override that exists to make the opening smaller
     # made it larger instead. Seen on 2026-09-13 in `docker compose ps`, which
     # listed both mappings on the same container.
+    #
+    # Since both files name 8080 the merged pair would now collide outright and
+    # the container would refuse to start on an address already in use. Louder,
+    # and no reason to need the tag less.
     ports: !override
       # 127.0.0.1 and not 0.0.0.0. Docker publishes a port by writing a
       # forwarding rule that is evaluated before the host firewall, so
@@ -93,6 +100,7 @@ services:
       # interface is the whole protection here.
       #
       # Port 80 inside, because that is what web.Dockerfile exposes and what
-      # the tunnel route names on the real host. 8080 outside, because binding
-      # 80 on a developer machine needs privileges this does not have.
+      # nginx.conf listens on. 8080 outside, which is what the host publishes
+      # too and what the tunnel route names, so what is rehearsed here differs
+      # from the real thing in the interface and in nothing else.
       - "127.0.0.1:8080:80"
