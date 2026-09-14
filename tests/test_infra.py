@@ -120,7 +120,7 @@ def test_only_the_web_container_publishes_a_port_and_only_that_one() -> None:
 
     publishing = {name for name, spec in services.items() if spec.get("ports")}
     assert publishing == {"web"}, f"services publishing ports: {sorted(publishing)}"
-    assert services["web"]["ports"] == ["80:80"], services["web"]["ports"]
+    assert services["web"]["ports"] == ["8080:80"], services["web"]["ports"]
 
     host_network = [
         name for name, spec in services.items() if "host" in str(spec.get("network_mode", ""))
