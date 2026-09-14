@@ -259,10 +259,21 @@ def test_the_build_job_asks_for_exactly_two_permissions() -> None:
     assert _job("build")["permissions"] == {"contents": "read", "packages": "write"}
 
 
-def test_the_deploy_job_cannot_read_the_repository() -> None:
-    """It pulls two private images, so it needs `packages: read` and nothing
-    else. Declaring any permission at all sets every unnamed one to none."""
-    assert _job("deploy")["permissions"] == {"packages": "read"}
+def test_the_deploy_job_reads_and_writes_nothing_else() -> None:
+    """Two reads and no writes, asserted as the exact set.
+
+    This demanded `packages: read` alone until 2026-09-14, when the job gained
+    a checkout. A token without `contents: read` cannot see a private
+    repository at all, and GitHub says `Repository not found` rather than
+    forbidden so that a token cannot be used to enumerate private repositories.
+    So the checkout costs exactly this one permission.
+
+    Asserted as equality rather than as a subset, because that is what keeps it
+    honest: declaring any permission sets every unnamed one to none, and a
+    third entry appearing here should be a decision somebody made rather than a
+    line that slipped in with something else.
+    """
+    assert _job("deploy")["permissions"] == {"contents": "read", "packages": "read"}
 
 
 def test_the_deploy_job_does_not_leave_a_registry_credential_behind() -> None:
