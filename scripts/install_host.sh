@@ -81,7 +81,14 @@ copy_pinned() {
   echo "  ${name}  ${actual}"
 }
 
+# SC2029 below, three times and on purpose. shellcheck notes that ${STACK} and
+# ${PROFILE_DIR} expand here rather than on the far side, which is exactly what
+# is wanted: they are constants two lines above, the host never chooses them,
+# and expanding them remotely would mean the remote shell deciding where this
+# script writes. The note is right to exist and wrong here, so it is turned off
+# where it fires rather than for the file.
 echo "making ${STACK} and ${PROFILE_DIR} on ${HOST}"
+# shellcheck disable=SC2029
 ssh "${HOST}" "mkdir -p ${STACK} ${PROFILE_DIR}"
 
 echo "copying the three files the deploy checks by digest"
@@ -117,12 +124,14 @@ else
 fi
 
 echo "checking the environment file"
+# shellcheck disable=SC2029
 if ! ssh "${HOST}" "test -f ${STACK}/.env"; then
   fail "no ${STACK}/.env, and this script will not write one"
   fail "it holds a signing key, a database password and a mail API key"
   fail "write it on the host from infra/.env.example, then run this again"
   exit 1
 fi
+# shellcheck disable=SC2029
 ssh "${HOST}" "bash ${STACK}/preflight_env.sh ${STACK}/.env"
 
 echo
