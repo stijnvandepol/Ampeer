@@ -172,6 +172,17 @@ jobs:
     # Pull two private packages, and nothing else. Naming one permission sets
     # every unnamed one to none, so this token cannot read the repository.
     permissions:
+      # `contents: read` since 2026-09-14, and it is the price of the checkout.
+      # Without it the token cannot see a private repository at all: the first
+      # attempt answered `remote: Repository not found`, which is what GitHub
+      # says instead of "forbidden" so that a token cannot be used to discover
+      # which private repositories exist.
+      #
+      # It is a real widening and worth naming as one. This job can now read
+      # the repository, where before it could only pull two images. What it
+      # cannot do is write anything: `contents` is read, `packages` is read,
+      # and declaring any permission sets every unnamed one to none.
+      contents: read
       packages: read
     env:
       # Shell environment beats the env file in compose interpolation, so this
