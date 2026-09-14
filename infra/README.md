@@ -103,7 +103,27 @@ decision for the host** and cannot be made in the compose file. On a machine
 whose only other occupant is the connector, binding it to the interface that
 connector uses is the smallest opening that works.
 
-**Why that rule is not optional.** nginx appends to `X-Forwarded-For` and
+**One hostname, and what happens if a second one appears.** `server_name _` in
+`infra/nginx/nginx.conf` is a catch all: nginx answers to any `Host` it is sent.
+What decides which names are real is `DJANGO_ALLOWED_HOSTS`, and it names
+`ampeer.nl`.
+
+So a `www.ampeer.nl` routed to this stack would be the worst kind of half
+working. The exported pages are static files and would render perfectly, and
+every one of them would then call `/api/...` on the host the visitor typed.
+Django refuses a `Host` outside `ALLOWED_HOSTS` before any view runs, so the
+page appears and the button fails, which is harder to diagnose than a site that
+is simply down. Every canonical tag says `https://ampeer.nl/` as well, so the
+apex is the only name a search engine should ever hold.
+
+Measured on 2026-09-14: `ampeer.nl` resolves to Cloudflare and answers 502 from
+their edge, which is a tunnel whose origin is not up; `www.ampeer.nl` does not
+resolve at all. That second one is the safe state and not the finished one:
+somebody who types the `www` gets a DNS error. If it is added, make it a
+redirect to the apex in DNS or at the edge, and not a second route into this
+stack.
+
+**Why the firewall rule is not optional.** nginx appends to `X-Forwarded-For` and
 `DJANGO_NUM_PROXIES` counts hops from the right of it, which is correct for
 every request that arrives through the connector and is the reason a visitor
 cannot buy themselves a fresh rate limit by sending a header. A caller who
