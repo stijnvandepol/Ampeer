@@ -37,7 +37,6 @@ throttle bucket the site is using at that moment.
 
 from __future__ import annotations
 
-import hashlib
 import os
 import re
 import shutil
@@ -55,6 +54,7 @@ INFRA = REPO_ROOT / "infra"
 COMPOSE = INFRA / "docker-compose.yml"
 OVERRIDE = INFRA / "compose.test.yml"
 DOCKERIGNORE = REPO_ROOT / ".dockerignore"
+README = REPO_ROOT / "infra" / "README.md"
 DEPLOY_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "deploy.yml"
 PREFLIGHT = REPO_ROOT / "scripts" / "preflight_env.sh"
 
@@ -805,35 +805,6 @@ def test_the_profile_directory_never_enters_a_build_context() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_the_deploy_pins_the_checksum_of_the_preflight_it_runs() -> None:
-    """scripts/preflight_env.sh is copied to /srv/ampeer/ by hand and the
-    deploy job has no checkout, so the copy it runs is whatever was left there.
-
-    A change to this script therefore did nothing until somebody remembered to
-    copy it again, and nothing anywhere reported the gap: the old copy still
-    exits zero, so the deploy is green and the check it was meant to add is not
-    running. That is the same shape as the purge nobody scheduled.
-
-    The mechanism is a sha256 written into the workflow, compared on the host
-    before the script is used. It can fail, which is the point: a stale copy
-    stops the deploy with a message naming the file to re-copy. And it cannot
-    rot, because this test recomputes the digest from the script and fails if
-    the literal in the workflow no longer matches.
-
-    This assertion belongs with the deploy tests and lives here instead because
-    the workflow, the script and the tests that read them are three different
-    lanes' files and this is the barrier's own change. It is duplication of
-    location, not of rule.
-    """
-    digest = hashlib.sha256(PREFLIGHT.read_bytes()).hexdigest()
-    workflow = DEPLOY_WORKFLOW.read_text(encoding="utf-8")
-    assert digest in workflow, (
-        f"scripts/preflight_env.sh hashes to {digest}, which .github/workflows/deploy.yml "
-        "does not name. Update the PREFLIGHT_SHA256 in the workflow and re-copy the script "
-        "to /srv/ampeer/ on the host."
-    )
-
-
 def test_the_deploy_checks_that_retention_is_still_running() -> None:
     """`purge_expired_advice --check` was implemented, tested, and called by
     nothing.
@@ -1140,44 +1111,34 @@ if __name__ == "__main__":
     sys.exit(main())
 
 
-def test_the_host_list_names_every_file_the_deploy_verifies() -> None:
-    """The README's own first list, held against what the deploy checks.
+def test_the_host_list_names_the_two_things_the_host_still_holds() -> None:
+    """The README's own first list, held against what is actually left.
 
-    Every file below is already explained in a section of its own further
-    down. This asserts they are also named together in section 0, because
-    assembling the list from four sections is exactly how a deploy ends up
-    stopping on the one file somebody missed. It happened three times in a row
-    on 2026-09-12, twice because the instruction given was short of a file the
-    deploy was about to check.
+    It named five things until 2026-09-14. Three of them were files copied from
+    this repository and verified here by digest, and four releases in a row
+    died on the first of them. The deploy checks the tag out now, so those
+    three arrive with the job and there is nothing to copy.
 
-    Derived from the workflow rather than written out here. A fourth checksum
-    added to the deploy without a line in that list fails this, which is the
-    only way a list like it stays complete.
+    Two remain, and neither can come from a git tag, which is exactly why they
+    are the two that are left. The environment file is a secret. The
+    consumption profile is gitignored because it is not ours to redistribute.
+    Both are asserted by name, because a list that quietly loses an entry is
+    how the old one cost four releases.
     """
     workflow = DEPLOY_WORKFLOW.read_text(encoding="utf-8")
-    checked = set(re.findall(r"^\s+([A-Z]+)_SHA256:", workflow, re.MULTILINE))
-    assert checked, "deploy.yml pins no checksums at all; this test read nothing"
-
-    #: Which file each checksum is of. The workflow names the digest and the
-    #: path separately, so the pairing lives here and is asserted rather than
-    #: parsed out of shell.
-    files = {
-        "COMPOSE": "docker-compose.yml",
-        "PREFLIGHT": "preflight_env.sh",
-        "BACKUP": "backup_db.sh",
-    }
-    assert checked <= set(files), (
-        f"deploy.yml checks {sorted(checked - set(files))}, which this test "
-        "cannot name a file for. Add it to `files` above and to section 0 of "
-        "infra/README.md."
+    assert not re.search(r"^\s+[A-Z]+_SHA256:", workflow, re.MULTILINE), (
+        "deploy.yml pins a digest again; if a file is copied by hand once more, "
+        "section 0 of infra/README.md has to name it"
+    )
+    assert "actions/checkout" in workflow, (
+        "the deploy no longer checks the tag out, so the three files it used to "
+        "verify are back on the host and back in that list"
     )
 
-    readme = (INFRA / "README.md").read_text(encoding="utf-8")
-    section = readme.split("## 0.", 1)[-1].split("\n## ", 1)[0]
-    missing = sorted(files[name] for name in checked if files[name] not in section)
-    assert not missing, (
-        f"infra/README.md section 0 does not name {missing}, which the deploy checks the host for"
-    )
+    body = README.read_text(encoding="utf-8").split("## 0. ", 1)[1]
+    section = re.split(r"^## ", body, maxsplit=1, flags=re.MULTILINE)[0]
+    for name in (".env", "AMPEER_NEDU_PROFILE_PATH"):
+        assert name in section, f"section 0 no longer names {name}"
 
 
 @needs_stack

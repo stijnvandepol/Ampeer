@@ -183,121 +183,38 @@ jobs:
       # can write to the LXC and a job that could would be a job that can
       # change what runs without a review.
       STACK: /srv/ampeer
-      # The sha256 of scripts/preflight_env.sh in this repository at this tag.
-      #
-      # The script is copied to the host by hand and this job has no checkout,
-      # so the copy it runs is whatever was left there last time. Until
-      # 2026-08-21 nothing anywhere noticed the difference: an out-of-date copy
-      # still exits zero, so the deploy stayed green and the check somebody had
-      # just added was not running. That is the same silent shape as the purge
-      # nobody scheduled.
-      #
-      # A version string was the alternative and it is weaker: it detects a
-      # copy somebody forgot to update only if they also remembered to update
-      # the version, which is the thing they forgot. A digest is derived from
-      # the content, so it cannot be forgotten separately from the content.
-      #
-      # tests/test_stack_smoke.py recomputes this from the script on every pull
-      # request, so this literal cannot drift from the repository. It can only
-      # disagree with the host, which is exactly the disagreement worth
-      # stopping a deploy for.
-      PREFLIGHT_SHA256: 02ba5f88e8b4e30cf90b74ee2829bb6d25d6b5ab8d4d12aa6443a3ceb96cc46d
-      # The sha256 of infra/docker-compose.yml in this repository at this tag,
-      # for the same reason and with one difference: this is the file that
-      # decides what actually runs.
-      #
-      # Until 2026-08-21 the preflight was pinned and this was not, and an
-      # audit measured what that permits. Adding
-      # `- /var/run/docker.sock:/var/run/docker.sock` to the api service in the
-      # copy on the host leaves every test in this repository green, because
-      # the tests read the repository's copy and the host runs its own; the
-      # container then has the daemon and the host with it. Published ports, a
-      # deleted `logging:` block and an extra bind mount are invisible in
-      # exactly the same way, and they are permanent, because nothing ever
-      # replaces that file.
-      #
-      # tests/test_deploy_workflow.py recomputes this from
-      # infra/docker-compose.yml on every pull request, so the literal cannot
-      # drift from the repository. Changing that file therefore means changing
-      # this line in the same commit, which is the point: it can then only
-      # disagree with the host.
-      COMPOSE_SHA256: d9bd199de247ff7a22c3a0988c761f2753846e53b332a1f6cb218a84a7592aea
-      # The sha256 of scripts/backup_db.sh in this repository at this tag, for
-      # the same reason as the two above. This one guards a retention window:
-      # an older copy on the host keeps a different number of dumps and allows
-      # a different staleness, and both are silent.
-      #
-      # tests/test_deploy_workflow.py recomputes it on every pull request.
-      BACKUP_SHA256: 1ba24c432d6361f0b41ffe9f98323e7fcd70d8a633e759168afa3df6361e0b44
+      # The host holds two things now and only two: the environment file,
+      # which is a secret and cannot live in a repository, and the
+      # consumption profile, which is gitignored because it is not ours to
+      # redistribute. Everything else comes from the checkout below, so
+      # there is nothing left to copy by hand and nothing left to verify by
+      # digest.
     steps:
-      # Before the preflight, because a preflight from an older release checks
-      # an older list of variables and passing it means nothing.
-      - name: Confirm the preflight on the host is the one from this release
-        run: |
-          set -euo pipefail
-          if [ ! -f "$STACK/preflight_env.sh" ]; then
-            echo "no preflight at $STACK/preflight_env.sh" >&2
-            echo "copy scripts/preflight_env.sh from this tag to $STACK/ and redeploy" >&2
-            exit 1
-          fi
-          actual="$(sha256sum "$STACK/preflight_env.sh" | cut -d' ' -f1)"
-          if [ "$actual" != "$PREFLIGHT_SHA256" ]; then
-            echo "the preflight on the host is not the one from this release" >&2
-            echo "  on the host: $actual" >&2
-            echo "  this release: $PREFLIGHT_SHA256" >&2
-            echo "copy scripts/preflight_env.sh from this tag to $STACK/ and redeploy" >&2
-            exit 1
-          fi
+      # THE CHECKOUT THIS JOB USED NOT TO HAVE, added 2026-09-14.
+      #
+      # Until today it checked nothing out, so three files had to be copied
+      # to /srv/ampeer by hand and were verified here by sha256. Four
+      # releases died on that: v0.2.0, v0.3.0, v0.4.0 and v0.5.0 all stopped
+      # on `no preflight at /srv/ampeer/preflight_env.sh`, and nothing was
+      # ever deployed at all.
+      #
+      # The property the absence was said to buy does not survive being
+      # looked at. Whoever can push a tag already decides what this job
+      # runs, because this workflow file comes from that same tag. The gate
+      # is that it triggers on `v*` and on nothing else, and that is
+      # unchanged. What no checkout actually bought was a smaller blast
+      # radius afterwards, paid for with a manual step nobody performed four
+      # times running. That is not a trade worth keeping.
+      #
+      # persist-credentials: false, because this runner is not ephemeral and
+      # a token left in .git/config outlives the job that needed it.
+      - name: Check out the tag being deployed
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      # Before the compose file is read by anything, for the same reason: every
-      # command below names it, and a mismatch found after `up` describes a
-      # file that has already started containers.
-      - name: Confirm the compose file on the host is the one from this release
-        run: |
-          set -euo pipefail
-          if [ ! -f "$STACK/docker-compose.yml" ]; then
-            echo "no compose file at $STACK/docker-compose.yml" >&2
-            echo "copy infra/docker-compose.yml from this tag to $STACK/ and redeploy" >&2
-            exit 1
-          fi
-          actual="$(sha256sum "$STACK/docker-compose.yml" | cut -d' ' -f1)"
-          if [ "$actual" != "$COMPOSE_SHA256" ]; then
-            echo "the compose file on the host is not the one from this release" >&2
-            echo "  on the host: $actual" >&2
-            echo "  this release: $COMPOSE_SHA256" >&2
-            echo "copy infra/docker-compose.yml from this tag to $STACK/ and redeploy" >&2
-            exit 1
-          fi
-
-      # Before it is run, for the reason the two checks above are before what
-      # they guard: a mismatch found afterwards describes a script that has
-      # already reported on a directory using the previous release's rules.
-      - name: Confirm the backup script on the host is the one from this release
-        run: |
-          set -euo pipefail
-          if [ ! -f "$STACK/backup_db.sh" ]; then
-            echo "no backup script at $STACK/backup_db.sh" >&2
-            echo "copy scripts/backup_db.sh from this tag to $STACK/ and redeploy" >&2
-            exit 1
-          fi
-          actual="$(sha256sum "$STACK/backup_db.sh" | cut -d' ' -f1)"
-          if [ "$actual" != "$BACKUP_SHA256" ]; then
-            echo "the backup script on the host is not the one from this release" >&2
-            echo "  on the host: $actual" >&2
-            echo "  this release: $BACKUP_SHA256" >&2
-            echo "copy scripts/backup_db.sh from this tag to $STACK/ and redeploy" >&2
-            exit 1
-          fi
-
-      # First, before anything restarts. A container in a restart loop over a
-      # missing variable is an outage that looks like a code fault, on a host
-      # nobody is logged in to.
-      # Invoked through bash rather than executed, so a hand copy that arrived
-      # without its executable bit fails on a missing variable it can report
-      # rather than on "permission denied" from a step whose name says
-      # something else.
       - name: Check the thirteen variables and the profile file
-        run: bash "$STACK/preflight_env.sh" "$STACK/.env"
+        run: bash "$GITHUB_WORKSPACE/scripts/preflight_env.sh" "$STACK/.env"
 
       - name: Log in to the registry
         env:
@@ -316,7 +233,7 @@ jobs:
       # resolve against /srv/ampeer.
       - name: Pull what CI built
         run: >-
-          docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env"
+          docker compose -f "$GITHUB_WORKSPACE/infra/docker-compose.yml" --env-file "$STACK/.env"
           pull
 
       # The approval window, closed after the fact rather than by removing the
@@ -385,7 +302,7 @@ jobs:
         id: current
         run: |
           set -euo pipefail
-          container="$(docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env" ps -q api | head -n 1)"
+          container="$(docker compose -f "$GITHUB_WORKSPACE/infra/docker-compose.yml" --env-file "$STACK/.env" ps -q api | head -n 1)"
           if [ -z "$container" ]; then
             echo "no api container is running, so this deploy has nothing to fall back to"
             echo "version=" >> "$GITHUB_OUTPUT"
@@ -413,7 +330,7 @@ jobs:
       # written down in section 8 of infra/README.md rather than smoothed over
       # with a default that would make an absent backup look like a present one.
       - name: Confirm something is backing this database up
-        run: bash "$STACK/backup_db.sh" --check
+        run: bash "$GITHUB_WORKSPACE/scripts/backup_db.sh" --check
 
       # Before `up`, and that ordering is the point of this step rather than a
       # detail of it.
@@ -440,7 +357,7 @@ jobs:
       # --noinput because no terminal is attached to this.
       - name: Migrate, while the previous release is still serving
         run: >-
-          docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env"
+          docker compose -f "$GITHUB_WORKSPACE/infra/docker-compose.yml" --env-file "$STACK/.env"
           run --rm api python backend/manage.py migrate --noinput
 
       # `id:` so the fallback below can name this step rather than asking
@@ -451,7 +368,7 @@ jobs:
       - name: Start it
         id: start
         run: >-
-          docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env"
+          docker compose -f "$GITHUB_WORKSPACE/infra/docker-compose.yml" --env-file "$STACK/.env"
           up -d --remove-orphans
 
       # `up -d` recreates the api container before compose waits on its health,
@@ -488,7 +405,7 @@ jobs:
             exit 1
           fi
           echo "falling back to $PREVIOUS"
-          AMPEER_VERSION="$PREVIOUS" docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env" up -d --remove-orphans
+          AMPEER_VERSION="$PREVIOUS" docker compose -f "$GITHUB_WORKSPACE/infra/docker-compose.yml" --env-file "$STACK/.env" up -d --remove-orphans
           echo "::error::$PREVIOUS is serving again. The database is on the schema $AMPEER_VERSION migrated it to, which the previous release is expected to tolerate; if it does not, that migration was not additive."
           echo "::error::$STACK/.env still names the old release, so a reboot brings back $PREVIOUS. Nothing needs editing on the host to stay where you are."
 
@@ -517,7 +434,7 @@ jobs:
       # down in infra/README.md rather than papered over here.
       - name: Confirm expired advice is still being deleted
         run: >-
-          docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env"
+          docker compose -f "$GITHUB_WORKSPACE/infra/docker-compose.yml" --env-file "$STACK/.env"
           run --rm --entrypoint python api backend/manage.py purge_expired_advice --check
 
       # The same question for the outbox: a mail waiting longer than fifteen
@@ -526,7 +443,7 @@ jobs:
       # for the reason the step above gives.
       - name: Confirm the outbox is being emptied
         run: >-
-          docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env"
+          docker compose -f "$GITHUB_WORKSPACE/infra/docker-compose.yml" --env-file "$STACK/.env"
           run --rm --entrypoint python api backend/manage.py send_outbound_mail --check
 
       # always(), because the deploys that fail are the ones that would

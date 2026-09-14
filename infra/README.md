@@ -16,72 +16,44 @@ this subproject has touched it.
 
 ## 0. What a fresh host needs, in one list
 
-The sections below explain each of these and why it is checked. This is the
-list itself, because assembling it from four sections is how a deploy ends up
-stopping on the one file somebody missed.
+Two things, and neither can come from a git tag. That is not a coincidence: it
+is the whole reason they are the two that are left.
 
-Four things in `/srv/ampeer/`:
-
-| File | Comes from | Checked by the deploy |
+| What | Where | Why it is not in the repository |
 |---|---|---|
-| `docker-compose.yml` | `infra/docker-compose.yml` at the tag | sha256 against `COMPOSE_SHA256` |
-| `preflight_env.sh` | `scripts/preflight_env.sh` at the tag | sha256 against `PREFLIGHT_SHA256` |
-| `backup_db.sh` | `scripts/backup_db.sh` at the tag | sha256 against `BACKUP_SHA256` |
-| `.env` | `infra/.env.example`, filled in | contents, by the preflight |
+| `/srv/ampeer/.env` | written on the host, from `infra/.env.example` | it holds a Django signing key, a database password and a mail API key |
+| the NEDU consumption profile | at whatever path `AMPEER_NEDU_PROFILE_PATH` names, for example `/srv/profiles/nedu-profiles-2025.csv` | `data/` is gitignored; the profile is not ours to redistribute |
 
-The three scripts are compared by digest and not by version, because a version
-string is updated by whoever remembered, which is the thing they forgot. Copy
-all three again whenever any of them changes in a release, not only the one you
-edited.
+Everything else arrives with the deploy, which checks the tag out. Until
+2026-09-14 three more files had to be copied here by hand and were verified by
+sha256, and four releases in a row stopped on the first of them. That list is
+gone along with the copying.
 
-**And a fifth thing that is not in `/srv/ampeer/` and is not in git**: the NEDU
-consumption profile, a CSV of about 13 MB, at whatever path `.env` gives as
-`AMPEER_NEDU_PROFILE_PATH`. `docker-compose.yml` bind mounts it, so it has to
-exist as a **readable file** before the stack comes up; if it does not, the
-Docker daemon silently creates a directory in its place. It is `data/` in a
-checkout, which `.gitignore` excludes, so it cannot be fetched from the tag the
-way the three scripts can. Copy it from a developer machine, or produce it from
-the source named in section 2. Section 2 is the whole story and this line exists
-only so that the list is a list.
+**The profile must be a readable FILE before the stack comes up.** If the path
+does not exist, the Docker daemon creates an empty directory there and mounts
+it over the place the CSV should be: the container starts, the process is
+alive, and every advice fails. Section 2 is the whole story.
 
-This section is the list because assembling it from four others is how a deploy
-stops on the one file somebody missed. It has done that: on 2026-09-13 the list
-named four things and the profile was not one of them, and the profile is the
-one that cannot be recovered from a git tag.
-
-**Getting the bytes there.** The deploy job checks nothing out, so there is no
-source tree on the host and never will be; that is one of the four properties
-that make a self-hosted runner defensible at all, and it is why this step is
-yours. From a checkout at the tag:
+It does not have to come from a developer machine. The host can produce it from
+the published source, which is the same thing `tools/ingest_profiles.py` does:
 
 ```sh
-ssh <host> 'mkdir -p /srv/ampeer'
-git -C <checkout> switch --detach v0.3.0
-scp infra/docker-compose.yml scripts/preflight_env.sh scripts/backup_db.sh <host>:/srv/ampeer/
-scp data/nedu-profiles-2025.csv <host>:/srv/profiles/nedu-profiles-2025.csv
+uv run python tools/ingest_profiles.py --year 2025 --out /srv/profiles/
 ```
 
-The `.env` is not in that list on purpose. It holds a signing key, a database
-password and a mail API key; write it on the host, once, and never copy it
-between machines.
-
-**Verify before tagging:**
+**Verify, from the host itself:**
 
 ```sh
-sha256sum /srv/ampeer/docker-compose.yml /srv/ampeer/preflight_env.sh /srv/ampeer/backup_db.sh
-bash /srv/ampeer/preflight_env.sh /srv/ampeer/.env
+bash scripts/preflight_env.sh /srv/ampeer/.env
 ```
 
-The first three digests have to match the literals in
-`.github/workflows/deploy.yml`; the deploy prints both when they do not. The
-preflight exits zero when `.env` is complete, and it is also what checks that
-the profile path is a readable file, so a green preflight covers the fifth thing
-as well as the fourth.
+It names every missing variable at once, checks the profile path is a readable
+file, and never prints a value. Exit zero means there is nothing left to do
+here.
 
-Two more things are the host's own and are described in section 3: the retention
-timer and the outbox timer, neither of which this repository installs.
-
----
+Two more things are the host's own and are described in section 3: the
+retention timer and the outbox timer, neither of which this repository
+installs.
 
 ## What runs
 
@@ -446,14 +418,25 @@ A tag matching `v*` on `main` triggers `.github/workflows/deploy.yml`:
   `NEXT_PUBLIC_API_BASE=` (empty, so the client uses relative paths), builds
   both images and pushes them to GHCR
 - `deploy` on the self-hosted runner, behind `environment: production`: checks
-  the preflight's digest, checks the compose file's digest, checks the backup
-  script's digest, runs the preflight, logs in to GHCR, `pull`, confirms the
-  pulled digests, records the running release, confirms a recent backup exists,
+  the tag out, runs the preflight, logs in to GHCR, `pull`, confirms the pulled
+  digests, records the running release, confirms a recent backup exists,
   `migrate`, `up -d`, falls back if that failed,
   `purge_expired_advice --check`, `send_outbound_mail --check`, `docker logout`
 
-No checkout, no `docker build`, no token that can read the repository, and
-nothing on the host that is not one of those commands.
+It checks the tag out since 2026-09-14, and until then it did not. Three files
+had to be copied to `/srv/ampeer` by hand and were verified here by sha256, and
+four releases in a row stopped on the first of them: v0.2.0, v0.3.0, v0.4.0 and
+v0.5.0 all died on `no preflight at /srv/ampeer/preflight_env.sh`. Nothing was
+ever deployed at all.
+
+What the absence bought does not survive being looked at. Whoever pushes a tag
+already decides every step this job runs, because the workflow file comes from
+that tag; the gate is that it triggers on `v*` and nothing else, and that has
+not moved. So the checkout costs a smaller blast radius after a compromise that
+would already own the job, and it buys a deploy that works without anybody
+remembering anything.
+
+Still no `docker build`: the host pulls what CI built and assembles nothing.
 
 ### What `up -d` does and does not catch
 
