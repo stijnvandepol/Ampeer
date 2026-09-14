@@ -20,6 +20,19 @@ Running this file rather than importing it writes the two git-ignored fixtures
 the override needs:
 
     uv run python tests/test_stack_smoke.py
+
+THE LIVE CHECKS RUN OUT OF REGISTRATIONS, and the first time that happens it
+looks like a broken stack. `auth-register` is five an hour per address and the
+checks below use several between them, so a second full run inside the hour
+answers 429 on registration and fails four of them at once. That is the rate
+limit working, and reading the body says so in Dutch. To start again rather
+than wait:
+
+    docker compose -f infra/docker-compose.yml -f infra/compose.test.yml       --env-file infra/fixtures/env.smoke exec -T api       python backend/manage.py shell -c "from django.core.cache import cache; cache.clear()"
+
+The counters live in the database cache table, so that clears them and nothing
+else a local stack cares about. Never on a host: the same table holds every
+throttle bucket the site is using at that moment.
 """
 
 from __future__ import annotations
@@ -29,6 +42,7 @@ import os
 import re
 import shutil
 import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -1157,3 +1171,133 @@ def test_the_host_list_names_every_file_the_deploy_verifies() -> None:
     assert not missing, (
         f"infra/README.md section 0 does not name {missing}, which the deploy checks the host for"
     )
+
+
+@needs_stack
+def test_live_a_linked_meter_produces_a_proposal_over_the_real_route() -> None:
+    """Phase 3, end to end, over HTTP, through nginx.
+
+    THE CHECK THAT WOULD HAVE CAUGHT IT. Until 2026-09-13 this route answered
+    `"check": null` for every household that ever linked a meter, because the
+    measurement was placed by counting quarters from the profile year's epoch
+    and no reading in the table can be from that year. Every unit test agreed
+    with it: each one used a hardcoded 2025 date. Nothing that ran against a
+    stack ever pushed a reading through the ingest and asked the route what it
+    made of it, so a feature that did nothing at all looked finished.
+
+    This asserts the shape and not the figure. The container mounts a flat
+    synthetic profile, so the annual consumption this fit lands on is
+    arithmetic on a curve nobody measured and means nothing. What it does mean
+    is that readings pushed with today's timestamps reach the window, the fit
+    runs, and a band comes back: null before the meter, a band after it.
+    """
+    from accounts.nl import CONSENT_TEXT_VERSION
+
+    assert STACK is not None
+    session = _Session(STACK)
+    session.request("GET", "/api/auth/me/")
+    email = _fresh_email()
+    session.json(
+        "POST",
+        "/api/auth/register/",
+        {
+            "email": email,
+            "password": TEST_PASSWORD,
+            "consent_meter_link": True,
+            "consent_lead_generation": False,
+            "text_version": CONSENT_TEXT_VERSION,
+        },
+    )
+    _run_outbox()
+    session.request(
+        "POST",
+        "/api/auth/verify/confirm/",
+        {"token": _link_token_from_newest_mail("verificatie")},
+        {"X-CSRFToken": session.cookies["csrftoken"]},
+    )
+
+    typed = 3500.0
+    session.json(
+        "POST",
+        "/api/auth/advice/",
+        {
+            "peak_power_wp": 3500,
+            "azimuth_deg": 0,
+            "tilt_deg": 35,
+            "annual_consumption_kwh": typed,
+            "postcode4": "5401",
+            # The nine question form, which is what this route takes: the
+            # calibrated advice is an upgrade on a full answer and not on the
+            # four question one. All five flags false, so the household is the
+            # simplest one that exists and the fit has nothing extra to carry.
+            "daytime_occupancy": False,
+            "has_ev": False,
+            "has_heat_pump": False,
+            "dynamic_contract": False,
+            "has_battery": False,
+        },
+    )
+    assert session.json("POST", "/api/auth/advice/check/")["check"] is None, (
+        "a household with no meter has nothing to be told"
+    )
+
+    raw = session.json("POST", "/api/auth/meter/link/")["token"]
+
+    # Four whole weeks ending at the last complete quarter, because the fit
+    # refuses a window under three and the leave-one-week-out band needs whole
+    # ones. A flat offtake, which is not a household and is not meant to be:
+    # what is being proved is that a reading stamped this week arrives at a
+    # position on a grid that runs in 2025.
+    last = datetime.now(UTC).replace(second=0, microsecond=0)
+    last = last.replace(minute=last.minute - last.minute % 15) - timedelta(minutes=15)
+    quarters = 4 * 7 * 96
+    moments = [last - timedelta(minutes=15 * step) for step in range(quarters)]
+    for start in range(0, quarters, 100):
+        batch = moments[start : start + 100]
+        status, payload = _push_readings(raw, batch)
+        assert status == 202, payload
+
+    check = session.json("POST", "/api/auth/advice/check/")["check"]
+    assert check is not None, (
+        "readings pushed with this week's timestamps reached the route and it "
+        "still has nothing to say; the window is empty again"
+    )
+    assert check["p10_kwh"] <= check["p50_kwh"] <= check["p90_kwh"]
+    assert check["typed_kwh"] == pytest.approx(typed)
+    session.json("POST", "/api/auth/logout/")
+
+
+def _push_readings(raw: str, moments: list[datetime]) -> tuple[int, bytes]:
+    """One ingest push, as the device makes it: a bearer token and no session.
+
+    Separate from `_Session` on purpose. The ingest carries no cookie, no CSRF
+    header and no Origin, because a P1 device is not a browser, and running it
+    through the session helper would prove the wrong thing about it.
+    """
+    import json as jsonlib
+    import urllib.error
+    import urllib.request
+
+    assert STACK is not None
+    body = {
+        "readings": [
+            {
+                "measured_at": moment.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                # A quarter of a kilowatt hour off the grid, and nothing back.
+                "consumption_kwh": 0.25,
+                "feed_in_kwh": 0.0,
+            }
+            for moment in moments
+        ]
+    }
+    request = urllib.request.Request(
+        f"{STACK.rstrip('/')}/api/meter/readings/",
+        data=jsonlib.dumps(body).encode("utf-8"),
+        headers={"Content-Type": "application/json", "Authorization": f"Meter {raw}"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            return response.status, response.read()
+    except urllib.error.HTTPError as error:
+        return error.code, error.read()
