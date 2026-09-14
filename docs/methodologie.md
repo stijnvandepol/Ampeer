@@ -810,6 +810,20 @@ en teruglevering berekent, overeenkomt met wat uw meter werkelijk heeft gezien.
 Dat vergelijkt metergetallen met metergetallen, dus uw auto en uw warmtepomp
 zitten aan beide kanten en kunnen niet dubbel meetellen.
 
+**Welk jaar wij uw meting naast leggen.** Ons model rekent op een vast jaar,
+2025, want dat is het jaar waarvan wij de landelijke profielen hebben. Uw meter
+levert de afgelopen weken. Wij leggen elke meting daarom op dezelfde datum en
+hetzelfde tijdstip in dat modeljaar, en schuiven hem naar de dichtstbijzijnde dag
+met dezelfde weekdag, want een zondag verbruikt anders dan een woensdag. Die
+verschuiving is voor al uw metingen even groot, dus de onderlinge afstanden en de
+gaten in uw reeks blijven precies zoals uw meter ze heeft doorgegeven.
+
+Wat wij daarmee aannemen is dat uw augustus lijkt op de augustus van het
+modeljaar. Dat is een aanname en wij verstoppen hem niet in een voetnoot: hij
+zit in de bandbreedte hieronder. Wij laten namelijk telkens een hele week weg en
+rekenen opnieuw, en als het antwoord dan verspringt is de band breed en leggen
+wij u niets voor.
+
 Wat daaruit komt is een bandbreedte en geen getal, en wij leggen hem alleen aan u
 voor als uw ingevulde jaarverbruik er buiten valt. Ligt uw getal erbinnen, dan
 spreekt uw meter u niet tegen en zwijgen wij. Wij veranderen ook niets zonder dat

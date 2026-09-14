@@ -2143,3 +2143,55 @@ Eight sit outside that document.
   `test_nothing_that_computes_an_advice_can_see_a_consent` forbids the
   advice packages from mentioning the consent vocabulary at all, so "uw advies
   verandert er niet door" cannot quietly stop being true.
+
+- **How a measurement taken this week is placed on a model year that is fixed at
+  2025.** Decided: by time of year, not by elapsed time since the grid's epoch.
+  The same date and clock time in the profile year, then moved to the nearest day
+  carrying the same weekday.
+
+  **Because the obvious placement makes the feature impossible.**
+  `AMPEER_PROFILE_YEAR` is 2025 and stays 2025, since the NEDU profile and every
+  golden answer are that year. `RETENTION` is ninety days. So no quarter reading
+  in the table can ever be from 2025, and counting quarters from the grid's own
+  epoch put every one of them past the end of the grid. Measured on 2026-09-13: a
+  reading taken that day landed at index 59608 in a grid of 35040, and the oldest
+  reading retention allows landed at 50968. `build_window` returned `None` for
+  every household, the calibration proposed nothing, and nothing went red. Fase 3
+  had been a silent no-op since it was built, for a second reason after the
+  ownership one fixed on 2026-09-12.
+
+  **Why every test agreed with it.** All of them used a hardcoded 2025 date, and
+  one asserted in as many words that a 2024 reading is dropped, which was correct
+  behaviour for the code as written. Nobody asked whether production could
+  produce a date the code accepts. The fixture in `tests/test_account_advice.py`
+  laid eight weeks down from `grid_epoch` itself. The window tests now use
+  `timezone.now()`, and that is the point of them: a date typed into a test is a
+  date the author chose, and the fault was in what production hands over instead.
+
+  **Weekday and not only date**, because the NEDU profile a household is compared
+  against differs between a working day and a Sunday, and a two day slip there is
+  a real error in the figure rather than a rounding one. The shift works out the
+  same whole number of days for every reading in a year, so the window is
+  translated and not distorted: order, spacing and gaps all survive.
+
+  **What it assumes, and where that assumption is answered.** That this
+  household's August resembles the model's August. That is the seasonal
+  assumption this whole route already rested on, and decision 63 answers it with
+  the band rather than a disclaimer: leave a week out, refit, and a moving answer
+  produces a wide band and no proposal. `docs/methodologie.md` now says so in the
+  household's own words, because it is an assumption about them.
+
+  **Two dates go nowhere and are refused rather than moved**: 29 February onto a
+  common year, and a reading whose weekday shift would carry it out of the grid
+  year. At most three days a year.
+
+  **A bound on age had to be added with it.** The old year check refused a
+  backfilled reading from 2022 as a side effect of being wrong about everything
+  else, and the new placement deliberately accepts a reading from any year.
+  Nothing in the ingest serializer bounds how old a reading may be, so that
+  protection is now what it should always have been: `build_window` reads only
+  the ninety days the table is allowed to hold. `RETENTION` moved from the purge
+  command to `accounts/models.py` so both readers can see it.
+
+  `ENGINE_VERSION` is untouched. Nothing in `ampeer_sim` changed; what changed is
+  which quarters reach it.
