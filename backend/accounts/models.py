@@ -361,6 +361,18 @@ class QuarterReading(models.Model):
         ordering: ClassVar[list[str]] = ["measured_at"]
 
 
+#: How long a quarter reading survives before it is folded into an hour and
+#: removed. docs/dpia.md's retention table quotes this in words.
+#:
+#: It lives beside the table rather than inside the command that enforces it,
+#: because two things need it and only one of them is that command.
+#: `accounts.window` needs it to refuse a reading older than the table is
+#: allowed to hold: a device may push any timestamp it likes, nothing in the
+#: serializer bounds how old one may be, and between that push and the next
+#: nightly fold such a reading is live and would be fitted against.
+RETENTION = timedelta(days=90)
+
+
 class HourAggregate(models.Model):
     """What a quarter hour becomes once it is older than the retention window.
 

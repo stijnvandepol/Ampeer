@@ -972,3 +972,60 @@ def test_the_risk_table_carries_the_token_in_the_url_and_the_fix_not_taken() -> 
             f"chapter 8 does not say {phrase!r}, so the fix that was considered and not "
             "taken is not written down, and the row above reads as an oversight"
         )
+
+
+def _flat(chapter: str) -> str:
+    """One chapter as a single line.
+
+    docs/dpia.md is hard wrapped, so a sentence a reader reads as one sentence
+    is several lines in the file and a substring search for it finds nothing.
+    Not hypothetical: the first run of the two tests below failed on "niet
+    langer waarschijnlijk verplicht maar verplicht" purely because the wrap
+    fell between the third and fourth word.
+    """
+    return " ".join(chapter.split())
+
+
+def test_the_assessment_does_not_still_say_the_risky_data_is_absent() -> None:
+    """Chapter 1 rests the whole article 35 weighing on one sentence.
+
+    "Die data is er niet", about quarter-hour readings from the meter. It was
+    true of phase 0.5 and it is the reason the chapter reaches "waarschijnlijk
+    niet verplicht". `QuarterReading` has existed in backend/accounts/models.py
+    since the meter link, so the sentence stopped being true and the conclusion
+    above it kept standing on it. Found on 2026-09-13, three phases later.
+
+    Paired against the model rather than asserted as a phrase, because the
+    thing that makes the sentence false is the table existing. A future phase
+    that removed the table would make the original weighing correct again, and
+    this test would then stop demanding the correction rather than demanding it
+    forever on the strength of one day's reading.
+    """
+    if "class QuarterReading" not in ACCOUNT_MODELS.read_text(encoding="utf-8"):
+        pytest.skip("no quarter-hour table; chapter 1's original weighing stands")
+    chapter = _flat(TEXT.split("## 1. Is een DPIA hier verplicht", 1)[1].split("\n## 2.", 1)[0])
+    assert "Die data is er niet" in chapter, (
+        "chapter 1 no longer carries the sentence this test is about; if it was "
+        "rewritten rather than corrected, delete this test in the same commit"
+    )
+    assert 'de zin "die data is er niet" onwaar' in chapter, (
+        "QuarterReading exists and chapter 1 still says the quarter-hour data "
+        "does not, which is the sentence its article 35 weighing rests on"
+    )
+
+
+def test_the_assessment_does_not_put_its_own_obligation_in_the_future() -> None:
+    """Chapter 9 set a condition and the condition is met.
+
+    It said a review becomes certainly required "zodra die laatste verwerking
+    bestaat". That processing exists. A document that states its own obligation
+    as a future event reads as a plan when it is a debt, and the difference
+    matters to the only person who can discharge it.
+    """
+    chapter = _flat(TEXT.split("\n## 9.", 1)[1].split("\n## 10.", 1)[0])
+    assert "Zodra die laatste verwerking bestaat" not in chapter, (
+        "chapter 9 still states the obligation as a condition on a future phase"
+    )
+    assert "niet langer waarschijnlijk verplicht maar verplicht" in chapter, (
+        "chapter 9 no longer says plainly that the review is required now"
+    )

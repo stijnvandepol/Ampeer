@@ -49,6 +49,12 @@
 ",c)}}catch(e){}
 "; see chapter 10 point 2 of docs/dpia.md
 #
+#0b6e63
+#0e1519
+#1f7c70
+#45535f
+#e8ecf0
+#ffffff
 #pagina
 %
 %s | Ampeer
@@ -68,6 +74,7 @@
 -value
 .
 . Dat document is er om nagerekend te worden.
+. De goedkoopste stap staat apart, want die kost niets:
 . De regels voor het gebruik staan in
 . Een vraag of klacht over uw gegevens gaat naar
 . Hoe wij rekenen, staat in
@@ -114,7 +121,7 @@ Account aanmaken
 Account verwijderen
 Adviesversie
 Alle drie zijn nodig om de accountpagina veilig te gebruiken, en voor niets anders. Ze volgen u niet, ze meten niets en ze gaan naar geen ander bedrijf.
-Alleen als het bij u uitkomt, en bij een deel van de huishoudens komt dat er niet uit. Nu geen batterij is bij ons een volwaardige uitkomst, en wij verdienen niets aan de andere.
+Alleen als het bij u uitkomt, en bij een deel van de huishoudens komt dat er niet uit. Nu geen batterij is bij ons een volwaardige uitkomst, en wij verdienen niets aan de andere. Waar het van afhangt, staat op
 Alleen als het bij u uitkomt. Voor een deel van de huishoudens is het antwoord nee, en dat is bij ons een geldige en volwaardige uitkomst.
 Alles daarover staat in
 Als dit adres bij ons bekend is, staat er binnen enkele minuten een e-mail voor u klaar. De link daarin werkt een uur.
@@ -125,6 +132,7 @@ Ampeer rekent uit wat het einde van de saldering u kost. Wij verkopen niets en w
 Ampeer stelt u een paar vragen en rekent daar een antwoord mee uit. Deze pagina zegt wat wij daarvan bewaren, hoe lang, en wie het verder kan zien. Wij hebben het zo kort mogelijk opgeschreven.
 Ampeer verkoopt geen panelen, geen batterijen en geen energiecontract, en plaatst geen advertenties. Niemand betaalt ons voor de uitkomst die u krijgt.
 Ampeer verkoopt geen zonnepanelen, geen thuisbatterijen en geen energiecontract, en plaatst geen advertenties. Niemand betaalt ons voor de uitkomst die u krijgt. Daarom is nu geen batterij hier een geldige uitkomst.
+Ampeer, met een bandbreedte in plaats van een enkel getal
 Apparaten die niet kunnen wachten, zoals een koelkast of verlichting, vallen hier buiten. Die draaien wanneer ze moeten.
 Autoriteit Persoonsgegevens
 Beantwoord deze vraag om verder te gaan.
@@ -179,6 +187,7 @@ De eerste vier cijfers van uw postcode.
 De eerste vier vragen ontbreken nog
 De elektrische boiler of warmtepompboiler
 De goedkoopste manier om het einde van de saldering op te vangen kost niets. Welke apparaten het verschil maken, wanneer u ze het best aanzet, en waar het ophoudt te helpen.
+De goedkoopste stap, want die kost niets.
 De hele doorrekening van de batterij
 De laadpaal
 De omvormer van vrijwel elke installatie laat dat zien, meestal in een app. Wie een slimme meter heeft, ziet het ook aan de meterstand die op dat moment niet oploopt. Een vaste klok werkt minder goed, omdat het venster per seizoen en per dakrichting verschilt.
@@ -208,6 +217,7 @@ De wasmachine, de vaatwasser en de droger draaien terwijl uw panelen leveren. Di
 Deze drie zijn het makkelijkst te verschuiven, want het maakt u meestal niet uit wanneer ze draaien zolang ze klaar zijn. Samen zijn ze bij veel huishoudens de grootste post die zomaar te verzetten is.
 Deze link hoort niet bij een berekening. Controleer of hij compleet is overgenomen.
 Deze link opent dit advies opnieuw, zonder account. Bewaar hem als u er later bij wilt.
+Deze pagina bestaat niet
 Deze pagina hoort bij een berekening en er staat er geen in de link.
 Deze pagina zegt wat Ampeer is en niet is, waarvan het betaald wordt, en waar u zelf voor instaat.
 Deze sleutel wordt hierna niet meer getoond. Bewaar hem in het apparaat dat de metingen gaat versturen.
@@ -296,8 +306,10 @@ Heeft u een warmtepomp?
 Heeft u iets verkeerd ingevuld, dan kunt u dat niet wijzigen. Reken opnieuw en u krijgt een nieuw advies met een nieuwe link. Het oude blijft staan tot het na 90 dagen verdwijnt.
 Helpt verschuiven bij u niet genoeg, dan leest u op
 Herstel en bevestiging gaan per mail, met een link die eenmalig werkt. Een herstellink werkt een uur, een bevestigingslink zeven dagen.
+Het adres klopt niet, of de pagina is verplaatst. Hieronder staat waar u wel terecht kunt.
 Het antwoord achter uw link is een bestand dat een computer kan lezen. U kunt het dus meenemen naar iemand anders.
 Het eerlijke antwoord
+Het einde van de saldering
 Het einde van de saldering, en hoe u uitrekent wat het bij u doet
 Het huis een paar graden voorverwarmen terwijl de zon schijnt, zodat de pomp 's avonds minder hoeft. Dit werkt alleen bij een goed geïsoleerd huis, want een huis dat de warmte niet vasthoudt slaat niets op.
 Het invoerveld accepteert alleen vier cijfers. Typt u er zes, dan wordt de invoer geweigerd. Hij wordt niet stilletjes afgekapt.
@@ -338,6 +350,7 @@ Inloggen
 Inloggen of een account aanmaken, uw toestemmingen bekijken en omzetten, uw gegevens downloaden of uw account verwijderen.
 Investeren: stroom opslaan in een thuisbatterij
 Inzien
+Is een thuisbatterij iets voor mij
 Is een thuisbatterij iets voor mij?
 Is een wasmachine 's nachts niet goedkoper?
 Is er op een doordeweekse dag overdag meestal iemand thuis?
@@ -369,6 +382,7 @@ Meer hoeft u niet in te vullen. Geen account, geen e-mailadres, en niets aan uw 
 Meer niet. Er is geen account, wij vragen geen e-mailadres en er hoeft niets aan uw meterkast te gebeuren. Weet u een getal niet precies, dan is een schatting genoeg.
 Meer over
 Meer regels zijn er niet.
+Meer van uw eigen stroom zelf gebruiken
 Meer van uw eigen zonnestroom zelf gebruiken
 Meestal 's nachts
 Meestal bij thuiskomst, aan het begin van de avond
@@ -390,6 +404,7 @@ Na het ontkoppelen zijn de metingen van deze meter weg.
 Na uw eerste antwoord kunt u verfijnen: of er op een doordeweekse dag overdag meestal iemand thuis is, wanneer een elektrische auto laadt, of er een warmtepomp is, of uw contract dynamisch is, en of er al een thuisbatterij staat. Vier vragen geeft een indicatief antwoord, negen vragen een goed antwoord.
 Naam
 Naar de inhoud
+Naar de startpagina
 Nederlands recht is van toepassing.
 Nee
 Nee. Dit is de route die niets kost: dezelfde apparaten, op een ander moment. Er bestaan timers en slimme stekkers die het automatisch doen, maar de winst zit in het verschuiven zelf en niet in het apparaat dat het voor u doet.
@@ -408,6 +423,7 @@ Nog geen account? Account aanmaken
 Noord
 Noordoost
 Noordwest
+Of begin opnieuw
 Of er overdag iemand thuis is
 Om een slimme meter te koppelen zijn een bevestigd e-mailadres en toestemming voor het verwerken van kwartiergegevens nodig.
 Omdat een deel van de invoer nog niet vaststaat, zoals de terugleververgoeding in 2027 en de stroomprijs. Wij rekenen uw jaar daarom op veel verschillende standen door en laten zien wat daaruit komt. Een getal daaruit oppakken zou zekerder klinken dan het is.
@@ -438,6 +454,7 @@ Over ons
 Over uw gegevens kunt u ook terecht bij de
 Overdag, op ons eigen overschot
 PRECISE
+Pagina niet gevonden
 Postadres
 Prijs per kWh waarbij hij precies uit kan
 Privacy
@@ -544,6 +561,7 @@ Vier vragen over uw dak en uw verbruik, en u ziet wat er vanaf 1 januari 2027 bi
 Vier vragen over uw dak en uw verbruik, en u ziet wat het einde van de salderingsregeling bij uw huis doet, met de bandbreedte erbij. Gratis, geen account.
 Vier vragen over uw dak en uw verbruik, en u ziet wat het einde van de salderingsregeling u per jaar gaat kosten. Met de bandbreedte erbij, want een enkel getal zou meer zekerheid suggereren dan er is.
 Vier vragen over uw dak en uw verbruik. Geen account, geen e-mailadres, en niets aan uw meterkast. U krijgt een bedrag met de bandbreedte erbij.
+Vier vragen over uw dak en uw verbruik. U hoeft niets te koppelen en geen account te maken.
 Vier vragen over uw eigen dak, en geen enkele over uw e-mailadres.
 Vier vragen zijn genoeg voor een eerste antwoord. U hoeft niets te koppelen en geen account te maken.
 Vier vragen, en u weet wat het bij u doet in plaats van gemiddeld.
@@ -570,7 +588,9 @@ WITHDRAWN
 Waar het antwoord op rust
 Waar het ophoudt te helpen
 Waar het van afhangt
+Waar het van afhangt, en wanneer het antwoord nee is.
 Waar onze getallen vandaan komen
+Waar u verder kunt
 Waarmee gerekend is
 Waarom Ampeer bestaat
 Waarom dit nu meer oplevert dan vroeger
@@ -610,6 +630,7 @@ Wat er in ons logboek komt
 Wat er niet in zit, is het belangrijkste: niemand betaalt ons voor de uitkomst die u krijgt. Er is geen installateur, geen leverancier en geen fabrikant die er beter van wordt als hier "wel een batterij" uitkomt. Dat is ook waarom "nu geen batterij" bij ons een geldige uitkomst is. Een adviseur die aan batterijen verdient kan die zin niet schrijven.
 Wat er op 1 januari 2027 precies verandert, staat op
 Wat er op 1 januari 2027 verandert
+Wat er op 1 januari 2027 verandert en voor wie.
 Wat er verandert
 Wat ervoor in de plaats komt
 Wat het einde van de saldering u per jaar kost
@@ -699,6 +720,7 @@ als middelpunt, uit
 ampeer-antwoorden
 ampeer-gegevens.json
 ampeer-thema
+ampeer.nl
 apr
 aug
 betaalt de server en de domeinnaam zelf.
@@ -745,6 +767,7 @@ http://127.0.0.1:8000
 https://ampeer.nl
 https://schema.org
 https://www.autoriteitpersoonsgegevens.nl/
+image/png
 in.
 info@ampeer.nl
 inloggen
