@@ -93,27 +93,65 @@ Three services, in `docker-compose.yml`:
 | `api` | `ghcr.io/stijnvandepol/ampeer-api:<tag>` | Django on gunicorn, uid 10001, no port of its own |
 | `web` | `ghcr.io/stijnvandepol/ampeer-web:<tag>` | nginx: the exported site, and `/api/` to `api` |
 
-**One port listens, and it is nginx.** `web` publishes 80 and nothing else
-does. A tunnel operated outside this stack points at it; this repository does
-not run, configure or hold a credential for that tunnel.
+**One port listens, and it is nginx.** `web` publishes **8080** on the host,
+which forwards to nginx on 80 inside the container, and nothing else publishes
+anything. A tunnel operated outside this stack points at `<host>:8080`; this
+repository does not run, configure or hold a credential for that tunnel.
+
+8080 rather than 80 since 2026-09-14. It leaves port 80 on the host free, it
+asks for no privileged port, and it is the port the local override already
+used, so the address you rehearse against and the address on the host are now
+the same string.
+
+**Check it is free before the first deploy.** 8080 is the port half the world
+reaches for, so unlike 80 it may already be taken by something a person started
+and forgot. Docker does not share it: the container simply fails to start and
+the deploy is red on `Start it`, which is the right failure and an annoying one
+to meet for the first time at a release.
+
+```sh
+ss -lntp 'sport = :8080'
+```
+
+Nothing listed means nothing to do.
 
 Docker publishes through its own iptables chain, which is evaluated before a
-host firewall's INPUT rules, so **restricting who may reach port 80 is a
+host firewall's INPUT rules, so **restricting who may reach port 8080 is a
 decision for the host** and cannot be made in the compose file. On a machine
 whose only other occupant is the connector, binding it to the interface that
 connector uses is the smallest opening that works.
 
-**Why that rule is not optional.** nginx appends to `X-Forwarded-For` and
+**One hostname, and what happens if a second one appears.** `server_name _` in
+`infra/nginx/nginx.conf` is a catch all: nginx answers to any `Host` it is sent.
+What decides which names are real is `DJANGO_ALLOWED_HOSTS`, and it names
+`ampeer.nl`.
+
+So a `www.ampeer.nl` routed to this stack would be the worst kind of half
+working. The exported pages are static files and would render perfectly, and
+every one of them would then call `/api/...` on the host the visitor typed.
+Django refuses a `Host` outside `ALLOWED_HOSTS` before any view runs, so the
+page appears and the button fails, which is harder to diagnose than a site that
+is simply down. Every canonical tag says `https://ampeer.nl/` as well, so the
+apex is the only name a search engine should ever hold.
+
+Measured on 2026-09-14: `ampeer.nl` resolves to Cloudflare and answers 502 from
+their edge, which is a tunnel whose origin is not up; `www.ampeer.nl` does not
+resolve at all. That second one is the safe state and not the finished one:
+somebody who types the `www` gets a DNS error. If it is added, make it a
+redirect to the apex in DNS or at the edge, and not a second route into this
+stack.
+
+**Why the firewall rule is not optional.** nginx appends to `X-Forwarded-For` and
 `DJANGO_NUM_PROXIES` counts hops from the right of it, which is correct for
 every request that arrives through the connector and is the reason a visitor
 cannot buy themselves a fresh rate limit by sending a header. A caller who
-reaches port 80 *without* going through the connector is one hop short: the
+reaches port 8080 *without* going through the connector is one hop short: the
 value the throttle lands on is then whatever they wrote, and they can rotate it
 per request. Forty requests with a rotating header produced zero 429s when this
 was measured on 2026-08-21, which is what set `NUM_PROXIES` in the first place.
 
 Until the stack published a port this was unreachable by construction and the
-firewall was defence in depth. It is now the control. Allow port 80 from the
+firewall was defence in depth. It is now the control. Allow port 8080 from the
 connector's address and from nothing else.
 
 `tests/test_infra.py` asserts on every pull request that `api` and `db`

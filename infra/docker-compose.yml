@@ -10,7 +10,8 @@
 # known until the deploy that creates it, and tests/test_infra.py asserts that
 # the exemption is exactly those two names.
 #
-# EXACTLY ONE THING IN THIS FILE IS REACHABLE, and it is `web` on port 80.
+# EXACTLY ONE THING IN THIS FILE IS REACHABLE, and it is `web` on host port
+# 8080, which forwards to nginx on 80 inside the container.
 #
 # It used to be none: a `cloudflared` container ran in this stack and opened an
 # outbound connection, so there was no published port anywhere on the path.
@@ -18,8 +19,21 @@
 # the site the way anything else would, so the port has to exist and has to be
 # published on every interface rather than the loopback.
 #
+# 8080 and not 80 on the host, chosen on 2026-09-14 and the tunnel route moved
+# with it. It is one number and it buys three things. The host keeps 80 free
+# for whatever else may want it. A port above 1024 is one no privileged process
+# needs, so nothing about this stack asks the host for a privilege it could be
+# refused. And it is the port the local override already used, so the address
+# in infra/README.md section 7 and the address on the host are now the same
+# string, which removes the one difference between a rehearsal and the real
+# thing that was there for no reason.
+#
+# The container still listens on 80 inside, and `web` still holds
+# NET_BIND_SERVICE for it. Moving that one too is the change that empties the
+# capability list; see the note on the service below.
+#
 # What that costs is real and is written down rather than implied: anything
-# that can route to this host can now reach nginx on port 80, which before was
+# that can route to this host can now reach nginx on 8080, which before was
 # true of nothing at all. The host firewall is what narrows that to the machine
 # the connector runs on, and it is not in this file, so this file cannot assert
 # it. The "What runs" section of infra/README.md is where that rule is
@@ -280,7 +294,13 @@ services:
     # is a decision for the host and cannot be made in this file.
     # infra/README.md says so where it describes the host.
     ports:
-      - "80:80"
+      # host:container. 8080 outside because the tunnel route names it and
+      # because nothing should need a privileged port to run this; 80 inside
+      # because that is what web.Dockerfile exposes and what nginx.conf listens
+      # on. Changing the left number means changing the tunnel route on the
+      # machine the connector runs on, and changing the right one means
+      # changing the image.
+      - "8080:80"
     image: ghcr.io/stijnvandepol/ampeer-web:${AMPEER_VERSION}
     logging: *logging
     build:
@@ -291,11 +311,10 @@ services:
     mem_limit: 256m
     cap_drop: [ALL]
     # The exception in this stack, and web.Dockerfile:78-83 already says why:
-    # the nginx master stays root because it binds port 80 and because the
-    # tunnel's ingress on the Cloudflare side names that port. Only the master
-    # is privileged; the workers that serve every request drop to the
-    # unprivileged `nginx` user. Each name below is one thing that master does
-    # while starting:
+    # the nginx master stays root because it binds port 80 INSIDE the
+    # container. Only the master is privileged; the workers that serve every
+    # request drop to the unprivileged `nginx` user. Each name below is one
+    # thing that master does while starting:
     #
     #   NET_BIND_SERVICE  binding port 80, which is the whole exception
     #   SETUID SETGID     spawning workers as `nginx`, per nginx.conf line 12
@@ -304,9 +323,13 @@ services:
     #   DAC_OVERRIDE      opening those directories, which `nginx` owns
     #   KILL              signalling workers that run under a different uid
     #
-    # Moving to the unprivileged nginx variant means moving to port 8080 and
-    # changing the tunnel route, which is Stijn's to do, and would leave this
-    # list empty.
+    # Moving to the unprivileged nginx variant would leave this list empty. It
+    # used to need two things: an internal port above 1024, and a tunnel route
+    # pointed somewhere else. The second happened on 2026-09-14, so what is
+    # left is the image itself, its nginx.conf `listen`, the HEALTHCHECK and a
+    # new digest to pin. Not done in the same change as the port, because a new
+    # base image is not a thing to introduce in the commit that moves the
+    # address the site is served on.
     #
     # UNVERIFIED against a running container, for the same reason as `db`, and
     # this is the service that serves the site: a missing capability here is a

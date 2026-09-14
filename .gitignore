@@ -8,6 +8,16 @@ __pycache__/
 build/
 dist/
 data/
+
+# An environment file anywhere in the tree. `infra/.env.example` is the
+# checklist and is committed with every value empty; a filled one holds a
+# Django signing key, a database password and a mail API key, and the only
+# reason one is ever written here is to be copied to a host and deleted. This
+# line is what stops the copy that lives for ten minutes from living forever in
+# the history.
+.env
+*.env
+!infra/.env.example
 .coverage
 coverage.xml
 htmlcov/
