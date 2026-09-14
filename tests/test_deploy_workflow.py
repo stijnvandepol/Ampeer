@@ -18,7 +18,6 @@ it by triggering only on a tag and waiting for a review.
 from __future__ import annotations
 
 import ast
-import hashlib
 import os
 import re
 import shutil
@@ -223,11 +222,26 @@ def _step_text(job: str) -> str:
     ).lower()
 
 
-def test_the_deploy_job_checks_nothing_out() -> None:
-    """No source on the host, so no build chain and no token that can read the
-    repository. The compose file and this preflight are placed on the host by
-    hand, which is written down in both of them."""
-    assert "checkout" not in _step_text("deploy")
+def test_the_deploy_job_checks_the_tag_out_without_keeping_the_token() -> None:
+    """The opposite of what this asserted until 2026-09-14, and the reversal is
+    the point of the change rather than a detail of it.
+
+    It used to demand no checkout, on the grounds that source on the host is a
+    thing an attacker inherits. What that actually bought was four releases
+    that stopped on a file nobody had copied, and it bought nothing against the
+    only person who can start this job: whoever pushes a tag already decides
+    every step it runs, because this workflow comes from that tag.
+
+    `persist-credentials: false` is the part still worth asserting. This runner
+    is not ephemeral, measured on 2026-08-21, so a token left in .git/config
+    outlives the job that needed it and is readable by whatever runs next.
+    """
+    deploy = _job("deploy")
+    checkout = [step for step in deploy["steps"] if "actions/checkout" in str(step.get("uses", ""))]
+    assert len(checkout) == 1, f"the deploy job has {len(checkout)} checkout steps"
+    assert checkout[0]["with"]["persist-credentials"] is False, (
+        "the deploy leaves its token in .git/config on a runner that is not ephemeral"
+    )
 
 
 def test_the_deploy_job_builds_no_image() -> None:
@@ -490,9 +504,7 @@ DEPLOY_README = REPO_ROOT / "infra" / "README.md"
 #: then it did. Every gate was green: the workflow tests read the workflow and
 #: nothing read the prose.
 README_STEP_WORDS = (
-    ("Confirm the preflight", "the preflight's digest"),
-    ("Confirm the compose file", "the compose file's digest"),
-    ("Confirm the backup script", "the backup script's digest"),
+    ("Check out the tag", "checks the tag out"),
     ("Check the thirteen variables", "runs the preflight"),
     ("Log in to the registry", "logs in to GHCR"),
     ("Pull what CI built", "`pull`"),
@@ -635,40 +647,6 @@ def test_the_workflow_says_what_provenance_true_does_and_does_not_buy() -> None:
 # --------------------------------------------------------------------------
 # The compose file on the host, which nothing has ever read.
 # --------------------------------------------------------------------------
-
-
-def test_the_deploy_pins_the_checksum_of_the_compose_file_it_runs() -> None:
-    """The same hole the preflight had, in the file that decides what runs.
-
-    /srv/ampeer/docker-compose.yml is placed by hand and the deploy job has no
-    checkout, so every test in this repository reads a copy that is not the one
-    the host uses. Measured on 2026-08-21: adding
-    `- /var/run/docker.sock:/var/run/docker.sock` to the api service on the
-    host leaves the whole suite green, and it is permanent.
-
-    This recomputes the digest from the repository, so the literal in the
-    workflow cannot drift from infra/docker-compose.yml. It can only disagree
-    with the host, which is the disagreement worth stopping a deploy for.
-    """
-    digest = hashlib.sha256(COMPOSE.read_bytes()).hexdigest()
-    text = (REPO_ROOT / ".github" / "workflows" / DEPLOY_WORKFLOW).read_text(encoding="utf-8")
-    assert digest in text, (
-        f"infra/docker-compose.yml hashes to {digest}, which .github/workflows/deploy.yml "
-        "does not name. Update COMPOSE_SHA256 in the workflow and re-copy the file to "
-        "/srv/ampeer/ on the host."
-    )
-
-
-def test_the_compose_file_is_checked_before_anything_uses_it() -> None:
-    """A checksum verified after `up` describes a file that has already started
-    containers."""
-    check = _only_deploy_step(
-        lambda run: "sha256sum" in run and "docker-compose.yml" in run,
-        "hashes the compose file",
-    )
-    for index, run in enumerate(_deploy_run_lines()):
-        if "compose" in run and ("up -d" in run or " pull" in run or "run --rm" in run):
-            assert index > check, f"step {index} uses the compose file before it is checked: {run}"
 
 
 # --------------------------------------------------------------------------
@@ -1016,32 +994,6 @@ def _dump(directory: Path, name: str = "ampeer-20260821T043000Z.sql") -> Path:
     path.write_text("-- PostgreSQL database dump\n" + FINISHED_DUMP_TAIL, encoding="utf-8")
     path.chmod(0o600)
     return path
-
-
-def test_the_deploy_pins_the_checksum_of_the_backup_script() -> None:
-    """The third file on the host that nothing else can see.
-
-    scripts/backup_db.sh is copied to /srv/ampeer by hand like the preflight,
-    and an out-of-date copy is silent in a specific way: it keeps a different
-    number of dumps and allows a different staleness, so the deploy stays green
-    while the retention window is not the one this repository describes.
-    """
-    digest = hashlib.sha256(BACKUP.read_bytes()).hexdigest()
-    text = (REPO_ROOT / ".github" / "workflows" / DEPLOY_WORKFLOW).read_text(encoding="utf-8")
-    assert digest in text, (
-        f"scripts/backup_db.sh hashes to {digest}, which .github/workflows/deploy.yml "
-        "does not name. Update BACKUP_SHA256 in the workflow and re-copy the script to "
-        "/srv/ampeer/ on the host."
-    )
-
-
-def test_the_backup_script_is_checked_before_it_is_run() -> None:
-    """Order, for the reason the digest check on the preflight has the same one."""
-    pin = _only_deploy_step(lambda run: "BACKUP_SHA256" in run, "checks the backup script digest")
-    use = _only_deploy_step(
-        lambda run: "backup_db.sh" in run and "--check" in run, "runs the backup check"
-    )
-    assert pin < use, f"digest check at {pin}, use at {use}"
 
 
 def test_the_backup_check_runs_before_the_migration() -> None:
@@ -1509,60 +1461,3 @@ def test_no_unit_puts_a_credential_where_the_host_can_read_it(unit: str) -> None
     )
     passwords = [line for line in directives if "PASSWORD" in line or "SECRET" in line]
     assert not passwords, f"{unit} names a secret on a directive line: {passwords}"
-
-
-INSTALLER = REPO_ROOT / "scripts" / "install_host.sh"
-
-
-def test_the_host_installer_reads_its_digests_out_of_the_workflow() -> None:
-    """Three literals that must agree would be two that eventually will not.
-
-    The installer copies exactly the files the deploy checks, and it refuses a
-    copy whose digest is not the pinned one. That refusal is only worth
-    anything if the number it compares against is the workflow's own: a script
-    carrying its own copy of the digest would happily install a file the deploy
-    then rejects, which is a worse outcome than doing nothing, and it would go
-    stale on the first release that changes one of the three.
-    """
-    body = INSTALLER.read_text(encoding="utf-8")
-    assert ".github/workflows/deploy.yml" in body, (
-        "the installer no longer reads the workflow, so its digests are its own"
-    )
-    assert not re.search(r"[0-9a-f]{64}", body), (
-        "the installer carries a literal digest; it has to read them from the workflow"
-    )
-    for name in ("COMPOSE_SHA256", "PREFLIGHT_SHA256", "BACKUP_SHA256"):
-        assert name in body, f"the installer does not check {name}"
-
-
-def test_the_host_installer_writes_no_secret_and_starts_nothing() -> None:
-    """The two things it must never grow into.
-
-    Writing .env would mean a signing key, a database password and a mail API
-    key travelling between machines, and the whole reason that file is absent
-    from every copy command in this repository is that it belongs on one.
-    Starting the stack would mean a second path to a running deploy that does
-    less than the real one: no digest pinning to what CI built, no migration,
-    no fallback to the previous release.
-    """
-    body = INSTALLER.read_text(encoding="utf-8")
-    assert not re.search(r"scp[^\n]*\.env|cat[^\n]*>[^\n]*\.env", body), (
-        "the installer writes or copies an env file"
-    )
-    assert not re.search(r"docker\s+compose[^\n]*\b(up|start|restart)\b", body), (
-        "the installer starts the stack; the deploy is what does that, and it "
-        "pins digests, migrates and falls back"
-    )
-
-
-def test_the_host_installer_is_never_run_by_a_workflow() -> None:
-    """It writes to the host, so a workflow calling it would put back exactly
-    the property the self-hosted runner exception rests on not having: a job
-    that can place files on the LXC."""
-    workflows = REPO_ROOT / ".github" / "workflows"
-    offenders = [
-        path.name
-        for path in sorted(workflows.glob("*.yml"))
-        if "install_host" in path.read_text(encoding="utf-8")
-    ]
-    assert not offenders, f"install_host.sh is called by a workflow: {offenders}"
