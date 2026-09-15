@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PriceGap } from "@/components/gap/PriceGap";
-import { PageJsonLd } from "../_shell/JsonLd";
+import { FaqJsonLd, PageJsonLd } from "../_shell/JsonLd";
 import styles from "../_shell/content.module.css";
 
 const PATH = "/einde-saldering/";
@@ -70,10 +70,52 @@ const UNKNOWNS: readonly string[] = [
  * anybody's answer. Multiply one of them by a volume and you have invented a
  * household.
  */
+/**
+ * The questions, rendered and marked up from the same array.
+ *
+ * They were written out in JSX until 2026-09-15 and carried no FAQPage
+ * markup, so the page most likely to be cited for the end of netting was the
+ * one page with questions on it that no search engine could read as questions.
+ * `/thuisbatterij/` and `/zelf-verbruiken/` had it from the start; this one was
+ * older than the pattern.
+ *
+ * One array feeding both the markup and the list is the whole point: a
+ * FAQPage whose answers differ from the answers on the page is the kind of
+ * thing that gets a site penalised rather than cited, and here the two cannot
+ * differ.
+ */
+const QUESTIONS: readonly (readonly [string, string])[] = [
+  [
+    "Moet ik mijn zonnepanelen nu weghalen?",
+    "Nee. Panelen leveren stroom die u anders had moeten kopen, en dat blijft na 2027 zo. Wat verandert is wat de stroom opbrengt die u niet zelf gebruikt.",
+  ],
+  [
+    "Zijn zonnepanelen na 2027 nog rendabel?",
+    "Voor de meeste huishoudens wel, maar minder dan nu, en hoeveel minder verschilt sterk. Dat is precies het bedrag dat wij voor u uitrekenen.",
+  ],
+  [
+    "Wat is het verschil tussen terugleververgoeding en terugleverkosten?",
+    "De vergoeding is wat u krijgt per teruggeleverde kilowattuur. De terugleverkosten zijn wat uw leverancier daarvoor in rekening brengt. De veelgenoemde 3 tot 8 cent is de vergoeding met de kosten er nog voor.",
+  ],
+  [
+    "Heb ik een slimme meter nodig?",
+    "Niet om bij ons een antwoord te krijgen. Wij bouwen uw jaar op uit standaardprofielen en uw eigen opgave. Echte meetgegevens maken het antwoord scherper, maar zijn geen voorwaarde.",
+  ],
+  [
+    "Moet ik overstappen op een dynamisch contract?",
+    "Soms, en soms niet. Op een dynamisch contract zitten geen aparte terugleverkosten, maar beweegt uw prijs per uur mee. Of het bij u gunstig uitpakt hangt af van uw patroon, en dat rekenen wij door.",
+  ],
+  [
+    "Slaan jullie mijn gegevens op?",
+    "Wij bewaren uw antwoorden en uw uitkomst achter de link die u krijgt, zodat u er later bij kunt. Er is geen account, wij vragen geen e-mailadres, en van uw postcode slaan wij alleen de vier cijfers op.",
+  ],
+];
+
 export default function EindeSalderingPage() {
   return (
     <div className={styles.page}>
       <PageJsonLd path={PATH} name={TITLE} description={DESCRIPTION} />
+      <FaqJsonLd questions={QUESTIONS} />
 
       <header className={styles.hero}>
         <p className={styles.eyebrow}>Wat er verandert</p>
@@ -312,52 +354,12 @@ export default function EindeSalderingPage() {
           Veelgestelde vragen
         </h2>
         <dl className={styles.faq}>
-          <dt className={styles.question}>
-            Moet ik mijn zonnepanelen nu weghalen?
-          </dt>
-          <dd className={styles.answer}>
-            Nee. Panelen leveren stroom die u anders had moeten kopen, en dat
-            blijft na 2027 zo. Wat verandert is wat de stroom opbrengt die u
-            niet zelf gebruikt.
-          </dd>
-          <dt className={styles.question}>
-            Zijn zonnepanelen na 2027 nog rendabel?
-          </dt>
-          <dd className={styles.answer}>
-            Voor de meeste huishoudens wel, maar minder dan nu, en hoeveel
-            minder verschilt sterk. Dat is precies het bedrag dat wij voor u
-            uitrekenen.
-          </dd>
-          <dt className={styles.question}>
-            Wat is het verschil tussen terugleververgoeding en terugleverkosten?
-          </dt>
-          <dd className={styles.answer}>
-            De vergoeding is wat u krijgt per teruggeleverde kilowattuur. De
-            terugleverkosten zijn wat uw leverancier daarvoor in rekening
-            brengt. De veelgenoemde 3 tot 8 cent is de vergoeding met de kosten
-            er nog voor.
-          </dd>
-          <dt className={styles.question}>Heb ik een slimme meter nodig?</dt>
-          <dd className={styles.answer}>
-            Niet om bij ons een antwoord te krijgen. Wij bouwen uw jaar op uit
-            standaardprofielen en uw eigen opgave. Echte meetgegevens maken het
-            antwoord scherper, maar zijn geen voorwaarde.
-          </dd>
-          <dt className={styles.question}>
-            Moet ik overstappen op een dynamisch contract?
-          </dt>
-          <dd className={styles.answer}>
-            Soms, en soms niet. Op een dynamisch contract zitten geen aparte
-            terugleverkosten, maar beweegt uw prijs per uur mee. Of het bij u
-            gunstig uitpakt hangt af van uw patroon, en dat rekenen wij door.
-          </dd>
-          <dt className={styles.question}>Slaan jullie mijn gegevens op?</dt>
-          <dd className={styles.answer}>
-            Wij bewaren uw antwoorden en uw uitkomst achter de link die u
-            krijgt, zodat u er later bij kunt. Er is geen account, wij vragen
-            geen e-mailadres, en van uw postcode slaan wij alleen de vier
-            cijfers op.
-          </dd>
+          {QUESTIONS.map(([question, answer]) => (
+            <div key={question}>
+              <dt className={styles.question}>{question}</dt>
+              <dd className={styles.answer}>{answer}</dd>
+            </div>
+          ))}
         </dl>
       </section>
 

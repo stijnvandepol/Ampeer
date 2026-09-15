@@ -200,3 +200,35 @@ describe("the questions route", () => {
     expect(block).not.toContain("review");
   });
 });
+
+describe("the questions a search engine is given", () => {
+  it("marks up exactly the questions this page shows, in the same words", () => {
+    // Six questions sat on this page as plain JSX with no FAQPage markup until
+    // 2026-09-15, on the page most likely to be cited for the end of netting.
+    // /thuisbatterij/ and /zelf-verbruiken/ had it from the start; this page is
+    // older than the pattern.
+    const { container } = render(<EindeSalderingPage />);
+    const scripts = [
+      ...container.querySelectorAll('script[type="application/ld+json"]'),
+    ].map((element) => JSON.parse(element.textContent ?? "{}"));
+    const faq = scripts.find((data) => data["@type"] === "FAQPage");
+
+    expect(faq, "this page carries no FAQPage markup").toBeDefined();
+    expect(faq.mainEntity.length).toBeGreaterThanOrEqual(5);
+    expect(faq.mainEntity.map((entry: { name: string }) => entry.name)).toEqual(
+      [...container.querySelectorAll("dt")].map(
+        (element) => element.textContent ?? "",
+      ),
+    );
+    expect(
+      faq.mainEntity.map(
+        (entry: { acceptedAnswer: { text: string } }) =>
+          entry.acceptedAnswer.text,
+      ),
+    ).toEqual(
+      [...container.querySelectorAll("dd")].map(
+        (element) => element.textContent ?? "",
+      ),
+    );
+  });
+});
