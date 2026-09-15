@@ -273,7 +273,10 @@ if have pnpm; then
   gate frontend-typecheck in_frontend pnpm typecheck
   gate frontend-format    in_frontend pnpm format:check
   gate frontend-test      in_frontend pnpm test
-  gate frontend-build     in_frontend pnpm build
+  # Built with a measurement ID that measures nothing, so the e2e run can
+  # see the consent banner and prove that nothing loads before a yes. The
+  # real ID is a repository variable read only by deploy.yml.
+  gate frontend-build     in_frontend env NEXT_PUBLIC_GA_MEASUREMENT_ID=G-TESTTESTTE pnpm build
   gate pnpm-audit         in_frontend pnpm audit --audit-level low
   # Playwright drives a real browser it has to download first, which is a
   # deliberate choice to leave to CI rather than to every clone.

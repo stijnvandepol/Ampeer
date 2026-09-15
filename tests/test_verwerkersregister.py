@@ -96,7 +96,7 @@ def test_the_register_names_every_table_the_service_has() -> None:
     assert not missing, f"the register never names {missing}"
 
 
-def test_the_register_names_both_processors_and_no_third() -> None:
+def test_the_register_names_all_three_processors_and_no_fourth() -> None:
     """The allowlist test_boundaries.py enforces is the outer bound on what a
     document about processors may claim exists."""
     from test_boundaries import OUTBOUND_MODULES
@@ -107,6 +107,11 @@ def test_the_register_names_both_processors_and_no_third() -> None:
     # what turns this test red.
     assert "Cloudflare Inc." in TEXT
     assert "Resend, Inc." in TEXT
+    # Google reaches nothing on the backend, so it is not in OUTBOUND_MODULES:
+    # the browser loads gtag.js after a yes, and frontend/e2e/privacy.spec.ts
+    # is the instrument for that side. The register names it all the same,
+    # because a processor is a processor whichever machine talks to it.
+    assert "Google Ireland Limited" in TEXT
     hosts = {host for allowed in OUTBOUND_MODULES.values() for host in allowed}
     # energiedatawijzer.nl is a deliberate exception: a by-hand ingest run,
     # never a processing of personal data, so it does not belong in a

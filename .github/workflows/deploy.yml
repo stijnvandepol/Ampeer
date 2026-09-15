@@ -108,6 +108,12 @@ jobs:
           # would get a failed request against their own machine. Empty makes
           # the client use relative paths, which is what same-origin means.
           NEXT_PUBLIC_API_BASE: ""
+          # The Google Analytics measurement ID, a repository variable and not
+          # a secret: it is in every page's HTML once built. Unset, the site
+          # ships without measurement and without the consent banner, which
+          # is a valid build and not an error. Set it under Settings,
+          # Secrets and variables, Actions, Variables, as GA_MEASUREMENT_ID.
+          NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ vars.GA_MEASUREMENT_ID }}
         run: pnpm build
 
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0

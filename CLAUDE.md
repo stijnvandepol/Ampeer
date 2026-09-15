@@ -180,4 +180,11 @@ wanneer iemand thuis is. Behandel het als zodanig.
 - Ruwe kwartierdata automatisch verwijderen na 90 dagen, alleen uur-aggregaten bewaren
 - Export- en verwijderknop werkend vanaf de fase waarin accounts bestaan
 - Postcode alleen op 4 cijfers opslaan, nooit volledig
-- Geen Google Analytics. Self-hosted Umami of Plausible.
+- Google Analytics 4 alleen na een ja van de bezoeker, gevraagd met nee en ja
+  even groot en niets vooraf aangevinkt (beslissing van de eigenaar,
+  2026-09-15; tot die dag stond hier "geen Google Analytics"). Voor die
+  keuze en na een nee laadt een pagina niets van Google, en
+  `frontend/e2e/privacy.spec.ts` leest elk verzoek mee om dat af te dwingen.
+  Google Signals en advertentiepersonalisatie staan uit, cookies gelden zes
+  maanden, de bewaartermijn in Google Analytics staat op twee maanden. Geen
+  Tag Manager en geen tweede meetprogramma.

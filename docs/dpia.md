@@ -10,7 +10,7 @@ machine verlaat. Elk feit hierin is uit de code gelezen of gemeten, niet
 onthouden, en `tests/test_dpia.py` houdt de getallen hieronder naast de plek in
 de code waar ze vandaan komen. Verandert er een, dan valt die test om.
 
-Dit is geen juridisch advies en het is niet ondertekend. Vier dingen zijn
+Dit is geen juridisch advies en het is niet ondertekend. Vijf dingen zijn
 beslissingen van de verwerkingsverantwoordelijke en staan in hoofdstuk 10 met
 de informatie die nodig is om ze te nemen.
 
@@ -347,18 +347,42 @@ command `send_outbound_mail` bereikt Resend, onder een timer; geen enkel
 verzoek van een bezoeker doet dat. Beide verwerkers staan ook in
 `docs/verwerkersregister.md`, hoofdstuk 8.
 
-Verder wordt niets uitbesteed. Er gaat geen gegeven naar een advertentie- of
-analysepartij.
+**Google Ireland Limited is een verwerker, maar alleen na toestemming.** Sinds
+2026-09-15 laadt de site Google Analytics 4 nadat de bezoeker op een vraag met
+twee even grote antwoorden, niets vooraf aangevinkt, ja heeft gezegd. Voor die
+keuze en na een nee bereikt geen enkel verzoek van een pagina een host van
+Google; `frontend/e2e/privacy.spec.ts` leest elk verzoek mee en valt daarop,
+en een tweede test in hetzelfde bestand zegt ja en controleert dat er dan
+precies het script van googletagmanager.com bij komt. Na een ja ziet Google de
+bezochte pagina, apparaat en browser, en het IP-adres om de regio te bepalen,
+dat Google naar eigen zeggen niet opslaat. Google Signals en
+advertentiepersonalisatie staan uit in de code, de twee cookies gelden zes
+maanden, en de bewaartermijn van gebeurtenisgegevens in Google Analytics staat
+op twee maanden, de kortste stand. Grondslag: toestemming, artikel 6 lid 1
+onder a AVG en artikel 11.7a Telecommunicatiewet; de keuze staat in de browser
+van de bezoeker en is op `/privacy/` terug te draaien. De
+verwerkersovereenkomst is de Google Ads Data Processing Terms, te aanvaarden
+in het beheer van Google Analytics; die aanvaarding en het instellen van de
+bewaartermijn liggen bij de verantwoordelijke (hoofdstuk 10, punt 5).
+Doorgifte rust op Googles Standard Contractual Clauses en op de certificering
+onder het EU-US Data Privacy Framework.
+
+Verder wordt niets uitbesteed. Er gaat geen gegeven naar een advertentiepartij.
 
 ## 6. Wat de machine verlaat
 
-**Voor de bezoeker: niets.** Het laden van een pagina veroorzaakt geen enkel
-verzoek aan een host buiten de machine die de site serveert. Er is geen Google
-Analytics, geen tag manager, geen CDN en geen extern lettertype: de twee
-lettertypen worden bij het bouwen opgehaald en daarna vanaf de eigen oorsprong
+**Voor de bezoeker: niets, tot die ja zegt.** Het laden van een pagina
+veroorzaakt geen enkel verzoek aan een host buiten de machine die de site
+serveert zolang de bezoeker de meetvraag niet met ja heeft beantwoord. Er is
+geen tag manager, geen CDN en geen extern lettertype: de twee lettertypen
+worden bij het bouwen opgehaald en daarna vanaf de eigen oorsprong
 geserveerd. Gemeten op 21 augustus 2026 in de gebouwde site, en sindsdien
 afgedwongen door `frontend/e2e/privacy.spec.ts`, die elk verzoek meeleest en
-valt op elke host die deze machine niet is.
+valt op elke host die deze machine niet is. Sinds 2026-09-15 kent die test
+een tweede helft: na een ja komt er precies Google Analytics bij (hoofdstuk
+5), en de Content-Security-Policy in `infra/nginx/nginx.conf` laat naast de
+eigen oorsprong alleen de drie hosts van Google Analytics toe, zodat de
+browser elke andere bestemming weigert wat de code ook doet.
 
 **Voor de dienst: naar een vaste lijst.** De backend haalt instralingsgegevens
 op bij PVGIS. Die URL wordt nooit uit gebruikersinvoer opgebouwd; de invoer
@@ -681,7 +705,7 @@ over een volgende fase.
 
 ## 10. Wat bij Stijn ligt
 
-Vier dingen kan dit document niet voor de verwerkingsverantwoordelijke
+Vijf dingen kan dit document niet voor de verwerkingsverantwoordelijke
 beslissen. Een eerdere vraag, of verwijderen op verzoek mogelijk wordt voor fase
 1, is inmiddels beantwoord: ja. `POST /api/auth/delete/` bestaat, hoofdstuk 7
 beschrijft wat hij doet, en de vier feiten die deze paragraaf eerder opsomde
@@ -713,9 +737,20 @@ langer op de genummerde lijst hieronder.
    document zet hem voorlopig op noodzaak voor de dienst, want zonder
    bevestigd adres kan de dienst geen wachtwoord herstellen en geen meter
    koppelen.
+5. **Google Analytics als verwerker**, sinds 2026-09-15 en op besluit van de
+   verantwoordelijke. Drie instellingen die dit document veronderstelt en niet
+   kan controleren, omdat ze in het beheer van Google Analytics staan en niet in
+   de code: de aanvaarding van de Google Ads Data Processing Terms als de
+   verwerkersovereenkomst die artikel 28 vraagt; de bewaartermijn van
+   gebeurtenisgegevens op twee maanden, wat de privacyverklaring belooft; en
+   Google Signals uit, wat de code al vraagt maar het beheer kan overstemmen.
+   De keuze zelf, met nee en ja even groot en niets vooraf aangevinkt, staat in
+   de code en wordt door `frontend/e2e/privacy.spec.ts` bewaakt.
 
-Er is een privacyverklaring op `/privacy/`, herschreven op 2026-09-07 voor fase 1.
+Er is een privacyverklaring op `/privacy/`, herschreven op 2026-09-07 voor fase 1
+en op 2026-09-15 uitgebreid met de meetvraag.
 Er is een register in `docs/verwerkersregister.md`, gebonden door
 `tests/test_verwerkersregister.py`. Wat er niet is en bij de
 verwerkingsverantwoordelijke blijft: de vastgelegde aanvaarding van Cloudflares
-verwerkersovereenkomst en de beoordeling van Resends DPA (punt 4).
+verwerkersovereenkomst, de beoordeling van Resends DPA (punt 4) en de drie
+instellingen in het beheer van Google Analytics (punt 5).

@@ -7,6 +7,7 @@ import {
   requireCompleteIdentity,
   type CompleteIdentity,
 } from "./identity";
+import { ConsentReset } from "../_shell/ConsentBanner";
 import styles from "./legal.module.css";
 
 const PATH = "/privacy/";
@@ -361,39 +362,67 @@ export function PrivacyStatement({
         </p>
       </section>
 
+      <section className={styles.section} aria-labelledby="meting">
+        <h2 id="meting" className={styles.heading}>
+          Meten hoe de site gebruikt wordt, alleen als u dat goed vindt
+        </h2>
+        <p className={styles.body}>
+          Wij willen weten welke pagina&apos;s bezocht worden en waar mensen
+          afhaken. Daarvoor gebruiken wij Google Analytics, en dat laden wij pas
+          nadat u op de vraag onderaan de pagina ja heeft gezegd. Zegt u nee, of
+          zegt u niets, dan wordt er niets van Google geladen en gaat er niets
+          naar Google.
+        </p>
+        <p className={styles.body}>
+          Zegt u ja, dan ziet Google welke pagina&apos;s u opent, met welk
+          apparaat en welke browser, en uw IP-adres om de regio te bepalen;
+          Google zegt dat adres zelf niet te bewaren. Google plaatst dan twee
+          cookies die zes maanden gelden. De koppeling met advertenties en het
+          delen met andere diensten van Google hebben wij uitgezet, en wat
+          Google voor ons bewaart, bewaart het twee maanden. Google verwerkt dit
+          in onze opdracht, onder de verwerkersvoorwaarden van Google Analytics.
+        </p>
+        <p className={styles.body}>
+          Uw keuze staat in de opslag van uw eigen browser, en u kunt hem hier
+          altijd terugdraaien.
+        </p>
+        <ConsentReset />
+      </section>
+
       <section className={styles.section} aria-labelledby="derden">
         <h2 id="derden" className={styles.heading}>
           Verder gaat er niets naar buiten
         </h2>
         <ul className={styles.points}>
           <li className={styles.point}>
-            Het openen van een pagina van Ampeer doet geen enkel verzoek aan een
-            ander bedrijf.
-          </li>
-          <li className={styles.point}>
-            Wij gebruiken geen Google Analytics en geen ander meetprogramma.
+            Zolang u geen ja heeft gezegd, doet het openen van een pagina van
+            Ampeer geen enkel verzoek aan een ander bedrijf. Na een ja gaat er
+            alleen iets naar Google Analytics, en naar niemand anders.
           </li>
           <li className={styles.point}>
             Wij plaatsen geen advertenties en verkopen geen advertentieruimte.
           </li>
           <li className={styles.point}>
-            Wij volgen uw gedrag niet en bouwen geen profiel van u op.
+            Wij bouwen geen profiel van u op en delen de meetgegevens niet met
+            advertentiediensten.
           </li>
           <li className={styles.point}>
             Onze lettertypen staan op onze eigen server. Er is geen extern
-            lettertype en geen extern script.
+            lettertype en, tot uw ja, geen extern script.
           </li>
         </ul>
         <p className={styles.body}>
           Dit is geen belofte maar een test. Bij elke wijziging leest een test
-          alle verzoeken mee die een pagina doet. Gaat er één naar een ander
-          bedrijf, dan gaat die test rood en komt de wijziging er niet in.
+          alle verzoeken mee die een pagina doet voordat u iets gekozen heeft.
+          Gaat er dan één naar een ander bedrijf, dan gaat die test rood en komt
+          de wijziging er niet in. Een tweede test zegt ja en controleert dat er
+          dan precies Google bij komt.
         </p>
       </section>
 
       <section className={styles.section} aria-labelledby="cookies">
         <h2 id="cookies" className={styles.heading}>
-          Drie cookies, en geen enkele om u te volgen
+          Drie cookies van ons, en twee van Google na uw ja
         </h2>
         <p className={styles.body}>
           Opent u de accountpagina, dan zetten wij één cookie dat de pagina
@@ -409,8 +438,10 @@ export function PrivacyStatement({
           ander bedrijf.
         </p>
         <p className={styles.body}>
-          Daarom is er geen cookiemelding. De wet vraagt geen toestemming voor
-          cookies die alleen doen wat u zelf vroeg.
+          Voor die drie vraagt de wet geen toestemming: ze doen alleen wat u
+          zelf vroeg. Voor de twee cookies van Google Analytics wel, en daarom
+          vragen wij het, met nee en ja even groot naast elkaar en niets vooraf
+          aangevinkt.
         </p>
         <p className={styles.body}>
           Uw antwoorden op de vragen staan in de opslag van uw eigen browser.
@@ -510,7 +541,7 @@ export function PrivacyStatement({
           regels voor het gebruik staan in{" "}
           <Link href="/voorwaarden/">onze gebruiksvoorwaarden</Link>.
         </p>
-        <p className={styles.note}>Laatst gewijzigd op 7 september 2026.</p>
+        <p className={styles.note}>Laatst gewijzigd op 15 september 2026.</p>
       </section>
     </div>
   );

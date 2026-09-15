@@ -269,7 +269,12 @@ describe("the privacy statement", () => {
 
   it("says what changed since fase 1 shipped accounts", () => {
     const text = privacyText();
-    for (const claim of ["Resend", "Argon2id", "dertien", "7 september 2026"]) {
+    for (const claim of [
+      "Resend",
+      "Argon2id",
+      "dertien",
+      "15 september 2026",
+    ]) {
       expect(text, `the statement never says "${claim}"`).toContain(claim);
     }
     // The two session cookies, named by function rather than by name: the
@@ -277,7 +282,20 @@ describe("the privacy statement", () => {
     // they are for.
     expect(text).toContain("kwartier");
     expect(text).toContain("veertien dagen");
-    expect(text).toContain("geen cookiemelding");
+    // Since 2026-09-15 there is a cookie question, and the statement says
+    // for which cookies and under what condition; "geen cookiemelding" was
+    // true for eight days and is the claim that must be gone.
+    expect(text).not.toContain("geen cookiemelding");
+    expect(text).not.toContain("geen Google Analytics");
+    for (const claim of [
+      "Google Analytics",
+      "pas nadat u",
+      "zes maanden",
+      "twee maanden",
+      "niets vooraf aangevinkt",
+    ]) {
+      expect(text, `the statement never says "${claim}"`).toContain(claim);
+    }
     // The third cookie, CSRF, named by function: what it protects against.
     expect(text).toContain("verzoeken die niet van u komen");
     // The privacy address from FILLED, and not only the general one.

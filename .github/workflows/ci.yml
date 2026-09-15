@@ -200,7 +200,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
       # The end to end tests run against the built output and not against a dev
-      # server, so the build has to happen before them. That is also what ships.
+      # server, so the build has to happen before them. That is also what ships,
+      # except for the measurement ID: this one measures nothing and exists so
+      # the consent banner renders and privacy.spec.ts can prove that nothing
+      # loads before a yes. deploy.yml reads the real one from a variable.
       - run: pnpm build
+        env:
+          NEXT_PUBLIC_GA_MEASUREMENT_ID: G-TESTTESTTE
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm e2e
