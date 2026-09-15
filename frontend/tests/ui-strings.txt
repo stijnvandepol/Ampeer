@@ -122,6 +122,7 @@ Account verwijderen
 Adviesversie
 Alle drie zijn nodig om de accountpagina veilig te gebruiken, en voor niets anders. Ze volgen u niet, ze meten niets en ze gaan naar geen ander bedrijf.
 Alleen als het bij u uitkomt, en bij een deel van de huishoudens komt dat er niet uit. Nu geen batterij is bij ons een volwaardige uitkomst, en wij verdienen niets aan de andere. Waar het van afhangt, staat op
+Alleen als het bij u uitkomt, en bij een deel van de huishoudens komt dat er niet uit. Nu geen batterij is bij ons een volwaardige uitkomst, en wij verdienen niets aan de andere. Waar het van afhangt, staat op onze pagina over de thuisbatterij.
 Alleen als het bij u uitkomt. Voor een deel van de huishoudens is het antwoord nee, en dat is bij ons een geldige en volwaardige uitkomst.
 Alles daarover staat in
 Als dit adres bij ons bekend is, staat er binnen enkele minuten een e-mail voor u klaar. De link daarin werkt een uur.
@@ -140,6 +141,7 @@ Beantwoord eerst de vier vragen over uw huis. Daarna kunt u verfijnen.
 Beantwoord vier vragen
 Bedragen per kilowattuur, exclusief btw, op een vast contract. De veelgenoemde 3 tot 8 cent is de brutovergoeding, met de terugleverkosten er nog voor. Op een dynamisch contract blijft de vergoeding 5 tot 7 cent en positief. Zie
 Begin een nieuwe berekening
+Begin hier
 Bekijk het nieuwe advies
 Bent u het niet eens met wat wij doen, laat het ons weten. U kunt uw bezwaar sturen naar
 Bent u overdag thuis en gebruikt u uw opwek al grotendeels zelf, dan is er weinig te verschuiven en levert dit weinig op.
@@ -807,6 +809,7 @@ offtake
 okt
 onze gebruiksvoorwaarden
 onze methodologie
+onze pagina over de thuisbatterij
 onze privacyverklaring
 overeenkomst
 own

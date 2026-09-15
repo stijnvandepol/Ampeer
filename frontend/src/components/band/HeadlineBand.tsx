@@ -144,8 +144,13 @@ export function HeadlineBand({ band, confidence, label }: Props) {
       className={styles.headline}
       style={trackStyle}
     >
-      <span className={styles.confidence}>{label}</span>
-
+      {/*
+        No visible label here since 2026-09-15. It sits in ConfidenceBadge,
+        above the first step, because rule two wants it in the first screen and
+        this band is no longer the first thing on the page. `label` stays a
+        prop: the aria-label below is one sentence and it ends with the
+        confidence, which is how a screen reader should hear a figure.
+      */}
       <div data-band-part="axis" className={styles.track}>
         <div
           data-role="band-fill"

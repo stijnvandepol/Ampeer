@@ -67,6 +67,13 @@ export interface BandlessFigure {
 
 export interface FiredRule {
   readonly rule_id: string;
+  /**
+   * The same advice in one line, which is what the first step block shows.
+   * `text` is the paragraph underneath it and remains the advice; if the two
+   * ever disagree, this one is the defect, because it is the one somebody acts
+   * on before reading the reasoning.
+   */
+  readonly action: string;
   readonly text: string;
   readonly saving_eur: ScenarioBand | null;
 }

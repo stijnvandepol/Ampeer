@@ -264,15 +264,25 @@ describe("the headline band", () => {
     expect(description).toContain("euro");
   });
 
-  it("shows the confidence label as text", () => {
-    render(
+  it("speaks the confidence but no longer prints it", () => {
+    // It moved to ConfidenceBadge on 2026-09-15, above the first step, because
+    // rule two puts it in the first screen and this band is no longer the first
+    // thing on the page. Both halves are asserted here: the figure must not
+    // draw it twice, and its spoken description must still end with it, because
+    // a screen reader hears one sentence about a figure and should not need a
+    // separate badge for that sentence to make sense.
+    const { container } = render(
       <HeadlineBand
         band={advice.headline}
         confidence={advice.confidence}
         label={advice.confidence_label}
       />,
     );
-    expect(screen.getByText(advice.confidence_label)).toBeInTheDocument();
+    expect(screen.queryByText(advice.confidence_label)).toBeNull();
+    const figure = container.querySelector("[data-band-kind='percentile']");
+    expect(figure?.getAttribute("aria-label")).toContain(
+      advice.confidence_label,
+    );
   });
 
   it("shows the band without motion when the visitor asked for less of it", () => {

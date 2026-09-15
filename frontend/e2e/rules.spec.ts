@@ -468,7 +468,14 @@ test("a genuinely tight band still reads as a band, not as a rendering fault", a
   await page.waitForTimeout(600);
 
   const measured = await page.evaluate(() => {
-    const figure = document.querySelector("[data-band-span]") as HTMLElement;
+    // `[data-band-kind='percentile']` and not `[data-band-span]`. Both band
+    // components carry the span attribute, and since 2026-09-15 a scenario
+    // band renders above this one inside the first step block, so the loose
+    // selector measured that one instead and reported the override as not
+    // having taken. The test is about the headline band; it now says so.
+    const figure = document.querySelector(
+      "[data-band-kind='percentile']",
+    ) as HTMLElement;
     const track = figure.querySelector(
       "[data-band-part='axis']",
     ) as HTMLElement;

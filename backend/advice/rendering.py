@@ -33,6 +33,7 @@ from ampeer_advice.nl import (
     MODELLED_CONSUMPTION_BASIS_TEXTS,
     ROUTE_TITLES,
     SIZING_BASIS_TEXTS,
+    action_for,
     label_for,
     production_source_text,
     text_for,
@@ -125,6 +126,10 @@ def _routes(advice: Advice) -> list[dict[str, Any]]:
             "rules": [
                 {
                     "rule_id": fired.rule_id,
+                    # The one line version, for the block at the top of the
+                    # page. Same advice, said shorter; the paragraph below is
+                    # the one that carries the reasoning and the caveats.
+                    "action": action_for(fired.rule_id),
                     "text": text_for(fired.rule_id),
                     # A band, never one amount. This is the figure that decides
                     # whether somebody rearranges their week, and it used to

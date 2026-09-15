@@ -3,6 +3,8 @@
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { BandlessFigureView } from "@/components/band/BandlessFigureView";
+import { ConfidenceBadge } from "@/components/band/ConfidenceBadge";
+import { FirstStep, firstActionableRule } from "@/components/band/FirstStep";
 import { HeadlineBand } from "@/components/band/HeadlineBand";
 import { RouteSection } from "@/components/band/RouteSection";
 import { ScenarioBandFigure } from "@/components/band/ScenarioBandFigure";
@@ -73,7 +75,7 @@ function BatteryBlock({ battery }: { readonly battery: BatteryAdvice }) {
   const panelId = useId();
   return (
     <section aria-labelledby="batterij" className="flex flex-col gap-4">
-      <h2 id="batterij" className="text-xl font-medium">
+      <h2 id="batterij" className="text-2xl font-bold">
         De batterij, doorgerekend
       </h2>
 
@@ -180,7 +182,7 @@ function CallsToAction({ shareUrl }: { readonly shareUrl: string }) {
       aria-labelledby="verder"
       className="flex flex-col gap-5 border-t border-hairline pt-8"
     >
-      <h2 id="verder" className="text-xl font-medium">
+      <h2 id="verder" className="text-2xl font-bold">
         Verder
       </h2>
 
@@ -202,7 +204,13 @@ function CallsToAction({ shareUrl }: { readonly shareUrl: string }) {
           Deze link opent dit advies opnieuw, zonder account. Bewaar hem als u
           er later bij wilt.
         </p>
-        <p className="break-all font-mono text-sm text-ink">{shareUrl}</p>
+        {/*
+          The link itself is no longer printed. A 60 character URL set in
+          monospace wrapped across three lines on a phone and was the least
+          readable way to offer the one thing this paragraph is about; the
+          button below copies it, and the address bar already holds it for
+          anybody who would rather select it by hand.
+        */}
         <p className="flex items-center gap-3">
           <button
             type="button"
@@ -398,9 +406,29 @@ export default function AdviesPage() {
       ) : (
         <>
           <section className="flex flex-col gap-6">
-            <h1 ref={heading} tabIndex={-1} className="text-2xl font-bold">
+            {/*
+              Deliberately the smallest thing in this block since 2026-09-15.
+              It is a label for the band below it, not the message: it says
+              what the page is about, and the page is about what to do. The
+              largest element is now the instruction inside FirstStep, which is
+              what somebody opened this for. It stays the h1 because it is
+              still the page's name, and it stays the focus target because
+              that is what a screen reader should land on.
+            */}
+            <h1
+              ref={heading}
+              tabIndex={-1}
+              className="text-base font-medium text-ink-muted"
+            >
               Wat het einde van de saldering u per jaar kost
             </h1>
+            <ConfidenceBadge
+              confidence={advice.confidence}
+              label={advice.confidence_label}
+            />
+
+            <FirstStep routes={advice.routes} />
+
             <HeadlineBand
               band={advice.headline}
               confidence={advice.confidence}
@@ -417,7 +445,11 @@ export default function AdviesPage() {
           {advice.year !== undefined && <YearCarpet year={advice.year} />}
 
           {advice.routes.map((route) => (
-            <RouteSection key={route.route} route={route} />
+            <RouteSection
+              key={route.route}
+              route={route}
+              bandShownAbove={firstActionableRule(advice.routes)?.rule_id}
+            />
           ))}
 
           {advice.battery !== null && <BatteryBlock battery={advice.battery} />}
