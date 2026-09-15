@@ -53,7 +53,20 @@
    * as fill colours, so each one clears 4.5:1 as text on every surface and
    * carries --colour-on-tone when text is drawn on top of it.
    */
-  --colour-confidence-indicative: #8a5300;
+  /*
+   * Violet and not the amber it was until 2026-09-15. The old pair read as
+   * brown on the light theme, which is the one thing this palette was asked
+   * not to be, and the replacement is a measured swap rather than a
+   * redesign: #8a5300 cleared 6,33:1 as text on white and #6d3fd4 clears
+   * 6,34:1, so nothing the tone has to carry changed. The dark theme moves
+   * from #f0b429 to #c4aeff on the same basis: 10,25 to 9,87 against its own
+   * ground, with dark text on it at 8,55.
+   *
+   * Hue still separates the three at a glance, which is what they are for.
+   * Violet, teal and blue are three families rather than three steps along
+   * one, so nobody has to judge a shade to read a confidence.
+   */
+  --colour-confidence-indicative: #6d3fd4;
   --colour-confidence-good: #0b6e63;
   --colour-confidence-precise: #1f4fa8;
   --colour-on-tone: #ffffff;
@@ -207,6 +220,18 @@
   --radius-pill: 999px;
   --border-hairline: 1px;
   --border-control: 2px;
+  /*
+   * The one raised surface in the product, as a token rather than a literal in
+   * a component stylesheet. Those may state no colour of their own, and a
+   * shadow is a colour: tests/design/contrast.test.ts said so the moment the
+   * first one was written inline.
+   *
+   * Two layers. The tight one is the contact edge and the wide one is the
+   * ambient fall; a single blur reads as a glow rather than as height.
+   * Weaker in dark, where a black shadow on a near black ground does nothing
+   * and the raised surface carries the height on its own.
+   */
+  --shadow-raised: 0 1px 2px rgb(0 0 0 / 6%), 0 8px 24px rgb(0 0 0 / 8%);
   --focus-ring-width: 3px;
   --focus-ring-offset: 2px;
 
@@ -243,11 +268,12 @@
     --colour-accent: #4fd8c4;
     --colour-accent-hover: #7fe8d8;
     --colour-on-accent: #06231f;
-    --colour-confidence-indicative: #f0b429;
+    --colour-confidence-indicative: #c4aeff;
     --colour-confidence-good: #4fd8c4;
     --colour-confidence-precise: #86b6ff;
     --colour-on-tone: #06231f;
     --colour-band-track: #3e9e90;
+    --shadow-raised: 0 1px 2px rgb(0 0 0 / 40%), 0 10px 28px rgb(0 0 0 / 35%);
     --colour-carpet-ground: #071019;
     --colour-carpet-own: #f5c64a;
     --colour-carpet-offtake: #8b9ba8;
@@ -278,7 +304,7 @@
   --colour-accent: #0b6e63;
   --colour-accent-hover: #084f47;
   --colour-on-accent: #ffffff;
-  --colour-confidence-indicative: #8a5300;
+  --colour-confidence-indicative: #6d3fd4;
   --colour-confidence-good: #0b6e63;
   --colour-confidence-precise: #1f4fa8;
   --colour-on-tone: #ffffff;
@@ -306,11 +332,15 @@
   --colour-accent: #4fd8c4;
   --colour-accent-hover: #7fe8d8;
   --colour-on-accent: #06231f;
-  --colour-confidence-indicative: #f0b429;
+  --colour-confidence-indicative: #c4aeff;
   --colour-confidence-good: #4fd8c4;
   --colour-confidence-precise: #86b6ff;
   --colour-on-tone: #06231f;
   --colour-band-track: #3e9e90;
+  /* Same softening as the media block above, so the toggle wins in both
+     directions. Without this line an explicit dark choice kept the light
+     shadow, which is the asymmetry the header of this file warns about. */
+  --shadow-raised: 0 1px 2px rgb(0 0 0 / 40%), 0 10px 28px rgb(0 0 0 / 35%);
   --colour-carpet-ground: #071019;
   --colour-carpet-own: #f5c64a;
   --colour-carpet-offtake: #8b9ba8;
@@ -376,6 +406,31 @@
   :focus-visible {
     outline: var(--focus-ring-width) solid var(--colour-focus);
     outline-offset: var(--focus-ring-offset);
+  }
+
+  /*
+   * Except where the focus was not the visitor's doing.
+   *
+   * Six places in this app move focus to a heading or a status line after
+   * something changes, so a screen reader announces where it landed:
+   * /advies/ on arrival, every question on /berekenen/, and three on the
+   * account page. All of them carry `tabindex="-1"`, which means nobody can
+   * ever reach them with the Tab key.
+   *
+   * Chrome matches :focus-visible on a programmatic focus anyway. Measured on
+   * 2026-09-15 on the built advice page: the h1 matched, and the page drew a
+   * 2.4px ring around its own heading before the visitor had touched anything.
+   * On /berekenen/ that happens at every one of the nine questions, which is
+   * a box around the question on every step of the flow.
+   *
+   * Removing a focus ring is usually the wrong instinct, so the scope is the
+   * argument: an element that cannot be tabbed to cannot be tabbed to. The
+   * ring tells a sighted keyboard user where they are, and nobody can be here.
+   * Everything a visitor can actually reach keeps the rule above, and the
+   * announcement these elements exist for is unaffected.
+   */
+  [tabindex="-1"]:focus-visible {
+    outline: none;
   }
 
   /*

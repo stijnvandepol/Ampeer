@@ -159,7 +159,10 @@ describe("the advice page", () => {
     await screen.findByText(fixture.confidence_label);
     const scenario = container.querySelectorAll('[data-band-kind="scenario"]');
     // Two fired rules carry one, and the battery block carries three plus one
-    // per point of the curve.
+    // per point of the curve. The first step block at the top draws the first
+    // rule's band and the route below it then leaves that one out, so the
+    // total is unchanged: the figure moved rather than multiplied. It was
+    // briefly on the page twice on 2026-09-15 and this number said so.
     const expected = 2 + 3 + fixture.battery.curve.length;
     expect(scenario).toHaveLength(expected);
   });

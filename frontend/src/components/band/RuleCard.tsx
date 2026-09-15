@@ -4,6 +4,8 @@ import styles from "./band.module.css";
 
 interface Props {
   readonly rule: FiredRule;
+  /** True when the first step block above already drew this rule's band. */
+  readonly hideBand?: boolean | undefined;
 }
 
 /**
@@ -15,11 +17,11 @@ interface Props {
  * computed. `rule_id` rides along on the element so the advice stays traceable
  * back to the rule that produced it.
  */
-export function RuleCard({ rule }: Props) {
+export function RuleCard({ rule, hideBand = false }: Props) {
   return (
     <article className={styles.rule} data-rule-id={rule.rule_id}>
       <p className={styles.ruleText}>{rule.text}</p>
-      {rule.saving_eur === null ? null : (
+      {rule.saving_eur === null || hideBand ? null : (
         <ScenarioBandFigure band={rule.saving_eur} unit="eur" />
       )}
     </article>

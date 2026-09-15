@@ -241,3 +241,52 @@ def test_the_methodology_addresses_the_reader_at_all() -> None:
         "which is far fewer than the document it should be, so this pair is reading "
         "something other than the published methodology"
     )
+
+
+def test_every_rule_has_a_one_line_action_and_no_action_is_orphaned() -> None:
+    """Both directions, like the paragraphs above.
+
+    A rule that fires with no action leaves the block at the top of the page
+    blank on the one household it applied to, and an action for a rule that no
+    longer exists is a line nobody can reach and nobody will delete.
+    """
+    from ampeer_advice.nl import RULE_ACTIONS
+
+    assert RULE_IDS <= set(RULE_ACTIONS), sorted(RULE_IDS - set(RULE_ACTIONS))
+    assert set(RULE_ACTIONS) <= RULE_IDS, sorted(set(RULE_ACTIONS) - RULE_IDS)
+
+
+def test_no_action_is_long_enough_to_be_a_paragraph_again() -> None:
+    """The bound is the whole reason this field exists.
+
+    `RULE_TEXTS` is already the full advice and is already correct; what the
+    top of the page needed was something short. An action that grows past two
+    lines on a phone has quietly become the thing it replaced, and nothing
+    else would notice, because a longer sentence is not a wrong one.
+    """
+    from ampeer_advice.nl import ACTION_MAX_CHARS, RULE_ACTIONS
+
+    too_long = {
+        rule_id: len(action)
+        for rule_id, action in RULE_ACTIONS.items()
+        if len(action) > ACTION_MAX_CHARS
+    }
+    assert not too_long, f"over {ACTION_MAX_CHARS} characters: {too_long}"
+
+
+def test_an_action_tells_somebody_to_do_something() -> None:
+    """A line at the top of an advice page that describes rather than instructs
+    is the thing this block was built to replace.
+
+    Checked as a shape rather than as a judgement: every action either opens
+    with a verb in the imperative or states the conclusion the household is
+    being given. The list is short enough to hold to that by reading, and this
+    keeps a later addition from drifting into the observational register the
+    paragraphs use.
+    """
+    from ampeer_advice.nl import RULE_ACTIONS
+
+    for rule_id, action in RULE_ACTIONS.items():
+        assert action.endswith("."), f"{rule_id} is not a sentence: {action!r}"
+        assert action[0].isupper(), f"{rule_id} does not start a sentence: {action!r}"
+        assert "\n" not in action, f"{rule_id} spans lines"

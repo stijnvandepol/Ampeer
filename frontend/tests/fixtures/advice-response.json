@@ -16,6 +16,7 @@
       "rules": [
         {
           "rule_id": "SHIFT_FLEXIBLE_LOAD",
+          "action": "Zet de wasmachine, de droger en de vaatwasser midden op de dag aan.",
           "text": "Verschuif de wasmachine, de droger en de vaatwasser naar het midden van de dag. U gebruikt nu maar een klein deel van uw eigen zonnestroom zelf, en vanaf 2027 is elke kWh die u zelf gebruikt een stuk meer waard dan diezelfde kWh die u teruglevert. Dit kost u niets, u hoeft er niets voor te kopen en u kunt er vandaag mee beginnen.",
           "saving_eur": {
             "low": "82.57",
@@ -52,6 +53,7 @@
       "rules": [
         {
           "rule_id": "CONSIDER_DYNAMIC_CONTRACT",
+          "action": "Kijk of een dynamisch contract bij u beter uitpakt.",
           "text": "U levert een groot deel van uw opwek terug en zit op een vast contract. Op een dynamisch contract houdt u van elke teruggeleverde kWh doorgaans meer over, omdat daar geen vaste terugleverkosten op zitten. Daar staat tegenover dat uw prijs per uur meebeweegt, dus kijk eerst naar uw huidige contract en naar de opzegvergoeding voordat u overstapt.",
           "saving_eur": {
             "low": "271.20",
@@ -88,6 +90,7 @@
       "rules": [
         {
           "rule_id": "BATTERY_DEPENDS_ON_PRICE",
+          "action": "Een batterij kan uit, maar alleen onder een bepaalde prijs per kWh.",
           "text": "Of een thuisbatterij zich bij u terugverdient, hangt af van wat u ervoor betaalt. Wij rekenen met een prijs tussen 450 en 900 euro per kWh, en dat is het verschil tussen wel en niet binnen twaalf jaar terugverdiend. Vraag offertes op en reken de prijs per kWh uit door het totaalbedrag te delen door de capaciteit. Hierboven staat geen enkel bedrag maar een marge, omdat wij de tarieven van 2027 niet kennen. Blijft u onder de onderkant van die marge, dan verdient de batterij zichzelf op tijd terug bij alle tarieven die wij doorrekenen. Zit u erboven, dan hangt het ervan af welke kant die tarieven op gaan. Doe eerst wat hierboven staat, want dat kost niets en verlaagt meteen wat u nodig heeft.",
           "saving_eur": null
         }
