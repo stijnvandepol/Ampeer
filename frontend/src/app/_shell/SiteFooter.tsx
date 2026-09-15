@@ -50,9 +50,16 @@ export function SiteFooter() {
           <Link href="/voorwaarden/" className="underline underline-offset-4">
             Voorwaarden
           </Link>
-          <Link href="/account/" className="underline underline-offset-4">
-            Account
-          </Link>
+          {/*
+            No link to /account/ since 2026-09-15, on the owner's decision.
+            The account exists for the meter link, and the meter link hands a
+            household a key and a URL and nothing that sends readings there:
+            no HomeWizard or Home Assistant integration, no script, no page
+            that explains it. A door to a room with nothing in it is worse
+            than no door. The route still answers for whoever has an account,
+            it carries noindex and is not in the sitemap; the link comes back
+            when the room has something in it.
+          */}
         </nav>
       </div>
     </footer>

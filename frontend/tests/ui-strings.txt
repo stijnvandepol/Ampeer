@@ -86,7 +86,6 @@
 /*.txt$
 /__next
 /account/
-/account/#advies=
 /advies
 /advies/
 /berekenen/
@@ -117,7 +116,6 @@
 :
 ARRIVAL
 Aanmaken, inloggen of mislukt inloggen.
-Account
 Account aanmaken
 Account verwijderen
 Adviesversie
@@ -152,7 +150,6 @@ Bent u uw wachtwoord kwijt, dan herstelt u het eerst via de mail. Daarna verwijd
 Bereken wat het bij u doet
 Berekenen
 Betrouwbaarheid:
-Bewaar dit advies bij uw account
 Beweeg over de plaat of gebruik de pijltjestoetsen om een kwartier te lezen.
 Bezig.
 Bezwaar maken

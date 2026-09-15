@@ -573,17 +573,17 @@ describe("the footer, which is where a visitor looks for these", () => {
       /^\/over-ons\/?$/,
       /^\/privacy\/?$/,
       /^\/voorwaarden\/?$/,
-      // The one entrance to the account, and the only one: the site header
-      // does not change and nothing goes on the advice page.
-      /^\/account\/?$/,
     ]) {
       expect(hrefs.some((href) => path.test(href ?? ""))).toBe(true);
     }
-    // Five, and a sixth is a finding rather than a detail: the fifth is the
-    // page that says what Ampeer does not stand behind, and it stands next
-    // to the page that says what Ampeer keeps, because a reader looking for
-    // one wants the other too.
-    expect(hrefs).toHaveLength(5);
+    // Four since 2026-09-15, and a fifth is a finding rather than a detail.
+    // The fifth used to be /account/, the one entrance to the account; it
+    // went on the owner's decision because the account has nothing to offer
+    // a household until something can send meter readings to it. That it is
+    // gone is asserted, not only that four remain: a link that came back by
+    // accident would be an invitation to the same empty room.
+    expect(hrefs).toHaveLength(4);
+    expect(hrefs.some((href) => /^\/account\/?$/.test(href ?? ""))).toBe(false);
     expect(hrefs.filter((href) => /^https?:/.test(href ?? ""))).toEqual([]);
   });
 });
