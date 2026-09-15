@@ -38,7 +38,12 @@ It does not have to come from a developer machine. The host can produce it from
 the published source, which is the same thing `tools/ingest_profiles.py` does:
 
 ```sh
-uv run python tools/ingest_profiles.py --year 2025 --out /srv/profiles/
+# on the host, in a container, so nothing has to be installed there
+docker run --rm \
+  -v /srv/profiles:/out \
+  -v /root/actions-runner/_work/Ampeer/Ampeer/tools:/tools:ro \
+  python:3.12-slim \
+  sh -c "pip install -q requests && python /tools/ingest_profiles.py 2025 --target /out"
 ```
 
 **Verify, from the host itself:**
@@ -418,7 +423,7 @@ A tag matching `v*` on `main` triggers `.github/workflows/deploy.yml`:
   `NEXT_PUBLIC_API_BASE=` (empty, so the client uses relative paths), builds
   both images and pushes them to GHCR
 - `deploy` on the self-hosted runner, behind `environment: production`: checks
-  the tag out, runs the preflight, logs in to GHCR, `pull`, confirms the pulled
+  the tag out, places the host's copies, runs the preflight, logs in to GHCR, `pull`, confirms the pulled
   digests, records the running release, confirms a recent backup exists,
   `migrate`, `up -d`, falls back if that failed,
   `purge_expired_advice --check`, `send_outbound_mail --check`, `docker logout`
