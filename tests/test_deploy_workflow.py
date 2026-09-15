@@ -290,12 +290,19 @@ def test_the_deploy_job_does_not_leave_a_registry_credential_behind() -> None:
 
 def test_the_preflight_runs_before_anything_restarts() -> None:
     """Order, not presence. A preflight after `up -d` reports a problem the
-    restart loop has already caused."""
+    restart loop has already caused.
+
+    The match is on `docker compose` and a whole word, not on the substrings
+    "compose" and "up". Those two caught a step added on 2026-09-15 that only
+    copies files: it names docker-compose.yml, and "backup_db.sh" contains
+    "up". A check that fires on the letters u and p inside another word is a
+    check somebody eventually silences rather than reads.
+    """
     runs = [str(step.get("run", "")) for step in _steps("deploy")]
     preflight = next((i for i, run in enumerate(runs) if "preflight_env.sh" in run), None)
     assert preflight is not None, f"the deploy job never runs the preflight: {runs}"
     for index, run in enumerate(runs):
-        if "compose" in run and ("up" in run or "pull" in run):
+        if "docker compose" in run and re.search(r"\b(up|pull)\b", run):
             assert index > preflight, f"step {index} touches the stack before the preflight: {run}"
 
 
@@ -516,6 +523,7 @@ DEPLOY_README = REPO_ROOT / "infra" / "README.md"
 #: nothing read the prose.
 README_STEP_WORDS = (
     ("Check out the tag", "checks the tag out"),
+    ("Put the release's own files", "places the host's copies"),
     ("Check the thirteen variables", "runs the preflight"),
     ("Log in to the registry", "logs in to GHCR"),
     ("Pull what CI built", "`pull`"),
@@ -1472,3 +1480,51 @@ def test_no_unit_puts_a_credential_where_the_host_can_read_it(unit: str) -> None
     )
     passwords = [line for line in directives if "PASSWORD" in line or "SECRET" in line]
     assert not passwords, f"{unit} names a secret on a directive line: {passwords}"
+
+
+def test_the_documented_ingest_command_is_one_the_script_accepts() -> None:
+    """A command in a document is a promise that it runs.
+
+    infra/README.md told an operator to run `ingest_profiles.py --year 2025
+    --out /srv/profiles/` on 2026-09-14. Neither flag exists: the script takes
+    the year as a positional argument and the directory as `--target`. It was
+    written into the release, read on the host, and answered with an argparse
+    error, at the point where the only thing left between that host and a
+    running site was one file.
+
+    Nothing could have caught it. The script is not imported by the document
+    and the document is not run by anything, so the two agreed with nobody.
+    This holds them together by parsing the flags out of the README's own
+    command and asking argparse whether it would take them.
+    """
+    import argparse
+    import shlex
+
+    readme = (REPO_ROOT / "infra" / "README.md").read_text(encoding="utf-8")
+    documented = [
+        line for line in readme.splitlines() if "ingest_profiles.py" in line and "--" in line
+    ]
+    assert documented, "infra/README.md no longer says how to produce the profile"
+
+    source = (REPO_ROOT / "tools" / "ingest_profiles.py").read_text(encoding="utf-8")
+    parser = argparse.ArgumentParser()
+    for name, kind in re.findall(r'add_argument\(\s*"([^"]+)"(?:,\s*type=(\w+))?', source):
+        parser.add_argument(name, type=Path if kind == "Path" else str)
+
+    for line in documented:
+        # Everything after the script name up to the closing quote. shlex on
+        # the whole line trips over the `sh -c "..."` the docker invocation
+        # wraps it in, which is a property of how it is documented rather than
+        # of what is documented.
+        pattern = 'ingest_profiles\\.py([^"\\n]*)'
+        arguments = re.search(pattern, line)
+        assert arguments, line
+        tail = shlex.split(arguments.group(1))
+        try:
+            parser.parse_args(tail)
+        except SystemExit:  # pragma: no cover - the failure is the message below
+            pytest.fail(
+                f"infra/README.md documents `ingest_profiles.py {' '.join(tail)}`, "
+                "which the script would refuse. Its arguments are "
+                f"{[action.option_strings or action.dest for action in parser._actions[1:]]}"
+            )

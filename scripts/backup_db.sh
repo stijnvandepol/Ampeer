@@ -98,6 +98,33 @@ DIR="${1:-${STACK}/backups}"
 
 if [ "${check_mode}" -eq 1 ]; then
   if [ ! -d "${DIR}" ]; then
+    # THE FIRST DEPLOY, which this check could not previously survive.
+    #
+    # It refuses a release that has no recent backup, and a backup is a
+    # pg_dump out of the running db container. On a host that has never
+    # deployed there is no container, so there can be no dump, so the check
+    # refuses forever and the database it is protecting never comes into
+    # existence. Measured on 2026-09-15: the v0.6.1 deploy cleared the
+    # checkout, the preflight, the pull and the digest comparison, and stopped
+    # here on a host where nothing had ever run.
+    #
+    # An absent database is not a broken backup. It is nothing to protect, and
+    # saying so is the honest answer rather than a way past the check: the
+    # refusal exists so that a migration cannot run over data with no copy of
+    # it, and there is no data. Every later deploy meets a running container
+    # and the demand holds in full.
+    #
+    # "Cannot tell" is not "no", deliberately. If docker is missing, or the
+    # compose file is not there, or the command errors for any other reason,
+    # this falls through and refuses exactly as before. That is also what keeps
+    # the tests meaningful: they run where there is no stack at all, and they
+    # still see the refusal they assert.
+    if running="$(docker compose -f "${COMPOSE_FILE}" --env-file "${ENV_FILE}" ps -q db 2>/dev/null)"       && [ -z "${running}" ]; then
+      echo "backup: no database is running yet, so there is nothing to back up."
+      echo "backup: this is a first deploy. The next one will find a container"
+      echo "backup: and this check applies in full from then on."
+      exit 0
+    fi
     fail "no backup directory at ${DIR}"
     fail "nothing has ever run backup_db.sh here; see infra/README.md section 8"
     exit 1
