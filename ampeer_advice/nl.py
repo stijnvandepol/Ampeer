@@ -161,6 +161,51 @@ CONFIDENCE_LABELS: dict[Confidence, str] = {
 }
 
 
+#: The same advice in one line, for the top of the page.
+#:
+#: WHY THIS EXISTS. ``RULE_TEXTS`` is written to be read, and it earns its
+#: length: it says what to do, why it is worth doing, and what it costs. On a
+#: phone the first of them is seven lines, and a household that opened the page
+#: to find out what to do reads a paragraph before it finds out. So each rule
+#: also carries the instruction on its own, and the paragraph stays directly
+#: underneath it.
+#:
+#: NOT A SUMMARY AND NOT A SECOND OPINION. Every line here is the first
+#: sentence of its own text said shorter, and a test asserts each one stays
+#: under ``ACTION_MAX_CHARS``. If the two ever disagree, the long one is the
+#: advice and this one is the defect: it is the one a reader acts on before
+#: they have read the reasoning.
+#:
+#: The house rules from the top of this file hold here and bite harder, because
+#: a short line has nowhere to put a caveat. No recommendation to buy dressed
+#: as an observation: ``CONSIDER_BATTERY`` says to consider and to read on, not
+#: to order, and ``BATTERY_DOES_NOT_PAY_BACK`` says no in as many words,
+#: because "nu geen batterij" is a valid and required outcome.
+RULE_ACTIONS: dict[str, str] = {
+    "SHIFT_FLEXIBLE_LOAD": "Zet de wasmachine, de droger en de vaatwasser midden op de dag aan.",
+    "CHARGE_EV_ON_SURPLUS": "Laad uw auto overdag in plaats van 's avonds.",
+    "CONSIDER_DYNAMIC_CONTRACT": "Kijk of een dynamisch contract bij u beter uitpakt.",
+    "CONSIDER_BATTERY": "Een thuisbatterij is het overwegen waard. Lees eerst de terugverdientijd.",
+    "BATTERY_DEPENDS_ON_PRICE": "Een batterij kan uit, maar alleen onder een bepaalde prijs per kWh.",
+    "BATTERY_DOES_NOT_PAY_BACK": "Koop nu geen thuisbatterij.",
+    "REVIEW_EXISTING_BATTERY": "Controleer of uw batterij op uw eigen overschot laadt.",
+}
+
+#: What "one line" means, measured rather than felt: at 430 CSS pixels, the
+#: width of the phone this was drawn on, the page's body type fits roughly this
+#: many characters on two lines. Three lines is a paragraph again.
+ACTION_MAX_CHARS = 80
+
+
+def action_for(rule_id: str) -> str:
+    """Return the one line version of a rule's advice.
+
+    Raises ``KeyError`` for an unknown id, like ``text_for`` and for the same
+    reason.
+    """
+    return RULE_ACTIONS[rule_id]
+
+
 def text_for(rule_id: str) -> str:
     """Return the Dutch text for a rule id.
 

@@ -12,7 +12,9 @@
  * beacons elsewhere is blocked, which is the constraint doing its job. A hosted
  * analytics product would mean a proxy, a second store and a consent question;
  * this needs none of the three, because the thing it sends is not about the
- * visitor. `POST {"name": "funnel_question_2"}` carries no identifier, no
+ * visitor. Since 2026-09-15 Google Analytics sits beside it, behind exactly
+ * that consent question (_shell/analytics.ts); this counter stays, because it
+ * counts the visitors who said no as well, which is most of what it is for. `POST {"name": "funnel_question_2"}` carries no identifier, no
  * session and nothing derived from either, and the server adds one to a row
  * that is a date, a name and an integer. Two visitors doing the same thing on
  * the same day are the same increment, so there is nothing here to correlate.

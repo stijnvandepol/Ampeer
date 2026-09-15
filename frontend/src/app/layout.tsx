@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { ConsentBanner } from "./_shell/ConsentBanner";
 import { SiteFooter } from "./_shell/SiteFooter";
 import { SiteHeader } from "./_shell/SiteHeader";
 import { SiteJsonLd } from "./_shell/JsonLd";
@@ -103,6 +104,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           {children}
         </main>
         <SiteFooter />
+        {/*
+          The question about measuring, on every page and after everything
+          else: it is fixed to the viewport, so its place in the document
+          only decides tab order, and a visitor should reach the content
+          before the question about it. Renders nothing at all in a build
+          without a measurement ID; see _shell/analytics.ts.
+        */}
+        <ConsentBanner />
       </body>
     </html>
   );

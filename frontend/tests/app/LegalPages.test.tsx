@@ -269,7 +269,12 @@ describe("the privacy statement", () => {
 
   it("says what changed since fase 1 shipped accounts", () => {
     const text = privacyText();
-    for (const claim of ["Resend", "Argon2id", "dertien", "7 september 2026"]) {
+    for (const claim of [
+      "Resend",
+      "Argon2id",
+      "dertien",
+      "15 september 2026",
+    ]) {
       expect(text, `the statement never says "${claim}"`).toContain(claim);
     }
     // The two session cookies, named by function rather than by name: the
@@ -277,7 +282,20 @@ describe("the privacy statement", () => {
     // they are for.
     expect(text).toContain("kwartier");
     expect(text).toContain("veertien dagen");
-    expect(text).toContain("geen cookiemelding");
+    // Since 2026-09-15 there is a cookie question, and the statement says
+    // for which cookies and under what condition; "geen cookiemelding" was
+    // true for eight days and is the claim that must be gone.
+    expect(text).not.toContain("geen cookiemelding");
+    expect(text).not.toContain("geen Google Analytics");
+    for (const claim of [
+      "Google Analytics",
+      "pas nadat u",
+      "zes maanden",
+      "twee maanden",
+      "niets vooraf aangevinkt",
+    ]) {
+      expect(text, `the statement never says "${claim}"`).toContain(claim);
+    }
     // The third cookie, CSRF, named by function: what it protects against.
     expect(text).toContain("verzoeken die niet van u komen");
     // The privacy address from FILLED, and not only the general one.
@@ -555,17 +573,17 @@ describe("the footer, which is where a visitor looks for these", () => {
       /^\/over-ons\/?$/,
       /^\/privacy\/?$/,
       /^\/voorwaarden\/?$/,
-      // The one entrance to the account, and the only one: the site header
-      // does not change and nothing goes on the advice page.
-      /^\/account\/?$/,
     ]) {
       expect(hrefs.some((href) => path.test(href ?? ""))).toBe(true);
     }
-    // Five, and a sixth is a finding rather than a detail: the fifth is the
-    // page that says what Ampeer does not stand behind, and it stands next
-    // to the page that says what Ampeer keeps, because a reader looking for
-    // one wants the other too.
-    expect(hrefs).toHaveLength(5);
+    // Four since 2026-09-15, and a fifth is a finding rather than a detail.
+    // The fifth used to be /account/, the one entrance to the account; it
+    // went on the owner's decision because the account has nothing to offer
+    // a household until something can send meter readings to it. That it is
+    // gone is asserted, not only that four remain: a link that came back by
+    // accident would be an invitation to the same empty room.
+    expect(hrefs).toHaveLength(4);
+    expect(hrefs.some((href) => /^\/account\/?$/.test(href ?? ""))).toBe(false);
     expect(hrefs.filter((href) => /^https?:/.test(href ?? ""))).toEqual([]);
   });
 });

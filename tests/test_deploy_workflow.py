@@ -1528,3 +1528,31 @@ def test_the_documented_ingest_command_is_one_the_script_accepts() -> None:
                 "which the script would refuse. Its arguments are "
                 f"{[action.option_strings or action.dest for action in parser._actions[1:]]}"
             )
+
+
+def test_the_export_reads_the_measurement_id_from_a_variable_and_ci_uses_a_dummy() -> None:
+    """The Google Analytics measurement ID is baked into every page at build
+    time, so the step that exports the site is the one place it can enter.
+    It comes from a repository variable and not a secret, because it is in
+    the HTML anyway; unset, the site ships without measurement and without
+    the consent banner, and that is a valid build.
+
+    The CI build uses G-TESTTESTTE instead, so the banner renders and
+    frontend/e2e/privacy.spec.ts can prove that nothing loads before a yes.
+    A CI build that read the real variable would measure its own test runs."""
+    export = next(
+        step for step in _steps("build") if "Export the static site" in str(step.get("name"))
+    )
+    assert export["env"]["NEXT_PUBLIC_GA_MEASUREMENT_ID"] == "${{ vars.GA_MEASUREMENT_ID }}"
+
+    ci = _workflows()["ci.yml"]
+    builds = [
+        step
+        for job in ci["jobs"].values()
+        for step in job.get("steps", [])
+        if step.get("run") == "pnpm build"
+    ]
+    assert builds, "ci.yml no longer builds the frontend with a plain `pnpm build`"
+    for step in builds:
+        assert step.get("env", {}).get("NEXT_PUBLIC_GA_MEASUREMENT_ID") == "G-TESTTESTTE"
+        assert "vars." not in str(step.get("env", {}))

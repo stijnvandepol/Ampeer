@@ -216,3 +216,35 @@ describe("the browser, read the way React 19 wants it read", () => {
     spy.mockRestore();
   });
 });
+
+describe("the questions a search engine is given", () => {
+  it("marks up exactly the questions the home page shows, in the same words", () => {
+    // The home page renders its answers as JSX, because one of them ends in a
+    // link and JSON-LD carries text, so the same three sentences live twice.
+    // This is what keeps them from drifting: a FAQPage whose answers differ
+    // from the answers on the page is the kind of thing that gets a site
+    // ignored rather than cited, and nothing else would notice.
+    const { container } = render(<Home />);
+    const scripts = [
+      ...container.querySelectorAll('script[type="application/ld+json"]'),
+    ].map((element) => JSON.parse(element.textContent ?? "{}"));
+    const faq = scripts.find((data) => data["@type"] === "FAQPage");
+
+    expect(faq, "the home page carries no FAQPage markup").toBeDefined();
+    expect(faq.mainEntity.map((entry: { name: string }) => entry.name)).toEqual(
+      [...container.querySelectorAll("dt")].map(
+        (element) => element.textContent ?? "",
+      ),
+    );
+    expect(
+      faq.mainEntity.map(
+        (entry: { acceptedAnswer: { text: string } }) =>
+          entry.acceptedAnswer.text,
+      ),
+    ).toEqual(
+      [...container.querySelectorAll("dd")].map(
+        (element) => element.textContent ?? "",
+      ),
+    );
+  });
+});

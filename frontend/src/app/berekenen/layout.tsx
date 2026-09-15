@@ -124,76 +124,119 @@ function WhatThisCalculates() {
   return (
     <section
       aria-labelledby="over-de-rekenmachine"
-      className="flex flex-col gap-4 border-t border-current/15 pt-10"
+      className="border-t border-current/15 pt-10"
     >
-      <h2 id="over-de-rekenmachine" className="text-2xl">
-        Wat u op deze pagina berekent
-      </h2>
-      <p className="text-ink-muted">
-        De salderingsregeling stopt op 1 januari 2027. Wat dat u kost hangt niet
-        af van hoeveel panelen u heeft, maar van hoeveel van uw eigen opwek u
-        zelf gebruikt, en dat verschilt sterk per huishouden. Deze rekenmachine
-        bouwt uit uw antwoorden een kwartierprofiel van een heel jaar op en
-        rekent dat door op de tarieven van nu en die van 2027.
-      </p>
+      {/*
+        Folded shut since 2026-09-15, and the number is why. Measured on the
+        built page at 400 pixels wide: this block was 1656 of the page's 2401
+        pixels, sixty-nine per cent, and it sat under every one of the nine
+        questions. Somebody answering question seven met two and a half screens
+        of prose about a page they were already three quarters through.
 
-      <h3 className="text-lg font-medium">De vier vragen</h3>
-      <ol className="flex list-decimal flex-col gap-2 pl-5 text-ink-muted">
-        <li>
-          De eerste vier cijfers van uw postcode, voor de instraling in uw
-          regio. Van uw postcode bewaren wij alleen die vier cijfers.
-        </li>
-        <li>Hoeveel wattpiek aan zonnepanelen er op uw dak ligt.</li>
-        <li>
-          Hoe het dak ligt: welke kant het op ligt en hoe schuin het staat.
-        </li>
-        <li>
-          Hoeveel stroom u per jaar verbruikt, zonder het laden van een
-          elektrische auto en zonder een warmtepomp. Naar die twee vragen wij
-          apart.
-        </li>
-      </ol>
-      <p className="text-ink-muted">
-        Meer niet. Er is geen account, wij vragen geen e-mailadres en er hoeft
-        niets aan uw meterkast te gebeuren. Weet u een getal niet precies, dan
-        is een schatting genoeg.
-      </p>
+        A disclosure rather than a deletion. Every word is still in the
+        document, so a crawler reads all of it and the one visitor in twenty
+        who wants to know what this thing is before typing a postcode is one
+        click away. What changes is who pays for it: the reader who wanted it,
+        rather than everybody.
+      */}
+      {/*
+        CLOSED IN THE HTML, and with no script to close it.
 
-      <h3 className="text-lg font-medium">
-        Vijf vragen die het antwoord scherper maken
-      </h3>
-      <p className="text-ink-muted">
-        Na uw eerste antwoord kunt u verfijnen: of er op een doordeweekse dag
-        overdag meestal iemand thuis is, wanneer een elektrische auto laadt, of
-        er een warmtepomp is, of uw contract dynamisch is, en of er al een
-        thuisbatterij staat. Vier vragen geeft een indicatief antwoord, negen
-        vragen een goed antwoord.
-      </p>
+        The first version shipped `open` and an inline script after the element
+        that stripped the attribute, on the assumption that a script the parser
+        meets inside the section runs before the first paint. Measured on
+        2026-09-15 with a PerformanceObserver on the built page at 400 pixels
+        wide: the browser painted the block open, ran the script at 126 ms, and
+        recorded a layout shift of 0.073 for the section plus the footer under
+        it. Lighthouse read the same page as CLS 0.095, the one number on the
+        site above zero. An assumption about paint timing is not a measurement.
 
-      <h3 className="text-lg font-medium">Wat u terugkrijgt</h3>
-      <p className="text-ink-muted">
-        Een bedrag per jaar met de bandbreedte eromheen, hoe zeker dat antwoord
-        is, en drie routes in vaste volgorde: uw eigen ritme verschuiven,
-        slimmer sturen met wat u al heeft, en stroom opslaan in een
-        thuisbatterij. De routes die niets kosten staan altijd bovenaan, ook als
-        er bij u aan een ervan niets te halen valt.
-      </p>
-      <p className="text-ink-muted">
-        Ampeer verkoopt geen zonnepanelen, geen thuisbatterijen en geen
-        energiecontract, en plaatst geen advertenties. Niemand betaalt ons voor
-        de uitkomst die u krijgt. Daarom is nu geen batterij hier een geldige
-        uitkomst.
-      </p>
-      <p className="text-ink-muted">
-        Meer over{" "}
-        <Link href="/einde-saldering/">wat er op 1 januari 2027 verandert</Link>
-        , over <Link href="/methodologie/">hoe wij dit uitrekenen</Link>, en
-        over{" "}
-        <Link href="/privacy/">
-          wat er met uw postcode en uw verbruik gebeurt
-        </Link>
-        .
-      </p>
+        Nothing is lost by shipping it shut. A disclosure is native HTML: a
+        reader without JavaScript clicks the summary and gets every word, which
+        is what e2e/form.spec.ts now does in its no-script run. Googlebot
+        indexes the content of a collapsed disclosure since the switch to
+        mobile-first indexing, and the retrieval crawlers read the document
+        rather than the rendering. What the fold changes is who sees the prose
+        first, not who can find it.
+      */}
+      <details id="over-de-rekenmachine-blok" className="flex flex-col gap-4">
+        <summary
+          id="over-de-rekenmachine"
+          className="cursor-pointer text-2xl marker:text-ink-muted"
+        >
+          Wat u op deze pagina berekent
+        </summary>
+        <div className="flex flex-col gap-4 pt-4">
+          <p className="text-ink-muted">
+            De salderingsregeling stopt op 1 januari 2027. Wat dat u kost hangt
+            niet af van hoeveel panelen u heeft, maar van hoeveel van uw eigen
+            opwek u zelf gebruikt, en dat verschilt sterk per huishouden. Deze
+            rekenmachine bouwt uit uw antwoorden een kwartierprofiel van een
+            heel jaar op en rekent dat door op de tarieven van nu en die van
+            2027.
+          </p>
+
+          <h3 className="text-lg font-medium">De vier vragen</h3>
+          <ol className="flex list-decimal flex-col gap-2 pl-5 text-ink-muted">
+            <li>
+              De eerste vier cijfers van uw postcode, voor de instraling in uw
+              regio. Van uw postcode bewaren wij alleen die vier cijfers.
+            </li>
+            <li>Hoeveel wattpiek aan zonnepanelen er op uw dak ligt.</li>
+            <li>
+              Hoe het dak ligt: welke kant het op ligt en hoe schuin het staat.
+            </li>
+            <li>
+              Hoeveel stroom u per jaar verbruikt, zonder het laden van een
+              elektrische auto en zonder een warmtepomp. Naar die twee vragen
+              wij apart.
+            </li>
+          </ol>
+          <p className="text-ink-muted">
+            Meer niet. Er is geen account, wij vragen geen e-mailadres en er
+            hoeft niets aan uw meterkast te gebeuren. Weet u een getal niet
+            precies, dan is een schatting genoeg.
+          </p>
+
+          <h3 className="text-lg font-medium">
+            Vijf vragen die het antwoord scherper maken
+          </h3>
+          <p className="text-ink-muted">
+            Na uw eerste antwoord kunt u verfijnen: of er op een doordeweekse
+            dag overdag meestal iemand thuis is, wanneer een elektrische auto
+            laadt, of er een warmtepomp is, of uw contract dynamisch is, en of
+            er al een thuisbatterij staat. Vier vragen geeft een indicatief
+            antwoord, negen vragen een goed antwoord.
+          </p>
+
+          <h3 className="text-lg font-medium">Wat u terugkrijgt</h3>
+          <p className="text-ink-muted">
+            Een bedrag per jaar met de bandbreedte eromheen, hoe zeker dat
+            antwoord is, en drie routes in vaste volgorde: uw eigen ritme
+            verschuiven, slimmer sturen met wat u al heeft, en stroom opslaan in
+            een thuisbatterij. De routes die niets kosten staan altijd bovenaan,
+            ook als er bij u aan een ervan niets te halen valt.
+          </p>
+          <p className="text-ink-muted">
+            Ampeer verkoopt geen zonnepanelen, geen thuisbatterijen en geen
+            energiecontract, en plaatst geen advertenties. Niemand betaalt ons
+            voor de uitkomst die u krijgt. Daarom is nu geen batterij hier een
+            geldige uitkomst.
+          </p>
+          <p className="text-ink-muted">
+            Meer over{" "}
+            <Link href="/einde-saldering/">
+              wat er op 1 januari 2027 verandert
+            </Link>
+            , over <Link href="/methodologie/">hoe wij dit uitrekenen</Link>, en
+            over{" "}
+            <Link href="/privacy/">
+              wat er met uw postcode en uw verbruik gebeurt
+            </Link>
+            .
+          </p>
+        </div>
+      </details>
     </section>
   );
 }
@@ -223,7 +266,24 @@ export default function BerekenenLayout({
               suggereren dan er is.
             </p>
           </div>
-          {children}
+          {/*
+            The floor under the flow is a measured number and the reason the
+            page stopped moving. Before hydration the flow is one line, "De
+            vragen worden klaargezet.", 26 pixels tall; after it the first
+            question stands 279 pixels tall at 400 wide, 314 at 1280 and 341
+            at 320. Everything below, the explainer and the footer, moved by
+            the difference, which Lighthouse read as CLS 0.095 and a
+            PerformanceObserver on 2026-09-15 pinned to that swap at 310 ms.
+            First suspected was the explainer's fold; measured with the fold
+            shipped shut, the shift was identical, so the suspect was
+            innocent and the placeholder was not.
+
+            20rem is 320 pixels: at or above the first question at every
+            width but 320, where the remaining shift is 21 pixels. It goes on
+            the wrapper and not on the placeholder, because a floor on one
+            state only moves the shift to the moment the other state arrives.
+          */}
+          <div className="min-h-[20rem]">{children}</div>
           <WhatThisCalculates />
         </div>
       </div>

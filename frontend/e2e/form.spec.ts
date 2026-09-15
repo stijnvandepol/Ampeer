@@ -272,6 +272,15 @@ test.describe("the calculator page with no JavaScript", () => {
       "Uw situatie doorrekenen",
     ]);
 
+    // The explainer ships folded shut since 2026-09-15, and a closed
+    // disclosure renders nothing but its summary, so `innerText` would not
+    // count its words. One click on the summary is what a reader without
+    // JavaScript does too: `<details>` is native HTML and needs no script to
+    // open. If this click ever stops working with scripts off, the fold has
+    // been rebuilt on JavaScript and this test is the one that should say so.
+    await page.getByText("Wat u op deze pagina berekent").click();
+    await expect(page.getByText("De vier vragen")).toBeVisible();
+
     const text = await page.locator("body").innerText();
     const words = text.split(/\s+/).filter((word) => word.length > 0);
     // 180 and not a rounder number: the shipping page measures 407 words and

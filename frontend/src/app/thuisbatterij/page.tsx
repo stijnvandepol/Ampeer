@@ -71,8 +71,75 @@ const DOES_NOT: readonly string[] = [
 const UNKNOWNS: readonly string[] = [
   "Wij weten niet hoeveel schaduw er op uw dak valt en vragen er niet naar.",
   "Wij weten niet welke apparaten u heeft of wanneer u ze aanzet.",
-  "Niemand weet wat de terugleververgoeding in 2027 werkelijk wordt. Wij rekenen met een band en niet met een getal.",
+  "Niemand weet wat uw leverancier in 2027 werkelijk voor teruglevering betaalt. De wet geeft alleen een ondergrens, tot 2030 minimaal de helft van het kale leveringstarief. Wij rekenen met een band en niet met een getal.",
   "Wat een batterij kost verschilt sterk per offerte, en die prijs bepaalt de terugverdientijd meer dan welke andere aanname ook.",
+];
+
+/**
+ * What to check in a quote. Practical and without a number of our own, because
+ * the number that matters is on the quote and not on this page.
+ */
+const QUOTE_CHECKS: readonly (readonly [string, string])[] = [
+  [
+    "Nuttige capaciteit, niet bruto",
+    "Een batterij mag nooit helemaal leeg. De capaciteit die u werkelijk kunt gebruiken staat soms kleiner in de specificaties dan het getal op de doos. Vraag naar de nuttige capaciteit in kWh.",
+  ],
+  [
+    "Vermogen in kW, naast capaciteit in kWh",
+    "Capaciteit zegt hoeveel erin past, vermogen zegt hoe snel het erin en eruit kan. Een batterij die langzamer laadt dan uw panelen opwekken, mist het middaguur.",
+  ],
+  [
+    "Garantie in jaren en in laadcycli",
+    "Fabrikanten garanderen een aantal jaren of een aantal cycli, wat het eerst komt. Een batterij die elke dag een keer vol en leeg gaat maakt 365 cycli per jaar. Reken dat om naar jaren voordat u garanties vergelijkt.",
+  ],
+  [
+    "Wat er in de prijs zit",
+    "Omvormer, montage, aansluiting op de meterkast en een eventuele aanpassing van de groepenkast. Een lage prijs zonder installatie is geen lage prijs.",
+  ],
+  [
+    "Welke besparing de offerte u belooft",
+    "Rekent de installateur besparing mee die u ook krijgt door de wasmachine overdag te laten draaien, dan wordt de batterij betaald voor werk dat gratis was. Vraag naar de besparing bovenop wat u zonder batterij ook kunt doen.",
+  ],
+];
+
+/**
+ * Where the facts on this page come from.
+ *
+ * Every number and every claim about a regeling on this page traces to one of
+ * these, with the date it was read. Named sources are the difference between
+ * a page that says something and a page that can be checked, and the pages
+ * that get cited by a search engine or an AI answer are the second kind.
+ */
+const SOURCES: readonly {
+  readonly what: string;
+  readonly who: string;
+  readonly when: string;
+  readonly url: string;
+}[] = [
+  {
+    what: "Thuisbatterij: zonne-energie opslaan",
+    who: "Milieu Centraal",
+    when: "pagina van 10 september 2026, gelezen op 15 september 2026",
+    url: "https://www.milieucentraal.nl/energie-besparen/zonnepanelen/thuisbatterij-zonne-energie-opslaan/",
+  },
+  {
+    what: "Btw-tarief zonnepanelen, wat valt niet onder het 0%-tarief",
+    who: "Belastingdienst",
+    when: "gelezen op 15 september 2026",
+    url: "https://www.belastingdienst.nl/wps/wcm/connect/bldcontentnl/belastingdienst/zakelijk/btw/tarieven_en_vrijstellingen/goederen_0_btw/btw-tarief-zonnepanelen",
+  },
+  {
+    what: "Salderingsregeling stopt in 2027",
+    who: "Rijksoverheid",
+    when: "gelezen op 15 september 2026",
+    url: "https://www.rijksoverheid.nl/themas/klimaat-milieu-en-natuur/energie-thuis/salderingsregeling",
+  },
+  {
+    what: "Tweede Kamer steunt onderzoek naar btw-nultarief voor thuisbatterij",
+    who: "Solar Magazine",
+    when: "motie van 10 juni 2026, gelezen op 15 september 2026",
+    url: "https://solarmagazine.nl/nieuws-zonne-energie/i43976/tweede-kamer-steunt-onderzoek-naar-btw-nultarief-voor-thuisbatterij",
+  },
 ];
 
 /**
@@ -96,6 +163,14 @@ const QUESTIONS: readonly (readonly [string, string])[] = [
     "Groot genoeg om uw avondverbruik te dragen en niet groter. Een batterij die 's ochtends nog halfvol is heeft capaciteit die u betaald heeft en niet gebruikt. Wat bij u past hangt af van uw eigen dagpatroon.",
   ],
   [
+    "Wat kost een thuisbatterij?",
+    "Milieu Centraal noemt voor een gemiddelde batterij van 6 kWh, inclusief omvormer en installatie, een paar duizend euro. De prijs verschilt sterk per offerte en per merk, en juist die prijs bepaalt de terugverdientijd meer dan welke andere aanname ook.",
+  ],
+  [
+    "Krijg ik subsidie of btw-korting op een thuisbatterij?",
+    "Nee. Er is geen landelijke subsidie en de levering en installatie van een thuisbatterij valt niet onder het btw-nultarief dat wel voor zonnepanelen geldt, dus u betaalt 21 procent btw. De Tweede Kamer heeft het kabinet op 10 juni 2026 gevraagd te onderzoeken of dat nultarief ook voor batterijen kan gelden. Zodra dat verandert, staat het hier.",
+  ],
+  [
     "Kan ik met een thuisbatterij van het net af?",
     "Nee. In de winter wekken panelen in Nederland een fractie op van wat ze in de zomer doen, en geen batterij van huishoudelijke omvang overbrugt dat seizoen. Een batterij verschuift stroom over uren, niet over maanden.",
   ],
@@ -115,9 +190,22 @@ const QUESTIONS: readonly (readonly [string, string])[] = [
  * shifting your washing machine would also have produced looks better than it
  * is, and that is the single easiest way to make this product dishonest.
  *
- * NO EURO AMOUNT, anywhere, for the reason /einde-saldering/ states: every euro
- * figure this product knows comes out of a simulation of one household with a
- * band around it. A figure here would be a household nobody described.
+ * NO EURO AMOUNT OF OUR OWN, for the reason /einde-saldering/ states: every
+ * euro figure this product knows comes out of a simulation of one household
+ * with a band around it. A figure here would be a household nobody described.
+ * A figure from a named source, quoted as that source's and dated, is a
+ * different thing: Milieu Centraal's "een paar duizend euro" is on the page
+ * with its name attached, and the test that keeps digits away from the word
+ * euro lets it through because it carries none.
+ *
+ * SOURCES, since 2026-09-15. Measured against the page that outranks this one
+ * for the question in the title: 2433 words to 906, and the difference was
+ * not prose but facts with a name on them. What went in is what could be
+ * checked: the btw rule as the Belastingdienst states it, the floor under the
+ * feed-in fee as Rijksoverheid states it, the price and the average
+ * self-consumption as Milieu Centraal states them, each with the date read.
+ * A retrieval crawler cites a page that names its sources over one that
+ * asserts, and so does a careful reader.
  */
 export default function ThuisbatterijPage() {
   return (
@@ -143,8 +231,11 @@ export default function ThuisbatterijPage() {
         <p className={styles.body}>
           Een thuisbatterij verdient aan één ding: stroom die u anders had
           teruggeleverd en later duurder had teruggekocht. Alles wat u al meteen
-          zelf gebruikt, levert een batterij niets op. Daarom zijn dit de vier
-          dingen die de uitkomst bepalen.
+          zelf gebruikt, levert een batterij niets op. Gemiddeld gebruikt een
+          huishouden ongeveer 30 procent van de stroom van de eigen panelen
+          meteen zelf, volgens Milieu Centraal, en gaat de rest het net op. Hoe
+          ver u van dat gemiddelde af zit, bepaalt het antwoord. Daarom zijn dit
+          de vier dingen die de uitkomst bepalen.
         </p>
         <ul className={styles.routes}>
           {FACTORS.map(([name, text]) => (
@@ -209,6 +300,59 @@ export default function ThuisbatterijPage() {
         </ul>
       </section>
 
+      <section className={styles.section} aria-labelledby="kosten">
+        <h2 id="kosten" className={styles.heading}>
+          Wat een batterij kost en wat de overheid doet
+        </h2>
+        <p className={styles.body}>
+          Milieu Centraal noemt voor een gemiddelde thuisbatterij van 6 kWh,
+          inclusief omvormer en installatie, een paar duizend euro, en schrijft
+          erbij dat u die op dit moment hoogstwaarschijnlijk niet terugverdient
+          met de besparing op uw stroomrekening. Dat is een gemiddelde over
+          huishoudens die sterk van elkaar verschillen, en precies daarom rekent
+          Ampeer het per huis uit.
+        </p>
+        <p className={styles.body}>
+          Er is geen landelijke subsidie op een thuisbatterij. Het btw-nultarief
+          dat sinds 2023 voor zonnepanelen geldt, geldt niet voor de levering en
+          installatie van een batterij: de Belastingdienst noemt die
+          uitdrukkelijk bij wat er niet onder valt, dus u betaalt 21 procent
+          btw. Op 10 juni 2026 nam de Tweede Kamer een motie aan die het kabinet
+          vraagt te onderzoeken of het nultarief ook voor batterijen kan gelden.
+          Dat is een onderzoek en geen besluit. Verandert het, dan verandert
+          deze pagina mee.
+        </p>
+        <p className={styles.body}>
+          Na 1 januari 2027 krijgt u voor teruggeleverde stroom een vergoeding
+          van uw leverancier. Tot 2030 moet die minimaal de helft van het kale
+          leveringstarief zijn, onder toezicht van de ACM. Wat dat bij uw
+          leverancier wordt, weet niemand vandaag, en daarom rekenen wij met een
+          bandbreedte. Wat er precies verandert staat op{" "}
+          <Link href="/einde-saldering/">
+            de pagina over het einde van de saldering
+          </Link>
+          .
+        </p>
+      </section>
+
+      <section className={styles.section} aria-labelledby="offerte">
+        <h2 id="offerte" className={styles.heading}>
+          Vijf dingen om na te kijken in een offerte
+        </h2>
+        <p className={styles.body}>
+          Vraagt u toch een offerte aan, dan zijn dit de regels waar de
+          terugverdientijd in zit.
+        </p>
+        <ul className={styles.routes}>
+          {QUOTE_CHECKS.map(([name, text]) => (
+            <li key={name} className={styles.route}>
+              <span className={styles.routeName}>{name}</span>
+              <span className={styles.routeText}>{text}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
       <section className={styles.section} aria-labelledby="vragen">
         <h2 id="vragen" className={styles.heading}>
           Veelgestelde vragen
@@ -231,6 +375,26 @@ export default function ThuisbatterijPage() {
           {UNKNOWNS.map((line) => (
             <li key={line} className={styles.unknown}>
               {line}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className={styles.section} aria-labelledby="bronnen">
+        <h2 id="bronnen" className={styles.heading}>
+          Bronnen
+        </h2>
+        <p className={styles.body}>
+          Elk cijfer en elke regeling op deze pagina komt hiervandaan, met de
+          datum waarop wij het lazen.
+        </p>
+        <ul className={styles.unknowns}>
+          {SOURCES.map(({ what, who, when, url }) => (
+            <li key={url} className={styles.unknown}>
+              <a href={url} rel="noopener">
+                {what}
+              </a>
+              , {who}, {when}.
             </li>
           ))}
         </ul>

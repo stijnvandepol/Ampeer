@@ -450,6 +450,33 @@ def test_the_page_carries_the_headers_that_protect_its_own_url() -> None:
         assert directive in policy, f"the policy no longer carries {directive!r}: {policy!r}"
 
 
+def test_the_policy_admits_google_analytics_and_no_other_third_party() -> None:
+    """Since 2026-09-15 a visitor who says yes to the measurement question
+    loads gtag.js, and the policy has to let exactly that through: the script
+    host, the two collection hosts, and the pixel fallback. Everything else a
+    tag on a Google page would reach, Tag Manager containers, doubleclick, an
+    ads host, stays refused by the browser whatever the code does, which is
+    the ceiling this test pins. The floor, that nothing is requested before
+    the yes, is frontend/e2e/privacy.spec.ts and not this file."""
+    policy = _headers().get("Content-Security-Policy", "")
+    directives = {
+        part.strip().split(" ", 1)[0]: part.strip().split(" ", 1)[1]
+        for part in policy.split(";")
+        if " " in part.strip()
+    }
+    assert "https://www.googletagmanager.com" in directives["script-src"]
+    assert "https://*.google-analytics.com" in directives["connect-src"]
+    assert "https://*.analytics.google.com" in directives["connect-src"]
+    assert "https://*.google-analytics.com" in directives["img-src"]
+    for host in ("doubleclick", "googlesyndication", "googleadservices"):
+        assert host not in policy, f"the policy lets an ads host through: {host}"
+    # Tag Manager's script host is the same as gtag's, so the container is
+    # kept out by the code and not by this header; but a frame or a worker
+    # from it would be a different thing and the defaults refuse both.
+    assert "frame-src" not in directives
+    assert directives["default-src"] == "'self'"
+
+
 def test_the_pages_carry_hsts_and_not_only_the_api() -> None:
     """prod.py sets SECURE_HSTS_SECONDS and nothing served it to a human.
 

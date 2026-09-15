@@ -4,6 +4,16 @@ import styles from "./band.module.css";
 
 interface Props {
   readonly route: RouteBlock;
+  /**
+   * The rule whose band is already drawn at the top of the page, so this
+   * section renders its reasoning without repeating the figure.
+   *
+   * Two identical bands, one under the other, was what the page did until
+   * 2026-09-15: the same three amounts twice within one screen. The figure
+   * belongs with the instruction a reader acts on; the paragraph here is the
+   * why, and it does not need the number again to make its point.
+   */
+  readonly bandShownAbove?: string | undefined;
 }
 
 /**
@@ -14,7 +24,7 @@ interface Props {
  * make the frontend responsible for an order the API already guarantees.
  * `route.title` is the API's heading; this component never writes one.
  */
-export function RouteSection({ route }: Props) {
+export function RouteSection({ route, bandShownAbove }: Props) {
   const headingId = `route-${route.route.toLowerCase()}`;
 
   return (
@@ -32,7 +42,10 @@ export function RouteSection({ route }: Props) {
         <ul className={styles.rules}>
           {route.rules.map((rule) => (
             <li key={rule.rule_id}>
-              <RuleCard rule={rule} />
+              <RuleCard
+                rule={rule}
+                hideBand={rule.rule_id === bandShownAbove}
+              />
             </li>
           ))}
         </ul>

@@ -9,6 +9,13 @@ build/
 dist/
 data/
 
+# Agent skills installed by a tool, not by this project. 138 third-party
+# directories and 6.7 MB of them landed here on 2026-09-15 from
+# `npx skills add`, and the installer says in its own last line that they run
+# with full agent permissions. Code nobody in this repository reviewed does not
+# belong in this repository's history.
+.agents/
+
 # An environment file anywhere in the tree. `infra/.env.example` is the
 # checklist and is committed with every value empty; a filled one holds a
 # Django signing key, a database password and a mail API key, and the only

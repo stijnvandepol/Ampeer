@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Ampeer">
+  <!--
+    The product in one mark: a band, with the middle marked inside it.
+
+    It replaced the Next.js starter icon on 2026-09-15, a black disc with a
+    white triangle, which was the framework's own logo sitting on somebody
+    else's brand in every tab, bookmark and search result.
+
+    Two shapes and no letter. A glyph at sixteen pixels is a smudge, and the
+    thing this product is recognised by is not its initial: it is the one
+    stylistic decision the whole site rests on, that a figure is never drawn
+    larger than its own band. The bar is the band and the tick is its midpoint,
+    which is exactly what the headline on /advies/ draws at full size.
+
+    The tick sits right of centre rather than on it. A midpoint is a
+    measurement and lands where it lands; centring it would make the mark
+    symmetrical and say the opposite of what the band means.
+
+    Colour is the accent from globals.css, stated here rather than referenced
+    because an icon is fetched on its own and reaches no stylesheet. It does
+    not follow the theme for the same reason the year plate does not: a mark
+    that changes colour is two marks.
+  -->
+  <rect width="32" height="32" rx="7" fill="#0b6e63"/>
+  <rect x="4" y="14" width="24" height="4" rx="2" fill="#ffffff" opacity="0.45"/>
+  <rect x="18.25" y="11" width="3.5" height="10" rx="1.75" fill="#ffffff"/>
+</svg>

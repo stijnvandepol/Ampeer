@@ -234,6 +234,7 @@ niets naar een apparaat en haalt niets op.
 |---|---|---|---|
 | Cloudflare Inc. | Al het verkeer naar ampeer.nl | IP-adres, pad | De standaardovereenkomst bij het account; aanvaarding niet vastgelegd; bij de verantwoordelijke (DPIA hoofdstuk 10, slotalinea). |
 | Resend, Inc. | Herstel- en bevestigingsmail | E-mailadres, inhoud | De voorgetekende DPA uit het dashboard; beoordeling bij de verantwoordelijke (DPIA hoofdstuk 10, punt 4). |
+| Google Ireland Limited | Google Analytics 4, alleen na een ja van de bezoeker op de meetvraag (sinds 2026-09-15) | Bezochte pagina, apparaat, browser, IP-adres voor de regio | De Google Ads Data Processing Terms, te aanvaarden in het beheer van Google Analytics; aanvaarding en bewaartermijn bij de verantwoordelijke (DPIA hoofdstuk 5 en hoofdstuk 10, punt 5). |
 
 Geen derde verwerker. Wie een meter koppelt duwt rechtstreeks naar de dienst
 zelf; hoofdstuk 8 kent daarom geen verwerker erbij.

@@ -8,7 +8,7 @@ import { HeroHeading } from "@/components/motion/HeroHeading";
 import { Magnetic } from "@/components/motion/Magnetic";
 import { Mesh } from "@/components/motion/Mesh";
 import { SpotlightCard } from "@/components/motion/SpotlightCard";
-import { PageJsonLd } from "./_shell/JsonLd";
+import { FaqJsonLd, PageJsonLd } from "./_shell/JsonLd";
 import reveal from "@/components/motion/reveal.module.css";
 import styles from "./home.module.css";
 
@@ -146,10 +146,42 @@ const STEPS: readonly (readonly [string, string])[] = [
  * below it was the grid they now use everywhere. See the note above `.facts`
  * in home.module.css for what the desktop version actually cost.
  */
+/**
+ * The three questions, as plain text, for the FAQPage markup.
+ *
+ * The page renders them as JSX rather than from this array, because the second
+ * answer ends in a link and JSON-LD carries text. So the same sentences live
+ * twice, and that is a drift risk rather than a convenience: a FAQPage whose
+ * answers differ from the answers on the page is the kind of thing that gets a
+ * site ignored rather than cited.
+ *
+ * `frontend/tests/app/pages.test.tsx` holds them together by comparing every
+ * entry here against the rendered `dt` and `dd` text, so the two cannot
+ * disagree without a red test. That is also why the link's own words were
+ * changed on 2026-09-15 from "is een thuisbatterij iets voor mij" to "onze
+ * pagina over de thuisbatterij": the first only reads as a sentence while it is
+ * a link, and the plain text a search engine gets was not one.
+ */
+const FAQ: readonly (readonly [string, string])[] = [
+  [
+    "Waarom krijg ik een bereik en niet een bedrag?",
+    "Omdat een deel van de invoer nog niet vaststaat, zoals de terugleververgoeding in 2027 en de stroomprijs. Wij rekenen uw jaar daarom op veel verschillende standen door en laten zien wat daaruit komt. Een getal daaruit oppakken zou zekerder klinken dan het is.",
+  ],
+  [
+    "Krijg ik straks te horen dat ik een batterij moet kopen?",
+    "Alleen als het bij u uitkomt, en bij een deel van de huishoudens komt dat er niet uit. Nu geen batterij is bij ons een volwaardige uitkomst, en wij verdienen niets aan de andere. Waar het van afhangt, staat op onze pagina over de thuisbatterij.",
+  ],
+  [
+    "Wat kan ik met de link die ik krijg?",
+    "Daarmee opent u uw antwoord later opnieuw, ook op een andere telefoon of computer, zonder in te loggen. Bewaar hem dus, en bedenk dat wie hem heeft het antwoord ook ziet.",
+  ],
+];
+
 export default function Home() {
   return (
     <>
       <PageJsonLd path={PATH} name={TITLE} description={DESCRIPTION} />
+      <FaqJsonLd questions={FAQ} />
       <Cursor />
 
       <section className={styles.hero}>
@@ -311,7 +343,7 @@ export default function Home() {
               uitkomst, en wij verdienen niets aan de andere. Waar het van
               afhangt, staat op{" "}
               <Link href="/thuisbatterij/">
-                is een thuisbatterij iets voor mij
+                onze pagina over de thuisbatterij
               </Link>
               .
             </dd>

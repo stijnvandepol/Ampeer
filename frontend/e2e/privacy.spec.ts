@@ -4,8 +4,10 @@ import fixture from "../tests/fixtures/advice-response.json";
 /**
  * Nothing this site loads may reach a host outside the machine serving it.
  *
- * "Geen Google Analytics" is written down in CLAUDE.md and was, until this
- * file, enforced by nobody. The failure it guards against is not somebody
+ * "Geen Google Analytics" was written down in CLAUDE.md and was, until this
+ * file, enforced by nobody. Since 2026-09-15 the rule reads "not before a
+ * yes", and the sweep below is unchanged because it never answers the
+ * question; the second half of this file does. The failure it guards against is not somebody
  * deliberately adding a tracker. It is the ordinary way a third party request
  * arrives in a static site: a font referenced by URL instead of bundled, an
  * icon set pulled from a CDN, a script tag copied out of a tutorial. Each of
@@ -92,6 +94,65 @@ for (const path of PAGES) {
     ).toEqual([]);
   });
 }
+
+/**
+ * The second half, since 2026-09-15. The sweep above now proves the floor:
+ * before a visitor answers the measurement question, nothing leaves. What it
+ * cannot prove on its own is that the question works, because a banner that
+ * loaded nothing after yes would pass the sweep too. So this says yes, and
+ * expects exactly one new host to appear; and says no, reloads, and expects
+ * the answer to have been remembered.
+ *
+ * The build the e2e run uses carries the measurement ID G-TESTTESTTE, set in
+ * ci.yml and scripts/gates.sh, so the banner renders. The script request is
+ * intercepted and answered with an empty body: the test is about what the
+ * page asks for, not about what Google would answer.
+ */
+const GTAG = "https://www.googletagmanager.com/gtag/js?id=G-TESTTESTTE";
+
+test.describe("the question about measuring", () => {
+  test("is asked with two equal answers, and yes loads exactly Google", async ({
+    page,
+  }) => {
+    await page.route("https://www.googletagmanager.com/**", (route) =>
+      route.fulfill({ status: 200, contentType: "text/javascript", body: "" }),
+    );
+    const foreign = foreignRequests(page);
+    await page.goto("/");
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("button")).toHaveText([
+      "Nee, liever niet",
+      "Ja, dat mag",
+    ]);
+    expect(foreign, "something loaded before the answer").toEqual([]);
+
+    await dialog.getByRole("button", { name: "Ja, dat mag" }).click();
+    await expect(dialog).toBeHidden();
+    await expect.poll(() => foreign).toEqual([GTAG]);
+  });
+
+  test("no is remembered across a reload and loads nothing", async ({
+    page,
+  }) => {
+    const foreign = foreignRequests(page);
+    await page.goto("/thuisbatterij/");
+    await page.getByRole("button", { name: "Nee, liever niet" }).click();
+    await expect(page.getByRole("dialog")).toBeHidden();
+    await page.reload();
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByRole("dialog")).toBeHidden();
+    expect(foreign).toEqual([]);
+  });
+
+  test("the privacy page offers the way back", async ({ page }) => {
+    await page.goto("/privacy/");
+    await page.getByRole("button", { name: "Nee, liever niet" }).click();
+    await expect(page.getByText("U heeft nee gezegd.")).toBeVisible();
+    await page.getByRole("button", { name: "Uw keuze wijzigen" }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+  });
+});
 
 test("checks exactly the eleven pages this list names, not more and not fewer", () => {
   expect(PAGES).toHaveLength(11);
