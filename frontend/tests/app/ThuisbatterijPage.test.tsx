@@ -12,14 +12,16 @@ function headings(container: HTMLElement): string[] {
 }
 
 describe("the page a search brings somebody to", () => {
-  it("has one first-level heading and seven sections under it", () => {
+  it("has one first-level heading and ten sections under it", () => {
     const { container } = render(<ThuisbatterijPage />);
     expect(container.querySelectorAll("h1")).toHaveLength(1);
-    // Seven, counted rather than approximated for the reason the sibling page
+    // Ten, counted rather than approximated for the reason the sibling page
     // gives: the outline is what a reader scanning navigates by, and a section
     // quietly lost is a claim quietly dropped. "Wanneer hij dat niet doet" is
-    // the one that would go first and the one that must not.
-    expect(container.querySelectorAll("h2")).toHaveLength(7);
+    // the one that would go first and the one that must not. Seven until
+    // 2026-09-15; the three that came then are the cost and the rules, what
+    // to check in a quote, and the sources.
+    expect(container.querySelectorAll("h2")).toHaveLength(10);
   });
 
   it("answers the question in the first paragraph", () => {
@@ -70,7 +72,40 @@ describe("the page a search brings somebody to", () => {
     expect(
       hrefs.filter((href) => /^\/berekenen\/?$/.test(href ?? "")),
     ).toHaveLength(1);
-    expect(hrefs.filter((href) => /^https?:/.test(href ?? ""))).toEqual([]);
+  });
+
+  it("links out only from the sources, and there to named sources", () => {
+    // Until 2026-09-15 the page had no external link at all, and the test
+    // above said so. What changed is that the page now states facts with a
+    // name on them: a btw rule, a floor under the feed-in fee, a price. A fact
+    // with a name and no link is a fact the reader has to take on trust,
+    // which is the thing this page asks nobody to do. So links out exist, and
+    // they exist in exactly one place: an installer's link in the body would
+    // be a referral, and the section named Bronnen is the one place a link
+    // cannot be mistaken for one.
+    const { container } = render(<ThuisbatterijPage />);
+    const external = [...container.querySelectorAll("a[href]")].filter(
+      (element) => /^https?:/.test(element.getAttribute("href") ?? ""),
+    );
+    expect(external.length).toBeGreaterThanOrEqual(3);
+    for (const link of external) {
+      expect(link.getAttribute("href")).toMatch(/^https:/);
+      expect(
+        link.closest("section")?.getAttribute("aria-labelledby"),
+        `${link.getAttribute("href")} links out from outside the sources`,
+      ).toBe("bronnen");
+    }
+  });
+
+  it("dates every source, so a reader knows when it was true", () => {
+    const { container } = render(<ThuisbatterijPage />);
+    const items = [
+      ...container.querySelectorAll('section[aria-labelledby="bronnen"] li'),
+    ];
+    expect(items.length).toBeGreaterThanOrEqual(3);
+    for (const item of items) {
+      expect(item.textContent).toMatch(/gelezen op \d{1,2} \w+ 20\d\d/);
+    }
   });
 
   it("marks up exactly the questions it shows, in the same words", () => {

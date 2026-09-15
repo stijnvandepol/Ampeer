@@ -98,7 +98,14 @@ export function PageJsonLd({
 }
 
 /**
- * The questions a page answers, for the result that can carry them.
+ * The questions a page answers, for the machines that read pages.
+ *
+ * Not for a Google rich result, because there is none any more: FAQ rich
+ * results were limited to government and health sites in August 2023 and
+ * retired altogether on 7 May 2026. What still reads this markup is Google's
+ * own understanding of the page and the retrieval crawlers behind AI answers,
+ * which cite a page that states a question and its answer as one unit. That
+ * is the only return on it, and it is the one this site is after.
  *
  * Every question and every answer here must already be on the page in the same
  * words. Google's guidelines say not to mark up content a visitor cannot see,

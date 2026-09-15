@@ -143,6 +143,7 @@ Bedragen per kilowattuur, exclusief btw, op een vast contract. De veelgenoemde 3
 Begin een nieuwe berekening
 Begin hier
 Bekijk het nieuwe advies
+Belastingdienst
 Bent u het niet eens met wat wij doen, laat het ons weten. U kunt uw bezwaar sturen naar
 Bent u overdag thuis en gebruikt u uw opwek al grotendeels zelf, dan is er weinig te verschuiven en levert dit weinig op.
 Bent u uw wachtwoord kwijt, dan herstelt u het eerst via de mail. Daarna verwijdert u uw account.
@@ -160,8 +161,11 @@ Bijna elke rekenhulp geeft toch één gemiddeld bedrag. Dat bedrag geldt voor ni
 Bijna elke rekentool geeft u een enkel bedrag. Wij doen dat niet, en niet uit voorzichtigheid. Het antwoord hangt af van dingen die nog niet vaststaan, zoals de terugleververgoeding in 2027 en de stroomprijs, en van dingen die per huis verschillen, zoals wanneer u thuis bent.
 Boven elk bedrag staat hoe zeker het is: indicatief, goed of precies. Dat staat er direct bij en niet in een voetnoot.
 Boven uw bedrag staat of het indicatief, goed of precies is. Dat staat er direct naast en niet in een voetnoot, want hoe zeker een antwoord is hoort bij het antwoord. Vier vragen geeft indicatief. Negen vragen geeft goed.
+Bronnen
 Btw-nummer
+Btw-tarief zonnepanelen, wat valt niet onder het 0%-tarief
 CHOSEN_FROM_SIMULATED_CAPACITIES
+Capaciteit zegt hoeveel erin past, vermogen zegt hoe snel het erin en eruit kan. Een batterij die langzamer laadt dan uw panelen opwekken, mist het middaguur.
 Cloudflare ziet uw verzoek langskomen
 Combinaties
 Corrigeren
@@ -247,6 +251,7 @@ Een account per e-mailadres. U kiest en bewaart uw wachtwoord; wij kunnen het ni
 Een adres bevestigen, of een mail versturen.
 Een advies dat u zonder in te loggen hebt gemaakt, hoort nog niet bij uw account. Plak de link erbij, dan rekenen wij het opnieuw voor u.
 Een auto die overdag thuisstaat kan op de zon laden in plaats van 's nachts op het net. Staat de auto doordeweeks elders, dan geldt dit alleen in het weekend, en dat is precies het soort verschil dat een gemiddelde wegpoetst.
+Een batterij mag nooit helemaal leeg. De capaciteit die u werkelijk kunt gebruiken staat soms kleiner in de specificaties dan het getal op de doos. Vraag naar de nuttige capaciteit in kWh.
 Een batterij verdient alleen aan stroom die u anders had teruggeleverd en later had teruggekocht. Gebruikt u het grootste deel van uw opwek al meteen zelf, dan is er weinig over om op te slaan.
 Een bedrag met een bandbreedte, niet één getal
 Een bedrag per jaar met de bandbreedte eromheen, hoe zeker dat antwoord is, en drie routes in vaste volgorde: uw eigen ritme verschuiven, slimmer sturen met wat u al heeft, en stroom opslaan in een thuisbatterij. De routes die niets kosten staan altijd bovenaan, ook als er bij u aan een ervan niets te halen valt.
@@ -262,7 +267,7 @@ Een klacht over de dienst gaat naar
 Een kwartierprofiel van een heel jaar, uit de verbruiksprofielen die netbeheerders publiceren en de instraling voor uw postcodegebied.
 Een lijst met tips die alleen de goede kant laat zien, is geen advies. Dit zijn de grenzen van deze route.
 Een moment, wij halen de doorrekening op die bij deze link hoort.
-Een thuisbatterij verdient aan één ding: stroom die u anders had teruggeleverd en later duurder had teruggekocht. Alles wat u al meteen zelf gebruikt, levert een batterij niets op. Daarom zijn dit de vier dingen die de uitkomst bepalen.
+Een thuisbatterij verdient aan één ding: stroom die u anders had teruggeleverd en later duurder had teruggekocht. Alles wat u al meteen zelf gebruikt, levert een batterij niets op. Gemiddeld gebruikt een huishouden ongeveer 30 procent van de stroom van de eigen panelen meteen zelf, volgens Milieu Centraal, en gaat de rest het net op. Hoe ver u van dat gemiddelde af zit, bepaalt het antwoord. Daarom zijn dit de vier dingen die de uitkomst bepalen.
 Een toestemming geven of intrekken.
 Een toestemming kunt u altijd omzetten. Wij bewaren de oude keuze naast de nieuwe.
 Een voorbeelddag van 96 kwartieren, van middernacht links tot middernacht rechts. Hoe hoger een staaf, hoe meer stroom er in dat kwartier omging. Geel is een kwartier waarin het huishouden vooral zijn eigen opwek gebruikte, lichtgrijsblauw een kwartier waarin het stroom van het net haalde, en donkerblauw een kwartier waarin het stroom teruggaf aan het net.
@@ -274,9 +279,11 @@ Einde saldering
 Einde salderingsregeling: wat het bij u doet
 Elk advies zegt welke regels gevuurd hebben. U ziet dus waarom u juist dit antwoord kreeg.
 Elk antwoord is nodig voor de berekening. Uw postcodegebied kiest de zonnereeks. Uw jaarverbruik schaalt uw verbruiksprofiel. Wattpiek en dakligging bepalen uw opbrengst.
+Elk cijfer en elke regeling op deze pagina komt hiervandaan, met de datum waarop wij het lazen.
 Elke kolom is een dag, van 1 januari links tot 31 december rechts. Elke rij is een kwartier, van middernacht boven tot middernacht onder.
 Er is een e-mail onderweg om uw adres te bevestigen.
 Er is een grens: als alles wat kan verschuiven verschoven is, is de volgende stap slimmer sturen of opslag, en dat kost wel iets.
+Er is geen landelijke subsidie op een thuisbatterij. Het btw-nultarief dat sinds 2023 voor zonnepanelen geldt, geldt niet voor de levering en installatie van een batterij: de Belastingdienst noemt die uitdrukkelijk bij wat er niet onder valt, dus u betaalt 21 procent btw. Op 10 juni 2026 nam de Tweede Kamer een motie aan die het kabinet vraagt te onderzoeken of het nultarief ook voor batterijen kan gelden. Dat is een onderzoek en geen besluit. Verandert het, dan verandert deze pagina mee.
 Er is geen tabel bij ons met een IP-adres erin. Er is ook geen logregel die er een bewaart.
 Er is geen vast tijdstip dat voor elk dak klopt. Dit is wat het venster bepaalt.
 Er is geen vraag die wij alleen voor de statistiek stellen. Er is ook geen tweede doel: geen advertenties, geen profiel en geen doorverkoop.
@@ -285,9 +292,11 @@ Er staat geen knop op deze site die naar een verkopende partij leidt. Zoekt u er
 Er zijn kort achter elkaar veel berekeningen gedaan vanaf dit adres. Probeer het over een uur opnieuw.
 Exporteren of verwijderen.
 FAQPage
+Fabrikanten garanderen een aantal jaren of een aantal cycli, wat het eerst komt. Een batterij die elke dag een keer vol en leeg gaat maakt 365 cycli per jaar. Reken dat om naar jaren voordat u garanties vergelijkt.
 GOOD
 GRANTED
 Gaat Ampeer ooit doorverwijzen, dan vragen wij daar apart toestemming voor. Uw advies verandert er niet door.
+Garantie in jaren en in laadcycli
 Gebruik de dienst voor uw eigen huishouden, of voor iemand die u daarom vroeg. Probeer niet in te breken, te overbelasten of om de tempolimieten heen te werken. Maak geen account op een adres dat niet van u is.
 Gebruiksvoorwaarden
 Geen account, geen e-mailadres. U krijgt een link waarmee u er later bij kunt.
@@ -366,6 +375,7 @@ Kopieren lukte niet. Neem de link hierboven over.
 Koppel aan mijn account
 Koppel uw meter
 Krijg ik straks te horen dat ik een batterij moet kopen?
+Krijg ik subsidie of btw-korting op een thuisbatterij?
 KvK-nummer
 LEAD_GENERATION
 LIMITED_BY_LARGEST_SIMULATED_CAPACITY
@@ -390,6 +400,9 @@ Meestal 's nachts
 Meestal bij thuiskomst, aan het begin van de avond
 Met een link waarmee u er later bij kunt, zonder account. Wilt u het scherper, dan komen er vijf vragen bij.
 Methodologie
+Milieu Centraal
+Milieu Centraal noemt voor een gemiddelde batterij van 6 kWh, inclusief omvormer en installatie, een paar duizend euro. De prijs verschilt sterk per offerte en per merk, en juist die prijs bepaalt de terugverdientijd meer dan welke andere aanname ook.
+Milieu Centraal noemt voor een gemiddelde thuisbatterij van 6 kWh, inclusief omvormer en installatie, een paar duizend euro, en schrijft erbij dat u die op dit moment hoogstwaarschijnlijk niet terugverdient met de besparing op uw stroomrekening. Dat is een gemiddelde over huishoudens die sterk van elkaar verschillen, en precies daarom rekent Ampeer het per huis uit.
 Moet ik hiervoor iets kopen?
 Moet ik mijn zonnepanelen nu weghalen?
 Moet ik overstappen op een dynamisch contract?
@@ -400,6 +413,7 @@ NONE
 NORTH
 NORTHEAST
 NORTHWEST
+Na 1 januari 2027 krijgt u voor teruggeleverde stroom een vergoeding van uw leverancier. Tot 2030 moet die minimaal de helft van het kale leveringstarief zijn, onder toezicht van de ACM. Wat dat bij uw leverancier wordt, weet niemand vandaag, en daarom rekenen wij met een bandbreedte. Wat er precies verandert staat op
 Na 1 januari 2027 krijgt u voor teruglevering een vergoeding in plaats van wegstrepen tegen uw afname. Hoe lager die vergoeding, hoe meer een batterij kan opleveren. Niemand weet vandaag wat het precies wordt.
 Na 90 dagen verwijderen wij uw advies. Dat gebeurt automatisch, elke dag opnieuw. Daarna werkt de link niet meer. U krijgt dan dezelfde melding als bij een link die nooit heeft bestaan.
 Na het ontkoppelen zijn de metingen van deze meter weg.
@@ -410,12 +424,14 @@ Naar de startpagina
 Nederlands recht is van toepassing.
 Nee
 Nee. Dit is de route die niets kost: dezelfde apparaten, op een ander moment. Er bestaan timers en slimme stekkers die het automatisch doen, maar de winst zit in het verschuiven zelf en niet in het apparaat dat het voor u doet.
+Nee. Er is geen landelijke subsidie en de levering en installatie van een thuisbatterij valt niet onder het btw-nultarief dat wel voor zonnepanelen geldt, dus u betaalt 21 procent btw. De Tweede Kamer heeft het kabinet op 10 juni 2026 gevraagd te onderzoeken of dat nultarief ook voor batterijen kan gelden. Zodra dat verandert, staat het hier.
 Nee. In de winter wekken panelen in Nederland een fractie op van wat ze in de zomer doen, en geen batterij van huishoudelijke omvang overbrugt dat seizoen. Een batterij verschuift stroom over uren, niet over maanden.
 Nee. Panelen leveren stroom die u anders had moeten kopen, en dat blijft na 2027 zo. Wat verandert is wat de stroom opbrengt die u niet zelf gebruikt.
 Nergens anders voor. Die mail vertrekt via Resend, Inc. Resend is onze tweede verwerker.
 Netbeheerders hebben een tijdsafhankelijk nettarief voorgesteld: het transporttarief hangt dan af van het moment van de dag en het seizoen, met een klein aantal prijsniveaus over een klein aantal tijdsblokken. Dat maakt het moment waarop u stroom gebruikt nog belangrijker dan het vanaf 2027 al wordt.
 Neutrale energie-adviseur voor Nederlandse huishoudens met zonnepanelen. Verkoopt geen panelen, geen batterijen en geen energiecontract, en plaatst geen advertenties.
 Niemand weet wat de terugleververgoeding in 2027 werkelijk wordt. Wij rekenen met een band en niet met een getal.
+Niemand weet wat uw leverancier in 2027 werkelijk voor teruglevering betaalt. De wet geeft alleen een ondergrens, tot 2030 minimaal de helft van het kale leveringstarief. Wij rekenen met een band en niet met een getal.
 Niet alles kan wachten. Wat hieronder staat kan dat meestal wel, en juist daar zit de winst.
 Niet om bij ons een antwoord te krijgen. Wij bouwen uw jaar op uit standaardprofielen en uw eigen opgave. Echte meetgegevens maken het antwoord scherper, maar zijn geen voorwaarde.
 Niets. Er is geen abonnement, geen proefperiode en geen versie die wel geld kost. Wij verkopen geen panelen, geen batterijen en geen energiecontract, wij plaatsen geen advertenties en wij verkopen uw gegevens niet door.
@@ -425,11 +441,13 @@ Nog geen account? Account aanmaken
 Noord
 Noordoost
 Noordwest
+Nuttige capaciteit, niet bruto
 Of begin opnieuw
 Of er overdag iemand thuis is
 Om een slimme meter te koppelen zijn een bevestigd e-mailadres en toestemming voor het verwerken van kwartiergegevens nodig.
 Omdat een deel van de invoer nog niet vaststaat, zoals de terugleververgoeding in 2027 en de stroomprijs. Wij rekenen uw jaar daarom op veel verschillende standen door en laten zien wat daaruit komt. Een getal daaruit oppakken zou zekerder klinken dan het is.
 Omdat het verschil tussen die twee banden alleen telt voor de kilowatturen die u daadwerkelijk teruglevert. Twee huizen met precies dezelfde panelen en precies hetzelfde jaarverbruik krijgen een ander antwoord, alleen doordat de een overdag thuis is en de ander niet.
+Omvormer, montage, aansluiting op de meterkast en een eventuele aanpassing van de groepenkast. Een lage prijs zonder installatie is geen lage prijs.
 Ons logboek kent dertien soorten regels. Naast die ene bij elk advies schrijven wij er sinds er accounts zijn een bij twaalf handelingen:
 Ontkoppel
 Ontkoppelen bevestigen
@@ -464,9 +482,11 @@ Privacyverklaring
 Recht en klachten
 Reken het uit voor uw eigen huis
 Reken uit wat het einde van de salderingsregeling uw huishouden kost, met de marge erbij.
+Rekent de installateur besparing mee die u ook krijgt door de wasmachine overdag te laten draaien, dan wordt de batterij betaald voor werk dat gratis was. Vraag naar de besparing bovenop wat u zonder batterij ook kunt doen.
 Resend bewaart een eigen verzendlog met adres, onderwerp en tekst. Dat log staat in de Verenigde Staten, ook al versturen wij vanuit de Europese regio.
 Resend verstuurt onze mail
 Resend ziet uw adres, dat er een account bij hoort of dat er herstel is gevraagd, en de tekst van de mail met de link erin.
+Rijksoverheid
 SHIFT_BEHAVIOUR
 SMART_CONTROL
 SOLAR
@@ -476,8 +496,10 @@ SOUTHWEST
 STORAGE
 Salderen kijkt alleen naar wat door de meter ging en telt dat over een heel jaar op. De volgorde in de tijd valt daarbij weg, en de
 Salderen streept teruggeleverde stroom weg tegen afgenomen stroom. Zo lang dat kan, maakt het niet veel uit of u een kilowattuur meteen gebruikt of later terugkoopt. Als dat wegstrepen stopt, krijgt u voor teruglevering een vergoeding die lager ligt dan de prijs die u voor afname betaalt.
+Salderingsregeling stopt in 2027
 Slaan jullie mijn gegevens op?
 Snavelbiesstraat 8, 5445 NV Landhorst
+Solar Magazine
 Soms, en soms niet. Op een dynamisch contract zitten geen aparte terugleverkosten, maar beweegt uw prijs per uur mee. Of het bij u gunstig uitpakt hangt af van uw patroon, en dat rekenen wij door.
 Stijn IT, eenmanszaak
 Stond vast
@@ -489,12 +511,14 @@ Terug
 Terug naar inloggen
 Terugverdientijd
 Thema
+Thuisbatterij: zonne-energie opslaan
 Toestemming gegeven
 Toestemming geven
 Toestemming intrekken
 Tussen
 Twee dingen erbij, want zonder die twee is dit een belofte. Het is een voorstel dat bij de ACM ligt en nog geen regel. En ons model rekent het nog niet door: wat u vandaag bij ons krijgt gaat over 2027 en niet over 2029.
 Twee huizen met evenveel panelen kunnen een heel verschillend antwoord krijgen. Het gaat om het deel dat het net op gaat, en dat hangt af van uw dag en niet van uw dak.
+Tweede Kamer steunt onderzoek naar btw-nultarief voor thuisbatterij
 U beantwoordt vier vragen
 U bent overdag thuis en gebruikt uw opwek al grotendeels zelf.
 U beslist zelf. Een beslissing over een batterij of panelen neemt u met een offerte in de hand, niet met dit scherm.
@@ -556,6 +580,7 @@ Verder
 Verder gaat er niets naar buiten
 Verdient een thuisbatterij zich terug?
 Verfijn uw antwoord
+Vermogen in kW, naast capaciteit in kWh
 Verstuur de bevestigingsmail opnieuw
 Verwijderen bevestigen
 Verwijderen is definitief en doet u zelf, met uw wachtwoord erbij. Vandaag bewaart een account uw toestemmingen en kunt u exporteren. Straks koppelt het, met een bevestigd adres, een slimme meter.
@@ -568,6 +593,7 @@ Vier vragen over uw eigen dak, en geen enkele over uw e-mailadres.
 Vier vragen zijn genoeg voor een eerste antwoord. U hoeft niets te koppelen en geen account te maken.
 Vier vragen, en u weet wat het bij u doet in plaats van gemiddeld.
 Vier vragen, geen account, geen koppeling
+Vijf dingen om na te kijken in een offerte
 Vijf vragen die het antwoord scherper maken
 Vijf vragen erbij maken deze uitkomst scherper: of er overdag iemand thuis is, hoe de auto laadt, of er een warmtepomp is, wat voor contract u heeft en of er al opslag is.
 Volgorde
@@ -581,6 +607,7 @@ Voor huishoudens met zonnepanelen
 Voortgang
 Voorwaarden
 Vraag
+Vraagt u toch een offerte aan, dan zijn dit de regels waar de terugverdientijd in zit.
 Vul een getal in, zonder letters of spaties.
 Vul een heel getal in, zonder cijfers achter de komma.
 Vul hoogstens
@@ -625,9 +652,11 @@ Wat andere maten zouden opleveren
 Wat de rekenmachine van Ampeer is en niet is, waarvan Ampeer betaald wordt, en waar u zelf voor instaat als u de dienst gebruikt.
 Wat die maat per jaar oplevert
 Wat die uitkomst mogelijk maakt is niet dat wij niets verdienen, maar dat niemand ons betaalt voor welke uitkomst u krijgt. Er is geen installateur, geen leverancier en geen fabrikant die er beter van wordt als hier "wel een batterij" uitkomt. Een adviseur die batterijen verkoopt kan die zin niet schrijven.
+Wat een batterij kost en wat de overheid doet
 Wat een batterij kost verschilt sterk per offerte, en die prijs bepaalt de terugverdientijd meer dan welke andere aanname ook.
 Wat een kilowattuur waard is, in centen. De bovenste band is een kilowattuur die u zelf gebruikt en die verandert nauwelijks. De onderste band is een kilowattuur die u teruglevert: nu even veel waard als de bovenste, en vanaf 2027 bijna niets, aan de ongunstige kant zelfs minder dan nul.
 Wat er in 2029 nog bij komt
+Wat er in de prijs zit
 Wat er in ons logboek komt
 Wat er niet in zit, is het belangrijkste: niemand betaalt ons voor de uitkomst die u krijgt. Er is geen installateur, geen leverancier en geen fabrikant die er beter van wordt als hier "wel een batterij" uitkomt. Dat is ook waarom "nu geen batterij" bij ons een geldige uitkomst is. Een adviseur die aan batterijen verdient kan die zin niet schrijven.
 Wat er op 1 januari 2027 precies verandert, staat op
@@ -640,6 +669,7 @@ Wat het kost
 Wat het u kost, hangt vooral af van wanneer u stroom gebruikt. Niet van hoeveel panelen u heeft. Twee huizen met hetzelfde dak en hetzelfde verbruik krijgen een ander antwoord.
 Wat is het verschil tussen terugleververgoeding en terugleverkosten?
 Wat kan ik met de link die ik krijg?
+Wat kost een thuisbatterij?
 Wat salderen nu voor u doet
 Wat teruglevering u straks oplevert
 Wat u al heeft, anders inregelen
@@ -662,6 +692,7 @@ Weerjaar
 Weg zijn dan uw adres, uw wachtwoord, beide toestemmingen en alle adviezen die aan uw account hingen. Wat blijft is een logregel met een nummer dat nergens meer naar wijst.
 Welk jaar
 Welke apparaten het verschil maken
+Welke besparing de offerte u belooft
 Welke kant ligt het dak op?
 Welke verbruiksprofielen, welke instralingsreeks en welke tarieven wij gebruiken, met de aannames en de bandbreedtes erbij. Geschreven om nagerekend te worden.
 West
@@ -736,6 +767,7 @@ contactEmail
 dark
 data-theme
 de methodepagina
+de pagina over het einde van de saldering
 de pagina over ons
 de pagina over thuisbatterijen
 dec
@@ -758,6 +790,7 @@ funnel_question_3
 funnel_question_4
 gaf het terug aan het net en
 gele kwartieren zaten er nooit in: die kwamen nooit langs de meter. Vanaf 2027 zijn dat juist de kwartieren die tellen.
+gelezen op 15 september 2026
 graden
 h
 haalde het eruit.
@@ -768,7 +801,11 @@ hoofdstuk 11 van onze methodologie
 http://127.0.0.1:8000
 https://ampeer.nl
 https://schema.org
+https://solarmagazine.nl/nieuws-zonne-energie/i43976/tweede-kamer-steunt-onderzoek-naar-btw-nultarief-voor-thuisbatterij
 https://www.autoriteitpersoonsgegevens.nl/
+https://www.belastingdienst.nl/wps/wcm/connect/bldcontentnl/belastingdienst/zakelijk/btw/tarieven_en_vrijstellingen/goederen_0_btw/btw-tarief-zonnepanelen
+https://www.milieucentraal.nl/energie-besparen/zonnepanelen/thuisbatterij-zonne-energie-opslaan/
+https://www.rijksoverheid.nl/themas/klimaat-milieu-en-natuur/energie-thuis/salderingsregeling
 image/png
 in.
 info@ampeer.nl
@@ -794,6 +831,7 @@ meer van uw eigen stroom gebruiken
 meer van uw eigen stroom zelf gebruiken
 mei
 monthly
+motie van 10 juni 2026, gelezen op 15 september 2026
 mrt
 ms
 mt-10 text-xl font-medium
@@ -813,6 +851,7 @@ onze pagina over de thuisbatterij
 onze privacyverklaring
 overeenkomst
 own
+pagina van 10 september 2026, gelezen op 15 september 2026
 password
 per jaar
 per kWh
