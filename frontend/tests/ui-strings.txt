@@ -62,6 +62,7 @@
 )
 *
 ,
+, en het is per huis door te rekenen.
 , en over
 , met
 , over
@@ -97,6 +98,7 @@
 /over-ons/
 /privacy/
 /sitemap.xml
+/thuisbatterij-btw/
 /thuisbatterij/
 /voorwaarden/
 /zelf-verbruiken/
@@ -105,12 +107,15 @@
 00:00
 06
 06:00
+1 januari 2023
+10 juni 2026
 12
 12:00
-15 september 2026
+15 september 2026, Prinsjesdag
 18
+18 september 2026
 18:00
-2026-09-15
+2026-09-18
 24
 24:00
 42015984
@@ -125,6 +130,7 @@ Alle drie zijn nodig om de accountpagina veilig te gebruiken, en voor niets ande
 Alleen als het bij u uitkomt, en bij een deel van de huishoudens komt dat er niet uit. Nu geen batterij is bij ons een volwaardige uitkomst, en wij verdienen niets aan de andere. Waar het van afhangt, leest u bij de vraag
 Alleen als het bij u uitkomt, en bij een deel van de huishoudens komt dat er niet uit. Nu geen batterij is bij ons een volwaardige uitkomst, en wij verdienen niets aan de andere. Waar het van afhangt, leest u bij de vraag is een thuisbatterij iets voor mij.
 Alleen als het bij u uitkomt. Voor een deel van de huishoudens is het antwoord nee, en dat is bij ons een geldige en volwaardige uitkomst.
+Alleen als u de batterij gebruikt om in stroom te handelen. Dan bent u volgens de Belastingdienst btw-plichtig, doet u elk kwartaal aangifte en mag u de btw op de aanschaf terugvragen, maar draagt u ook btw af over de vergoeding die u ontvangt. Een huishouden dat alleen zijn eigen zonnestroom opslaat, valt daar niet onder.
 Alleen na uw ja laden wij Google Analytics. Dat telt welke pagina's bezocht worden, niet wie u bent. Wijzigen kan altijd op de privacypagina.
 Alles daarover staat in
 Als dit adres bij ons bekend is, staat er binnen enkele minuten een e-mail voor u klaar. De link daarin werkt een uur.
@@ -164,6 +170,9 @@ Bijna elke rekentool geeft u een enkel bedrag. Wij doen dat niet, en niet uit vo
 Boven elk bedrag staat hoe zeker het is: indicatief, goed of precies. Dat staat er direct bij en niet in een voetnoot.
 Boven uw bedrag staat of het indicatief, goed of precies is. Dat staat er direct naast en niet in een voetnoot, want hoe zeker een antwoord is hoort bij het antwoord. Vier vragen geeft indicatief. Negen vragen geeft goed.
 Bronnen
+Btw op een thuisbatterij: 21 procent
+Btw op een thuisbatterij: 21 procent, en geen nultarief in 2027
+Btw terugvragen kan alleen wie handelt
 Btw-nummer
 Btw-tarief zonnepanelen, wat valt niet onder het 0%-tarief
 CHOSEN_FROM_SIMULATED_CAPACITIES
@@ -181,6 +190,8 @@ Dat laatste is de kern, en het is de belofte die blijft staan als er wel geld bi
 Dat staat allemaal in
 Dat staat allemaal uitgeschreven, met de aannames en de bandbreedtes erbij, in
 Dat verschil is belangrijk. Afkappen zou betekenen dat uw volledige postcode ons wel had bereikt. Nu bereikt hij ons nooit.
+De 21 procent zit in de prijs die u betaalt, en die prijs bepaalt de terugverdientijd meer dan welke andere aanname ook. Een batterij die alleen uit kan met een nultarief dat er niet is, kan vandaag niet uit. Drie dingen om na te kijken op een offerte:
+De Tweede Kamer neemt met brede steun een motie aan die het kabinet vraagt te onderzoeken of het nultarief ook voor thuisbatterijen kan gelden, naar Duits voorbeeld. Het kabinet zegt toe uiterlijk op Prinsjesdag te reageren.
 De batterij, doorgerekend
 De bevestigingsmail is onderweg.
 De dienst kan er even niet zijn. Wij beloven geen beschikbaarheid.
@@ -275,6 +286,7 @@ Een voorbeelddag van 96 kwartieren, van middernacht links tot middernacht rechts
 Een voorbeelddag, geen berekening.
 Een werkt een kwartier, de andere veertien dagen.
 Een wijziging komt op deze pagina te staan, met een nieuwe datum. Een wijziging die u iets kost komt hier te staan voordat hij ingaat.
+Eerlijk over Thuisbatterijen
 Eerst wat u niets kost
 Einde saldering
 Einde salderingsregeling: wat het bij u doet
@@ -282,9 +294,11 @@ Elk advies zegt welke regels gevuurd hebben. U ziet dus waarom u juist dit antwo
 Elk antwoord is nodig voor de berekening. Uw postcodegebied kiest de zonnereeks. Uw jaarverbruik schaalt uw verbruiksprofiel. Wattpiek en dakligging bepalen uw opbrengst.
 Elk cijfer en elke regeling op deze pagina komt hiervandaan, met de datum waarop wij het lazen. Deze pagina is voor het laatst bijgewerkt op
 Elke kolom is een dag, van 1 januari links tot 31 december rechts. Elke rij is een kwartier, van middernacht boven tot middernacht onder.
+Elke regel op deze pagina komt hiervandaan, met de datum waarop wij het lazen. Deze pagina is voor het laatst bijgewerkt op
 Er is een e-mail onderweg om uw adres te bevestigen.
 Er is een grens: als alles wat kan verschuiven verschoven is, is de volgende stap slimmer sturen of opslag, en dat kost wel iets.
-Er is geen landelijke subsidie op een thuisbatterij. Het btw-nultarief dat sinds 2023 voor zonnepanelen geldt, geldt niet voor de levering en installatie van een batterij: de Belastingdienst noemt die uitdrukkelijk bij wat er niet onder valt, dus u betaalt 21 procent btw. Op 10 juni 2026 nam de Tweede Kamer een motie aan die het kabinet vraagt te onderzoeken of het nultarief ook voor batterijen kan gelden. Dat is een onderzoek en geen besluit. Verandert het, dan verandert deze pagina mee.
+Er is geen landelijke subsidie op een thuisbatterij. Het btw-nultarief dat sinds 2023 voor zonnepanelen geldt, geldt niet voor de levering en installatie van een batterij: de Belastingdienst noemt die uitdrukkelijk bij wat er niet onder valt, dus u betaalt 21 procent btw. Op 10 juni 2026 nam de Tweede Kamer een motie aan die het kabinet vroeg te onderzoeken of het nultarief ook voor batterijen kan gelden; in het Belastingplan 2027 van Prinsjesdag 2026 staat daar geen maatregel over. Hoe dat zit, met de regel van de Belastingdienst erbij, staat op
+Er is geen landelijke subsidie, en het Belastingplan 2027 voegt er geen toe. Sommige gemeenten of provincies hebben een eigen regeling; die verschilt per plaats en verandert vaak, dus kijk bij uw eigen gemeente.
 Er is geen tabel bij ons met een IP-adres erin. Er is ook geen logregel die er een bewaart.
 Er is geen vast tijdstip dat voor elk dak klopt. Dit is wat het venster bepaalt.
 Er is geen vraag die wij alleen voor de statistiek stellen. Er is ook geen tweede doel: geen advertenties, geen profiel en geen doorverkoop.
@@ -300,6 +314,7 @@ Gaat Ampeer ooit doorverwijzen, dan vragen wij daar apart toestemming voor. Uw a
 Garantie in jaren en in laadcycli
 Gebruik de dienst voor uw eigen huishouden, of voor iemand die u daarom vroeg. Probeer niet in te breken, te overbelasten of om de tempolimieten heen te werken. Maak geen account op een adres dat niet van u is.
 Gebruiksvoorwaarden
+Gebruikt u de batterij om stroom in te kopen en te verkopen, dan bent u volgens de Belastingdienst btw-plichtig: u doet elk kwartaal aangifte, mag de btw op de aanschaf terugvragen en draagt btw af over de vergoeding die u van uw leverancier krijgt. Dat is een bedrijfje en geen huishouden. Slaat u alleen uw eigen zonnestroom op voor de avond, dan is er niets terug te vragen.
 Geen panelen, geen batterijen en geen energiecontract. En niemand die ons betaalt voor de uitkomst die u krijgt.
 Geen toestemming gegeven
 Gegevens exporteren
@@ -320,11 +335,14 @@ Helpt verschuiven bij u niet genoeg, dan leest u op
 Herstel en bevestiging gaan per mail, met een link die eenmalig werkt. Een herstellink werkt een uur, een bevestigingslink zeven dagen.
 Het adres klopt niet, of de pagina is verplaatst. Hieronder staat waar u wel terecht kunt.
 Het antwoord achter uw link is een bestand dat een computer kan lezen. U kunt het dus meenemen naar iemand anders.
+Het btw-tarief op de levering en installatie van zonnepanelen op of bij een woning gaat naar 0 procent. Een thuisbatterij staat bij de Belastingdienst uitdrukkelijk bij wat daar niet onder valt.
 Het eerlijke antwoord
 Het einde van de saldering
 Het einde van de saldering, en hoe u uitrekent wat het bij u doet
 Het huis een paar graden voorverwarmen terwijl de zon schijnt, zodat de pomp 's avonds minder hoeft. Dit werkt alleen bij een goed geïsoleerd huis, want een huis dat de warmte niet vasthoudt slaat niets op.
 Het invoerveld accepteert alleen vier cijfers. Typt u er zes, dan wordt de invoer geweigerd. Hij wordt niet stilletjes afgekapt.
+Het korte antwoord
+Het nultarief dat sinds 2023 voor zonnepanelen geldt, geldt niet voor een thuisbatterij, ook niet als u hem tegelijk met de panelen laat plaatsen. De Tweede Kamer vroeg in juni 2026 om een nultarief te onderzoeken; in het Belastingplan 2027 van Prinsjesdag staat er niets over. U rekent dus met 21 procent.
 Het verkeer naar deze site loopt via Cloudflare Inc. Dat bedrijf is onze verwerker. Cloudflare beveiligt de verbinding en beëindigt die aan de rand van hun netwerk.
 Het vermogen van uw zonnepanelen, in wattpiek.
 Het woord bij uw advies (indicatief, goed of precies) zegt hoeveel u ons verteld heeft. Precies kunt u vandaag niet krijgen.
@@ -357,6 +375,7 @@ Ik heb al een account. Inloggen
 In de winter is dat venster een stuk korter en de opbrengst een fractie, dus verschuiven levert dan minder op.
 In de zomer levert een dak in Nederland grofweg tussen acht uur 's ochtends en zes uur 's avonds, met het zwaartepunt rond het midden van die periode.
 In die regels staat een nummer dat naar uw account wijst, en nooit uw e-mailadres. Na verwijdering wijst dat nummer nergens meer naar. Bij een herstelverzoek voor een adres dat wij niet kennen schrijven wij niets.
+In het Belastingplan 2027 staat geen maatregel die de btw op thuisbatterijen verandert. Ook een subsidie staat er niet in. Het tarief blijft 21 procent.
 Inloggen
 Inloggen of een account aanmaken, uw toestemmingen bekijken en omzetten, uw gegevens downloaden of uw account verwijderen.
 Investeren: stroom opslaan in een thuisbatterij
@@ -364,12 +383,16 @@ Inzien
 Is een thuisbatterij iets voor mij
 Is een thuisbatterij iets voor mij?
 Is een wasmachine 's nachts niet goedkoper?
+Is er btw-korting als ik de thuisbatterij samen met zonnepanelen koop?
 Is er op een doordeweekse dag overdag meestal iemand thuis?
+Is er subsidie op een thuisbatterij?
 Ja
 Ja, dat mag
+Kan ik de btw op een thuisbatterij terugvragen?
 Kan ik met een thuisbatterij van het net af?
 Kijk wat het bij u doet
 Klagen kan bij de toezichthouder
+Komt er nog een btw-nultarief voor thuisbatterijen?
 Komt u er met ons niet uit, dan kunt u een klacht indienen bij de Nederlandse toezichthouder. Dat kan altijd en het kost u niets.
 Kopieer deze link
 Kopieren lukte niet. Neem de link hierboven over.
@@ -406,6 +429,7 @@ Methodologie
 Milieu Centraal
 Milieu Centraal noemt voor een gemiddelde batterij van 6 kWh, inclusief omvormer en installatie, een paar duizend euro. De prijs verschilt sterk per offerte en per merk, en juist die prijs bepaalt de terugverdientijd meer dan welke andere aanname ook.
 Milieu Centraal noemt voor een gemiddelde thuisbatterij van 6 kWh, inclusief omvormer en installatie, een paar duizend euro, en schrijft erbij dat u die op dit moment hoogstwaarschijnlijk niet terugverdient met de besparing op uw stroomrekening. Dat is een gemiddelde over huishoudens die sterk van elkaar verschillen, en precies daarom rekent Ampeer het per huis uit.
+Miljoenennota 2027: geen subsidie of btw-nultarief thuisbatterij
 Moet ik hiervoor iets kopen?
 Moet ik mijn zonnepanelen nu weghalen?
 Moet ik overstappen op een dynamisch contract?
@@ -429,7 +453,8 @@ Nederlands recht is van toepassing.
 Nee
 Nee, liever niet
 Nee. Dit is de route die niets kost: dezelfde apparaten, op een ander moment. Er bestaan timers en slimme stekkers die het automatisch doen, maar de winst zit in het verschuiven zelf en niet in het apparaat dat het voor u doet.
-Nee. Er is geen landelijke subsidie en de levering en installatie van een thuisbatterij valt niet onder het btw-nultarief dat wel voor zonnepanelen geldt, dus u betaalt 21 procent btw. De Tweede Kamer heeft het kabinet op 10 juni 2026 gevraagd te onderzoeken of dat nultarief ook voor batterijen kan gelden. Zodra dat verandert, staat het hier.
+Nee. Er is geen landelijke subsidie en de levering en installatie van een thuisbatterij valt niet onder het btw-nultarief dat wel voor zonnepanelen geldt, dus u betaalt 21 procent btw. De Tweede Kamer vroeg het kabinet op 10 juni 2026 om een nultarief te onderzoeken; in het Belastingplan 2027 van Prinsjesdag staat er niets over, dus het blijft 21 procent.
+Nee. Het nultarief geldt voor de levering en installatie van de zonnepanelen zelf. De Belastingdienst noemt een accupakket of thuisbatterij uitdrukkelijk bij wat er niet onder valt, en maakt geen uitzondering voor een batterij die tegelijk met de panelen wordt geplaatst.
 Nee. In de winter wekken panelen in Nederland een fractie op van wat ze in de zomer doen, en geen batterij van huishoudelijke omvang overbrugt dat seizoen. Een batterij verschuift stroom over uren, niet over maanden.
 Nee. Panelen leveren stroom die u anders had moeten kopen, en dat blijft na 2027 zo. Wat verandert is wat de stroom opbrengt die u niet zelf gebruikt.
 Nergens anders voor. Die mail vertrekt via Resend, Inc. Resend is onze tweede verwerker.
@@ -439,6 +464,7 @@ Niemand weet wat de terugleververgoeding in 2027 werkelijk wordt. Wij rekenen me
 Niemand weet wat uw leverancier in 2027 werkelijk voor teruglevering betaalt. De wet geeft alleen een ondergrens, tot 2030 minimaal de helft van het kale leveringstarief. Wij rekenen met een band en niet met een getal.
 Niet alles kan wachten. Wat hieronder staat kan dat meestal wel, en juist daar zit de winst.
 Niet om bij ons een antwoord te krijgen. Wij bouwen uw jaar op uit standaardprofielen en uw eigen opgave. Echte meetgegevens maken het antwoord scherper, maar zijn geen voorwaarde.
+Niet per 1 januari 2027. De Tweede Kamer vroeg het kabinet op 10 juni 2026 om dat te onderzoeken, en het Belastingplan 2027 van Prinsjesdag bevat er geen maatregel over. Wat een volgend kabinet doet, weet niemand; reken met wat vandaag geldt.
 Niets. Er is geen abonnement, geen proefperiode en geen versie die wel geld kost. Wij verkopen geen panelen, geen batterijen en geen energiecontract, wij plaatsen geen advertenties en wij verkopen uw gegevens niet door.
 Nieuw wachtwoord
 Nodig is het niet. Het einde van de saldering maakt het aantrekkelijker om uw eigen stroom zelf te gebruiken, en dat kan ook door apparaten op een ander moment te laten draaien. Dat kost niets en komt daarom eerst.
@@ -449,6 +475,7 @@ Noordwest
 Nu geen batterij is ook een antwoord
 Nuttige capaciteit, niet bruto
 Of begin opnieuw
+Of een batterij bij u uit kan, hangt niet van de btw af maar van hoeveel u teruglevert en wat u 's avonds gebruikt. Dat staat op
 Of er overdag iemand thuis is
 Om een slimme meter te koppelen zijn een bevestigd e-mailadres en toestemming voor het verwerken van kwartiergegevens nodig.
 Omdat een deel van de invoer nog niet vaststaat, zoals de terugleververgoeding in 2027 en de stroomprijs. Wij rekenen uw jaar daarom op veel verschillende standen door en laten zien wat daaruit komt. Een getal daaruit oppakken zou zekerder klinken dan het is.
@@ -465,8 +492,10 @@ Oost
 Op 1 januari 2027 stopt de salderingsregeling. Bijna 3 miljoen woningen in Nederland hebben zonnepanelen. Voor al die huishoudens verandert er iets, en niet voor iedereen evenveel.
 Op 1 januari 2027 stopt de salderingsregeling. Wat dat u kost hangt niet af van hoeveel panelen u heeft, maar van wanneer u stroom gebruikt. Deze pagina legt uit wat er precies verandert, waarom een gemiddeld bedrag u niets zegt, en wat u eraan kunt doen.
 Op 1 januari 2027 stopt de salderingsregeling. Wat er verandert, waarom een gemiddeld bedrag u niets zegt, en hoe u het voor uw eigen huis doorrekent.
+Op de pagina over het btw-tarief voor zonnepanelen staat een lijst van wat wel en wat niet onder het nultarief valt. Bij wat er niet onder valt staat, letterlijk, de levering en installatie van een accupakket en thuisbatterij. Dat is de hele regel. Er staat geen uitzondering bij voor een batterij die in dezelfde opdracht als de panelen wordt geleverd, en de pagina van de Belastingdienst over de thuisbatterij zelf noemt geen nultarief.
 Op dit webadres zat eerder een andere dienst, die wel Nederlandse energiecontracten bemiddelde. Die heeft niets met dit product te maken. Ampeer bemiddelt niets en heeft geen eigen contract.
 Op dit webadres zat eerder een andere dienst. Die bemiddelde wel in energiecontracten. Die dienst heeft niets met Ampeer te maken.
+Op een thuisbatterij betaalt u 21 procent btw. Het nultarief voor zonnepanelen geldt er niet voor, ook niet samen geplaatst, en het Belastingplan 2027 verandert daar niets aan.
 Op tijd
 Op uw accountpagina staat een knop die uw account verwijdert. Hij vraagt uw wachtwoord opnieuw.
 Op uw accountpagina zet u twee toestemmingen apart aan of uit. Wij zetten er nooit een vooraf aan. Elke keuze bewaren wij met het tijdstip en de tekstversie die u toen las. Intrekken kost u een klik.
@@ -489,6 +518,7 @@ Recht en klachten
 Reken het uit voor uw eigen huis
 Reken uit wat het einde van de salderingsregeling uw huishouden kost, met de marge erbij.
 Rekent de installateur besparing mee die u ook krijgt door de wasmachine overdag te laten draaien, dan wordt de batterij betaald voor werk dat gratis was. Vraag naar de besparing bovenop wat u zonder batterij ook kunt doen.
+Rekent een terugverdientijd op een offerte met een prijs zonder btw? Dan is de terugverdientijd te kort. Reken met wat u betaalt.
 Resend bewaart een eigen verzendlog met adres, onderwerp en tekst. Dat log staat in de Verenigde Staten, ook al versturen wij vanuit de Europese regio.
 Resend verstuurt onze mail
 Resend ziet uw adres, dat er een account bij hoort of dat er herstel is gevraagd, en de tekst van de mail met de link erin.
@@ -507,6 +537,7 @@ Slaan jullie mijn gegevens op?
 Snavelbiesstraat 8, 5445 NV Landhorst
 Solar Magazine
 Soms, en soms niet. Op een dynamisch contract zitten geen aparte terugleverkosten, maar beweegt uw prijs per uur mee. Of het bij u gunstig uitpakt hangt af van uw patroon, en dat rekenen wij door.
+Staat op de offerte 21 procent btw over de batterij, de omvormer en de installatie? Zo niet, vraag dan op welke regel de installateur zich baseert.
 Stijn IT, eenmanszaak
 Stond vast
 Stuur een herstellink
@@ -517,6 +548,7 @@ Terug
 Terug naar inloggen
 Terugverdientijd
 Thema
+Thuisbatterij en btw
 Thuisbatterij: zonne-energie opslaan
 Toestemming gegeven
 Toestemming geven
@@ -592,6 +624,7 @@ Verder gaat er niets naar buiten
 Verdient een thuisbatterij zich terug?
 Verfijn uw antwoord
 Verkoopt niets
+Verkopers schrijven soms dat een batterij samen met panelen wel op 0 procent kan. Wij hebben die regel bij de Belastingdienst niet gevonden. Wie hem toepast, doet dat op eigen lezing, en een naheffing landt bij de koper.
 Vermogen in kW, naast capaciteit in kWh
 Verstuur de bevestigingsmail opnieuw
 Verwijderen bevestigen
@@ -602,6 +635,7 @@ Vier vragen over uw dak en uw verbruik, en u ziet wat het einde van de saldering
 Vier vragen over uw dak en uw verbruik. Geen account, geen e-mailadres, en niets aan uw meterkast. U krijgt een bedrag met de bandbreedte erbij.
 Vier vragen over uw dak en uw verbruik. U hoeft niets te koppelen en geen account te maken.
 Vier vragen over uw eigen dak, en geen enkele over uw e-mailadres.
+Vier vragen zijn genoeg voor een eerste antwoord op wat het einde van de saldering u kost en of opslag daar iets aan doet. Geen account, niets te koop.
 Vier vragen zijn genoeg voor een eerste antwoord. U hoeft niets te koppelen en geen account te maken.
 Vier vragen, en u weet wat het bij u doet in plaats van gemiddeld.
 Vier vragen, geen account, geen koppeling
@@ -660,13 +694,16 @@ Wat Ampeer van u vraagt, waarom, hoe lang wij het bewaren en wat u eraan kunt do
 Wat Ampeer voor u uitrekent
 Wat Resend niet ziet: waarom u herstel vroeg, uw wachtwoord, uw toestemmingen of uw advies.
 Wat andere maten zouden opleveren
+Wat de Belastingdienst zegt
 Wat de rekenmachine van Ampeer is en niet is, waarvan Ampeer betaald wordt, en waar u zelf voor instaat als u de dienst gebruikt.
 Wat die maat per jaar oplevert
 Wat die uitkomst mogelijk maakt is niet dat wij niets verdienen, maar dat niemand ons betaalt voor welke uitkomst u krijgt. Er is geen installateur, geen leverancier en geen fabrikant die er beter van wordt als hier "wel een batterij" uitkomt. Een adviseur die batterijen verkoopt kan die zin niet schrijven.
+Wat dit betekent voor uw keuze
 Wat een batterij kost en wat de overheid doet
 Wat een batterij kost verschilt sterk per offerte, en die prijs bepaalt de terugverdientijd meer dan welke andere aanname ook.
 Wat een kilowattuur waard is, in centen. De bovenste band is een kilowattuur die u zelf gebruikt en die verandert nauwelijks. De onderste band is een kilowattuur die u teruglevert: nu even veel waard als de bovenste, en vanaf 2027 bijna niets, aan de ongunstige kant zelfs minder dan nul.
 Wat er in 2029 nog bij komt
+Wat er in Den Haag gebeurde
 Wat er in de prijs zit
 Wat er in ons logboek komt
 Wat er niet in zit, is het belangrijkste: niemand betaalt ons voor de uitkomst die u krijgt. Er is geen installateur, geen leverancier en geen fabrikant die er beter van wordt als hier "wel een batterij" uitkomt. Dat is ook waarom "nu geen batterij" bij ons een geldige uitkomst is. Een adviseur die aan batterijen verdient kan die zin niet schrijven.
@@ -745,6 +782,7 @@ Wij weten niet welke apparaten u heeft of wanneer u ze aanzet.
 Wij willen weten welke pagina's bezocht worden en waar mensen afhaken. Daarvoor gebruiken wij Google Analytics, en dat laden wij pas nadat u op de vraag onderaan de pagina ja heeft gezegd. Zegt u nee, of zegt u niets, dan wordt er niets van Google geladen en gaat er niets naar Google.
 Wij zeggen niet dat Ampeer nooit geld gaat verdienen. Wat wij wel vastleggen is dat uw antwoord er niet van afhangt: code die het advies laat meebewegen met een commerciele afspraak geldt in dit project als een fout, en dat staat zo in de projectafspraken. Verandert er iets aan hoe Ampeer betaald wordt, dan staat het op deze pagina en op "over ons" voordat het gebeurt.
 Wilt u een scherper antwoord, dan volgen er vijf vragen bij. Of u overdag thuis bent bijvoorbeeld, of u een elektrische auto heeft, en of u een warmtepomp heeft. Die vragen zijn vrijwillig.
+Wordt de batterij in een offerte samen met panelen als een geheel op 0 procent gezet? De Belastingdienst noemt de batterij apart bij wat niet onder het nultarief valt. Een naheffing komt bij u terecht, niet bij de installateur.
 Ze rust ook op Resends certificering onder het Data Privacy Framework.
 Zegt u ja, dan ziet Google welke pagina's u opent, met welk apparaat en welke browser, en uw IP-adres om de regio te bepalen; Google zegt dat adres zelf niet te bewaren. Google plaatst dan twee cookies die zes maanden gelden. De koppeling met advertenties en het delen met andere diensten van Google hebben wij uitgezet, en wat Google voor ons bewaart, bewaart het twee maanden. Google verwerkt dit in onze opdracht, onder de verwerkersvoorwaarden van Google Analytics.
 Zie ook
@@ -770,8 +808,10 @@ ampeer-meting
 ampeer-thema
 ampeer.nl
 apr
+artikel van 15 september 2026, gelezen op 18 september 2026
 aug
 betaalt de server en de domeinnaam zelf.
+btw op een thuisbatterij
 cent over, nadat de terugleverkosten eraf zijn. Aan de ongunstige kant is dat negatief: dan kost terugleveren u geld. Wat u zelf gebruikt blijft
 cent waard. Het verschil zit dus niet in wat zelf gebruiken oplevert.
 cent.
@@ -821,6 +861,8 @@ https://schema.org
 https://solarmagazine.nl/nieuws-zonne-energie/i43976/tweede-kamer-steunt-onderzoek-naar-btw-nultarief-voor-thuisbatterij
 https://www.autoriteitpersoonsgegevens.nl/
 https://www.belastingdienst.nl/wps/wcm/connect/bldcontentnl/belastingdienst/zakelijk/btw/tarieven_en_vrijstellingen/goederen_0_btw/btw-tarief-zonnepanelen
+https://www.belastingdienst.nl/wps/wcm/connect/nl/btw/content/thuisbatterij-btw
+https://www.eerlijkoverthuisbatterijen.nl/kennisbank/thuisbatterij-subsidie-2027-miljoenennota/
 https://www.googletagmanager.com
 https://www.milieucentraal.nl/energie-besparen/zonnepanelen/thuisbatterij-zonne-energie-opslaan/
 https://www.rijksoverheid.nl/themas/klimaat-milieu-en-natuur/energie-thuis/salderingsregeling

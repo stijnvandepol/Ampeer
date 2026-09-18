@@ -8,7 +8,7 @@ const TITLE = "Is een thuisbatterij iets voor mij?";
 const DESCRIPTION =
   "Voor een deel van de huishoudens is een thuisbatterij niets, of nog niet. Waar het van afhangt, wat goedkoper is en eerst komt, en hoe u het voor uw eigen huis doorrekent.";
 /** The last day the words on this page changed; also the JSON-LD's date. */
-const UPDATED = { iso: "2026-09-15", text: "15 september 2026" };
+const UPDATED = { iso: "2026-09-18", text: "18 september 2026" };
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -137,6 +137,12 @@ const SOURCES: readonly {
     url: "https://www.rijksoverheid.nl/themas/klimaat-milieu-en-natuur/energie-thuis/salderingsregeling",
   },
   {
+    what: "Miljoenennota 2027: geen subsidie of btw-nultarief thuisbatterij",
+    who: "Eerlijk over Thuisbatterijen",
+    when: "artikel van 15 september 2026, gelezen op 18 september 2026",
+    url: "https://www.eerlijkoverthuisbatterijen.nl/kennisbank/thuisbatterij-subsidie-2027-miljoenennota/",
+  },
+  {
     what: "Tweede Kamer steunt onderzoek naar btw-nultarief voor thuisbatterij",
     who: "Solar Magazine",
     when: "motie van 10 juni 2026, gelezen op 15 september 2026",
@@ -170,7 +176,7 @@ const QUESTIONS: readonly (readonly [string, string])[] = [
   ],
   [
     "Krijg ik subsidie of btw-korting op een thuisbatterij?",
-    "Nee. Er is geen landelijke subsidie en de levering en installatie van een thuisbatterij valt niet onder het btw-nultarief dat wel voor zonnepanelen geldt, dus u betaalt 21 procent btw. De Tweede Kamer heeft het kabinet op 10 juni 2026 gevraagd te onderzoeken of dat nultarief ook voor batterijen kan gelden. Zodra dat verandert, staat het hier.",
+    "Nee. Er is geen landelijke subsidie en de levering en installatie van een thuisbatterij valt niet onder het btw-nultarief dat wel voor zonnepanelen geldt, dus u betaalt 21 procent btw. De Tweede Kamer vroeg het kabinet op 10 juni 2026 om een nultarief te onderzoeken; in het Belastingplan 2027 van Prinsjesdag staat er niets over, dus het blijft 21 procent.",
   ],
   [
     "Kan ik met een thuisbatterij van het net af?",
@@ -325,9 +331,11 @@ export default function ThuisbatterijPage() {
           installatie van een batterij: de Belastingdienst noemt die
           uitdrukkelijk bij wat er niet onder valt, dus u betaalt 21 procent
           btw. Op 10 juni 2026 nam de Tweede Kamer een motie aan die het kabinet
-          vraagt te onderzoeken of het nultarief ook voor batterijen kan gelden.
-          Dat is een onderzoek en geen besluit. Verandert het, dan verandert
-          deze pagina mee.
+          vroeg te onderzoeken of het nultarief ook voor batterijen kan gelden;
+          in het Belastingplan 2027 van Prinsjesdag 2026 staat daar geen
+          maatregel over. Hoe dat zit, met de regel van de Belastingdienst
+          erbij, staat op{" "}
+          <Link href="/thuisbatterij-btw/">btw op een thuisbatterij</Link>.
         </p>
         <p className={styles.body}>
           Na 1 januari 2027 krijgt u voor teruggeleverde stroom een vergoeding

@@ -24,6 +24,7 @@ export const ALL_PATHS = [
   "/",
   "/einde-saldering/",
   "/thuisbatterij/",
+  "/thuisbatterij-btw/",
   "/zelf-verbruiken/",
   "/berekenen/",
   ADVICE_PATH,
