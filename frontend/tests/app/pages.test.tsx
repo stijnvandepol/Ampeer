@@ -25,7 +25,7 @@ describe("the landing page", () => {
     // The trailing slash is next.config.ts's doing and is added by the build,
     // not by Link, so this accepts the path with or without it.
     const ways = screen.getAllByRole("link", {
-      name: "Beantwoord vier vragen",
+      name: "Bereken wat er bij u verandert",
     });
     expect(ways).toHaveLength(2);
     for (const way of ways) {
@@ -54,10 +54,18 @@ describe("the landing page", () => {
     const hrefs = [...container.querySelectorAll("a[href]")].map((element) =>
       element.getAttribute("href"),
     );
-    for (const route of ["thuisbatterij", "zelf-verbruiken"]) {
+    // /thuisbatterij/ twice since 2026-09-18: once from the first screen,
+    // with the question people type as its text, and once from the answer
+    // in the questions below. Two links with two honest texts to one page
+    // is what a search engine reads as "this page matters here"; a third
+    // would start to read as a funnel.
+    for (const [route, times] of [
+      ["thuisbatterij", 2],
+      ["zelf-verbruiken", 1],
+    ] as const) {
       expect(
         hrefs.filter((href) => new RegExp(`^/${route}/?$`).test(href ?? "")),
-      ).toHaveLength(1);
+      ).toHaveLength(times);
     }
   });
 

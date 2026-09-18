@@ -114,6 +114,7 @@ const TEXT_PAIRS: readonly (readonly [string, string])[] = [
   // The plate's own labels: hour and month axes, legend and readout, all drawn
   // on the instrument rather than on the page.
   ["on-carpet", "carpet-ground"],
+  ["on-ground", "carpet-ground"],
   ["danger", "surface"],
   ["danger", "surface-raised"],
   ["danger", "surface-sunken"],

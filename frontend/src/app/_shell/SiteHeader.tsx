@@ -25,7 +25,42 @@ export function SiteHeader() {
         a place to go.
       */}
       <div className="mx-auto flex w-full max-w-[var(--shell-max)] flex-wrap items-center justify-between gap-x-4 gap-y-2 px-6 py-3 sm:py-4">
-        <Link href="/" className="font-medium tracking-tight text-ink">
+        <Link
+          href="/"
+          className="flex items-center gap-2 font-medium tracking-tight text-ink"
+        >
+          {/*
+            The band mark from icon.svg, inline so it takes the header's
+            colour of nothing: it is the one colour on the site that does not
+            follow the theme, for the reason the icon file gives. Decorative
+            here, because the word beside it is the name.
+          */}
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 32 32"
+            width="24"
+            height="24"
+            className="shrink-0"
+          >
+            <rect width="32" height="32" rx="7" fill="#0b6e63" />
+            <rect
+              x="4"
+              y="14"
+              width="24"
+              height="4"
+              rx="2"
+              fill="#ffffff"
+              opacity="0.45"
+            />
+            <rect
+              x="18.25"
+              y="11"
+              width="3.5"
+              height="10"
+              rx="1.75"
+              fill="#ffffff"
+            />
+          </svg>
           Ampeer
         </Link>
         {/*

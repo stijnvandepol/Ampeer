@@ -112,6 +112,14 @@
   --colour-carpet-offtake: #8b9ba8;
   --colour-carpet-export: #3f6489;
   --colour-on-carpet: #c9d7dd;
+  /*
+   * Headline text on --colour-carpet-ground, since 2026-09-18 the ground of
+   * the landing page's first screen and not only of the instrument.
+   * --colour-on-carpet is the plate's muted label colour; a headline at
+   * that value reads grey. The same in every theme, for the reason the
+   * ground itself is: the instrument does not follow the theme.
+   */
+  --colour-on-ground: #f4f7f9;
 
   /* ---- state, light ---- */
   --colour-danger: #a11b1b;
@@ -290,6 +298,7 @@
     --colour-carpet-offtake: #8b9ba8;
     --colour-carpet-export: #3f6489;
     --colour-on-carpet: #c9d7dd;
+    --colour-on-ground: #f4f7f9;
     --colour-danger: #ff8d8d;
     --colour-on-danger: #2a0606;
     --colour-border: #252e35;
@@ -325,6 +334,7 @@
   --colour-carpet-offtake: #8b9ba8;
   --colour-carpet-export: #3f6489;
   --colour-on-carpet: #c9d7dd;
+  --colour-on-ground: #f4f7f9;
   --colour-danger: #a11b1b;
   --colour-on-danger: #ffffff;
   --colour-border: #d5dce3;
@@ -358,6 +368,7 @@
   --colour-carpet-offtake: #8b9ba8;
   --colour-carpet-export: #3f6489;
   --colour-on-carpet: #c9d7dd;
+  --colour-on-ground: #f4f7f9;
   --colour-danger: #ff8d8d;
   --colour-on-danger: #2a0606;
   --colour-border: #252e35;
@@ -381,6 +392,7 @@
   --color-ink: var(--colour-ink);
   --color-ink-muted: var(--colour-ink-muted);
   --color-ink-subtle: var(--colour-ink-subtle);
+  --color-on-ground: var(--colour-on-ground);
   --color-accent: var(--colour-accent);
   --color-accent-hover: var(--colour-accent-hover);
   --color-on-accent: var(--colour-on-accent);

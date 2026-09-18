@@ -149,6 +149,7 @@ Belastingdienst
 Bent u het niet eens met wat wij doen, laat het ons weten. U kunt uw bezwaar sturen naar
 Bent u overdag thuis en gebruikt u uw opwek al grotendeels zelf, dan is er weinig te verschuiven en levert dit weinig op.
 Bent u uw wachtwoord kwijt, dan herstelt u het eerst via de mail. Daarna verwijdert u uw account.
+Bereken wat er bij u verandert
 Bereken wat het bij u doet
 Berekenen
 Betrouwbaarheid:
@@ -299,12 +300,12 @@ Gaat Ampeer ooit doorverwijzen, dan vragen wij daar apart toestemming voor. Uw a
 Garantie in jaren en in laadcycli
 Gebruik de dienst voor uw eigen huishouden, of voor iemand die u daarom vroeg. Probeer niet in te breken, te overbelasten of om de tempolimieten heen te werken. Maak geen account op een adres dat niet van u is.
 Gebruiksvoorwaarden
-Geen account, geen e-mailadres. U krijgt een link waarmee u er later bij kunt.
 Geen panelen, geen batterijen en geen energiecontract. En niemand die ons betaalt voor de uitkomst die u krijgt.
 Geen toestemming gegeven
 Gegevens exporteren
 Gekopieerd.
 Gratis of bijna gratis: slimmer sturen met wat u al heeft
+Gratis, zonder account
 Gratis: uw eigen ritme verschuiven
 Groot genoeg om uw avondverbruik te dragen en niet groter. Een batterij die 's ochtends nog halfvol is heeft capaciteit die u betaald heeft en niet gebruikt. Wat bij u past hangt af van uw eigen dagpatroon.
 Heb ik een slimme meter nodig?
@@ -445,6 +446,7 @@ Nog geen account? Account aanmaken
 Noord
 Noordoost
 Noordwest
+Nu geen batterij is ook een antwoord
 Nuttige capaciteit, niet bruto
 Of begin opnieuw
 Of er overdag iemand thuis is
@@ -589,6 +591,7 @@ Verder
 Verder gaat er niets naar buiten
 Verdient een thuisbatterij zich terug?
 Verfijn uw antwoord
+Verkoopt niets
 Vermogen in kW, naast capaciteit in kWh
 Verstuur de bevestigingsmail opnieuw
 Verwijderen bevestigen
@@ -613,7 +616,6 @@ Voor een deel van de huishoudens is een thuisbatterij niets, of nog niet. Waar h
 Voor een flink deel van de huishoudens is het antwoord nee, of nog niet. Het hangt niet af van hoeveel panelen u heeft, maar van wanneer u stroom gebruikt. En er zijn twee dingen die goedkoper zijn en die eerst komen.
 Voor het advies vragen wij nog steeds geen naam, geen telefoonnummer en geen huisnummer, en de rekenmachine werkt zonder account. Wie een account aanmaakt, geeft een e-mailadres en kiest een wachtwoord, en meer niet.
 Voor het koppelen van een slimme meter is een bevestigd e-mailadres nodig.
-Voor huishoudens met zonnepanelen
 Voortgang
 Voorwaarden
 Vraag
@@ -635,7 +637,6 @@ Waarom Ampeer bestaat
 Waarom dit nu meer oplevert dan vroeger
 Waarom een gemiddeld bedrag u niets zegt
 Waarom het bedrag per huishouden zo verschilt
-Waarom het moment telt
 Waarom krijg ik een bereik en niet een bedrag?
 Waarom loont zelf verbruiken meer na 2027?
 Waarom wij dit vragen
@@ -688,6 +689,7 @@ Wat u op deze pagina berekent
 Wat u overdag niet gebruikt, gaat alsnog het net op. Verschuiven verhoogt uw eigen verbruik; het maakt uw teruglevering niet nul.
 Wat u te zien krijgt
 Wat u terugkrijgt
+Wat u van Ampeer mag verwachten
 Wat vóór een batterij komt
 Wat wij bewaren, en hoe lang
 Wat wij met uw gegevens doen
@@ -755,7 +757,7 @@ Zolang u geen ja heeft gezegd, doet het openen van een pagina van Ampeer geen en
 Zolang u mag salderen is een teruggeleverde kilowattuur precies zo veel waard als een die u zelf gebruikt, want de ene wordt van de andere afgetrokken. Daarom staan beide banden op dezelfde hoogte: dat is niet vereenvoudigd, dat is de regeling.
 Zonder die antwoorden kunnen wij geen antwoord geven. Er is geen andere grondslag en er is geen tweede doel.
 Zonder inloggen, en zonder dat u iets hoeft te koppelen.
-Zonnepanelen na saldering: reken uw huis door
+Zonnepanelen na saldering: reken gratis uw huis door
 Zoveel kwartieren heeft een jaar, en op elk ervan rekenen wij uw huis door. Geen gemiddelde dag en geen jaartotaal.
 Zuid
 Zuidoost
