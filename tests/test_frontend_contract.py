@@ -909,4 +909,6 @@ def test_the_icon_is_well_formed_xml() -> None:
 
     icon = REPO_ROOT / "frontend" / "src" / "app" / "icon.svg"
     document = minidom.parse(str(icon))
-    assert document.documentElement.tagName == "svg"
+    root = document.documentElement
+    assert root is not None
+    assert root.tagName == "svg"
