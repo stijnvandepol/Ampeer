@@ -25,44 +25,64 @@ export function SiteHeader() {
         a place to go.
       */}
       <div className="mx-auto flex w-full max-w-[var(--shell-max)] flex-wrap items-center justify-between gap-x-4 gap-y-2 px-6 py-3 sm:py-4">
-        <Link
-          href="/"
-          className="flex items-center gap-2 font-medium tracking-tight text-ink"
-        >
-          {/*
-            The band mark from icon.svg, inline so it takes the header's
-            colour of nothing: it is the one colour on the site that does not
-            follow the theme, for the reason the icon file gives. Decorative
-            here, because the word beside it is the name.
-          */}
-          <svg
-            aria-hidden="true"
-            viewBox="0 0 32 32"
-            width="24"
-            height="24"
-            className="shrink-0"
+        {/*
+          The wordmark, its mark, and one line saying what the name means.
+          The owner's brief on 2026-09-18: the logo has to say what Ampeer
+          does, fast, to somebody who has never heard of it. The mark is the
+          day in three bars, the same figure the first screen and every
+          advice draw (see icon.svg for the reasoning). The line under the
+          name is the one sentence the site would keep if it could keep one.
+          It sits outside the link so that the link's accessible name stays
+          "Ampeer", which is what a screen reader should hear for the way
+          home.
+        */}
+        <div className="flex items-center gap-3">
+          <Link
+            href="/"
+            className="flex items-center gap-2 font-medium tracking-tight text-ink"
           >
-            <rect width="32" height="32" rx="7" fill="#0b6e63" />
-            <rect
-              x="4"
-              y="14"
-              width="24"
-              height="4"
-              rx="2"
-              fill="#ffffff"
-              opacity="0.45"
-            />
-            <rect
-              x="18.25"
-              y="11"
-              width="3.5"
-              height="10"
-              rx="1.75"
-              fill="#ffffff"
-            />
-          </svg>
-          Ampeer
-        </Link>
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 32 32"
+              width="28"
+              height="28"
+              className="shrink-0"
+            >
+              <rect width="32" height="32" rx="7" fill="#071019" />
+              <rect
+                x="5.5"
+                y="15"
+                width="6"
+                height="11"
+                rx="1.5"
+                fill="#8b9ba8"
+              />
+              <rect
+                x="13"
+                y="6"
+                width="6"
+                height="20"
+                rx="1.5"
+                fill="#f5c64a"
+              />
+              <rect
+                x="20.5"
+                y="11"
+                width="6"
+                height="15"
+                rx="1.5"
+                fill="#3f6489"
+              />
+            </svg>
+            Ampeer
+          </Link>
+          <span
+            className="hidden text-sm leading-tight text-ink-muted sm:block"
+            aria-hidden="true"
+          >
+            Rekent uit wat het einde van saldering u kost
+          </span>
+        </div>
         {/*
          * flex-wrap, and it is load bearing rather than tidy. The outer div
          * wrapped and this nav did not, so it was one flex item 341px wide that

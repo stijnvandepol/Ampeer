@@ -101,7 +101,7 @@ describe("the advice page", () => {
     const { container } = render(<AdviesPage />);
     await screen.findByText(fixture.confidence_label);
     expect(container.querySelectorAll("[data-route]")).toHaveLength(3);
-    expect(screen.getByText(/niets meer te halen/i)).toBeInTheDocument();
+    expect(screen.getByText(/levert deze route niets op/i)).toBeInTheDocument();
   });
 
   it("has an answer for a household with nothing left to gain", async () => {
@@ -129,7 +129,7 @@ describe("the advice page", () => {
     // All three routes, in order, each saying so for itself rather than the
     // page hiding what it found nothing in.
     expect(container.querySelectorAll("[data-route]")).toHaveLength(3);
-    expect(screen.getAllByText(/niets meer te halen/i)).toHaveLength(3);
+    expect(screen.getAllByText(/levert deze route niets op/i)).toHaveLength(3);
 
     // And no battery. A household just told there is nothing to gain from
     // storage must not then be shown a battery sized and priced for them; that

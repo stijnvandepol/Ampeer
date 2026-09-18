@@ -31,6 +31,13 @@ export type ScenarioUnit = "eur" | "years" | "eur_per_kwh";
  * from a price. These are unit names, which is interface text; nothing here
  * tells a household what to do.
  */
+/** The noun above the rail: what these three amounts are. */
+const RAIL_LABEL: Readonly<Record<ScenarioUnit, string>> = {
+  eur: "Besparing per jaar",
+  years: "Terugverdientijd",
+  eur_per_kwh: "Prijs per kWh",
+};
+
 const SPOKEN_UNIT: Readonly<Record<ScenarioUnit, string>> = {
   eur: "euro",
   years: "jaar",
@@ -111,6 +118,9 @@ export function ScenarioBandFigure({ band, unit }: Props) {
       data-band-span={span.toFixed(4)}
       className={styles.scenario}
     >
+      <span className={styles.railLabel} aria-hidden="true">
+        {RAIL_LABEL[unit]}
+      </span>
       <div data-band-part="axis" className={styles.rail} aria-hidden="true">
         <span
           data-band-part="band"

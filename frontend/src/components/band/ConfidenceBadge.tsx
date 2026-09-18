@@ -37,7 +37,8 @@ export function ConfidenceBadge({ confidence, label }: Props) {
 
   return (
     <span className={styles.confidence} style={tone}>
-      {label}
+      <span className={styles.confidenceWord}>Betrouwbaarheid</span>{" "}
+      <strong>{label}</strong>
     </span>
   );
 }

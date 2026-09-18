@@ -1,5 +1,6 @@
 import type { RouteBlock } from "@/lib/types";
 import { ScenarioBandFigure } from "./ScenarioBandFigure";
+import { dutchAmount } from "./format";
 import styles from "./band.module.css";
 
 interface Props {
@@ -62,7 +63,22 @@ export function FirstStep({ routes }: Props) {
       </p>
       <p className={styles.firstStepText}>{rule.action}</p>
       {rule.saving_eur === null ? null : (
-        <ScenarioBandFigure band={rule.saving_eur} unit="eur" />
+        <>
+          {/*
+            Three amounts under an instruction were three amounts without a
+            noun; the owner read the page on 2026-09-18 and could not say what
+            they were. This is the noun: what the step saves, per year, with
+            the middle first because that is the figure a reader carries away
+            and the ends second because rule one says they must be there.
+          */}
+          <p className={styles.firstStepReading}>
+            Scheelt u per jaar ongeveer &euro;{" "}
+            {dutchAmount(rule.saving_eur.mid)}, ergens tussen &euro;{" "}
+            {dutchAmount(rule.saving_eur.low)} en &euro;{" "}
+            {dutchAmount(rule.saving_eur.high)}.
+          </p>
+          <ScenarioBandFigure band={rule.saving_eur} unit="eur" />
+        </>
       )}
     </section>
   );

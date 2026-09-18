@@ -894,3 +894,21 @@ def test_the_fragment_accepts_exactly_the_token_length_the_backend_mints() -> No
     declared = re.search(r"export const TOKEN_LENGTH = (\d+);", fragment)
     assert declared, "fragment.ts no longer pins a token length"
     assert int(declared.group(1)) == len(secrets.token_urlsafe(TOKEN_BYTES))
+
+
+def test_the_icon_is_well_formed_xml() -> None:
+    """A browser stops reading icon.svg at the first XML error.
+
+    On 2026-09-18 that was line 19: the comment inside the file named four
+    CSS custom properties, and XML forbids "--" anywhere inside a comment.
+    The build copied the file unchanged, every gate was green, and the tab
+    icon was a parse error. Nothing here parses SVG; the one thing that
+    does is the browser, so this test parses it the way the browser does.
+    """
+    from xml.dom import minidom
+
+    icon = REPO_ROOT / "frontend" / "src" / "app" / "icon.svg"
+    document = minidom.parse(str(icon))
+    root = document.documentElement
+    assert root is not None
+    assert root.tagName == "svg"

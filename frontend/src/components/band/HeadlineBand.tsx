@@ -209,9 +209,18 @@ export function HeadlineBand({ band, confidence, label }: Props) {
         </span>
       </div>
 
+      {/*
+        The figure in words, visible and not only in the aria-label. Measured
+        on 2026-09-18 by the owner reading the page as a stranger: three
+        amounts in three sizes, the ends larger than the middle by rule one,
+        and no sentence saying which is the answer. The rule stands, the
+        picture stands, and this line says what the picture says: the range,
+        the middle, and where the middle came from.
+      */}
       <figcaption className={styles.caption}>
-        <span>{band.runs} doorrekeningen</span>
-        <span>per jaar</span>
+        Kost u per jaar tussen &euro; {dutchAmount(band.p10)} en &euro;{" "}
+        {dutchAmount(band.p90)}. Het middelpunt van {band.runs} doorrekeningen
+        is &euro; {dutchAmount(band.p50)}.
       </figcaption>
     </figure>
   );
