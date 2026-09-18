@@ -16,8 +16,9 @@
     Colour is stated here rather than referenced because an icon is fetched
     on its own and reaches no stylesheet, and it does not follow the theme
     for the same reason the plate does not: a mark that changes colour is two
-    marks. The four values are --colour-carpet-ground, -offtake, -own and
-    -export from globals.css.
+    marks. The four values are the carpet ground, offtake, own and export
+    colours from globals.css. (No double hyphen may appear in this comment:
+    XML forbids it, and a browser opening the file stops at that line.)
   -->
   <rect width="32" height="32" rx="7" fill="#071019"/>
   <rect x="5.5" y="15" width="6" height="11" rx="1.5" fill="#8b9ba8"/>
