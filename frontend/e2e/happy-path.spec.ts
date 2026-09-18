@@ -64,7 +64,7 @@ test("a visitor answers four questions and lands on an advice", async ({
   // in tests/app/pages.test.tsx holds it there; this walk takes the one a
   // visitor meets first.
   await page
-    .getByRole("link", { name: "Beantwoord vier vragen" })
+    .getByRole("link", { name: "Bereken wat er bij u verandert" })
     .first()
     .click();
   await expect(page).toHaveURL(/\/berekenen\/$/);

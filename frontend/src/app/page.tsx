@@ -6,14 +6,13 @@ import { CountUp } from "@/components/motion/CountUp";
 import { Cursor } from "@/components/motion/Cursor";
 import { HeroHeading } from "@/components/motion/HeroHeading";
 import { Magnetic } from "@/components/motion/Magnetic";
-import { Mesh } from "@/components/motion/Mesh";
 import { SpotlightCard } from "@/components/motion/SpotlightCard";
 import { FaqJsonLd, PageJsonLd } from "./_shell/JsonLd";
 import reveal from "@/components/motion/reveal.module.css";
 import styles from "./home.module.css";
 
 const PATH = "/";
-const TITLE = "Zonnepanelen na saldering: reken uw huis door";
+const TITLE = "Zonnepanelen na saldering: reken gratis uw huis door";
 const DESCRIPTION =
   "Vier vragen over uw dak en uw verbruik, en u ziet wat het einde van de salderingsregeling bij uw huis doet, met de bandbreedte erbij. Gratis, geen account.";
 
@@ -169,7 +168,7 @@ const FAQ: readonly (readonly [string, string])[] = [
   ],
   [
     "Krijg ik straks te horen dat ik een batterij moet kopen?",
-    "Alleen als het bij u uitkomt, en bij een deel van de huishoudens komt dat er niet uit. Nu geen batterij is bij ons een volwaardige uitkomst, en wij verdienen niets aan de andere. Waar het van afhangt, staat op onze pagina over de thuisbatterij.",
+    "Alleen als het bij u uitkomt, en bij een deel van de huishoudens komt dat er niet uit. Nu geen batterij is bij ons een volwaardige uitkomst, en wij verdienen niets aan de andere. Waar het van afhangt, leest u bij de vraag is een thuisbatterij iets voor mij.",
   ],
   [
     "Wat kan ik met de link die ik krijg?",
@@ -184,47 +183,59 @@ export default function Home() {
       <FaqJsonLd questions={FAQ} />
       <Cursor />
 
+      {/*
+        The first screen, rebuilt on 2026-09-18 on the owner's brief that the
+        site vanished beside the ones it competes with. Those open on a photo
+        of a battery and a person and a row of badges. This one opens on the
+        instrument's ground with the one object nobody else has, the measured
+        day, and beside it the headline, one primary action, the question
+        people type into a search engine as a second way in, and three facts
+        that are rules this site is tested on. The mesh and the mono eyebrow
+        pill went with it: the ground is the colour now, and a label above a
+        headline is the thing a generated page does.
+
+        "Bereken wat er bij u verandert" and not "wat het u kost", for the
+        reason the title comment gives: a cost presumes the answer, and for a
+        household with high self-consumption the honest answer is little.
+      */}
       <section className={styles.hero}>
-        <Mesh />
         <div className={styles.heroInner}>
-          {/*
-            The eyebrow says who this is for. It used to carry the date, which
-            reads as a deadline banner directly above display type; the date is
-            an orienting fact and it belongs in the sentence below rather than
-            over the headline.
-          */}
-          <p className={styles.eyebrow}>Voor huishoudens met zonnepanelen</p>
-          {/*
-            The subject is in the type a stranger actually reads. It used to be
-            "Reken het door voor uw eigen huis": at this size the headline is
-            read before the eyebrow, so "het" met a reader with no antecedent
-            while the eyebrow carried the whole subject at a tenth the size.
-            The full stop is also the setter's guaranteed break point.
-          */}
-          <HeroHeading
-            text="Saldering stopt. Reken uw huis door."
-            className={styles.title}
-          />
-          <p className={styles.lead}>
-            Vier vragen over uw dak en uw verbruik, en u ziet wat er vanaf 1
-            januari 2027 bij u verandert, met de marge eromheen.
-          </p>
-          <Magnetic>
-            <Link href="/berekenen/" className="button-accent">
-              Beantwoord vier vragen
-            </Link>
-          </Magnetic>
-          {/*
-            "Duurt ongeveer een minuut" stood here and is gone. Nobody timed
-            it, so it was the one unmeasured claim on the page, and its job was
-            to reassure that this would be quick, which is the softest possible
-            form of the thing rule four is about. "Vier vragen" is on the button
-            and a reader can draw their own conclusion.
-          */}
-          <p className={styles.note}>
-            Geen account, geen e-mailadres. U krijgt een link waarmee u er later
-            bij kunt.
-          </p>
+          <div className={styles.heroCopy}>
+            <HeroHeading
+              text="Saldering stopt. Reken uw huis door."
+              className={styles.title}
+            />
+            <p className={styles.lead}>
+              Vier vragen over uw dak en uw verbruik, en u ziet wat er vanaf 1
+              januari 2027 bij u verandert, met de marge eromheen.
+            </p>
+            <div className={styles.heroActions}>
+              <Magnetic>
+                <Link
+                  href="/berekenen/"
+                  className={`button-accent ${styles.heroCta}`}
+                >
+                  Bereken wat er bij u verandert
+                </Link>
+              </Magnetic>
+              <Link href="/thuisbatterij/" className={styles.heroSecondary}>
+                Is een thuisbatterij iets voor mij?
+              </Link>
+            </div>
+            <ul
+              className={styles.badges}
+              aria-label="Wat u van Ampeer mag verwachten"
+            >
+              <li className={styles.badge}>Gratis, zonder account</li>
+              <li className={styles.badge}>Verkoopt niets</li>
+              <li className={styles.badge}>
+                Nu geen batterij is ook een antwoord
+              </li>
+            </ul>
+          </div>
+          <div className={styles.heroFigure}>
+            <DayCounting />
+          </div>
         </div>
       </section>
 
@@ -247,15 +258,11 @@ export default function Home() {
         </div>
 
         {/*
-          The paragraph that stood here explained the regeling, and
-          /einde-saldering/ explains it better and at length. This page does not
-          need to teach the rule; it needs to show what it does about it, and
-          the figure is the best thing on either page for that.
+          "Waarom het moment telt" stood here with the day strip under it until
+          2026-09-18, when the strip moved into the first screen. The heading
+          went with it: a section that only repeats what the reader has just
+          seen is a section that says the page has run out of things to say.
         */}
-        <section className={`${styles.section} ${reveal.reveal}`}>
-          <h2 className={styles.heading}>Waarom het moment telt</h2>
-          <DayCounting />
-        </section>
 
         <section className={`${styles.section} ${reveal.reveal}`}>
           {/*
@@ -341,9 +348,9 @@ export default function Home() {
               Alleen als het bij u uitkomt, en bij een deel van de huishoudens
               komt dat er niet uit. Nu geen batterij is bij ons een volwaardige
               uitkomst, en wij verdienen niets aan de andere. Waar het van
-              afhangt, staat op{" "}
+              afhangt, leest u bij de vraag{" "}
               <Link href="/thuisbatterij/">
-                onze pagina over de thuisbatterij
+                is een thuisbatterij iets voor mij
               </Link>
               .
             </dd>
@@ -395,7 +402,7 @@ export default function Home() {
           </p>
           <Magnetic>
             <Link href="/berekenen/" className="button-accent">
-              Beantwoord vier vragen
+              Bereken wat er bij u verandert
             </Link>
           </Magnetic>
         </div>

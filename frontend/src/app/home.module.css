@@ -20,6 +20,28 @@
   isolation: isolate;
   overflow: hidden;
   border-bottom: 1px solid var(--colour-border);
+  /*
+   * Since 2026-09-18 the first screen stands on the instrument's own ground,
+   * the deep blue every plate on this site is drawn on, in both themes. The
+   * owner's brief was that the site vanished beside the sites it competes
+   * with, and those open on a photograph of a battery and a person. Ampeer
+   * has no battery to photograph; what it has that nobody else has is the
+   * measured day, 96 quarters coloured by where the electricity went, and
+   * that is the object the first screen is built around.
+   *
+   * Every text token is re-pointed at a light value for the duration of
+   * this block, so the strip's own caption, axis and toggles, written for a
+   * light page, read on the dark one without knowing they are on it. Tokens
+   * pointing at tokens and no colour of this file's own, which is what the
+   * design test permits a component stylesheet.
+   */
+  background: var(--colour-carpet-ground);
+  color: var(--colour-on-ground);
+  --colour-ink: var(--colour-on-ground);
+  --colour-ink-muted: var(--colour-on-carpet);
+  --colour-ink-subtle: var(--colour-on-carpet);
+  --colour-border-strong: var(--colour-on-carpet);
+  --colour-surface-sunken: var(--colour-carpet-export);
 }
 
 .heroInner {
@@ -37,10 +59,99 @@
    */
   padding: clamp(2.5rem, 2rem + 4vw, 5rem) var(--space-5)
     clamp(2rem, 1.5rem + 3vw, 3.5rem);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-6);
+}
+
+@media (min-width: 64rem) {
+  .heroInner {
+    grid-template-columns: minmax(0, 11fr) minmax(0, 9fr);
+    gap: var(--space-7);
+  }
+}
+
+.heroCopy {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-5);
+  min-width: 0;
+}
+
+.heroFigure {
+  min-width: 0;
+}
+
+/*
+ * The strip stands taller here than on the advice page, because here it is
+ * the picture and not a footnote. The element selector reaches into the
+ * figure the day component renders; the component owns its colours and its
+ * shape, and this only says how much room it gets.
+ */
+.heroFigure figure > div[role="img"] {
+  height: clamp(8rem, 5rem + 12vw, 15rem);
+  border-radius: var(--radius-md);
+  outline: 1px solid var(--colour-carpet-offtake);
+  outline-offset: 0;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4) var(--space-5);
+}
+
+/*
+ * A light button on the dark ground, because the accent itself is a dark
+ * teal in the light theme and would sink into the blue the way the black
+ * wells did on 2026-09-15. Two classes deep so this wins over .button-accent
+ * on specificity and not on load order.
+ */
+.hero .heroCta {
+  background: var(--colour-on-ground);
+  color: var(--colour-carpet-ground);
+  font-size: var(--text-lg);
+  padding: var(--space-4) var(--space-6);
+}
+
+.hero .heroCta:hover {
+  background: var(--colour-on-carpet);
+}
+
+.heroSecondary {
+  font-size: var(--text-base);
+  color: var(--colour-on-ground);
+  text-decoration: underline;
+  text-underline-offset: 0.3em;
+  text-decoration-color: var(--colour-on-carpet);
+}
+
+/*
+ * Three facts, not three promises, and each one is a rule this site is
+ * tested on: no account (privacy.spec.ts), nothing for sale (CLAUDE.md, and
+ * the neutrality every page states), every figure in a band (rule one of
+ * the frontend). Not a visitor count, not a rating, not a deadline; rule
+ * four forbids those and they would be the first thing a competitor's page
+ * shows here.
+ */
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.badge {
+  font-size: var(--text-sm);
+  color: var(--colour-on-carpet);
+  border: 1px solid var(--colour-carpet-offtake);
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-3);
 }
 
 .eyebrow {

@@ -49,3 +49,9 @@ infra/fixtures/
 
 # Scratch output from a Playwright MCP browser session. Never part of the tree.
 .playwright-mcp/
+
+# Skills installed for a Claude Code session with `npx skills add`: symlinks
+# into a cache on one machine, plus the lock file that records them. Tooling
+# for whoever is editing, never part of what the site is built from.
+.claude/skills/
+skills-lock.json

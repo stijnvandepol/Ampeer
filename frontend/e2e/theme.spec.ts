@@ -154,7 +154,7 @@ test("every route passes axe in the dark palette too", async ({ page }) => {
   // sweep and the light one in rules.spec.ts were given the same list. Six
   // stood here before that, and the three the dark palette had never been
   // looked at on were /einde-saldering/, /over-ons/ and /privacy/.
-  expect(ALL_PATHS).toHaveLength(11);
+  expect(ALL_PATHS).toHaveLength(12);
   for (const path of ALL_PATHS) {
     await page.goto(path);
     await page.evaluate(() =>

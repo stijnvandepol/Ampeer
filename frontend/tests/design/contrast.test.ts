@@ -14,7 +14,7 @@
 
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
-import { contrast as ratio, fromHex } from "./wcag";
+import { contrast as ratio, fromHex, luminance } from "./wcag";
 
 const css = readFileSync("src/app/globals.css", "utf-8");
 
@@ -114,6 +114,7 @@ const TEXT_PAIRS: readonly (readonly [string, string])[] = [
   // The plate's own labels: hour and month axes, legend and readout, all drawn
   // on the instrument rather than on the page.
   ["on-carpet", "carpet-ground"],
+  ["on-ground", "carpet-ground"],
   ["danger", "surface"],
   ["danger", "surface-raised"],
   ["danger", "surface-sunken"],
@@ -370,4 +371,38 @@ describe("the palette", () => {
     expect(contrast("#ffffff", "#000000")).toBeCloseTo(21, 5);
     expect(contrast("#767676", "#ffffff")).toBeCloseTo(4.54, 2);
   });
+});
+
+/**
+ * A well is a lighter panel in the dark, and a darker one in the light.
+ *
+ * The first dark palette translated "sunken" literally: a shade below white
+ * became a shade below near-black, #080b0d on #0c1013, a contrast of 1.03.
+ * Measured on 2026-09-15 with a scan over every page: the band's track, the
+ * pressed toggle on the home page and on /einde-saldering/, and the hover of
+ * the quiet buttons were black on black and simply gone. The scan is not a
+ * test; this is, and it asks the one question the scan reduced to: on which
+ * side of the page does the well sit, and is it far enough from it to see.
+ */
+describe("the sunken surface", () => {
+  const WELL = 1.15;
+
+  for (const [name, palette] of Object.entries(BLOCKS)) {
+    const dark = name.startsWith("dark");
+    it(`is ${dark ? "lighter" : "darker"} than the page in ${name}, and visibly so`, () => {
+      const page = palette["surface"] ?? "";
+      const well = palette["surface-sunken"] ?? "";
+      expect(page).toMatch(/^#/);
+      expect(well).toMatch(/^#/);
+      const up = luminance(fromHex(well)) > luminance(fromHex(page));
+      expect(
+        up,
+        `the well sits on the wrong side of the page: ${well} on ${page}`,
+      ).toBe(dark);
+      expect(
+        contrast(well, page),
+        `the well is ${well} on ${page}, which cannot be told from the page`,
+      ).toBeGreaterThanOrEqual(WELL);
+    });
+  }
 });

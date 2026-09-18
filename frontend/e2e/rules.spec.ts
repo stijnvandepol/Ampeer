@@ -17,7 +17,7 @@ import { ADVICE_PATH, ALL_PATHS } from "./routes";
  */
 
 test("checks exactly the eleven routes this list names, not more and not fewer", () => {
-  expect(ALL_PATHS).toHaveLength(11);
+  expect(ALL_PATHS).toHaveLength(12);
 });
 
 /** The advice has arrived once its headline band is on the screen. */

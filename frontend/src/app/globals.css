@@ -112,6 +112,14 @@
   --colour-carpet-offtake: #8b9ba8;
   --colour-carpet-export: #3f6489;
   --colour-on-carpet: #c9d7dd;
+  /*
+   * Headline text on --colour-carpet-ground, since 2026-09-18 the ground of
+   * the landing page's first screen and not only of the instrument.
+   * --colour-on-carpet is the plate's muted label colour; a headline at
+   * that value reads grey. The same in every theme, for the reason the
+   * ground itself is: the instrument does not follow the theme.
+   */
+  --colour-on-ground: #f4f7f9;
 
   /* ---- state, light ---- */
   --colour-danger: #a11b1b;
@@ -261,7 +269,18 @@
   :root {
     --colour-surface: #0c1013;
     --colour-surface-raised: #151b20;
-    --colour-surface-sunken: #080b0d;
+    /*
+      Lighter than the surface, not darker. "Sunken" on a white page is a
+      grey a shade below white, and the first dark palette translated that
+      literally to a shade below near-black, #080b0d on #0c1013: a contrast
+      of 1.03, measured on 2026-09-15 over every page. The band's track, the
+      toggle buttons on the home page and /einde-saldering/ and the input
+      wells were black on black and simply gone. There is no darker than the
+      page to sink into, so in the dark a well reads as a lighter panel, and
+      this value is chosen for the same 1.2 to 1.4 contrast the light well
+      has against white.
+    */
+    --colour-surface-sunken: #262f37;
     --colour-ink: #eef3f6;
     --colour-ink-muted: #a9b7c2;
     --colour-ink-subtle: #93a3af;
@@ -279,6 +298,7 @@
     --colour-carpet-offtake: #8b9ba8;
     --colour-carpet-export: #3f6489;
     --colour-on-carpet: #c9d7dd;
+    --colour-on-ground: #f4f7f9;
     --colour-danger: #ff8d8d;
     --colour-on-danger: #2a0606;
     --colour-border: #252e35;
@@ -314,6 +334,7 @@
   --colour-carpet-offtake: #8b9ba8;
   --colour-carpet-export: #3f6489;
   --colour-on-carpet: #c9d7dd;
+  --colour-on-ground: #f4f7f9;
   --colour-danger: #a11b1b;
   --colour-on-danger: #ffffff;
   --colour-border: #d5dce3;
@@ -325,7 +346,8 @@
 :root[data-theme="dark"] {
   --colour-surface: #0c1013;
   --colour-surface-raised: #151b20;
-  --colour-surface-sunken: #080b0d;
+  /* See the note in the prefers-color-scheme block: lighter, not darker. */
+  --colour-surface-sunken: #262f37;
   --colour-ink: #eef3f6;
   --colour-ink-muted: #a9b7c2;
   --colour-ink-subtle: #93a3af;
@@ -346,6 +368,7 @@
   --colour-carpet-offtake: #8b9ba8;
   --colour-carpet-export: #3f6489;
   --colour-on-carpet: #c9d7dd;
+  --colour-on-ground: #f4f7f9;
   --colour-danger: #ff8d8d;
   --colour-on-danger: #2a0606;
   --colour-border: #252e35;
@@ -369,6 +392,7 @@
   --color-ink: var(--colour-ink);
   --color-ink-muted: var(--colour-ink-muted);
   --color-ink-subtle: var(--colour-ink-subtle);
+  --color-on-ground: var(--colour-on-ground);
   --color-accent: var(--colour-accent);
   --color-accent-hover: var(--colour-accent-hover);
   --color-on-accent: var(--colour-on-accent);
