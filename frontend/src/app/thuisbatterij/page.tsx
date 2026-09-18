@@ -6,7 +6,9 @@ import styles from "../_shell/content.module.css";
 const PATH = "/thuisbatterij/";
 const TITLE = "Is een thuisbatterij iets voor mij?";
 const DESCRIPTION =
-  "Voor een deel van de huishoudens niet. Waar het van afhangt, wat er goedkoper is en eerst komt, en hoe u het voor uw eigen huis doorrekent.";
+  "Voor een deel van de huishoudens is een thuisbatterij niets, of nog niet. Waar het van afhangt, wat goedkoper is en eerst komt, en hoe u het voor uw eigen huis doorrekent.";
+/** The last day the words on this page changed; also the JSON-LD's date. */
+const UPDATED = { iso: "2026-09-15", text: "15 september 2026" };
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -210,7 +212,12 @@ const QUESTIONS: readonly (readonly [string, string])[] = [
 export default function ThuisbatterijPage() {
   return (
     <div className={styles.page}>
-      <PageJsonLd path={PATH} name={TITLE} description={DESCRIPTION} />
+      <PageJsonLd
+        path={PATH}
+        name={TITLE}
+        description={DESCRIPTION}
+        dateModified={UPDATED.iso}
+      />
       <FaqJsonLd questions={QUESTIONS} />
 
       <header className={styles.hero}>
@@ -268,7 +275,7 @@ export default function ThuisbatterijPage() {
 
       <section className={styles.section} aria-labelledby="wel">
         <h2 id="wel" className={styles.heading}>
-          Wanneer een batterij wel kan uitkomen
+          Wanneer een thuisbatterij wel kan uitkomen
         </h2>
         <p className={styles.body}>
           Hoe meer van deze vier op u van toepassing zijn, hoe waarschijnlijker
@@ -285,7 +292,7 @@ export default function ThuisbatterijPage() {
 
       <section className={styles.section} aria-labelledby="niet">
         <h2 id="niet" className={styles.heading}>
-          Wanneer hij dat niet doet
+          Wanneer een thuisbatterij dat niet doet
         </h2>
         <p className={styles.body}>
           Dit is een volwaardige uitkomst en bij ons geen mislukking. Een advies
@@ -386,7 +393,8 @@ export default function ThuisbatterijPage() {
         </h2>
         <p className={styles.body}>
           Elk cijfer en elke regeling op deze pagina komt hiervandaan, met de
-          datum waarop wij het lazen.
+          datum waarop wij het lazen. Deze pagina is voor het laatst bijgewerkt
+          op {UPDATED.text}.
         </p>
         <ul className={styles.unknowns}>
           {SOURCES.map(({ what, who, when, url }) => (

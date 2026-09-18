@@ -79,10 +79,18 @@ export function PageJsonLd({
   path,
   name,
   description,
+  dateModified,
 }: {
   readonly path: string;
   readonly name: string;
   readonly description: string;
+  /**
+   * ISO date of the last change to what the page says, written by hand in
+   * the page beside the visible "laatst bijgewerkt" line so the two cannot
+   * disagree. Optional, because a date nobody maintains is worse than none:
+   * Google reads it as freshness and a stale one is a claim.
+   */
+  readonly dateModified?: string | undefined;
 }) {
   const page = {
     "@context": "https://schema.org",
@@ -93,6 +101,29 @@ export function PageJsonLd({
     description,
     inLanguage: "nl-NL",
     isPartOf: { "@id": `${SITE_ORIGIN}/#website` },
+    ...(dateModified === undefined ? {} : { dateModified }),
+    /*
+     * Two crumbs, home and this page, nested in the WebPage rather than a
+     * script of their own: the site is flat, so a breadcrumb says only
+     * where a page sits under the root, and that is what Google draws in
+     * a result in place of the raw URL.
+     */
+    ...(path === "/"
+      ? {}
+      : {
+          breadcrumb: {
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              {
+                "@type": "ListItem",
+                position: 1,
+                name: "Ampeer",
+                item: `${SITE_ORIGIN}/`,
+              },
+              { "@type": "ListItem", position: 2, name },
+            ],
+          },
+        }),
   };
   return <script type="application/ld+json">{emit(page)}</script>;
 }

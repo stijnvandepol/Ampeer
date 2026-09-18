@@ -77,15 +77,22 @@ export function ConsentBanner({
       aria-labelledby="meting-vraag"
       aria-describedby="meting-uitleg"
       data-consent-banner
-      className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-xl flex-col gap-4 rounded-lg border border-hairline bg-surface p-5 text-ink shadow-[var(--shadow-raised)]"
+      className="fixed inset-x-3 bottom-3 z-50 mx-auto flex max-w-xl flex-col gap-3 rounded-lg border border-hairline bg-surface p-4 text-ink shadow-[var(--shadow-raised)] sm:inset-x-4 sm:bottom-4 sm:p-5"
     >
-      <h2 id="meting-vraag" className="text-lg font-bold">
+      {/*
+        Measured on 2026-09-16 on a 390 by 664 viewport: the first version
+        stood 430 pixels tall, more than half the screen, over the hero of
+        every page. The copy lost a clause and the heading a size; the two
+        buttons kept their height, because a target under 44 pixels is the
+        one economy a consent question may not make.
+      */}
+      <h2 id="meting-vraag" className="text-base font-bold sm:text-lg">
         Mogen wij meten hoe deze site gebruikt wordt?
       </h2>
       <p id="meting-uitleg" className="text-sm text-ink-muted">
-        Alleen als u ja zegt, laden wij Google Analytics. Dat telt welke
-        pagina&apos;s bezocht worden, niet wie u bent. Nee is net zo makkelijk
-        als ja, en u kunt uw keuze op de privacypagina altijd wijzigen.
+        Alleen na uw ja laden wij Google Analytics. Dat telt welke pagina&apos;s
+        bezocht worden, niet wie u bent. Wijzigen kan altijd op de
+        privacypagina.
       </p>
       <div className="flex flex-wrap gap-3">
         <button

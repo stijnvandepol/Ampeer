@@ -169,7 +169,7 @@ const FAQ: readonly (readonly [string, string])[] = [
   ],
   [
     "Krijg ik straks te horen dat ik een batterij moet kopen?",
-    "Alleen als het bij u uitkomt, en bij een deel van de huishoudens komt dat er niet uit. Nu geen batterij is bij ons een volwaardige uitkomst, en wij verdienen niets aan de andere. Waar het van afhangt, staat op onze pagina over de thuisbatterij.",
+    "Alleen als het bij u uitkomt, en bij een deel van de huishoudens komt dat er niet uit. Nu geen batterij is bij ons een volwaardige uitkomst, en wij verdienen niets aan de andere. Waar het van afhangt, leest u bij de vraag is een thuisbatterij iets voor mij.",
   ],
   [
     "Wat kan ik met de link die ik krijg?",
@@ -341,9 +341,9 @@ export default function Home() {
               Alleen als het bij u uitkomt, en bij een deel van de huishoudens
               komt dat er niet uit. Nu geen batterij is bij ons een volwaardige
               uitkomst, en wij verdienen niets aan de andere. Waar het van
-              afhangt, staat op{" "}
+              afhangt, leest u bij de vraag{" "}
               <Link href="/thuisbatterij/">
-                onze pagina over de thuisbatterij
+                is een thuisbatterij iets voor mij
               </Link>
               .
             </dd>

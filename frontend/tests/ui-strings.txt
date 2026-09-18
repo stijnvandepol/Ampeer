@@ -107,8 +107,10 @@
 06:00
 12
 12:00
+15 september 2026
 18
 18:00
+2026-09-15
 24
 24:00
 42015984
@@ -120,10 +122,10 @@ Account aanmaken
 Account verwijderen
 Adviesversie
 Alle drie zijn nodig om de accountpagina veilig te gebruiken, en voor niets anders. Ze volgen u niet, ze meten niets en ze gaan naar geen ander bedrijf.
-Alleen als het bij u uitkomt, en bij een deel van de huishoudens komt dat er niet uit. Nu geen batterij is bij ons een volwaardige uitkomst, en wij verdienen niets aan de andere. Waar het van afhangt, staat op
-Alleen als het bij u uitkomt, en bij een deel van de huishoudens komt dat er niet uit. Nu geen batterij is bij ons een volwaardige uitkomst, en wij verdienen niets aan de andere. Waar het van afhangt, staat op onze pagina over de thuisbatterij.
+Alleen als het bij u uitkomt, en bij een deel van de huishoudens komt dat er niet uit. Nu geen batterij is bij ons een volwaardige uitkomst, en wij verdienen niets aan de andere. Waar het van afhangt, leest u bij de vraag
+Alleen als het bij u uitkomt, en bij een deel van de huishoudens komt dat er niet uit. Nu geen batterij is bij ons een volwaardige uitkomst, en wij verdienen niets aan de andere. Waar het van afhangt, leest u bij de vraag is een thuisbatterij iets voor mij.
 Alleen als het bij u uitkomt. Voor een deel van de huishoudens is het antwoord nee, en dat is bij ons een geldige en volwaardige uitkomst.
-Alleen als u ja zegt, laden wij Google Analytics. Dat telt welke pagina's bezocht worden, niet wie u bent. Nee is net zo makkelijk als ja, en u kunt uw keuze op de privacypagina altijd wijzigen.
+Alleen na uw ja laden wij Google Analytics. Dat telt welke pagina's bezocht worden, niet wie u bent. Wijzigen kan altijd op de privacypagina.
 Alles daarover staat in
 Als dit adres bij ons bekend is, staat er binnen enkele minuten een e-mail voor u klaar. De link daarin werkt een uur.
 Ampeer
@@ -277,7 +279,7 @@ Einde saldering
 Einde salderingsregeling: wat het bij u doet
 Elk advies zegt welke regels gevuurd hebben. U ziet dus waarom u juist dit antwoord kreeg.
 Elk antwoord is nodig voor de berekening. Uw postcodegebied kiest de zonnereeks. Uw jaarverbruik schaalt uw verbruiksprofiel. Wattpiek en dakligging bepalen uw opbrengst.
-Elk cijfer en elke regeling op deze pagina komt hiervandaan, met de datum waarop wij het lazen.
+Elk cijfer en elke regeling op deze pagina komt hiervandaan, met de datum waarop wij het lazen. Deze pagina is voor het laatst bijgewerkt op
 Elke kolom is een dag, van 1 januari links tot 31 december rechts. Elke rij is een kwartier, van middernacht boven tot middernacht onder.
 Er is een e-mail onderweg om uw adres te bevestigen.
 Er is een grens: als alles wat kan verschuiven verschoven is, is de volgende stap slimmer sturen of opslag, en dat kost wel iets.
@@ -607,7 +609,7 @@ Volgorde
 Voor de meeste huishoudens wel, maar minder dan nu, en hoeveel minder verschilt sterk. Dat is precies het bedrag dat wij voor u uitrekenen.
 Voor de zonopbrengst gebruiken wij zelfs maar de eerste twee cijfers. Daarmee zoeken wij de instraling van uw regio op.
 Voor die drie vraagt de wet geen toestemming: ze doen alleen wat u zelf vroeg. Voor de twee cookies van Google Analytics wel, en daarom vragen wij het, met nee en ja even groot naast elkaar en niets vooraf aangevinkt.
-Voor een deel van de huishoudens niet. Waar het van afhangt, wat er goedkoper is en eerst komt, en hoe u het voor uw eigen huis doorrekent.
+Voor een deel van de huishoudens is een thuisbatterij niets, of nog niet. Waar het van afhangt, wat goedkoper is en eerst komt, en hoe u het voor uw eigen huis doorrekent.
 Voor een flink deel van de huishoudens is het antwoord nee, of nog niet. Het hangt niet af van hoeveel panelen u heeft, maar van wanneer u stroom gebruikt. En er zijn twee dingen die goedkoper zijn en die eerst komen.
 Voor het advies vragen wij nog steeds geen naam, geen telefoonnummer en geen huisnummer, en de rekenmachine werkt zonder account. Wie een account aanmaakt, geeft een e-mailadres en kiest een wachtwoord, en meer niet.
 Voor het koppelen van een slimme meter is een bevestigd e-mailadres nodig.
@@ -644,8 +646,8 @@ Wachtwoord
 Wachtwoord herstellen
 Wachtwoord opslaan
 Wachtwoord vergeten?
-Wanneer een batterij wel kan uitkomen
-Wanneer hij dat niet doet
+Wanneer een thuisbatterij dat niet doet
+Wanneer een thuisbatterij wel kan uitkomen
 Wanneer is overdag
 Wanneer laadt uw elektrische auto?
 Wanneer u stroom gebruikt
@@ -861,7 +863,6 @@ offtake
 okt
 onze gebruiksvoorwaarden
 onze methodologie
-onze pagina over de thuisbatterij
 onze privacyverklaring
 overeenkomst
 own
