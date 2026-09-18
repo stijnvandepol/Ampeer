@@ -64,6 +64,7 @@
 ,
 , en het is per huis door te rekenen.
 , en over
+, ergens tussen €
 , met
 , over
 -
@@ -78,6 +79,7 @@
 . De goedkoopste stap staat apart, want die kost niets:
 . De regels voor het gebruik staan in
 . Een vraag of klacht over uw gegevens gaat naar
+. Het middelpunt van
 . Hoe wij rekenen, staat in
 . Wij antwoorden binnen een maand.
 . Wij verkopen geen batterijen en geven uw gegevens niet door aan een installateur. Hoe het antwoord tot stand komt staat op
@@ -158,6 +160,8 @@ Bent u uw wachtwoord kwijt, dan herstelt u het eerst via de mail. Daarna verwijd
 Bereken wat er bij u verandert
 Bereken wat het bij u doet
 Berekenen
+Besparing per jaar
+Betrouwbaarheid
 Betrouwbaarheid:
 Beweeg over de plaat of gebruik de pijltjestoetsen om een kwartier te lezen.
 Bezig.
@@ -346,7 +350,6 @@ Het nultarief dat sinds 2023 voor zonnepanelen geldt, geldt niet voor een thuisb
 Het verkeer naar deze site loopt via Cloudflare Inc. Dat bedrijf is onze verwerker. Cloudflare beveiligt de verbinding en beëindigt die aan de rand van hun netwerk.
 Het vermogen van uw zonnepanelen, in wattpiek.
 Het woord bij uw advies (indicatief, goed of precies) zegt hoeveel u ons verteld heeft. Precies kunt u vandaag niet krijgen.
-Hier is niets meer te halen.
 Hier logt u in of maakt u een account aan. In uw account ziet u welke toestemmingen u heeft gegeven, kunt u ze omzetten, uw gegevens downloaden en uw account verwijderen. Voor de rekenmachine is geen account nodig.
 Hiermee verdwijnen uw e-mailadres, uw twee toestemmingen, uw opgeslagen adviezen en uw sessies. In ons logboek blijft alleen de regel staan dat een account is verwijderd, met een nummer dat nergens meer heen wijst.
 Hij zegt ook welke van drie routes voor u het beste past. Elk bedrag komt met een bandbreedte, want wij rekenen de hele berekening 243 keer door, met aannames die wij niet zeker weten.
@@ -398,6 +401,7 @@ Kopieer deze link
 Kopieren lukte niet. Neem de link hierboven over.
 Koppel aan mijn account
 Koppel uw meter
+Kost u per jaar tussen €
 Krijg ik straks te horen dat ik een batterij moet kopen?
 Krijg ik subsidie of btw-korting op een thuisbatterij?
 KvK-nummer
@@ -511,6 +515,7 @@ Overdag, op ons eigen overschot
 PRECISE
 Pagina niet gevonden
 Postadres
+Prijs per kWh
 Prijs per kWh waarbij hij precies uit kan
 Privacy
 Privacyverklaring
@@ -519,6 +524,7 @@ Reken het uit voor uw eigen huis
 Reken uit wat het einde van de salderingsregeling uw huishouden kost, met de marge erbij.
 Rekent de installateur besparing mee die u ook krijgt door de wasmachine overdag te laten draaien, dan wordt de batterij betaald voor werk dat gratis was. Vraag naar de besparing bovenop wat u zonder batterij ook kunt doen.
 Rekent een terugverdientijd op een offerte met een prijs zonder btw? Dan is de terugverdientijd te kort. Reken met wat u betaalt.
+Rekent uit wat het einde van saldering u kost
 Resend bewaart een eigen verzendlog met adres, onderwerp en tekst. Dat log staat in de Verenigde Staten, ook al versturen wij vanuit de Europese regio.
 Resend verstuurt onze mail
 Resend ziet uw adres, dat er een account bij hoort of dat er herstel is gevraagd, en de tekst van de mail met de link erin.
@@ -533,6 +539,7 @@ STORAGE
 Salderen kijkt alleen naar wat door de meter ging en telt dat over een heel jaar op. De volgorde in de tijd valt daarbij weg, en de
 Salderen streept teruggeleverde stroom weg tegen afgenomen stroom. Zo lang dat kan, maakt het niet veel uit of u een kilowattuur meteen gebruikt of later terugkoopt. Als dat wegstrepen stopt, krijgt u voor teruglevering een vergoeding die lager ligt dan de prijs die u voor afname betaalt.
 Salderingsregeling stopt in 2027
+Scheelt u per jaar ongeveer €
 Slaan jullie mijn gegevens op?
 Snavelbiesstraat 8, 5445 NV Landhorst
 Solar Magazine
@@ -650,6 +657,7 @@ Voor een deel van de huishoudens is een thuisbatterij niets, of nog niet. Waar h
 Voor een flink deel van de huishoudens is het antwoord nee, of nog niet. Het hangt niet af van hoeveel panelen u heeft, maar van wanneer u stroom gebruikt. En er zijn twee dingen die goedkoper zijn en die eerst komen.
 Voor het advies vragen wij nog steeds geen naam, geen telefoonnummer en geen huisnummer, en de rekenmachine werkt zonder account. Wie een account aanmaakt, geeft een e-mailadres en kiest een wachtwoord, en meer niet.
 Voor het koppelen van een slimme meter is een bevestigd e-mailadres nodig.
+Voor uw huishouden levert deze route niets op.
 Voortgang
 Voorwaarden
 Vraag
@@ -829,10 +837,12 @@ dec
 denied
 dingen te koop
 doorrekeningen
+doorrekeningen is €
 doorrekeningen.
 either "
 email
 en
+en €
 euro
 euro als middelpunt, uit
 euro per jaar, met
@@ -912,7 +922,6 @@ overeenkomst
 own
 pagina van 10 september 2026, gelezen op 15 september 2026
 password
-per jaar
 per kWh
 postalAddress
 privacy@ampeer.nl

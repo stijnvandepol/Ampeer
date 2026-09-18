@@ -204,11 +204,13 @@
 }
 
 .caption {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem 1.25rem;
-  font-size: 0.8125rem;
-  color: var(--colour-ink-subtle);
+  /* A sentence since 2026-09-18, not two floating fragments, so it is set as
+     text a reader is meant to read and not as the figure's small print. */
+  display: block;
+  max-width: 60ch;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--colour-ink-muted);
 }
 
 /* A scenario band is a different shape on purpose: a thin capped rail, not a
@@ -469,4 +471,26 @@
   line-height: 1.25;
   letter-spacing: -0.01em;
   color: var(--colour-ink);
+}
+
+/* ---- the words beside the figures, since 2026-09-18 ---- */
+
+.firstStepReading {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--colour-ink-muted);
+  max-width: 60ch;
+}
+
+.railLabel {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--colour-ink-subtle);
+}
+
+.confidenceWord {
+  font-weight: 400;
+  opacity: 0.85;
 }

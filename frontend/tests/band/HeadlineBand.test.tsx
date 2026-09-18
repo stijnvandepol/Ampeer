@@ -43,9 +43,12 @@ describe("the headline band", () => {
       advice.headline.p50,
       advice.headline.p90,
     ]) {
-      expect(
-        screen.getByText(dutchAmount(amount), { exact: false }),
-      ).toBeInTheDocument();
+      // Twice since 2026-09-18: once as a label on the figure and once in
+      // the sentence under it that reads the figure out. Two is the floor,
+      // not the count: a third mention would be a third place to drift.
+      const shown = screen.getAllByText(dutchAmount(amount), { exact: false });
+      expect(shown.length).toBeGreaterThanOrEqual(2);
+      expect(shown.length).toBeLessThanOrEqual(2);
     }
   });
 

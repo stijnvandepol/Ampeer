@@ -157,7 +157,7 @@ test("rule 3: all three routes render, in the API's order, including an empty on
       elements.map((element) => element.getAttribute("data-route")),
     );
   expect(rendered).toEqual(["SHIFT_BEHAVIOUR", "SMART_CONTROL", "STORAGE"]);
-  await expect(page.getByText(/niets meer te halen/i)).toBeVisible();
+  await expect(page.getByText(/levert deze route niets op/i)).toBeVisible();
 });
 
 /**

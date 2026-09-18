@@ -37,7 +37,9 @@ export function RouteSection({ route, bandShownAbove }: Props) {
         {route.title}
       </h2>
       {route.rules.length === 0 ? (
-        <p className={styles.empty}>Hier is niets meer te halen.</p>
+        <p className={styles.empty}>
+          Voor uw huishouden levert deze route niets op.
+        </p>
       ) : (
         <ul className={styles.rules}>
           {route.rules.map((rule) => (

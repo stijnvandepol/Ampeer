@@ -18,7 +18,7 @@ describe("a route section", () => {
     // already guarantees.
     render(<RouteSection route={empty} />);
     expect(screen.getByText(empty.title)).toBeInTheDocument();
-    expect(screen.getByText(/niets meer te halen/i)).toBeInTheDocument();
+    expect(screen.getByText(/levert deze route niets op/i)).toBeInTheDocument();
   });
 
   it("uses the title the API sent, never one of its own", () => {
@@ -34,6 +34,6 @@ describe("a route section", () => {
     for (const rule of filled.rules) {
       expect(screen.getByText(rule.text)).toBeInTheDocument();
     }
-    expect(screen.queryByText(/niets meer te halen/i)).toBeNull();
+    expect(screen.queryByText(/levert deze route niets op/i)).toBeNull();
   });
 });
