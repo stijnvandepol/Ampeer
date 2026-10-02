@@ -6,195 +6,154 @@
  * to that file is `--text-display`, which is the size above the scale that a
  * hero headline needs and nothing else may use.
  *
- * The motion lives with its components. Each of them says at the top of its own
- * file what it does and which values to turn: HeroHeading, Mesh, SpotlightCard,
- * CountUp, Beam, Magnetic, Cursor, and reveal.module.css. Rail was one of
- * them and was removed on 2026-09-02; the four facts it carried are the
- * `.facts` grid below.
+ * Redrawn on 2026-10-01 from an instrument panel into daylight; page.tsx says
+ * what went and why. There is no motion in this file any more. The seven motion
+ * components and the scroll-driven section wipe it used to name are gone; the
+ * day figure animates itself, and only when somebody presses it.
  */
 
 /* ---- the first screen ---- */
 
+/*
+ * Daylight-blue, the page's raised surface, full bleed. It was the year
+ * plate's near-black ground until 2026-10-01, which made the first thing a
+ * visitor saw look like a dashboard at night.
+ */
 .hero {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  border-bottom: 1px solid var(--colour-border);
-  /*
-   * Since 2026-09-18 the first screen stands on the instrument's own ground,
-   * the deep blue every plate on this site is drawn on, in both themes. The
-   * owner's brief was that the site vanished beside the sites it competes
-   * with, and those open on a photograph of a battery and a person. Ampeer
-   * has no battery to photograph; what it has that nobody else has is the
-   * measured day, 96 quarters coloured by where the electricity went, and
-   * that is the object the first screen is built around.
-   *
-   * Every text token is re-pointed at a light value for the duration of
-   * this block, so the strip's own caption, axis and toggles, written for a
-   * light page, read on the dark one without knowing they are on it. Tokens
-   * pointing at tokens and no colour of this file's own, which is what the
-   * design test permits a component stylesheet.
-   */
-  background: var(--colour-carpet-ground);
-  color: var(--colour-on-ground);
-  --colour-ink: var(--colour-on-ground);
-  --colour-ink-muted: var(--colour-on-carpet);
-  --colour-ink-subtle: var(--colour-on-carpet);
-  --colour-border-strong: var(--colour-on-carpet);
-  --colour-surface-sunken: var(--colour-carpet-export);
+  background-color: var(--colour-surface-raised);
 }
 
 .heroInner {
-  position: relative;
-  z-index: 1;
-  width: 100%;
   max-width: var(--shell-max);
   margin: 0 auto;
-  /*
-   * Measured down on 2026-08-31. At the previous padding the hero was 841
-   * pixels tall on a 900 pixel screen, so a reader on a laptop saw the
-   * headline and nothing else, with no sign that anything followed. It now
-   * leaves the top of the next section visible, which is the cheapest possible
-   * way to say there is more.
-   */
-  padding: clamp(2.5rem, 2rem + 4vw, 5rem) var(--space-5)
-    clamp(2rem, 1.5rem + 3vw, 3.5rem);
+  padding: clamp(2.5rem, 1.5rem + 4vw, 5rem) var(--space-5);
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(2rem, 1rem + 3vw, 3.5rem);
   align-items: center;
-  gap: var(--space-6);
 }
 
-@media (min-width: 64rem) {
+@media (min-width: 60rem) {
   .heroInner {
-    grid-template-columns: minmax(0, 11fr) minmax(0, 9fr);
-    gap: var(--space-7);
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
   }
 }
 
 .heroCopy {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
   gap: var(--space-5);
-  min-width: 0;
 }
 
-.heroFigure {
-  min-width: 0;
+.title {
+  font-size: var(--text-display);
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+  max-width: 15ch;
 }
 
-/*
- * The strip stands taller here than on the advice page, because here it is
- * the picture and not a footnote. The element selector reaches into the
- * figure the day component renders; the component owns its colours and its
- * shape, and this only says how much room it gets.
- */
-.heroFigure figure > div[role="img"] {
-  height: clamp(8rem, 5rem + 12vw, 15rem);
-  border-radius: var(--radius-md);
-  outline: 1px solid var(--colour-carpet-offtake);
-  outline-offset: 0;
+.lead {
+  font-size: var(--text-lg);
+  color: var(--colour-ink-muted);
+  max-width: 50ch;
 }
 
 .heroActions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-4) var(--space-5);
-}
-
-/*
- * A light button on the dark ground, because the accent itself is a dark
- * teal in the light theme and would sink into the blue the way the black
- * wells did on 2026-09-15. Two classes deep so this wins over .button-accent
- * on specificity and not on load order.
- */
-.hero .heroCta {
-  background: var(--colour-on-ground);
-  color: var(--colour-carpet-ground);
-  font-size: var(--text-lg);
-  padding: var(--space-4) var(--space-6);
-}
-
-.hero .heroCta:hover {
-  background: var(--colour-on-carpet);
+  gap: var(--space-4) var(--space-6);
 }
 
 .heroSecondary {
-  font-size: var(--text-base);
-  color: var(--colour-on-ground);
+  font-weight: var(--weight-bold);
+  color: var(--colour-ink);
   text-decoration: underline;
-  text-underline-offset: 0.3em;
-  text-decoration-color: var(--colour-on-carpet);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.25em;
+}
+
+.heroSecondary:hover {
+  text-decoration-thickness: 2px;
 }
 
 /*
- * Three facts, not three promises, and each one is a rule this site is
- * tested on: no account (privacy.spec.ts), nothing for sale (CLAUDE.md, and
- * the neutrality every page states), every figure in a band (rule one of
- * the frontend). Not a visitor count, not a rating, not a deadline; rule
- * four forbids those and they would be the first thing a competitor's page
- * shows here.
+ * The three promises, and the three lines in "Voor wie dit is" below, share
+ * one mark: a tick in a sun-coloured disc. It is the same yellow as the button
+ * and as the quarters the household ran on its own panels, so the page has one
+ * accent and it always means the same thing: this is on your side.
  */
-.badges {
+.promises,
+.forWhom {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-3);
-  list-style: none;
+  margin: 0;
   padding: 0;
-  margin: 0;
+  list-style: none;
 }
 
-.badge {
+.promises {
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+}
+
+.forWhom {
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.promise,
+.forWhomLine {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.promise {
   font-size: var(--text-sm);
-  color: var(--colour-on-carpet);
-  border: 1px solid var(--colour-carpet-offtake);
-  border-radius: var(--radius-pill);
-  padding: var(--space-1) var(--space-3);
+  font-weight: var(--weight-bold);
+  color: var(--colour-ink);
 }
 
-.eyebrow {
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
-  color: var(--colour-ink-subtle);
-  /*
-   * A 1px border and a pill, which is the shape every other small control on
-   * this page uses. It reads as a label rather than as a stray line of text,
-   * and it is the one place the eyebrow can carry the date without the page
-   * counting down to it.
-   */
-  border: 1px solid var(--colour-border-strong);
-  border-radius: var(--radius-pill);
-  padding: var(--space-2) var(--space-4);
-}
-
-.title {
-  font-size: var(--text-display);
-  font-weight: 700;
-  line-height: 0.95;
-  letter-spacing: var(--tracking-display);
-  text-wrap: balance;
-  /*
-   * In characters, so the line count holds as the size changes. At 4,5rem this
-   * is two lines on a desktop and three on a phone, and the balance keeps the
-   * last one from being a single orphaned word.
-   */
-  max-width: 15ch;
-  margin: 0;
-}
-
-.lead {
+.forWhomLine {
   font-size: var(--text-lg);
-  color: var(--colour-ink-muted);
-  max-width: 46ch;
+  color: var(--colour-ink);
+  max-width: 62ch;
 }
 
-.note {
-  font-size: var(--text-sm);
-  color: var(--colour-ink-subtle);
+.promise::before,
+.forWhomLine::before {
+  content: "✓";
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.5em;
+  height: 1.5em;
+  border-radius: var(--radius-pill);
+  background-color: var(--colour-sun);
+  color: var(--colour-on-sun);
+  font-size: 0.8em;
+  font-weight: var(--weight-bold);
+  line-height: 1;
+  margin-top: 0.1em;
+}
+
+/*
+ * The figure's card. The strip keeps the instrument's dark ground, measured
+ * against its own three colours, and the card around it is the page's surface
+ * so its axis, buttons and caption keep the page's measured ink.
+ */
+.heroFigure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  background-color: var(--colour-surface);
+  border-radius: var(--radius-lg);
+  padding: clamp(1rem, 0.75rem + 1vw, 1.5rem);
+  box-shadow: var(--shadow-raised);
+}
+
+.figureTitle {
+  font-weight: var(--weight-bold);
+  color: var(--colour-ink);
 }
 
 /* ---- everything below it ---- */
@@ -203,23 +162,20 @@
   width: 100%;
   max-width: var(--shell-max);
   margin: 0 auto;
-  padding: clamp(3rem, 2rem + 4vw, 6rem) var(--space-5);
+  padding: clamp(3rem, 2rem + 4vw, 5.5rem) var(--space-5);
   display: flex;
   flex-direction: column;
-  gap: clamp(3rem, 2rem + 4vw, 7rem);
+  gap: clamp(3rem, 2rem + 4vw, 5.5rem);
 }
 
 .section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
 
 .heading {
   font-size: var(--text-2xl);
-  font-weight: 600;
-  letter-spacing: var(--tracking-tight);
-  text-wrap: balance;
 }
 
 .body {
@@ -227,171 +183,117 @@
   max-width: 62ch;
 }
 
-/* ---- the four facts ---- */
+/* ---- how it works: a sequence, so numbered ---- */
 
-/*
- * A grid and not a rail. Until 2026-09-02 these four sat in a scroll driven
- * sideways track: 150vh of container with a sticky viewport inside it, so the
- * cards travelled left as the reader scrolled. It worked exactly as designed
- * and the design did not survive a desktop screen. Measured at 1440x900: the
- * section cost 1350 pixels of scrolling to deliver four one line facts, the
- * heading above them had scrolled away before the first card finished moving,
- * two thirds of the viewport was empty for the whole travel, and the fourth
- * card was off screen for most of it.
- *
- * The rail's own fallback was already this layout. Below 60rem, and in any
- * browser without `animation-timeline`, and under prefers-reduced-motion, the
- * track wrapped into rows, which is why the phone always looked right and only
- * the desktop did not. So this is not a new design; it is the one the
- * component already fell back to, made the only one.
- *
- * Same shape as `.features` below on purpose. Two grids on one page that mean
- * the same thing should not be spelled two ways.
- */
-.facts {
+.steps {
   display: grid;
-  gap: var(--space-4);
-  /*
-   * 13rem previously. Measured at a 900px viewport, which is squarely inside
-   * the range a small laptop actually reports: four columns at that floor
-   * need 880px of content width and the container had 836.8px, so `auto-fit`
-   * did what it always does when the next column does not fit and dropped to
-   * three, leaving the fourth card, the neutrality claim, alone on its own
-   * row with empty space beside it. 11rem clears four columns at every width
-   * this shell renders at (checked from 320px, where a single column is the
-   * shell's own fallback, up through the container's own 64rem cap), so the
-   * grid resolves to a clean 4-across or a clean 2x2 and never an orphan.
-   */
-  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
 }
 
-.fact {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+@media (min-width: 48rem) {
+  .steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
-.factValue {
-  font-size: var(--text-2xl);
-  font-weight: 700;
-  letter-spacing: var(--tracking-tight);
-  font-variant-numeric: tabular-nums;
-}
-
-.factUnit {
-  /*
-   * Its own line, always. Inline it fits beside "4" and "0" and wraps under
-   * "35.014" and "243", so the four cards disagreed about where the unit goes
-   * and the row read as broken rather than as varied. A block settles it in
-   * one rule and keeps settling it whatever the numbers become, which matters
-   * because two of them are computed rather than written.
-   */
-  display: block;
-  font-size: var(--text-sm);
-  font-weight: 400;
-  color: var(--colour-ink-muted);
-  letter-spacing: var(--tracking-normal);
-}
-
-.factText {
-  font-size: var(--text-sm);
-  color: var(--colour-ink-muted);
-}
-
-/* ---- the three feature cards ---- */
-
-.features {
-  display: grid;
-  gap: var(--space-4);
-  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
-}
-
-.feature {
+.step {
+  counter-increment: step;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 
-.featureName {
-  font-size: var(--text-base);
-  font-weight: 600;
-}
-
-.featureText {
-  font-size: var(--text-sm);
-  color: var(--colour-ink-muted);
-}
-
-/* ---- the steps, with the beam between them ---- */
-
-.steps {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.step {
-  position: relative;
-  display: grid;
-  grid-template-columns: 2.5rem 1fr;
-  gap: var(--space-4);
-  align-items: start;
-}
-
-/*
- * The line runs from under one number to the next, in the left column only, so
- * it connects the steps rather than crossing their text. It starts below the
- * marker and ends above the next one; the gap is the marker's own diameter.
- */
-.beam {
-  position: absolute;
-  left: 0;
-  top: 2.5rem;
-  width: 2.5rem;
-  height: calc(100% + var(--space-6) - 2.5rem);
-}
-
-.stepNumber {
+.step::before {
+  content: counter(step);
   display: grid;
   place-items: center;
   width: 2.5rem;
   height: 2.5rem;
-  border: 1px solid var(--colour-border-strong);
+  margin-bottom: var(--space-2);
   border-radius: var(--radius-pill);
-  background: var(--colour-surface);
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: var(--text-sm);
-  color: var(--colour-ink-muted);
-  /* Above the beam, so the line appears to start and stop at the marker. */
-  position: relative;
-  z-index: 1;
+  background-color: var(--colour-sun);
+  color: var(--colour-on-sun);
+  font-weight: var(--weight-bold);
+  font-variant-numeric: tabular-nums;
 }
 
 .stepName {
-  font-size: var(--text-base);
-  font-weight: 600;
+  font-size: var(--text-lg);
 }
 
 .stepText {
   color: var(--colour-ink-muted);
-  max-width: 56ch;
-  margin-top: var(--space-1);
 }
 
-/* ---- questions ---- */
+/* ---- what the answer is made of: not a sequence, so not numbered ---- */
 
-.faq {
-  display: flex;
-  flex-direction: column;
+.features {
+  display: grid;
   gap: var(--space-5);
   margin: 0;
 }
 
+@media (min-width: 48rem) {
+  .features {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.feature {
+  border-top: 3px solid var(--colour-sun);
+  padding-top: var(--space-4);
+}
+
+.featureName {
+  font-size: var(--text-lg);
+}
+
+.featureText {
+  margin: var(--space-2) 0 0;
+  color: var(--colour-ink-muted);
+}
+
+/* ---- why trust it ---- */
+
+/*
+ * The one panel on the page below the first screen, because it is the one
+ * argument the rest of the page depends on: nothing is for sale here.
+ */
+.trust {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  border-radius: var(--radius-lg);
+  background-color: var(--colour-surface-raised);
+  padding: clamp(1.5rem, 1rem + 2vw, 2.5rem);
+}
+
+.trust .body {
+  color: var(--colour-ink);
+}
+
+/* ---- questions ---- */
+
+/*
+ * A block and not a flex column: the dt and dd are siblings here, and a gap
+ * put the same space between an answer and its own question as between one
+ * question and the next, so nothing said which answer went with which.
+ */
+.faq {
+  margin: 0;
+}
+
 .question {
-  font-weight: 600;
+  font-weight: var(--weight-bold);
+  font-size: var(--text-lg);
+}
+
+.question:not(:first-child) {
+  margin-top: var(--space-6);
 }
 
 .answer {
@@ -407,12 +309,15 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-4);
-  border-top: 1px solid var(--colour-border-strong);
+  border-top: 1px solid var(--colour-border);
   padding-top: clamp(2rem, 1.5rem + 2vw, 3rem);
 }
 
 .closeText {
-  font-size: var(--text-lg);
-  max-width: 40ch;
-  text-wrap: balance;
+  font-family: var(--font-display), Georgia, serif;
+  font-variation-settings: "SOFT" 100;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: var(--leading-snug);
+  max-width: 28ch;
 }

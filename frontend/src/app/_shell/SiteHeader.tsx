@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { ThemeToggle } from "./ThemeToggle";
 
 /**
  * Navigation, and nothing that sells.
@@ -10,19 +9,22 @@ import { ThemeToggle } from "./ThemeToggle";
  * exist, and the methodology is one of them because the document this product
  * is judged on should be one click away from the answer it produced.
  */
+/** Where the header goes, in the order a worried visitor would ask. */
+const NAV: readonly (readonly [string, string])[] = [
+  ["/einde-saldering/", "Einde saldering"],
+  ["/zonnepanelen-2027/", "Wat moet ik doen?"],
+  ["/thuisbatterij/", "Thuisbatterij"],
+  ["/berekenen/", "Berekenen"],
+];
+
 export function SiteHeader() {
   return (
     <header className="border-b border-hairline">
       {/*
-        Three things in a row that wraps, and the order of the wrap is the
-        point. Measured on 2026-09-16 on a 390 by 664 viewport: the header
-        stood 133 pixels tall, a fifth of the screen, because the theme
-        control was the last item in the navigation and wrapped onto a row of
-        its own under three links. Now the wordmark and the theme control
-        share the first row on a phone and the links take the second; from
-        `sm` up the three sit in one row as before. The control left the
-        <nav> for that, which is also where it belongs: it is a setting, not
-        a place to go.
+        Two things in a row that wraps: the wordmark, and the navigation under
+        it on a phone or beside it from `sm` up. Measured on 2026-09-16 on a
+        390 by 664 viewport, the header stood 133 pixels tall with the theme
+        control in it; that control now lives in the footer.
       */}
       <div className="mx-auto flex w-full max-w-[var(--shell-max)] flex-wrap items-center justify-between gap-x-4 gap-y-2 px-6 py-3 sm:py-4">
         {/*
@@ -80,44 +82,35 @@ export function SiteHeader() {
             className="hidden text-sm leading-tight text-ink-muted sm:block"
             aria-hidden="true"
           >
-            Rekent uit wat het einde van saldering u kost
+            Onafhankelijk advies over uw zonnepanelen
           </span>
         </div>
         {/*
-         * flex-wrap, and it is load bearing rather than tidy. The outer div
-         * wrapped and this nav did not, so it was one flex item 341px wide that
-         * could not break, and every page of the site had a horizontal
-         * scrollbar below about 390px: measured at 360x640, scrollWidth 366
-         * against clientWidth 360, on all four routes, and 365 against 320 at
-         * 400% zoom. 360 is the most common Android viewport in the
-         * Netherlands. WCAG 2.2 AA 1.4.10, and axe cannot see it at all, so
-         * e2e/rules.spec.ts measures the document instead.
+         * The four questions a visitor arrives with, in their words, since
+         * 2026-10-01. "Methodologie" stood here before: the right page for a
+         * reviewer and a word the people this site is for do not use. It is
+         * still one click away, in the footer, as "Hoe Ampeer rekent". The
+         * theme control moved to the footer the same day; it is a setting
+         * that almost nobody changes and it took a third of the header.
+         *
+         * flex-wrap, and it is load bearing rather than tidy: an unwrapping
+         * nav gave every page a horizontal scrollbar below about 390px
+         * (measured at 360x640 on 2026-09-02), which fails WCAG 2.2 AA 1.4.10
+         * and which axe cannot see, so e2e/rules.spec.ts measures it.
          */}
-        <div className="order-2 sm:order-3">
-          <ThemeToggle />
-        </div>
         <nav
           aria-label="Hoofdnavigatie"
-          className="order-3 flex w-full flex-wrap items-center gap-x-5 gap-y-2 sm:order-2 sm:w-auto"
+          className="flex w-full flex-wrap items-center gap-x-5 gap-y-2 sm:w-auto"
         >
-          <Link
-            href="/einde-saldering/"
-            className="text-sm text-ink-muted underline-offset-4 hover:underline"
-          >
-            Einde saldering
-          </Link>
-          <Link
-            href="/berekenen/"
-            className="text-sm text-ink-muted underline-offset-4 hover:underline"
-          >
-            Berekenen
-          </Link>
-          <Link
-            href="/methodologie/"
-            className="text-sm text-ink-muted underline-offset-4 hover:underline"
-          >
-            Methodologie
-          </Link>
+          {NAV.map(([href, label]) => (
+            <Link
+              key={href}
+              href={href}
+              className="text-sm font-medium text-ink underline-offset-4 hover:underline sm:text-base"
+            >
+              {label}
+            </Link>
+          ))}
         </nav>
       </div>
     </header>

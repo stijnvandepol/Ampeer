@@ -173,7 +173,7 @@ describe("the questions route", () => {
     // It shipped the root default, "Ampeer", until 2026-08-31. The rules test
     // that the four routes do not all answer to the same title passed on it,
     // because "Ampeer" is genuinely distinct from the other three.
-    expect(berekenenMetadata.title).toBe("Uw situatie doorrekenen");
+    expect(berekenenMetadata.title).toBe("Bereken wat er bij u verandert");
     expect(String(berekenenMetadata.title)).not.toMatch(/kost|bespaar|verlies/);
     expect(berekenenMetadata.alternates?.canonical).toBe("/berekenen/");
     // Its own description too. It inherited the site's until 2026-08-31, so the

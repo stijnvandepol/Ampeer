@@ -215,7 +215,9 @@ export default function ZelfVerbruikenPage() {
           antwoord.
         </p>
         <p className={styles.act}>
-          <Link href="/berekenen/">Bereken wat het bij u doet</Link>
+          <Link href="/berekenen/" className="button-accent">
+            Bereken wat het bij u doet
+          </Link>
         </p>
         <p className={styles.note}>
           Helpt verschuiven bij u niet genoeg, dan leest u op{" "}

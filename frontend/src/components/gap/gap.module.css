@@ -24,7 +24,7 @@
 
 .axis {
   position: relative;
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
   font-size: var(--text-xs);
   color: var(--colour-ink-subtle);
   font-variant-numeric: tabular-nums;

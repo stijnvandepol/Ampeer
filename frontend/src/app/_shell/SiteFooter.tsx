@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ThemeToggle } from "./ThemeToggle";
 
 /**
  * What this is, what it is not, and who is saying so.
@@ -61,6 +62,14 @@ export function SiteFooter() {
             when the room has something in it.
           */}
         </nav>
+        {/*
+          The light and dark choice, here since 2026-10-01. It sat in the
+          header, where it took a third of the row on a phone for a setting
+          the system preference already answers for nearly everybody.
+        */}
+        <div className="pt-2">
+          <ThemeToggle />
+        </div>
       </div>
     </footer>
   );
