@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Atkinson_Hyperlegible_Next, Fraunces } from "next/font/google";
 import "./globals.css";
 import { ConsentBanner } from "./_shell/ConsentBanner";
 import { SiteFooter } from "./_shell/SiteFooter";
@@ -8,14 +8,33 @@ import { SiteJsonLd } from "./_shell/JsonLd";
 import { SITE_ORIGIN } from "./_shell/site";
 import { THEME_BOOTSTRAP } from "./_shell/theme";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+/*
+ * The two faces, chosen on 2026-10-01 to stop the site reading as a system.
+ *
+ * Until then it was Geist and Geist Mono, a pair drawn for developer tools,
+ * and the mono face set every small label and axis. The owner's brief that day
+ * was that the site felt abstract and impersonal to the people it is for:
+ * homeowners with panels, mostly past forty-five, mostly on a phone.
+ *
+ * The body is Atkinson Hyperlegible Next, drawn by the Braille Institute for
+ * readers with low vision: letters that are easy to tell apart (I, l and 1;
+ * O and 0) and open shapes at small sizes. It also sets every figure, with
+ * tabular numerals where they line up, so there is no third face.
+ *
+ * The headings are Fraunces with its SOFT axis at the maximum: a serif with
+ * round terminals and gentle contrast, which reads as a person talking rather
+ * than a heading in a dashboard. Both are variable, so every weight costs one
+ * file each.
+ */
+const body = Atkinson_Hyperlegible_Next({
+  variable: "--font-body",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const display = Fraunces({
+  variable: "--font-display",
   subsets: ["latin"],
+  axes: ["SOFT", "opsz"],
 });
 
 /** The id the skip link jumps to. Every page renders its content inside it. */
@@ -78,7 +97,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="nl"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${body.variable} ${display.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-surface text-ink">
         {/*

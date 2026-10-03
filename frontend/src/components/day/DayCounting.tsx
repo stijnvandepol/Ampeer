@@ -153,6 +153,28 @@ export function DayCounting() {
         </div>
       )}
 
+      {/*
+        What the three colours mean, on the page and not only in the label a
+        screen reader gets. Added 2026-10-01: until then a sighted visitor was
+        told nothing about yellow, grey and blue unless they pressed the
+        second button and read the block names. Hidden from the accessibility
+        tree for the reason the axis is: the strip's own label already says it.
+      */}
+      <ul className={styles.legend} aria-hidden="true">
+        {(
+          [
+            ["own", "Eigen zonnestroom gebruikt"],
+            ["offtake", "Stroom van het net"],
+            ["export", "Teruggeleverd aan het net"],
+          ] as const
+        ).map(([state, name]) => (
+          <li key={state} className={styles.legendItem}>
+            <span className={`${styles.swatch} ${styles[state]}`} />
+            {name}
+          </li>
+        ))}
+      </ul>
+
       <div className={styles.control} role="group" aria-label="Volgorde">
         {(["time", "meter"] as const).map((option) => (
           <button

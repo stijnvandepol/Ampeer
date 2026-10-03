@@ -4,11 +4,21 @@ import { FaqJsonLd, PageJsonLd } from "../_shell/JsonLd";
 import styles from "../_shell/content.module.css";
 
 const PATH = "/thuisbatterij/";
-const TITLE = "Is een thuisbatterij iets voor mij?";
+/*
+ * The title a search result shows, and since 2026-10-01 not the same words as
+ * the H1. Search Console for 14 to 28 September: ten impressions at an average
+ * position of 4.9 and not one click. "Is een thuisbatterij iets voor mij?" is
+ * the question as somebody asks it of themselves; "rendabel" is the word they
+ * type, first in Google's suggestions for "thuisbatterij", and a title without
+ * it reads as a page about something else. The H1 below keeps the question.
+ */
+const TITLE = "Thuisbatterij rendabel? Voor wie wel, en voor wie niet";
+/** The question as the visitor asks it, which stays the page's H1. */
+const HEADING = "Is een thuisbatterij iets voor mij?";
 const DESCRIPTION =
-  "Voor een deel van de huishoudens is een thuisbatterij niets, of nog niet. Waar het van afhangt, wat goedkoper is en eerst komt, en hoe u het voor uw eigen huis doorrekent.";
+  "Een thuisbatterij of thuisaccu loont voor een deel van de huishoudens, en voor een flink deel nog niet. Waar het van afhangt, wat gratis is en eerst komt, en hoe u het zelf doorrekent.";
 /** The last day the words on this page changed; also the JSON-LD's date. */
-const UPDATED = { iso: "2026-09-18", text: "18 september 2026" };
+const UPDATED = { iso: "2026-10-01", text: "1 oktober 2026" };
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -228,12 +238,13 @@ export default function ThuisbatterijPage() {
 
       <header className={styles.hero}>
         <p className={styles.eyebrow}>Het eerlijke antwoord</p>
-        <h1 className={styles.title}>Is een thuisbatterij iets voor mij?</h1>
+        <h1 className={styles.title}>{HEADING}</h1>
         <p className={styles.lead}>
           Voor een flink deel van de huishoudens is het antwoord nee, of nog
-          niet. Het hangt niet af van hoeveel panelen u heeft, maar van wanneer
-          u stroom gebruikt. En er zijn twee dingen die goedkoper zijn en die
-          eerst komen.
+          niet. Dat geldt voor een thuisbatterij en voor een thuisaccu, want dat
+          zijn twee woorden voor hetzelfde apparaat. Het hangt niet af van
+          hoeveel panelen u heeft, maar van wanneer u stroom gebruikt. En er
+          zijn twee dingen die goedkoper zijn en die eerst komen.
         </p>
       </header>
 
@@ -425,7 +436,9 @@ export default function ThuisbatterijPage() {
           koppelen en geen account te maken.
         </p>
         <p className={styles.act}>
-          <Link href="/berekenen/">Bereken wat het bij u doet</Link>
+          <Link href="/berekenen/" className="button-accent">
+            Bereken wat het bij u doet
+          </Link>
         </p>
         <p className={styles.note}>
           Heeft u de gratis route nog niet uitgeprobeerd, begin daar:{" "}
