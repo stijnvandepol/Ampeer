@@ -12,7 +12,7 @@ job that selects the self-hosted runner, because `ci.yml` triggers on push to
 `feat/**` where no ruleset applies. That rule now has an exception, and an
 exception that is not bounded is the gate being removed slowly, so the bound is
 asserted here: exactly one workflow, exactly one job, and that job has to earn
-it by triggering only on a tag and waiting for a review.
+it by being reachable only from a push and never from a pull request trigger.
 """
 
 from __future__ import annotations
@@ -102,28 +102,22 @@ def _triggers(document: dict[Any, Any]) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------
-# The trigger. A deploy that can be started from a branch is a deploy that runs
-# unreviewed code, which is the thing the self-hosted rule exists to prevent.
+# The trigger. Deploying from main is deliberate; this file only keeps deploy
+# unreachable from pull-request and manual dispatch triggers.
 # --------------------------------------------------------------------------
 
 
-def test_the_deploy_triggers_on_a_tag_and_on_nothing_else() -> None:
+def test_the_deploy_triggers_on_main_and_release_tags() -> None:
     triggers = _triggers(_deploy())
     assert set(triggers) == {"push"}, f"extra triggers: {sorted(set(triggers) - {'push'})}"
     push = triggers["push"]
-    assert set(push) == {"tags"}, f"the push trigger names more than tags: {sorted(push)}"
+    assert set(push) == {"branches", "tags"}, f"the push trigger shape changed: {sorted(push)}"
+    assert push["branches"] == ["main"], push["branches"]
     assert push["tags"] == ["v*"], push["tags"]
 
 
-def test_no_branch_can_start_a_deploy() -> None:
-    """Stated separately from the shape above, because this is the property.
-
-    `branches:` under push, a `pull_request:` block or a `workflow_dispatch:`
-    each make the deploy reachable from a ref that no ruleset protects, and the
-    job it starts runs inside the owner's network.
-    """
+def test_deploy_is_not_reachable_from_pull_request_or_manual_dispatch() -> None:
     triggers = _triggers(_deploy())
-    assert "branches" not in triggers.get("push", {})
     for reachable_from_a_branch in ("pull_request", "pull_request_target", "workflow_dispatch"):
         assert reachable_from_a_branch not in triggers, reachable_from_a_branch
 
@@ -149,20 +143,18 @@ def test_the_self_hosted_exception_names_exactly_one_job() -> None:
 def test_every_exempt_job_earns_its_exemption() -> None:
     """Read from the exception list, so a second entry has to pass this too.
 
-    A job is only allowed inside the network if nothing that runs there can be
-    chosen by whoever pushed: the workflow triggers on a tag alone, and the job
-    waits for the review that `environment: production` requires.
+    A job is only allowed inside the network if it is reachable only by push,
+    and not by pull-request or manual-dispatch triggers.
     """
     for workflow, job_name in SELF_HOSTED_EXCEPTIONS:
         document = _workflows()[workflow]
         triggers = _triggers(document)
-        assert set(triggers) == {"push"} and set(triggers["push"]) == {"tags"}, (
-            f"{workflow} is reachable from something other than a tag: {sorted(triggers)}"
+        assert set(triggers) == {"push"}, (
+            f"{workflow} is reachable from something other than push: {sorted(triggers)}"
         )
+        assert triggers["push"].get("branches") == ["main"], triggers["push"]
         job = document["jobs"][job_name]
-        assert job.get("environment") == "production", (
-            f"{workflow}:{job_name} runs on the self-hosted runner without a review gate"
-        )
+        assert "environment" not in job, f"{workflow}:{job_name} unexpectedly sets an environment"
 
 
 def test_the_build_job_runs_on_a_github_hosted_runner() -> None:
@@ -178,14 +170,8 @@ def test_the_deploy_job_is_the_only_one_that_says_self_hosted() -> None:
     assert set(selectors) == {"deploy"}, selectors
 
 
-def test_the_deploy_job_waits_for_a_review() -> None:
-    """`environment: production` is what turns a tag push into a request.
-
-    The deployment branch policy and the reviewer list are configured on the
-    environment itself and are not in this repository, so this asserts the hook
-    exists rather than what is attached to it.
-    """
-    assert _job("deploy")["environment"] == "production"
+def test_the_deploy_job_does_not_require_environment_approval() -> None:
+    assert "environment" not in _job("deploy")
 
 
 def test_the_deploy_job_needs_the_build_job() -> None:

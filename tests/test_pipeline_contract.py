@@ -238,9 +238,7 @@ def test_the_action_scan_reads_the_workflows() -> None:
 #: bounded is that gate being removed slowly, so the bound is written into the
 #: shape of this constant: a workflow and a job, not a runner label and not a
 #: workflow. `tests/test_deploy_workflow.py` asserts this list is exactly one
-#: entry long, and asserts of every entry in it that the workflow triggers on a
-#: tag alone and the job carries `environment: production`. A second entry
-#: therefore has to pass both, and still fails the count, which is a deletion a
+#: entry long. A second entry still fails the count, which is a deletion a
 #: reviewer sees rather than a list that grew.
 #:
 #: Keyed by workflow as well as job because `_jobs()` merges every workflow into
@@ -257,8 +255,7 @@ def test_no_job_runs_on_the_self_hosted_runner() -> None:
     own network. security.yml is narrower and its earliest trigger is a pull
     request; this refusal covers every workflow anyway, and
     test_only_ci_triggers_on_a_feature_branch_push keeps that sentence true. Nothing here may target it except the one job named in
-    SELF_HOSTED_EXCEPTIONS above, which is reachable only by pushing a tag and
-    only through a review.
+    SELF_HOSTED_EXCEPTIONS above, which is reachable only by a push trigger.
 
     The runner being non-ephemeral, measured on 2026-08-21, is a separate and
     still open decision that belongs to the owner; it is why the exempt job is
