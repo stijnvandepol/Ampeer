@@ -111,9 +111,7 @@ def test_the_deploy_triggers_on_main_and_release_tags() -> None:
     triggers = _triggers(_deploy())
     assert set(triggers) == {"push"}, f"extra triggers: {sorted(set(triggers) - {'push'})}"
     push = triggers["push"]
-    assert set(push) == {"branches", "tags"}, (
-        f"the push trigger shape changed: {sorted(push)}"
-    )
+    assert set(push) == {"branches", "tags"}, f"the push trigger shape changed: {sorted(push)}"
     assert push["branches"] == ["main"], push["branches"]
     assert push["tags"] == ["v*"], push["tags"]
 
