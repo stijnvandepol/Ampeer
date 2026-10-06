@@ -11,10 +11,10 @@ name: deploy
 # easier to keep true than one that has to be rechecked per workflow. This workflow is the single named exception to that rule, and it
 # is only defensible because of the four properties below. Each one has a test.
 #
-#   1. It triggers on a tag and on nothing else. No branch, no pull request, no
-#      workflow_dispatch. The runner cannot be reached by pushing code.
-#   2. The `deploy` job declares `environment: production`, so a tag push is a
-#      request that waits for a review rather than a deploy.
+#   1. It triggers on push to main and on release tags. No pull request and no
+#      workflow_dispatch.
+#   2. The `deploy` job does not declare an environment, so no deployment
+#      approval is required after a merge to main.
 #   3. That job checks nothing out and builds nothing. There is no source on
 #      the host, no build chain, and no token that can read the repository.
 #   4. It logs out of the registry when it finishes. web2 is not ephemeral,
@@ -26,6 +26,7 @@ name: deploy
 # list holds exactly one job.
 on:
   push:
+    branches: [main]
     tags: ["v*"]
 
 # Read by default. `build` raises its own to `packages: write` and `deploy`
@@ -170,11 +171,6 @@ jobs:
     needs: build
     runs-on: self-hosted
     timeout-minutes: 15
-    # The review gate. Reviewers and the deployment branch policy are
-    # configured on the environment in repository settings, not here; that
-    # policy is what keeps a tag cut from a feature branch from deploying, and
-    # setting it is the owner's, like the runner itself.
-    environment: production
     # Pull two private packages, and nothing else. Naming one permission sets
     # every unnamed one to none, so this token cannot read the repository.
     permissions:
@@ -279,15 +275,13 @@ jobs:
           docker compose -f "$STACK/docker-compose.yml" --env-file "$STACK/.env"
           pull
 
-      # The approval window, closed after the fact rather than by removing the
-      # tag.
+      # The mutable-tag window, closed after the fact rather than by removing
+      # the tag.
       #
-      # docker-compose.yml pulls `:${AMPEER_VERSION}`, and between the build
-      # job above and the pull just now sits the `production` review, which can
-      # take hours. A tag is a name: anyone holding `packages: write` on this
-      # repository can repoint ampeer-api:v0.1.0 while the review is open, and
-      # the reviewer then approves the run they read while the host pulls what
-      # the tag says at pull time. Nothing in the run would look wrong.
+      # docker-compose.yml pulls `:${AMPEER_VERSION}`, and a tag is a name:
+      # anyone holding `packages: write` on this repository can repoint
+      # ampeer-api:v0.1.0 between build and pull. Nothing in the run would look
+      # wrong if the pull is not checked.
       #
       # A digest in the compose file would close it and cost more than it
       # buys: the tag is what lets this host bring itself back up after a
