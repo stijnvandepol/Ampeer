@@ -47,10 +47,10 @@ export function Progress({ step, of }: Props) {
         aria-valuemin={1}
         aria-valuemax={total}
         aria-valuetext={text}
-        className="h-2 w-full overflow-hidden rounded-full bg-current/15"
+        className="h-1.5 w-full overflow-hidden rounded-full bg-current/15"
       >
         <div
-          className="h-full rounded-full bg-sun"
+          className="h-full rounded-full bg-current/60"
           style={{ width: `${filled}%` }}
         />
       </div>

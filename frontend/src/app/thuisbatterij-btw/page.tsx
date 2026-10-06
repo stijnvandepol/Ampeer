@@ -253,9 +253,7 @@ export default function ThuisbatterijBtwPage() {
           niets te koop.
         </p>
         <p className={styles.act}>
-          <Link href="/berekenen/" className="button-accent">
-            Bereken wat er bij u verandert
-          </Link>
+          <Link href="/berekenen/">Bereken wat er bij u verandert</Link>
         </p>
       </section>
     </div>

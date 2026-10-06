@@ -33,30 +33,18 @@
 :root {
   /* ---- surfaces, light ---- */
   --colour-surface: #ffffff;
-  --colour-surface-raised: #edf3f8;
-  --colour-surface-sunken: #dbe5ee;
+  --colour-surface-raised: #f5f7f9;
+  --colour-surface-sunken: #e8ecf0;
 
   /* ---- text, light ---- */
-  --colour-ink: #13283d;
-  --colour-ink-muted: #3e5267;
-  --colour-ink-subtle: #4b5f74;
+  --colour-ink: #0e1519;
+  --colour-ink-muted: #45535f;
+  --colour-ink-subtle: #56646f;
 
   /* ---- accent, light ---- */
   --colour-accent: #0b6e63;
   --colour-accent-hover: #084f47;
   --colour-on-accent: #ffffff;
-
-  /*
-   * The sun, since 2026-10-01: the fill of the one button that starts the
-   * calculation. The same yellow as --colour-carpet-own, which is the colour
-   * the day figure gives to a quarter of an hour the household ran on its own
-   * panels, so the button and the picture beside it say the same thing. It is
-   * the same in every theme, like the figure, with dark ink on it at 9,9:1.
-   * Never used as text: yellow on white is 1,6:1.
-   */
-  --colour-sun: #f5c64a;
-  --colour-sun-hover: #ecb62f;
-  --colour-on-sun: #13283d;
 
   /*
    * The three confidence tones. These are not decoration: the API sends
@@ -124,6 +112,14 @@
   --colour-carpet-offtake: #8b9ba8;
   --colour-carpet-export: #3f6489;
   --colour-on-carpet: #c9d7dd;
+  /*
+   * Headline text on --colour-carpet-ground, since 2026-09-18 the ground of
+   * the landing page's first screen and not only of the instrument.
+   * --colour-on-carpet is the plate's muted label colour; a headline at
+   * that value reads grey. The same in every theme, for the reason the
+   * ground itself is: the instrument does not follow the theme.
+   */
+  --colour-on-ground: #f4f7f9;
 
   /* ---- state, light ---- */
   --colour-danger: #a11b1b;
@@ -134,7 +130,7 @@
    * --colour-border-strong bounds controls a visitor has to find, so it
    * clears 3:1 against every surface and the contrast test checks it.
    */
-  --colour-border: #d3dde7;
+  --colour-border: #d5dce3;
   --colour-border-strong: #65737f;
   --colour-focus: #0b6e63;
 
@@ -145,12 +141,7 @@
    */
   --text-xs: clamp(0.75rem, 0.72rem + 0.15vw, 0.8125rem);
   --text-sm: clamp(0.875rem, 0.85rem + 0.12vw, 0.9375rem);
-  /*
-   * 17 to 19 pixels since 2026-10-01, up from 16 to 18. The people this site is
-   * for are mostly past forty-five, reading on a phone, and the body face was
-   * chosen for them too; see layout.tsx.
-   */
-  --text-base: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
+  --text-base: clamp(1rem, 0.96rem + 0.2vw, 1.125rem);
   --text-lg: clamp(1.125rem, 1.06rem + 0.32vw, 1.375rem);
   --text-xl: clamp(1.375rem, 1.25rem + 0.6vw, 1.75rem);
   --text-2xl: clamp(1.75rem, 1.5rem + 1.2vw, 2.5rem);
@@ -276,8 +267,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --colour-surface: #0d1924;
-    --colour-surface-raised: #142333;
+    --colour-surface: #0c1013;
+    --colour-surface-raised: #151b20;
     /*
       Lighter than the surface, not darker. "Sunken" on a white page is a
       grey a shade below white, and the first dark palette translated that
@@ -289,16 +280,13 @@
       this value is chosen for the same 1.2 to 1.4 contrast the light well
       has against white.
     */
-    --colour-surface-sunken: #213448;
-    --colour-ink: #eef3f8;
-    --colour-ink-muted: #adbccb;
-    --colour-ink-subtle: #97a9bb;
+    --colour-surface-sunken: #262f37;
+    --colour-ink: #eef3f6;
+    --colour-ink-muted: #a9b7c2;
+    --colour-ink-subtle: #93a3af;
     --colour-accent: #4fd8c4;
     --colour-accent-hover: #7fe8d8;
     --colour-on-accent: #06231f;
-    --colour-sun: #f5c64a;
-    --colour-sun-hover: #ecb62f;
-    --colour-on-sun: #13283d;
     --colour-confidence-indicative: #c4aeff;
     --colour-confidence-good: #4fd8c4;
     --colour-confidence-precise: #86b6ff;
@@ -310,10 +298,11 @@
     --colour-carpet-offtake: #8b9ba8;
     --colour-carpet-export: #3f6489;
     --colour-on-carpet: #c9d7dd;
+    --colour-on-ground: #f4f7f9;
     --colour-danger: #ff8d8d;
     --colour-on-danger: #2a0606;
-    --colour-border: #22354a;
-    --colour-border-strong: #7d90a3;
+    --colour-border: #252e35;
+    --colour-border-strong: #7c8a96;
     --colour-focus: #4fd8c4;
     color-scheme: dark;
   }
@@ -327,17 +316,14 @@
  */
 :root[data-theme="light"] {
   --colour-surface: #ffffff;
-  --colour-surface-raised: #edf3f8;
-  --colour-surface-sunken: #dbe5ee;
-  --colour-ink: #13283d;
-  --colour-ink-muted: #3e5267;
-  --colour-ink-subtle: #4b5f74;
+  --colour-surface-raised: #f5f7f9;
+  --colour-surface-sunken: #e8ecf0;
+  --colour-ink: #0e1519;
+  --colour-ink-muted: #45535f;
+  --colour-ink-subtle: #56646f;
   --colour-accent: #0b6e63;
   --colour-accent-hover: #084f47;
   --colour-on-accent: #ffffff;
-  --colour-sun: #f5c64a;
-  --colour-sun-hover: #ecb62f;
-  --colour-on-sun: #13283d;
   --colour-confidence-indicative: #6d3fd4;
   --colour-confidence-good: #0b6e63;
   --colour-confidence-precise: #1f4fa8;
@@ -348,28 +334,26 @@
   --colour-carpet-offtake: #8b9ba8;
   --colour-carpet-export: #3f6489;
   --colour-on-carpet: #c9d7dd;
+  --colour-on-ground: #f4f7f9;
   --colour-danger: #a11b1b;
   --colour-on-danger: #ffffff;
-  --colour-border: #d3dde7;
+  --colour-border: #d5dce3;
   --colour-border-strong: #65737f;
   --colour-focus: #0b6e63;
   color-scheme: light;
 }
 
 :root[data-theme="dark"] {
-  --colour-surface: #0d1924;
-  --colour-surface-raised: #142333;
+  --colour-surface: #0c1013;
+  --colour-surface-raised: #151b20;
   /* See the note in the prefers-color-scheme block: lighter, not darker. */
-  --colour-surface-sunken: #213448;
-  --colour-ink: #eef3f8;
-  --colour-ink-muted: #adbccb;
-  --colour-ink-subtle: #97a9bb;
+  --colour-surface-sunken: #262f37;
+  --colour-ink: #eef3f6;
+  --colour-ink-muted: #a9b7c2;
+  --colour-ink-subtle: #93a3af;
   --colour-accent: #4fd8c4;
   --colour-accent-hover: #7fe8d8;
   --colour-on-accent: #06231f;
-  --colour-sun: #f5c64a;
-  --colour-sun-hover: #ecb62f;
-  --colour-on-sun: #13283d;
   --colour-confidence-indicative: #c4aeff;
   --colour-confidence-good: #4fd8c4;
   --colour-confidence-precise: #86b6ff;
@@ -384,10 +368,11 @@
   --colour-carpet-offtake: #8b9ba8;
   --colour-carpet-export: #3f6489;
   --colour-on-carpet: #c9d7dd;
+  --colour-on-ground: #f4f7f9;
   --colour-danger: #ff8d8d;
   --colour-on-danger: #2a0606;
-  --colour-border: #22354a;
-  --colour-border-strong: #7d90a3;
+  --colour-border: #252e35;
+  --colour-border-strong: #7c8a96;
   --colour-focus: #4fd8c4;
   color-scheme: dark;
 }
@@ -397,8 +382,8 @@
  * generated rule instead of resolving it at build time, which is what lets one
  * utility class follow the theme at runtime.
  *
- * --font-body and --font-display are set by src/app/layout.tsx. They are read
- * here and never written here.
+ * --font-geist-sans and --font-geist-mono are set by src/app/layout.tsx, which
+ * belongs to another lane. They are read here and never written here.
  */
 @theme inline {
   --color-surface: var(--colour-surface);
@@ -407,10 +392,10 @@
   --color-ink: var(--colour-ink);
   --color-ink-muted: var(--colour-ink-muted);
   --color-ink-subtle: var(--colour-ink-subtle);
+  --color-on-ground: var(--colour-on-ground);
   --color-accent: var(--colour-accent);
   --color-accent-hover: var(--colour-accent-hover);
   --color-on-accent: var(--colour-on-accent);
-  --color-sun: var(--colour-sun);
   --color-on-tone: var(--colour-on-tone);
   --color-band-track: var(--colour-band-track);
   --color-danger: var(--colour-danger);
@@ -418,8 +403,8 @@
   --color-hairline: var(--colour-border);
   --color-border-strong: var(--colour-border-strong);
   --color-focus: var(--colour-focus);
-  --font-sans: var(--font-body);
-  --font-serif: var(--font-display);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
 @layer base {
@@ -430,7 +415,7 @@
   body {
     background-color: var(--colour-surface);
     color: var(--colour-ink);
-    font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
     font-size: var(--text-base);
     line-height: var(--leading-normal);
     -webkit-font-smoothing: antialiased;
@@ -548,51 +533,17 @@
     color: var(--colour-on-accent);
   }
 
-  /*
-   * Headings in the display face, which is the one place the site's voice is
-   * set in type. Fraunces at its softest: round terminals and no sharp
-   * contrast, so a heading reads as somebody talking rather than as a label.
-   * The serif carries no negative tracking of its own; the display size gets
-   * the tighter one where it is set.
-   */
   h1,
   h2,
   h3 {
-    font-family: var(--font-display), Georgia, serif;
-    font-weight: 600;
-    font-variation-settings: "SOFT" 100;
     line-height: var(--leading-tight);
-    letter-spacing: -0.01em;
+    letter-spacing: var(--tracking-tight);
     text-wrap: balance;
   }
 
   p {
     max-width: var(--measure);
     text-wrap: pretty;
-  }
-
-  /*
-   * A link inside running text looks like a link. Until 2026-10-01 it did
-   * not: Tailwind's preflight sets every anchor to the colour of the text
-   * around it with no underline, and only the footer added one back, so "het
-   * einde van de saldering" in the middle of a paragraph could not be told
-   * from the words beside it. That fails WCAG 2.2 SC 1.4.1 and, worse, it
-   * hides the next page from exactly the reader who needs a way on.
-   *
-   * Only anchors without a class of their own, inside the elements running
-   * text lives in. A button or a navigation link carries a class and keeps
-   * its own look.
-   */
-  :where(p, li, dd) a:not([class]) {
-    color: var(--colour-accent);
-    text-decoration-line: underline;
-    text-decoration-thickness: 1px;
-    text-underline-offset: 0.2em;
-  }
-
-  :where(p, li, dd) a:not([class]):hover {
-    color: var(--colour-accent-hover);
-    text-decoration-thickness: 2px;
   }
 }
 
@@ -616,25 +567,17 @@
 
   /*
    * The one call to action that is a button rather than a sentence. It exists
-   * as a class rather than as utilities so that --colour-sun-hover has a rule
-   * that renders it; a token that appears only in the @theme block is a token
-   * Tailwind can name and no page ever draws. A pill since 2026-10-01: the
-   * rounder shape is the friendlier one, and it is the only pill-shaped
-   * button on the site, so it is also the one that is found first.
+   * as a class rather than as utilities so that --colour-accent-hover has a
+   * rule that renders it; a token that appears only in the @theme block is a
+   * token Tailwind can name and no page ever draws.
    */
   .button-accent {
     display: inline-flex;
-    border-radius: var(--radius-pill);
-    padding: var(--space-3) var(--space-6);
-    background-color: var(--colour-sun);
-    color: var(--colour-on-sun);
-    font-weight: var(--weight-bold);
-    /*
-     * A darker lower edge, so a yellow button on white still reads as a thing
-     * to press: the fill alone is 1,6:1 against the page. The label is what
-     * identifies the control and clears 9,9:1; this only gives it a floor.
-     */
-    box-shadow: inset 0 -3px 0 rgb(19 40 61 / 22%);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-5);
+    background-color: var(--colour-accent);
+    color: var(--colour-on-accent);
+    font-weight: var(--weight-medium);
   }
 
   /*
@@ -651,7 +594,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: var(--radius-pill);
+    border-radius: var(--radius-md);
     padding: var(--space-3) var(--space-5);
     border: 1px solid var(--colour-border-strong);
     background-color: transparent;
@@ -684,7 +627,7 @@
   }
 
   .button-accent:hover {
-    background-color: var(--colour-sun-hover);
+    background-color: var(--colour-accent-hover);
   }
 
   /*
@@ -784,6 +727,17 @@ html {
      * every scroll-driven animation on this site is the finished state.
      */
     animation-timeline: none !important;
+  }
+
+  /*
+   * The pointer-driven effects, switched off rather than shortened. A
+   * spotlight that follows the cursor, a button that leans towards it and a
+   * ring that trails it are all continuous motion with no end state, so there
+   * is no duration to take to zero: the components read this variable and do
+   * not attach their listeners at all.
+   */
+  :root {
+    --pointer-motion: 0;
   }
 
   :root {

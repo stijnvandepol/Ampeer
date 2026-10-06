@@ -1,0 +1,64 @@
+/*
+ * The character reveal.
+ *
+ * TUNING, all of it here:
+ *   --reveal-duration  how long one character takes to sharpen
+ *   --reveal-step      the gap between one character and the next
+ *   --reveal-blur      how soft a character starts
+ *   --reveal-rise      how far it travels, in its own em
+ *
+ * Total run = --reveal-step * (number of characters) + --reveal-duration.
+ */
+
+.word {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.character {
+  --reveal-duration: 420ms;
+  --reveal-step: 14ms;
+  --reveal-blur: 8px;
+  --reveal-rise: 0.18em;
+
+  display: inline-block;
+  /*
+   * `both` so the character holds its start state until its turn and its end
+   * state afterwards. Without it every character is sharp for one frame before
+   * the animation begins, which reads as a flicker across the whole line.
+   */
+  animation: sharpen var(--reveal-duration) var(--ease-standard) both;
+  animation-delay: calc(var(--at) * var(--reveal-step));
+}
+
+/*
+ * No will-change. See the note in HeroHeading.tsx: the property exists for an
+ * element that is about to animate, these animate on the frame they mount, and
+ * the hint would outlive the animation by the length of the session.
+ */
+
+/*
+ * The one place a filter is animated on this site, and it is on the largest
+ * text on the page for a fifth of a second.
+ *
+ * Not opacity. A fade composites text against the surface and fails contrast
+ * for as long as it runs, which is measurable: the product page's section
+ * reveal did exactly that and axe found nineteen violations. A blur keeps the
+ * colour it was given.
+ */
+@keyframes sharpen {
+  from {
+    filter: blur(var(--reveal-blur));
+    transform: translateY(var(--reveal-rise));
+  }
+  to {
+    filter: blur(0);
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .character {
+    animation: none;
+  }
+}

@@ -91,9 +91,7 @@ export default function NotFound() {
           Of begin opnieuw
         </h2>
         <p className={styles.act}>
-          <Link href="/" className="button-accent">
-            Naar de startpagina
-          </Link>
+          <Link href="/">Naar de startpagina</Link>
         </p>
       </section>
     </div>

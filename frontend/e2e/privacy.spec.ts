@@ -42,7 +42,6 @@ const ADVICE_PATH = `/advies/${TOKEN}/`;
 const PAGES = [
   "/",
   "/einde-saldering/",
-  "/zonnepanelen-2027/",
   "/thuisbatterij/",
   "/thuisbatterij-btw/",
   "/zelf-verbruiken/",
@@ -156,8 +155,8 @@ test.describe("the question about measuring", () => {
   });
 });
 
-test("checks exactly the thirteen pages this list names, not more and not fewer", () => {
-  expect(PAGES).toHaveLength(13);
+test("checks exactly the twelve pages this list names, not more and not fewer", () => {
+  expect(PAGES).toHaveLength(12);
 });
 
 test("the fonts are served from this origin rather than fetched from one", async ({

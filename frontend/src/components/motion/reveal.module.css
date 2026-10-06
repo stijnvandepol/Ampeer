@@ -1,0 +1,46 @@
+/*
+ * The section reveal, as a clip rather than as a fade.
+ *
+ * TUNING: `animation-range` on `.reveal` decides where in the scroll it plays.
+ * `--reveal-lift` is the small rise that goes with the wipe.
+ *
+ * WHY clip-path AND NOT opacity. A fade composites text against the surface for
+ * as long as it runs, and that is measurable rather than theoretical: the
+ * product page's first reveal did exactly that and axe found nineteen contrast
+ * violations, reporting colours that are in no stylesheet in this repository
+ * because they were blends. A clip shows the text at full colour or not at all.
+ *
+ * It is also the cheaper of the two on a mid-range laptop: `clip-path` on a
+ * composited layer is a mask, and there is no per-frame blend of a whole
+ * section against what is behind it.
+ */
+
+.reveal {
+  --reveal-lift: 1.25rem;
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      animation: wipe linear both;
+      animation-timeline: view();
+      animation-range: entry 5% entry 40%;
+    }
+  }
+}
+
+/*
+ * `inset(0 0 0 0)` at the end and not `none`, on purpose: an animation that
+ * ends at `clip-path: none` cannot be interpolated towards, so the last frame
+ * snaps. Zero on every side is the same rectangle, arrived at smoothly.
+ */
+@keyframes wipe {
+  from {
+    clip-path: inset(0 0 100% 0 round var(--radius-md));
+    transform: translateY(var(--reveal-lift));
+  }
+  to {
+    clip-path: inset(0 0 0 0 round var(--radius-md));
+    transform: none;
+  }
+}

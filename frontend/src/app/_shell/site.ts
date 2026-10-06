@@ -50,7 +50,6 @@ export const SITEMAP_ROUTES: readonly {
 }[] = [
   { path: "/", changeFrequency: "monthly", priority: 1 },
   { path: "/einde-saldering/", changeFrequency: "monthly", priority: 0.9 },
-  { path: "/zonnepanelen-2027/", changeFrequency: "monthly", priority: 0.9 },
   { path: "/thuisbatterij/", changeFrequency: "monthly", priority: 0.9 },
   { path: "/thuisbatterij-btw/", changeFrequency: "monthly", priority: 0.8 },
   { path: "/zelf-verbruiken/", changeFrequency: "monthly", priority: 0.9 },

@@ -150,12 +150,11 @@ test("every route passes axe in the dark palette too", async ({ page }) => {
   await serveFixture(page);
   await page.emulateMedia({ colorScheme: "dark" });
   // Without this line "the loop walked every path" is an assumption: nothing
-  // checks how many paths sit in ALL_PATHS. Thirteen since 2026-10-01; nine
-  // on 2026-09-11, when this sweep and the light one in rules.spec.ts were
-  // given the same list. Six stood here before that, and the three the dark
-  // palette had never been looked at on were /einde-saldering/, /over-ons/
-  // and /privacy/.
-  expect(ALL_PATHS).toHaveLength(13);
+  // checks how many paths sit in ALL_PATHS. Nine since 2026-09-11, when this
+  // sweep and the light one in rules.spec.ts were given the same list. Six
+  // stood here before that, and the three the dark palette had never been
+  // looked at on were /einde-saldering/, /over-ons/ and /privacy/.
+  expect(ALL_PATHS).toHaveLength(12);
   for (const path of ALL_PATHS) {
     await page.goto(path);
     await page.evaluate(() =>

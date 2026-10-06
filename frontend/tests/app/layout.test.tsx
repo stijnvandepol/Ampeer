@@ -5,10 +5,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 // module that runs on its own. Only the two CSS variable names it produces
 // matter here, so it is replaced by something that produces them.
 vi.mock("next/font/google", () => ({
-  Atkinson_Hyperlegible_Next: ({ variable }: { variable: string }) => ({
+  Geist: ({ variable }: { variable: string }) => ({
     variable: variable.replace("--", "font-"),
   }),
-  Fraunces: ({ variable }: { variable: string }) => ({
+  Geist_Mono: ({ variable }: { variable: string }) => ({
     variable: variable.replace("--", "font-"),
   }),
 }));

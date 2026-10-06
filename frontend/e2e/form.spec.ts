@@ -269,7 +269,7 @@ test.describe("the calculator page with no JavaScript", () => {
 
     const headings = await page.locator("h1").allTextContents();
     expect(headings, "the built page has no first-level heading").toEqual([
-      "Bereken wat er bij u verandert",
+      "Uw situatie doorrekenen",
     ]);
 
     // The explainer ships folded shut since 2026-09-15, and a closed

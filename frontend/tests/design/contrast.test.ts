@@ -98,9 +98,6 @@ const TEXT_PAIRS: readonly (readonly [string, string])[] = [
   ["accent-hover", "surface-sunken"],
   ["on-accent", "accent"],
   ["on-accent", "accent-hover"],
-  // The sun button: dark ink on yellow, the same in every theme.
-  ["on-sun", "sun"],
-  ["on-sun", "sun-hover"],
   ["confidence-indicative", "surface"],
   ["confidence-indicative", "surface-raised"],
   ["confidence-indicative", "surface-sunken"],
@@ -117,6 +114,7 @@ const TEXT_PAIRS: readonly (readonly [string, string])[] = [
   // The plate's own labels: hour and month axes, legend and readout, all drawn
   // on the instrument rather than on the page.
   ["on-carpet", "carpet-ground"],
+  ["on-ground", "carpet-ground"],
   ["danger", "surface"],
   ["danger", "surface-raised"],
   ["danger", "surface-sunken"],

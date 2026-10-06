@@ -59,13 +59,9 @@ describe("the landing page", () => {
     // in the questions below. Two links with two honest texts to one page
     // is what a search engine reads as "this page matters here"; a third
     // would start to read as a funnel.
-    //
-    // /zonnepanelen-2027/ once since 2026-10-01, from the section that says
-    // who the site is for: it answers the question that audience types first.
     for (const [route, times] of [
       ["thuisbatterij", 2],
       ["zelf-verbruiken", 1],
-      ["zonnepanelen-2027", 1],
     ] as const) {
       expect(
         hrefs.filter((href) => new RegExp(`^/${route}/?$`).test(href ?? "")),
@@ -110,20 +106,9 @@ describe("the site shell", () => {
     expect(
       screen.getByRole("link", { name: "Berekenen" }).getAttribute("href"),
     ).toMatch(/^\/berekenen\/?$/);
-    // The questions a visitor arrives with, since 2026-10-01. The methodology
-    // left the header that day for the footer, where "Hoe Ampeer rekent"
-    // already pointed at it.
-    for (const [name, route] of [
-      ["Einde saldering", "einde-saldering"],
-      ["Wat moet ik doen?", "zonnepanelen-2027"],
-      ["Thuisbatterij", "thuisbatterij"],
-    ] as const) {
-      expect(screen.getByRole("link", { name }).getAttribute("href")).toMatch(
-        new RegExp(`^/${route}/?$`),
-      );
-    }
-    expect(screen.queryByRole("link", { name: "Methodologie" })).toBeNull();
-    expect(screen.queryByLabelText("Thema")).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Methodologie" }).getAttribute("href"),
+    ).toMatch(/^\/methodologie\/?$/);
   });
 
   it("says what Ampeer does not sell", () => {
@@ -132,7 +117,7 @@ describe("the site shell", () => {
   });
 
   it("starts on the system palette and writes the choice where the next page finds it", async () => {
-    render(<SiteFooter />);
+    render(<SiteHeader />);
     const select = screen.getByLabelText("Thema");
     expect(select).toHaveValue("system");
 

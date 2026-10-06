@@ -56,13 +56,8 @@ const PATH = "/berekenen/";
  * presumes the answer, which is the rule the landing page's own title comment
  * states. It also has to hold for both rounds, and round two is a refinement
  * rather than a first calculation.
- *
- * "Bereken wat er bij u verandert" since 2026-10-01: the words of the button
- * on every page that leads here, so the action keeps one name from the button
- * to the page it opens. It still states no cost, and it holds for round two,
- * which is a sharper answer to the same question.
  */
-const PAGE_TITLE = "Bereken wat er bij u verandert";
+const PAGE_TITLE = "Uw situatie doorrekenen";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -260,15 +255,15 @@ export default function BerekenenLayout({
         1440 wide screen, because two centred columns of different widths never
         share an edge.
       */}
-      <div className="mx-auto w-full max-w-[var(--shell-max)] px-6 py-8 sm:py-16">
+      <div className="mx-auto w-full max-w-[var(--shell-max)] px-6 py-16">
         <div className="flex w-full max-w-2xl flex-col gap-10">
           <div className="flex flex-col gap-3">
-            <h1 className="text-2xl sm:text-3xl">{PAGE_TITLE}</h1>
+            <h1 className="text-3xl">{PAGE_TITLE}</h1>
             <p className="text-ink-muted">
-              Vier korte vragen over uw huis. Het enige getal dat u misschien
-              moet opzoeken is uw jaarverbruik, en dat staat op de
-              jaarafrekening van uw energieleverancier. Daarna ziet u wat het
-              einde van de saldering u ongeveer kost, met de marge erbij.
+              Vier vragen over uw dak en uw verbruik, en u ziet wat het einde
+              van de salderingsregeling u per jaar gaat kosten. Met de
+              bandbreedte erbij, want een enkel getal zou meer zekerheid
+              suggereren dan er is.
             </p>
           </div>
           {/*
