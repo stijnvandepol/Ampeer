@@ -5,7 +5,7 @@
 # `docker buildx imagetools inspect`. A tag is a name somebody else can
 # repoint, and this file decides what runs in production. Re-resolve when
 # bumping and write down what you got.
-FROM python:3.12-slim-bookworm@sha256:a116514e19457bcb7af7efe9c3dd0b9b71e85b317694e7882a1c52aa15a78134 AS build
+FROM python:3.15-slim-bookworm@sha256:575f8bc12ec26542e0678bc6b60e385218248019d433157ec327264a78c3a853 AS build
 
 # uv itself is pinned by digest too, for the same reason, and the tag it
 # resolved from is the version .github/workflows/ci.yml pins in setup-uv.
@@ -33,7 +33,7 @@ COPY pyproject.toml uv.lock ./
 # only when the lockfile changes.
 RUN uv sync --locked --no-dev --group backend --no-install-project
 
-FROM python:3.12-slim-bookworm@sha256:a116514e19457bcb7af7efe9c3dd0b9b71e85b317694e7882a1c52aa15a78134
+FROM python:3.15-slim-bookworm@sha256:575f8bc12ec26542e0678bc6b60e385218248019d433157ec327264a78c3a853
 
 WORKDIR /app
 # Not root. A container that runs as uid 0 is one container escape away from
