@@ -54,7 +54,7 @@ dev = [
 # setuptools is newest that minute, under the very flag whose job is to
 # forbid unlocked resolution. It is also invisible to pip-audit, which is fed
 # the export rather than the build environment.
-requires = ["setuptools==84.0.0"]
+requires = ["setuptools==84.2.1"]
 build-backend = "setuptools.build_meta"
 
 [tool.uv]
@@ -63,7 +63,7 @@ build-backend = "setuptools.build_meta"
 required-version = ">=0.12.5"
 # Same reason as the build-system pin above: this is the only way to make
 # the build environment reproducible, because uv.lock does not cover it.
-build-constraint-dependencies = ["setuptools==84.0.0"]
+build-constraint-dependencies = ["setuptools==84.2.1"]
 
 [tool.setuptools.packages.find]
 include = ["ampeer_sim*", "ampeer_advice*", "tools*"]
